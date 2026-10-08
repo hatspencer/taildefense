@@ -21,6 +21,9 @@ type PlayerView struct {
 	Revived                                    float32 // while down: how far a revive on them is
 	Emote                                      uint8
 	EmoteLeft, TauntCool                       float32 // seconds
+	Stamina                                    float32 // 0..1
+	Look                                       uint32  // see game.dealLook
+	Sprinting, Winded                          bool
 	Cur                                        game.WeaponKind
 	Ammo                                       uint16
 	ReloadFrac                                 float32 // 1 just started, 0 done
@@ -93,6 +96,7 @@ type Replica struct {
 	Best       int
 	Weather    game.WeatherKind
 	WeatherAmt float32
+	PausedBy   int // the player who paused the game, or -1
 	Players    []PlayerView
 	Searched   []bool  // per loot site, from the welcome's list
 	Guards     []uint8 // per loot site, its living guards
@@ -339,6 +343,7 @@ func (r *Replica) header(d *dec) {
 	r.Best = int(d.u16())
 	r.Weather = game.WeatherKind(d.u8())
 	r.WeatherAmt = float32(d.u8()) / 255
+	r.PausedBy = int(d.u8()) - 1
 	ns := int(d.uv())
 	if ns > 4096 {
 		d.err = fmt.Errorf("%d loot sites", ns)
@@ -378,6 +383,10 @@ func (r *Replica) header(d *dec) {
 		p.Emote = d.u8()
 		p.EmoteLeft = float32(d.u8()) / 10
 		p.TauntCool = float32(d.u16()) / 10
+		p.Stamina = float32(d.u8()) / 255
+		sp := d.u8()
+		p.Sprinting, p.Winded = sp&1 != 0, sp&2 != 0
+		p.Look = d.u32()
 		p.Cur = game.WeaponKind(d.u8())
 		p.Ammo = d.u16()
 		p.ReloadFrac = float32(d.u8()) / 255

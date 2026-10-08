@@ -12,9 +12,10 @@ import (
 type SiteKind uint8
 
 const (
-	SiteHouse SiteKind = iota // a ruined house; searched from inside
-	SiteCar                   // a car wreck on a track
-	SiteCrate                 // a supply crate in the open
+	SiteHouse   SiteKind = iota // a ruined house; searched from inside
+	SiteCar                     // a car wreck on a track
+	SiteCrate                   // a supply crate in the open
+	SiteOutpost                 // an overrun outpost: a big walled compound, searched in its keep
 	NumSiteKinds
 )
 
@@ -28,10 +29,19 @@ type SiteDef struct {
 
 // SiteDefs is indexed by SiteKind.
 var SiteDefs = [NumSiteKinds]SiteDef{
-	SiteHouse: {Name: "Ruined house", Search: 3, Luck: .5, Trap: .1},
-	SiteCar:   {Name: "Car wreck", Search: 2},
-	SiteCrate: {Name: "Supply crate", Search: 1.5, Luck: .25},
+	SiteHouse:   {Name: "Ruined house", Search: 3, Luck: .5, Trap: .1},
+	SiteCar:     {Name: "Car wreck", Search: 2},
+	SiteCrate:   {Name: "Supply crate", Search: 1.5, Luck: .25},
+	SiteOutpost: {Name: "Overrun outpost", Search: 6, Luck: 2},
 }
+
+// Walled reports whether a site is a building searched from inside, rather than a thing in
+// the open.
+func (k SiteKind) Walled() bool { return k == SiteHouse || k == SiteOutpost }
+
+// outpostFinds is how many finds searching an outpost turns up; the first is rare or better,
+// the rest good or better.
+const outpostFinds = 3
 
 func (d SiteDef) lower() string { return strings.ToLower(d.Name) }
 
@@ -43,9 +53,10 @@ type Site struct {
 	W, H     uint8
 	SX, SY   float32 // where a survivor stands to search
 	Tier     uint8   // 0 near the base .. 2 far out
-	Guard    uint8   // 0 unguarded .. 3 a lair: how many and how tough its guards are
-	Guards   uint8   // guards still alive; it cannot be searched until there are none
+	Guard    uint8   // 0 unguarded .. 3 a lair, 4 an outpost's garrison: how many and how tough its guards are
+	Guards   uint8   // guards still alive
 	Searched bool
+	Sprung   uint8 // ambushes already sprung here; the hardest places hide more than their guards
 }
 
 // lootReach is how close to a site's spot a survivor must be to search it.
@@ -110,22 +121,8 @@ func (w *World) OrderLoot(p *Player, si int) error {
 	if s.Searched {
 		return fmt.Errorf("the %s has been searched already", SiteDefs[s.Kind].lower())
 	}
-	if err := guarded(s); err != nil {
-		return err
-	}
 	w.order(p, Order{Kind: OrderLoot, Site: si, X: s.SX, Y: s.SY})
 	return nil
-}
-
-// guarded refuses a search while a site's guards live.
-func guarded(s *Site) error {
-	switch s.Guards {
-	case 0:
-		return nil
-	case 1:
-		return fmt.Errorf("a guard is still watching the %s: deal with it first", SiteDefs[s.Kind].lower())
-	}
-	return fmt.Errorf("%d guards are still watching the %s: clear them first", s.Guards, SiteDefs[s.Kind].lower())
 }
 
 // search finishes p's search of a site: maybe a nest wakes, then the find is rolled and
@@ -135,11 +132,15 @@ func (w *World) search(p *Player, si int) {
 	s.Searched = true
 	d := SiteDefs[s.Kind]
 	if w.rng.Float32() < d.Trap {
-		w.ambush(s, p)
+		w.ambush(si, p)
 		w.Blasts = append(w.Blasts, Blast{s.SX, s.SY, 2.5, 6})
 		w.note(2, "%s woke a nest in a %s", p.Name, d.lower())
 	}
-	r := RollRarity(w.rng.Float64(), w.Luck(p, s))
+	if s.Kind == SiteOutpost {
+		w.searchOutpost(p, s)
+		return
+	}
+	r := w.ceil(s, RollRarity(w.rng.Float64(), w.Luck(p, s)))
 	what := w.grant(p, r)
 	switch {
 	case r == Junk:
@@ -163,8 +164,47 @@ func (w *World) search(p *Player, si int) {
 	w.note(level, "%s found %s in a %s%s", p.Name, what, d.lower(), tag)
 }
 
+// lootCeil is the best a site can give by its guard level: the quiet houses near the base
+// hold gold and small upgrades, the strong guns wait behind the lairs and the outposts.
+var lootCeil = [5]Rarity{Common, Good, Rare, Jackpot, Jackpot}
+
+// ceilChance is how often a site gives one step better than its ceiling anyway.
+const ceilChance = .06
+
+// ceil holds r to what site s can give, now and then letting it through one step higher.
+func (w *World) ceil(s *Site, r Rarity) Rarity {
+	c := lootCeil[min(int(s.Guard), len(lootCeil)-1)]
+	if r > c && w.rng.Float32() < ceilChance {
+		c++
+	}
+	return min(r, c)
+}
+
+// searchOutpost hands over an outpost's stash: several finds, all good, the first rare at least.
+func (w *World) searchOutpost(p *Player, s *Site) {
+	var got []string
+	best := Junk
+	for i := 0; i < outpostFinds; i++ {
+		floor := Good
+		if i == 0 {
+			floor = Rare
+		}
+		r := max(RollRarity(w.rng.Float64(), w.Luck(p, s)), floor)
+		best = max(best, r)
+		got = append(got, w.grant(p, r))
+	}
+	p.Dry = 0
+	w.Blasts = append(w.Blasts, Blast{s.SX, s.SY, 1.5, 5})
+	tag := ""
+	if rarityNames[best] != "" {
+		tag = "  ·  " + rarityNames[best]
+	}
+	w.note(1, "%s raided an overrun outpost: %s%s", p.Name, strings.Join(got, ", "), tag)
+}
+
 // ambush wakes a nest inside a house: walkers, and runners later on, around the searcher.
-func (w *World) ambush(s *Site, p *Player) {
+func (w *World) ambush(si int, p *Player) {
+	s := &w.Sites[si]
 	n := 3 + w.rng.IntN(3) + w.Wave/3
 	for i := 0; i < n; i++ {
 		k := CWalker
@@ -176,8 +216,11 @@ func (w *World) ambush(s *Site, p *Player) {
 			y := float32(s.Y) + 1 + w.rng.Float32()*float32(max(int(s.H)-2, 1))
 			if !w.At(int(x), int(y)).Solid() {
 				if w.SpawnCreep(k, x, y) {
+					// The nest belongs to the house like guards do, so it never holds a
+					// wave open: it hunts the searcher, then settles back in.
 					c := &w.Creeps[len(w.Creeps)-1]
 					c.Hunt, c.HuntLeft = int8(p.ID), 8
+					c.Home, c.HX, c.HY = int16(si+1), x, y
 				}
 				break
 			}
@@ -190,7 +233,7 @@ func (w *World) restock() int {
 	n := 0
 	for i := range w.Sites {
 		if w.Sites[i].Searched && w.rng.IntN(3) == 0 {
-			w.Sites[i].Searched = false
+			w.Sites[i].Searched, w.Sites[i].Sprung = false, 0
 			if w.Sites[i].Guards == 0 {
 				w.spawnGuards(i)
 			}
@@ -373,7 +416,7 @@ const (
 // placeSites turns the ruined houses into loot sites and scatters car wrecks and crates,
 // keeping only those a survivor can reach. It draws on its own generator, so the terrain
 // of a seed is the same with or without them.
-func (w *World) placeSites(houses [][4]int) []Site {
+func (w *World) placeSites(ruins []ruin) []Site {
 	rng := rand.New(rand.NewPCG(w.Seed, 0x100f))
 	var sites []Site
 	reach := func(x, y float32) bool {
@@ -407,11 +450,21 @@ func (w *World) placeSites(houses [][4]int) []Site {
 			r -= wt[g]
 			g++
 		}
+		if k == SiteOutpost {
+			g = 4
+		}
 		sites = append(sites, Site{Kind: k, X: int16(x), Y: int16(y), W: uint8(sw), H: uint8(sh), SX: sx, SY: sy, Tier: tier, Guard: g})
 	}
-	for _, h := range houses {
-		x, y, hw, hh := h[0], h[1], h[2], h[3]
+	for _, h := range ruins {
+		x, y, hw, hh := h.x, h.y, h.w, h.h
 		sx, sy := float32(x)+float32(hw)/2, float32(y)+float32(hh)/2
+		if h.outpost {
+			sx, sy = float32(h.cx)+.5, float32(h.cy)+.5
+			if !inside(int(sx), int(sy), 0) && reach(sx, sy) {
+				add(SiteOutpost, x, y, hw, hh, sx, sy)
+			}
+			continue
+		}
 		// A later house or a road can cut through an earlier one; keep it only while its
 		// middle is still floor a survivor can get to.
 		if inside(int(sx), int(sy), 0) || !reach(sx, sy) {
@@ -441,4 +494,76 @@ func (w *World) placeSites(houses [][4]int) []Site {
 		add(k, x, y, 1, 1, sx, sy)
 	}
 	return sites
+}
+
+// Ambushes: the hardest places hide more than the guards you can see. An outpost springs one
+// when someone first gets into its yard and another when they start on its keep; a lair may
+// spring one when its search starts. The ambushers come out of hiding round the survivor and
+// go straight for them, and belong to the site afterwards, like its guards.
+
+// ambushOnEntry springs an outpost's first ambush on a survivor inside its walls.
+func (w *World) ambushOnEntry(p *Player) {
+	for si := range w.Sites {
+		s := &w.Sites[si]
+		if s.Kind != SiteOutpost || s.Sprung > 0 || s.Searched {
+			continue
+		}
+		if p.X > float32(s.X)+1 && p.Y > float32(s.Y)+1 && p.X < float32(s.X)+float32(s.W)-1 && p.Y < float32(s.Y)+float32(s.H)-1 {
+			w.springAmbush(si, p)
+		}
+	}
+}
+
+// ambushOnSearch is a search of site si starting.
+func (w *World) ambushOnSearch(si int, p *Player) {
+	s := &w.Sites[si]
+	switch {
+	case s.Kind == SiteOutpost && s.Sprung < 2:
+		w.springAmbush(si, p)
+	case s.Guard == 3 && s.Sprung == 0 && w.rng.Float32() < .6:
+		w.springAmbush(si, p)
+	}
+}
+
+// springAmbush brings ambushers out of hiding round p.
+func (w *World) springAmbush(si int, p *Player) {
+	s := &w.Sites[si]
+	s.Sprung++
+	df := w.diff()
+	n := int(float32(4+w.Wave/3+int(s.Guard)) * df.Guard)
+	hp := df.Guard * (1 + .15*float32(s.Guard))
+	got := 0
+	for i := 0; i < n; i++ {
+		k := CRunner
+		switch r := w.rng.IntN(10); {
+		case r < 3:
+			k = CWalker
+		case r < 5 && w.Wave >= 4:
+			k = CSpitter
+		case r == 5 && s.Kind == SiteOutpost && w.Wave >= 6:
+			k = CBrute
+		}
+		for try := 0; try < 12; try++ {
+			a := w.rng.Float64() * 2 * math.Pi
+			d := 5 + w.rng.Float64()*3
+			x, y := p.X+float32(math.Cos(a)*d), p.Y+float32(math.Sin(a)*d)
+			if ok, _ := w.creepFree(x, y); !ok {
+				continue
+			}
+			if w.SpawnCreep(k, x, y) {
+				c := &w.Creeps[len(w.Creeps)-1]
+				c.HP *= hp
+				c.MaxHP = c.HP
+				c.Home, c.HX, c.HY = int16(si+1), x, y
+				c.Hunt, c.HuntLeft = int8(p.ID), 10
+				got++
+			}
+			break
+		}
+	}
+	if got == 0 {
+		return
+	}
+	w.Blasts = append(w.Blasts, Blast{p.X, p.Y, 6, 6})
+	w.note(2, "ambush! %d creeps burst out on %s at the %s", got, p.Name, SiteDefs[s.Kind].lower())
 }

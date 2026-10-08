@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { EffectKind, Order, PF_ALIVE, SiteKind, siteX, siteY } from '../protocol';
+import { EffectKind, Order, PF_ALIVE, siteX, siteY, walled } from '../protocol';
 import type { Game } from '../state';
 import { cssHex, playerColor } from '../scene/util';
 
@@ -103,12 +103,12 @@ export class Labels {
     const c = this.ctx, wd = game.welcome!, f = game.cur, s = wd.sites[i];
     const searched = f.siteSearched(i);
     const guards = f.siteGuards(i);
-    const level = Math.max(0, Math.min(3, s.guard ?? 0));
+    const level = Math.max(0, Math.min(4, s.guard ?? 0));
     const fs = Math.round(13 * Math.max(0.9, zoom));
     c.save();
     c.textAlign = 'left'; c.textBaseline = 'middle';
     c.font = `500 ${fs}px ${FONT}`;
-    const line2 = searched ? (level > 0 ? 'picked clean' : '') : level === 0 ? 'unguarded' : guards > 0 ? `${guards} ${guards === 1 ? 'guard' : 'guards'} left · clear the guards first` : 'guards cleared';
+    const line2 = searched ? (level > 0 ? 'picked clean' : '') : level === 0 ? 'unguarded' : guards > 0 ? `${guards} ${guards === 1 ? 'guard' : 'guards'} left · search if you dare` : 'guards cleared';
     const w1 = c.measureText(hint).width;
     c.font = `500 ${fs - 1}px ${FONT}`;
     const skullW = level > 0 ? level * 13 + 4 : 0;
@@ -194,7 +194,7 @@ export class Labels {
     // The hovered loot site says what it is and what guards it.
     const site = focus.hoverSite >= 0 ? wd.sites[focus.hoverSite] : undefined;
     if (site && focus.siteHint) {
-      if (this.project(cam, siteX(site), site.kind === SiteKind.House ? 2.2 : 1.6, siteY(site))) {
+      if (this.project(cam, siteX(site), walled(site.kind) ? 2.2 : 1.6, siteY(site))) {
         this.siteTag(game, focus.hoverSite, focus.siteHint, this.v.x, this.v.y, zoom);
       }
     }

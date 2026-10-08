@@ -13,8 +13,13 @@ func (w *World) Step() {
 	w.Tracers = w.Tracers[:0]
 	w.Blasts = w.Blasts[:0]
 	w.Deaths = w.Deaths[:0]
-	w.Notes = w.Notes[:0]
-	w.Toasts = w.Toasts[:0]
+	// Notes and toasts from commands that arrived since the last tick go out with this one.
+	w.Notes = append(w.Notes[:0], w.Notes[w.sentNotes:]...)
+	w.Toasts = append(w.Toasts[:0], w.Toasts[w.sentToasts:]...)
+	defer func() { w.sentNotes, w.sentToasts = len(w.Notes), len(w.Toasts) }()
+	if w.Paused >= 0 {
+		return
+	}
 	w.Tick++
 
 	switch w.Phase {
@@ -31,8 +36,21 @@ func (w *World) Step() {
 	case PhaseWave:
 		w.WaveTime += Dt
 		w.spawnDue()
-		if w.QueueHead >= len(w.Queue) && w.waveCreeps() == 0 {
-			w.endWave()
+		if w.QueueHead >= len(w.Queue) {
+			n := w.waveCreeps()
+			if n < w.waveLeft {
+				w.stall = 0
+			}
+			w.waveLeft = n
+			if w.stall += Dt; w.stall > stallLimit && n > 0 && n <= stallFew {
+				w.dropStragglers()
+				n = 0
+			}
+			// The waves keep coming: a team off looting while the last of one roams the base
+			// gets the next on top of it.
+			if w.overtime += Dt; n == 0 || w.overtime > overtime {
+				w.endWave(n)
+			}
 		}
 	}
 
@@ -47,16 +65,6 @@ func (w *World) Step() {
 	w.stepCreeps()
 	w.reap()
 	w.countGuards()
-}
-
-func (w *World) connected() int {
-	n := 0
-	for _, p := range w.Players {
-		if p.Connected {
-			n++
-		}
-	}
-	return n
 }
 
 func (w *World) allReady() bool {
@@ -83,8 +91,9 @@ func (w *World) startWave() {
 	w.Wave++
 	w.Phase = PhaseWave
 	w.WaveTime = 0
-	w.Queue = w.plan(w.Wave, max(w.connected(), 1))
+	w.Queue = w.plan(w.Wave, w.active())
 	w.QueueHead = 0
+	w.stall, w.waveLeft, w.overtime = 0, 0, 0
 	for _, p := range w.Players {
 		p.Ready = false
 	}
@@ -92,13 +101,46 @@ func (w *World) startWave() {
 	switch {
 	case w.Wave%10 == 0:
 		label = "  ·  BOSS WAVE"
+	case w.Wave%5 == 0 && w.Wave >= hordeFrom:
+		label = "  ·  HORDE"
 	case w.Wave%5 == 0:
 		label = "  ·  SWARM"
 	}
 	w.note(2, "wave %d: %d creeps incoming%s", w.Wave, len(w.Queue), label)
 }
 
-func (w *World) endWave() {
+// stallLimit is how long a wave may go without a single creep of it dying, once all are out,
+// before the stragglers give up. A creep stuck where nobody can reach it must not hold the
+// game forever.
+const (
+	stallLimit = 30
+	stallFew   = 10 // only this few stragglers give up; a real fight is never cut short
+
+	// overtime is how long after its last spawn a wave may run before the next countdown
+	// starts anyway, with what is left of it still about.
+	overtime = 40
+)
+
+// dropStragglers takes the creeps of the wave still about off the map, for nobody's bounty.
+func (w *World) dropStragglers() {
+	n := 0
+	for i := 0; i < len(w.Creeps); {
+		if w.Creeps[i].Home != 0 {
+			i++
+			continue
+		}
+		w.freeIDs = append(w.freeIDs, w.Creeps[i].ID)
+		last := len(w.Creeps) - 1
+		w.Creeps[i] = w.Creeps[last]
+		w.Creeps = w.Creeps[:last]
+		n++
+	}
+	w.note(0, "the last %d of the wave slunk off into the dark", n)
+}
+
+// endWave pays the wave bonus and starts the build countdown; left is how many of the wave
+// are still out there.
+func (w *World) endWave(left int) {
 	bonus := int32(float32(40+15*w.Wave) * w.diff().Gold)
 	for _, p := range w.Players {
 		if !p.Connected {
@@ -112,7 +154,11 @@ func (w *World) endWave() {
 	w.Phase = PhaseBuild
 	w.PhaseLeft = w.diff().Build
 	w.rollWeather()
-	w.note(1, "wave %d cleared  ·  +%d gold each  ·  back to the armory", w.Wave, bonus)
+	if left > 0 {
+		w.note(2, "wave %d is still out there (%d left)  ·  +%d gold each  ·  the next comes in %.0fs", w.Wave, left, bonus, w.PhaseLeft)
+	} else {
+		w.note(1, "wave %d cleared  ·  +%d gold each  ·  back to the armory", w.Wave, bonus)
+	}
 	if w.Wave%5 == 0 {
 		if n := w.restock(); n > 0 {
 			w.note(0, "%d searched places out there have something in them again", n)
@@ -120,11 +166,22 @@ func (w *World) endWave() {
 	}
 }
 
-// Budget is the wave's size in walker equivalents.
+// Budget is the wave's size in walker equivalents. It grows faster the longer the game goes,
+// and each player beyond the first adds more of it as the game goes on.
 func Budget(wave, players int) float32 {
 	f := float32(wave)
-	return (20 + 12*f + .9*f*f) * (1 + .65*float32(players-1))
+	base := 20 + 12*f + 1.1*f*f + .015*f*f*f
+	crowd := 1 + (.6+.015*min(f, 30))*float32(players-1)
+	if wave%5 == 0 {
+		// Every fifth wave is a swarm, and they swell: twice the creeps at wave 10, three
+		// times at wave 30.
+		base *= 1.5 + .05*min(f, 40)
+	}
+	return base * crowd
 }
+
+// hordeFrom is the first swarm wave that also breaks over the base all at once.
+const hordeFrom = 10
 
 // mixWeight is how often each kind is picked for a group once its wave is reached; brutes
 // grow more common up to wave 24.
@@ -155,7 +212,7 @@ func (w *World) plan(wave, players int) []Spawn {
 	for _, v := range weights {
 		total += v
 	}
-	dur := 18 + min(1.2*float32(wave), 40)
+	dur := 14 + min(float32(wave), 30)
 	q := make([]Spawn, 0, int(budget*1.5))
 	add := func(k CreepKind, at float32, sp [2]float32, j int) {
 		x := sp[0] + (w.rng.Float32()-.5)*4
@@ -169,6 +226,23 @@ func (w *World) plan(wave, players int) []Spawn {
 		for i := 0; i < wave/10; i++ {
 			add(CBoss, dur*.5+float32(i)*3, w.SpawnPts[w.rng.IntN(len(w.SpawnPts))], 0)
 			budget -= Creeps[CBoss].Cost * .5
+		}
+	}
+	if wave%5 == 0 && wave >= hordeFrom {
+		// The horde: a third of the wave pours out of every spawn point together, a few
+		// seconds into it, so it hits as one wall.
+		surge := budget / 3
+		budget -= surge
+		at := 4 + w.rng.Float32()*4
+		for surge > 0 {
+			for _, sp := range w.SpawnPts {
+				k := CSwarmer
+				if w.rng.IntN(3) == 0 {
+					k = CWalker
+				}
+				add(k, at+w.rng.Float32()*6, sp, 0)
+				surge -= Creeps[k].Cost
+			}
 		}
 	}
 	for budget > 0 {
@@ -426,6 +500,7 @@ func (w *World) respawn(p *Player) {
 	p.Search, p.Revived = 0, 0
 	p.walk.reset()
 	p.BuffLeft = 0
+	p.Stamina, p.Winded = 1, false
 	for i := range p.Weapons {
 		if p.Weapons[i].Owned {
 			p.Weapons[i].Reload = 0
@@ -449,6 +524,41 @@ func (w *World) repair(p *Player, si int) bool {
 
 func (w *World) toast(p *Player, level uint8, format string, a ...any) {
 	w.Toasts = append(w.Toasts, Toast{Player: p.ID, Level: level, Text: fmt.Sprintf(format, a...)})
+}
+
+// clearShot reports whether a shot from x0, y0 reaches x1, y1, walked the way hitscan walks
+// it: ruin walls and rocks stop it.
+func (w *World) clearShot(x0, y0, x1, y1 float32) bool {
+	dx, dy := x1-x0, y1-y0
+	d := sqrt32(dx*dx + dy*dy)
+	if d < .5 {
+		return true
+	}
+	dx, dy = dx/d, dy/d
+	for t := float32(.5); t < d; t += .5 {
+		if w.At(int(x0+dx*t), int(y0+dy*t)).BlocksShots() {
+			return false
+		}
+	}
+	return true
+}
+
+// nearestVisible is the closest living creep within r of x, y that a shot from there
+// reaches, or -1: the one to shoot, rather than one behind a wall.
+func (w *World) nearestVisible(x, y, r float32) int32 {
+	best, bi := r*r, int32(-1)
+	w.grid.each(x, y, r, func(i int32) bool {
+		c := &w.Creeps[i]
+		if c.HP <= 0 {
+			return true
+		}
+		dx, dy := c.X-x, c.Y-y
+		if dd := dx*dx + dy*dy; dd < best && w.clearShot(x, y, c.X, c.Y) {
+			best, bi = dd, i
+		}
+		return true
+	})
+	return bi
 }
 
 func (w *World) nearestCreep(x, y, r float32) int32 {
@@ -674,7 +784,7 @@ func (w *World) stepTurrets() {
 		dmg, rng, rate := TurretStats(s.Kind, s.Level)
 		rng *= w.rangeMul()
 		x, y := s.CX(), s.CY()
-		t := w.nearestCreep(x, y, rng)
+		t := w.nearestVisible(x, y, rng)
 		if t < 0 {
 			s.Cool = .2 // idle: look again shortly rather than every tick
 			continue

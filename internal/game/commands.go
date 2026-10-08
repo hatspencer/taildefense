@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 )
 
 // PlayerRadius is the half-width of a survivor's collision box.
@@ -60,6 +61,7 @@ func (w *World) Join(name, login string) (*Player, error) {
 			}
 			p.Connected = true
 			p.Name = name
+			p.lastAct = w.Tick
 			w.note(0, "%s is back", name)
 			return p, nil
 		}
@@ -67,10 +69,10 @@ func (w *World) Join(name, login string) (*Player, error) {
 	if len(w.Players) >= MaxPlayers {
 		return nil, fmt.Errorf("the game is full (%d players)", MaxPlayers)
 	}
-	p := &Player{ID: uint8(len(w.Players)), Name: name, Login: login, Connected: true}
+	p := &Player{ID: uint8(len(w.Players)), Name: name, Login: login, Connected: true, lastAct: w.Tick, Look: w.dealLook()}
 	w.resetPlayer(p)
 	w.Players = append(w.Players, p)
-	w.note(0, "%s joined", name)
+	w.note(0, "%s joined as %s", name, p.Archetype())
 	return p, nil
 }
 
@@ -98,6 +100,11 @@ func (w *World) resetPlayer(p *Player) {
 func (w *World) Leave(p *Player) {
 	p.Connected = false
 	p.Firing = false
+	p.Sprint = false
+	if w.Paused == int8(p.ID) {
+		w.Paused = -1
+		w.note(0, "%s left, so the game goes on", p.Name)
+	}
 	p.Ready = false
 	w.note(0, "%s left", p.Name)
 }
@@ -350,4 +357,74 @@ func (w *World) Restart(seed uint64) *World {
 	}
 	nw.note(1, "a new game begins  ·  wave 1 in %ds", int(nw.PhaseLeft))
 	return nw
+}
+
+// TogglePause stops the game for everyone, or starts it again; any player may do either.
+// Nothing moves while it is paused, but chat still works.
+func (w *World) TogglePause(p *Player) {
+	if w.Paused >= 0 {
+		w.Paused = -1
+		w.note(0, "%s resumed the game", p.Name)
+		return
+	}
+	w.Paused = int8(p.ID)
+	w.note(0, "%s paused the game", p.Name)
+}
+
+// Touch marks p as playing: any command does.
+func (w *World) Touch(p *Player) { p.lastAct = w.Tick }
+
+// idleAfter is how long a player may go without a command before the waves stop counting them.
+const idleAfter = 90 * TickRate
+
+// active is how many players are connected and playing, at least one.
+func (w *World) active() int {
+	n := 0
+	for _, p := range w.Players {
+		if p.Connected && w.Tick-p.lastAct < idleAfter {
+			n++
+		}
+	}
+	return max(n, 1)
+}
+
+// ArchetypeNames are the survivor outfits, in the order of the look's low bits. The client
+// draws them; the host only deals them out.
+var ArchetypeNames = [...]string{"paramedic", "mechanic", "hunter", "student", "builder", "nurse", "biker", "farmer", "ex-soldier", "office worker"}
+
+// Archetypes is how many there are.
+const Archetypes = len(ArchetypeNames)
+
+// Archetype is p's outfit, "a paramedic".
+func (p *Player) Archetype() string {
+	n := ArchetypeNames[int(p.Look&15)%Archetypes]
+	if strings.ContainsRune("aeiou", rune(n[0])) {
+		return "an " + n
+	}
+	return "a " + n
+}
+
+// dealLook picks what a new survivor looks like. The bits are read by the client:
+//
+//	0-3 archetype, 4-6 skin tone, 7-8 body, 9-12 hair style, 13-15 hair colour,
+//	16-17 facial hair, 18-19 build, 20-21 height, 22-23 glasses when both are 0
+//
+// Everything is random but the archetype, which comes from a shuffled bag so a team gets
+// as many different outfits as it can before any repeats.
+func (w *World) dealLook() uint32 {
+	var used [Archetypes]int
+	for _, p := range w.Players {
+		used[int(p.Look&15)%Archetypes]++
+	}
+	least := len(w.Players)
+	for _, n := range used {
+		least = min(least, n)
+	}
+	var free []uint32
+	for a, n := range used {
+		if n == least {
+			free = append(free, uint32(a))
+		}
+	}
+	return w.rng.Uint32()&^15 | free[w.rng.IntN(len(free))]
 }

@@ -34,7 +34,7 @@ everything it knows, a terrain message follows).
 ```jsonc
 {
   "t": "welcome",
-  "proto": 4,
+  "proto": 5,
   "version": "a1b2c3d",
   "you": 0,                    // your player id
   "w": 320, "h": 200,          // map size in tiles
@@ -75,7 +75,7 @@ everything it knows, a terrain message follows).
   ],
   "gear": [ {"name": "Armor", "info": "+25 max HP", "costs": [90, 153, 260, 442, 752]} ],
                                // 0 Armor, 1 Boots, 2 Medkit, 3 Scavenger (luck when searching)
-  "abilities": [               // index = ability slot 0..3, keys Q W E R
+  "abilities": [               // index = ability slot 0..3, keys Q W E D
     {"name": "Signature", "key": "Q", "desc": "the equipped weapon's own ability",
      "target": "point", "range": 0, "cool": [0, 0, 0], "costs": [0, 0, 0], "always": true},
     {"name": "Grenade", "key": "W", "desc": "...", "target": "point", "range": 11,
@@ -160,6 +160,7 @@ u32  totalKills
 u16  best             waves survived, when over
 u8   weather          index into the welcome's weathers: 0 clear, 1 fog, 2 rain, 3 storm, 4 snow
 u8   weatherAmt       how strong it is right now, 0..255; it eases in and out between waves
+u8   pausedBy         0 running, else 1 + the id of the player who paused the game
 
 u8   nPlayers
   u8   id
@@ -185,9 +186,17 @@ u8   nPlayers
   u8   emote          0 none, 1 taunting
   u8   emoteLeft      deciseconds left of the emote
   u16  tauntCool      deciseconds until the taunt can be used again
+  u8   stamina        0..255, spent by sprinting
+  u8   sprint         bit 0 sprinting now, bit 1 winded (no sprint until the bar is back to about a third)
+  u32  look           what the survivor looks like, dealt by the host on joining, bits:
+                        0-3 archetype (0 paramedic, 1 mechanic, 2 hunter, 3 student, 4 builder,
+                            5 nurse, 6 biker, 7 farmer, 8 ex-soldier, 9 office worker),
+                        4-6 skin tone (0 deepest .. 7 palest), 7-8 body (0 masc, 1 fem, else androgynous),
+                        9-12 hair style, 13-15 hair colour, 16-17 facial hair, 18-19 build,
+                        20-21 height, 22-23 glasses when both are 0
   u8   buff           0 none, else the weapon kind whose signature buff is running
   u8   buffLeft       deciseconds
-  4 × (u8 level, u16 cooldown deciseconds left)     ability slots Q W E R
+  4 × (u8 level, u16 cooldown deciseconds left)     ability slots Q W E D
   u8   nameLen, name (utf-8)
 
 u16  nSites           same as the welcome's site list
@@ -234,7 +243,7 @@ u16  nEffects         lasting effects, the full current list every frame
   u8   left           deciseconds left
   u8   total          deciseconds it lasts in all
 u8   nNotes           announcements to everyone this tick
-  u8   level          0 info, 1 good, 2 bad
+  u8   level          0 info, 1 good, 2 bad, 3 a player's chat line "name: text"
   u16  len, text (utf-8)
 ```
 

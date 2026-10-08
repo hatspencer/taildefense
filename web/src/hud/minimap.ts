@@ -6,7 +6,7 @@ import { el, esc, show } from './dom';
 // Grass, dirt, floor, sand, water, tree, rock: the scene's colours, a little more washed out.
 const TILE_RGB = [[78, 104, 54], [116, 96, 64], [112, 110, 100], [160, 146, 104], [48, 86, 104], [42, 62, 34], [94, 90, 80]];
 const WIDTH = 210;
-const GUARD = ['unguarded', 'lightly guarded', 'guarded', 'a lair'];
+const GUARD = ['unguarded', 'lightly guarded', 'guarded', 'a lair', 'a garrison and its warlord'];
 
 // A 2D map: prerendered terrain, structures, creeps, heroes and the camera's view.
 export class Minimap {
@@ -72,9 +72,9 @@ export class Minimap {
     if (!wd || i < 0 || !wd.sites[i]) { show(this.tip, false); return; }
     const s = wd.sites[i], f = g.cur;
     const name = wd.siteKinds[s.kind]?.name ?? 'Loot site';
-    const lvl = Math.max(0, Math.min(3, s.guard ?? 0));
+    const lvl = Math.max(0, Math.min(4, s.guard ?? 0));
     const left = f.siteGuards(i);
-    const state = f.siteSearched(i) ? 'searched' : lvl === 0 ? 'unguarded' : left > 0 ? `${left} left · clear the guards first` : 'guards cleared';
+    const state = f.siteSearched(i) ? 'searched' : lvl === 0 ? 'unguarded' : left > 0 ? `${left} left · search if you dare` : 'guards cleared';
     const html = `<b>${esc(name)}</b> ${lvl > 0 ? `<span class="skulls">${'☠'.repeat(lvl)}</span> ${GUARD[lvl]}` : ''} <span class="muted">· ${esc(state)}</span>`;
     if (this.tip.innerHTML !== html) this.tip.innerHTML = html;
     show(this.tip, true);
@@ -129,7 +129,7 @@ export class Minimap {
     for (let i = 0; i < wd.sites.length; i++) {
       const s = wd.sites[i];
       const x = Math.round(siteX(s) * sx), y = Math.round(siteY(s) * sy);
-      const done = f.siteSearched(i), guards = f.siteGuards(i), lvl = Math.max(0, Math.min(3, s.guard ?? 0));
+      const done = f.siteSearched(i), guards = f.siteGuards(i), lvl = Math.max(0, Math.min(4, s.guard ?? 0));
       const hot = i === this.hoverSite;
       const d = hot ? sd + 2 * dpr : sd;
       c.fillStyle = hot ? '#fff' : '#000'; c.fillRect(x - d / 2 - pip, y - d / 2 - pip, d + 2 * pip, d + 2 * pip);
@@ -167,6 +167,15 @@ export class Minimap {
     c.beginPath();
     q.forEach(([x, y], i) => (i ? c.lineTo(x * sx, y * sy) : c.moveTo(x * sx, y * sy)));
     c.closePath(); c.stroke();
+    // The map is always north up.
+    const W = this.canvas.width, Hh = this.canvas.height, m = 8 * dpr;
+    c.font = `${Math.round(14 * dpr)}px VT323, monospace`; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.lineWidth = 3 * dpr; c.strokeStyle = 'rgba(0,0,0,0.85)';
+    for (const [t, x, y] of [['N', W / 2, m], ['S', W / 2, Hh - m], ['W', m, Hh / 2], ['E', W - m, Hh / 2]] as [string, number, number][]) {
+      c.strokeText(t, x, y);
+      c.fillStyle = t === 'N' ? '#f4c25c' : '#d9d1b3';
+      c.fillText(t, x, y);
+    }
     if (this.hoverSite >= 0) this.updateTip();
   }
 }

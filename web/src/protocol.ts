@@ -15,7 +15,11 @@ export const enum Order { Idle = 0, Move, AMove, Attack, Hold, Build, Repair, Lo
 export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake }
 export const enum Weather { Clear = 0, Fog, Rain, Storm, Snow }
 export const enum Emote { None = 0, Taunt }
-export const enum SiteKind { House = 0, Car, Crate }
+export const enum SiteKind { House = 0, Car, Crate, Outpost }
+// A building searched from inside, rather than a thing in the open.
+export function walled(k: number): boolean { return k === SiteKind.House || k === SiteKind.Outpost; }
+// Which prop a site shows: an outpost's stash looks like a house's.
+export function propKind(k: number): number { return k === SiteKind.Outpost ? SiteKind.House : k; }
 export const enum EffectKind { Grenade = 1, Napalm = 2, AirTarget = 3 }
 
 export interface CreepDef { name: string; hp: number; speed: number; radius: number; size: number; ranged: boolean; bounty: number }
@@ -39,8 +43,8 @@ export interface SiteKindDef { name: string; search: number }
 export interface SiteDef { kind: number; x: number; y: number; w: number; h: number; sx: number; sy: number; tier: number; guard: number }
 export interface WeatherDef { name: string; info: string }
 // Where a site's loot stands: a house's search spot, the middle of a car's or crate's tile.
-export function siteX(s: SiteDef): number { return s.kind === SiteKind.House ? s.sx : s.x + s.w / 2; }
-export function siteY(s: SiteDef): number { return s.kind === SiteKind.House ? s.sy : s.y + s.h / 2; }
+export function siteX(s: SiteDef): number { return walled(s.kind) ? s.sx : s.x + s.w / 2; }
+export function siteY(s: SiteDef): number { return walled(s.kind) ? s.sy : s.y + s.h / 2; }
 export interface Welcome {
   t: 'welcome'; proto: number; version: string; you: number; w: number; h: number; seed: string;
   host: string; hosting: boolean; hint: string; tickRate: number; core: { x: number; y: number };
@@ -73,7 +77,7 @@ export type TextMsg = Welcome | Toast | Status | End;
 export type Command =
   | { op: 'move' | 'amove'; x: number; y: number }
   | { op: 'attack'; id: number }
-  | { op: 'stop' } | { op: 'hold' } | { op: 'reload' } | { op: 'restart' } | { op: 'leave' } | { op: 'taunt' }
+  | { op: 'stop' } | { op: 'hold' } | { op: 'reload' } | { op: 'restart' } | { op: 'leave' } | { op: 'taunt' } | { op: 'sprint'; on: boolean } | { op: 'pause' }
   | { op: 'revive'; p: number }
   | { op: 'ability'; slot: number; x: number; y: number }
   | { op: 'build'; kind: number; tx: number; ty: number }
@@ -92,7 +96,7 @@ export class Player {
   levels = new Uint8Array(28); gear = new Uint8Array(4);
   // channel: the current search's (order Loot) or revive's (order Revive) progress, 0..1.
   // revived: for a downed survivor, how far someone's revive of them is, 0..1.
-  order = 0; channel = 0; revived = 0; emote = 0; emoteLeft = 0; tauntCool = 0; buff = 0; buffLeft = 0;
+  order = 0; channel = 0; revived = 0; emote = 0; emoteLeft = 0; tauntCool = 0; stamina = 1; sprinting = false; winded = false; look = 0; buff = 0; buffLeft = 0;
   abLevel = new Uint8Array(4); abCool = new Float32Array(4);
   name = '';
   private nameBytes = new Uint8Array(0);
@@ -113,7 +117,7 @@ export class Player {
     this.reload = o.reload; this.respawn = o.respawn; this.gold = o.gold; this.kills = o.kills;
     this.damage = o.damage; this.owned = o.owned; this.levels.set(o.levels); this.gear.set(o.gear);
     this.order = o.order; this.channel = o.channel; this.revived = o.revived; this.emote = o.emote;
-    this.emoteLeft = o.emoteLeft; this.tauntCool = o.tauntCool; this.buff = o.buff; this.buffLeft = o.buffLeft;
+    this.emoteLeft = o.emoteLeft; this.tauntCool = o.tauntCool; this.stamina = o.stamina; this.sprinting = o.sprinting; this.winded = o.winded; this.look = o.look; this.buff = o.buff; this.buffLeft = o.buffLeft;
     this.abLevel.set(o.abLevel); this.abCool.set(o.abCool); this.name = o.name;
   }
 }
@@ -133,6 +137,8 @@ export class Frame {
   tick = 0; phase = 0; wave = 0; phaseLeft = 0; pending = 0; totalKills = 0; best = 0;
   // weatherAmt: 0..1, how strongly the weather shows right now.
   weather = 0; weatherAmt = 0;
+  // The player who paused the game, or -1 while it runs.
+  pausedBy = -1;
 
   nPlayers = 0;
   players: Player[] = [];
@@ -204,7 +210,7 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
   f.pending = d.getUint32(o, true); o += 4;
   f.totalKills = d.getUint32(o, true); o += 4;
   f.best = d.getUint16(o, true); o += 2;
-  f.weather = d.getUint8(o); f.weatherAmt = d.getUint8(o + 1) / 255; o += 2;
+  f.weather = d.getUint8(o); f.weatherAmt = d.getUint8(o + 1) / 255; f.pausedBy = d.getUint8(o + 2) - 1; o += 3;
 
   const np = d.getUint8(o); o += 1;
   f.nPlayers = np;
@@ -224,7 +230,9 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
     p.gear.set(bytes.subarray(o, o + 4)); o += 4;
     p.order = d.getUint8(o); p.channel = d.getUint8(o + 1) / 255; p.revived = d.getUint8(o + 2) / 255;
     p.emote = d.getUint8(o + 3); p.emoteLeft = d.getUint8(o + 4) / 10; p.tauntCool = d.getUint16(o + 5, true) / 10;
-    p.buff = d.getUint8(o + 7); p.buffLeft = d.getUint8(o + 8) / 10; o += 9;
+    p.stamina = d.getUint8(o + 7) / 255; const sp = d.getUint8(o + 8); p.sprinting = (sp & 1) !== 0; p.winded = (sp & 2) !== 0;
+    p.look = d.getUint32(o + 9, true);
+    p.buff = d.getUint8(o + 13); p.buffLeft = d.getUint8(o + 14) / 10; o += 15;
     for (let a = 0; a < 4; a++) {
       p.abLevel[a] = d.getUint8(o); p.abCool[a] = d.getUint16(o + 1, true) / 10; o += 3;
     }

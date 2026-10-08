@@ -33,10 +33,10 @@ type DifficultyDef struct {
 
 // Difficulties is indexed by Difficulty.
 var Difficulties = [NumDifficulties]DifficultyDef{
-	DiffEasy:   {Name: "Easy", HP: .75, Count: .75, Gold: 1.25, First: 60, Build: 40, Revive: 14, Guard: .7},
-	DiffNormal: {Name: "Normal", HP: 1, Count: 1, Gold: 1, First: 45, Build: 30, Revive: 10, Guard: 1},
-	DiffHard:   {Name: "Hard", HP: 1.3, Count: 1.25, Gold: .9, First: 40, Build: 25, Revive: 8, Guard: 1.3},
-	DiffBrutal: {Name: "Brutal", HP: 1.7, Count: 1.5, Gold: .8, First: 30, Build: 20, Revive: 6, Guard: 1.7},
+	DiffEasy:   {Name: "Easy", HP: .75, Count: .75, Gold: 1.25, First: 40, Build: 28, Revive: 28, Guard: .7},
+	DiffNormal: {Name: "Normal", HP: 1, Count: 1, Gold: 1, First: 20, Build: 12, Revive: 20, Guard: 1},
+	DiffHard:   {Name: "Hard", HP: 1.3, Count: 1.25, Gold: .9, First: 25, Build: 15, Revive: 16, Guard: 1.3},
+	DiffBrutal: {Name: "Brutal", HP: 1.7, Count: 1.5, Gold: .8, First: 30, Build: 20, Revive: 12, Guard: 1.7},
 }
 
 // String is the difficulty's name.

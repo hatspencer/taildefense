@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import type { CameraRig } from './camera';
-import { type Command, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_READY, Phase, SiteKind, siteX, siteY, Tile } from './protocol';
+import { walled, type Command, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_READY, Phase, siteX, siteY, Tile } from './protocol';
 import type { Effects } from './scene/effects';
 import type { Game } from './state';
 
@@ -15,7 +15,7 @@ const RADIUS: Record<string, number> = {
   grenade: 3, napalm: 2.5, airstrike: 7, 'fan the hammer': 2.5, concussion: 4, firewall: 2.5, barrage: 4, railshot: 0.6, 'piercing shot': 0.6,
 };
 
-export const KEYS = ['Q', 'W', 'E', 'R'];
+export const KEYS = ['Q', 'W', 'E', 'D'];
 
 // What the player is doing with the mouse, what is selected and hovered, and every action
 // the input handlers and the HUD buttons can trigger.
@@ -85,14 +85,17 @@ export class Controller {
       const d = segDist(g.prx[p.id], g.pry[p.id]) / (alive ? 0.6 : 0.85);
       if (d < 1 && d < bd) { bd = d; best = { t: 'hero', id: p.id }; }
     }
-    // A quick box test first: most creeps are nowhere near the ray.
-    const minx = Math.min(ax, bx) - 2, maxx = Math.max(ax, bx) + 2, minz = Math.min(az, bz) - 2, maxz = Math.max(az, bz) + 2;
+    // A quick box test first: most creeps are nowhere near the ray. A creep just off the
+    // cursor is remembered: next to a loot site it still wins over the site.
+    const minx = Math.min(ax, bx) - 3, maxx = Math.max(ax, bx) + 3, minz = Math.min(az, bz) - 3, maxz = Math.max(az, bz) + 3;
+    let near: Pick = null, nd = Infinity;
     for (let i = 0; i < f.nCreeps; i++) {
       const x = g.rx[i], z = g.ry[i];
       if (x < minx || x > maxx || z < minz || z > maxz) continue;
       const r = (wd.creeps[f.cKind[i]]?.radius ?? 0.45) + 0.2;
       const d = segDist(x, z) / r;
       if (d < 1 && d < bd) { bd = d; best = { t: 'creep', id: f.cId[i] }; }
+      if (d < nd) { nd = d; near = { t: 'creep', id: f.cId[i] }; }
     }
     if (best) return best;
     for (let s = 0; s <= 6; s++) {
@@ -104,14 +107,18 @@ export class Controller {
     let site = -1, sd = 0.9;
     for (let i = 0; i < wd.sites.length; i++) {
       const s = wd.sites[i];
-      if (s.kind === SiteKind.House) {
+      if (walled(s.kind)) {
         if (bx >= s.x && bx < s.x + s.w && bz >= s.y && bz < s.y + s.h && site < 0) site = i;
         continue;
       }
       const d = segDist(siteX(s), siteY(s));
       if (d < sd) { sd = d; site = i; }
     }
-    return site >= 0 ? { t: 'site', id: site } : null;
+    if (site < 0) return null;
+    // A guarded site can't be searched until its guards are dead, so a click near one means a
+    // guard; any site gives way to a creep almost under the cursor.
+    if (near && (nd < 1.6 || (f.siteGuards(site) > 0 && nd < 4))) return near;
+    return { t: 'site', id: site };
   }
 
   // Selection still valid (the creep may have died)?
@@ -131,7 +138,7 @@ export class Controller {
     if (!s) return '';
     const name = wd.siteKinds[s.kind]?.name ?? 'Loot site';
     const f = this.game.cur;
-    return `${name} · ${f.siteSearched(i) ? 'searched' : f.siteGuards(i) > 0 ? 'guarded' : 'search'}`;
+    return `${name} · ${f.siteSearched(i) ? 'searched' : f.siteGuards(i) > 0 ? 'search, if you dare' : 'search'}`;
   }
 
   // The downed teammate under the cursor that a right-click would revive, or -1. For the

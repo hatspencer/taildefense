@@ -416,6 +416,7 @@ func (s *Server) command(p *peer, c Cmd) {
 		return
 	}
 	w, pl := s.world, p.player
+	w.Touch(pl)
 	var err error
 	switch c.Op {
 	case OpMove, OpAttackMove:
@@ -468,6 +469,10 @@ func (s *Server) command(p *peer, c Cmd) {
 		}
 	case OpTaunt:
 		err = w.Taunt(pl)
+	case OpSprint:
+		w.SetSprint(pl, c.A == 1)
+	case OpPause:
+		w.TogglePause(pl)
 	case OpRevive:
 		err = w.OrderRevive(pl, int(c.T))
 	case OpUpgradeStruct:
@@ -489,7 +494,7 @@ func (s *Server) command(p *peer, c Cmd) {
 		s.restart()
 	case OpChat:
 		if t := strings.TrimSpace(c.Text); t != "" {
-			w.Notes = append(w.Notes, game.Note{Text: pl.Name + ": " + t, Level: 0})
+			w.Notes = append(w.Notes, game.Note{Text: pl.Name + ": " + t, Level: game.NoteChat})
 		}
 	}
 	if err != nil {
@@ -589,6 +594,8 @@ const (
 	OpLoot       // T site index
 	OpTaunt
 	OpRevive // T player id
+	OpSprint // A 1 held, 0 let go
+	OpPause  // toggles
 )
 
 // Cmd is a discrete request from a player. X and Y are tiles, sent to 1/8; T names a creep

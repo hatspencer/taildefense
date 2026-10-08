@@ -125,6 +125,17 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .top button { height: 28px; }
 .top button.ready { padding: 0 14px; }
 .top button.ready.on { background: var(--moss); color: #142010; box-shadow: inset 0 2px 0 #a8c46a, inset 0 -2px 0 #5a7230; }
+.compass { position: absolute; top: 44px; left: 50%; transform: translateX(-50%); width: min(300px, calc(100% - 32px)); height: 28px; cursor: pointer;
+  background: var(--grain), rgba(20, 22, 15, 0.82); border: 2px solid var(--black); box-shadow: 0 0 0 1px var(--line), 3px 3px 0 rgba(0, 0, 0, 0.35); }
+.compass .strip { position: absolute; inset: 0; overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent); mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent); }
+.compass .track { position: absolute; left: 50%; top: 0; bottom: 0; }
+.compass .mark { position: absolute; top: 3px; bottom: 0; width: 40px; margin-left: -20px; text-align: center; font: 17px/1 var(--crt); color: var(--khaki); text-shadow: var(--hard); }
+.compass .mark::before { content: ""; position: absolute; left: 19px; bottom: 0; width: 2px; height: 4px; background: #5d6048; }
+.compass .mark.mid::before, .compass .mark.main::before { height: 6px; background: var(--khaki); }
+.compass .mark.main { font-size: 22px; top: 1px; color: var(--bone); }
+.compass .mark.main.n { color: #f4c25c; }
+.compass .pin { position: absolute; left: 50%; top: -2px; margin-left: -4px; border: 4px solid transparent; border-top: 5px solid #f4c25c; }
 .status { position: absolute; top: 44px; left: 12px; font-size: 12px; color: var(--khaki); text-shadow: var(--hard); pointer-events: none; }
 
 /* ---------- radio alerts: teammates down ---------- */
@@ -146,6 +157,9 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
   box-shadow: 0 0 0 2px #5a2418, 6px 6px 0 2px rgba(0, 0, 0, 0.5); }
 .downed::before, .downed::after { content: ""; position: absolute; left: 0; right: 0; height: 8px;
   background: repeating-linear-gradient(-45deg, var(--rust) 0 8px, #1a0c08 8px 16px); }
+.paused { background: var(--grain), rgba(14, 20, 26, 0.92); box-shadow: 0 0 0 2px #2c4250, 6px 6px 0 2px rgba(0, 0, 0, 0.5); }
+.paused::before, .paused::after { background: repeating-linear-gradient(-45deg, #e0a63a 0 8px, #1a1408 8px 16px); }
+.paused .dh { color: #f4e2b0; } .paused .ds { color: #c8c0a4; }
 .downed::before { top: 0; } .downed::after { bottom: 0; }
 .downed .dh { font: 700 30px/1.1 var(--font); color: #f0d0bc; text-shadow: 3px 3px 0 var(--black); margin-top: 6px; }
 .downed .ds { margin-top: 4px; font-size: 14px; color: #d8b8a4; }
@@ -191,11 +205,9 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .hero { width: var(--hero-w); flex: none; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .hero .row { display: flex; align-items: center; gap: 9px; }
 .portrait { width: 52px; height: 52px; border: 2px solid var(--black); box-shadow: 0 0 0 2px var(--line); flex: none; position: relative; overflow: hidden; image-rendering: pixelated;
-  background:
-    linear-gradient(#d7b894, #d7b894) 50% 13px / 16px 16px no-repeat,
-    linear-gradient(#2a2418, #2a2418) 50% 9px / 18px 6px no-repeat,
-    linear-gradient(var(--pc, #6a8a4a), var(--pc, #6a8a4a)) 50% 100% / 34px 20px no-repeat,
-    var(--scan), #273021; }
+  background: #273021; }
+.portrait canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+.portrait::after { content: ""; position: absolute; inset: 0; background: var(--scan); pointer-events: none; }
 .portrait.dead { filter: grayscale(1) brightness(0.55) sepia(0.6) hue-rotate(-30deg); }
 .portrait .resp { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 30px/1 var(--crt); color: #ff8c6a; text-shadow: var(--hard); background: rgba(40, 10, 6, 0.35); }
 .portrait .resp:empty { display: none; }
@@ -207,6 +219,10 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .bar .fill { position: absolute; inset: 0; transform-origin: left; background: var(--moss); box-shadow: inset 0 2px 0 rgba(255, 255, 230, 0.22), inset 0 -2px 0 rgba(0, 0, 0, 0.25); }
 .bar::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 7px, rgba(0, 0, 0, 0.42) 7px 9px); pointer-events: none; }
 .bar.ammo .fill { background: var(--amber); }
+.bar .stam { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; z-index: 2; transform-origin: left; background: #8fc4d8; box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.6); }
+.bar .stam.full { opacity: 0.45; }
+.bar .stam.winded { background: var(--rust); animation: winded 0.5s steps(2) infinite; }
+@keyframes winded { 50% { opacity: 0.35; } }
 .bar.reload .fill { background: var(--steel); }
 .bar.revive .fill { background: var(--moss); }
 .bar .txt { position: absolute; inset: 0; z-index: 1; text-align: center; font: 16px/12px var(--crt); letter-spacing: 0.04em; color: #fff; text-shadow: 1px 1px 0 #000, -1px 0 0 #000, 0 -1px 0 #000, 1px 0 0 #000; font-variant-numeric: tabular-nums; }

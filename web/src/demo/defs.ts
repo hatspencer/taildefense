@@ -57,7 +57,7 @@ export const ABILITIES: AbilityDef[] = [
   { name: 'Signature', key: 'Q', desc: "the equipped weapon's own ability", target: 'point', range: 0, cool: [0, 0, 0], costs: [0, 0, 0], always: true },
   { name: 'Grenade', key: 'W', desc: 'Lob a frag grenade that explodes after a short flight.', target: 'point', range: 11, cool: [9, 8, 7], costs: [200, 450, 800], always: false },
   { name: 'Dash', key: 'E', desc: 'A short burst of speed towards the target point.', target: 'point', range: 5, cool: [10, 8, 6], costs: [300, 600, 1000], always: false },
-  { name: 'Airstrike', key: 'R', desc: 'Call in a bombing run on the target after 3 seconds.', target: 'point', range: 40, cool: [60, 50, 40], costs: [600, 1100, 1800], always: false },
+  { name: 'Airstrike', key: 'D', desc: 'Call in a bombing run on the target after 3 seconds.', target: 'point', range: 40, cool: [60, 50, 40], costs: [600, 1100, 1800], always: false },
 ];
 
 // Blast radii of the abilities, for the area preview: grenade, napalm, airstrike.
