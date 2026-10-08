@@ -49,6 +49,8 @@ type Options struct {
 	// Ready is called once the page is served and the browser started, before anything
 	// waits on a browser. The caller says where the game is.
 	Ready func(Page)
+	// Notice is shown in the page once it is up, such as that td is out of date.
+	Notice string
 	// Listen overrides where the page is served, for tests.
 	Listen string
 }
@@ -256,6 +258,9 @@ func (s *session) greet() {
 	s.text(b, welcome(s.wel, s.core, s.o.Host, s.o.Hint, s.o.Hosting))
 	s.send(b, terrainMsg(s.wel.Terrain))
 	b.ready = true
+	if s.o.Notice != "" {
+		s.text(b, map[string]any{"t": "toast", "level": 2, "text": s.o.Notice})
+	}
 }
 
 func (s *session) text(b *browser, v any) {

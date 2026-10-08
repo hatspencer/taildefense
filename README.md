@@ -66,6 +66,8 @@ opening the URL again takes over from the old tab.
 
 Updates: the version is the git commit. With `AUTOUPDATE` on (the default), the launcher checks
 the repo's main at most once an hour and updates in the background, then offers a restart.
+`td host`, `td join` and `td serve` say when td is out of date and how to update, in the
+terminal and in the game page.
 When a host and a player run different game protocols, the refusal tells the older one to run
 `td update`.
 

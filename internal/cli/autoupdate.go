@@ -362,3 +362,32 @@ func NeedsUpdate(err error) bool {
 	msg := strings.ToLower(err.Error())
 	return strings.Contains(msg, "protocol") || strings.Contains(msg, " update")
 }
+
+// Outdated is what to tell someone starting a game from the shell when td is behind: the
+// news and how to update, or "", "" when td is current, not installed, or the remote did not
+// answer within wait. The answer is the launcher's cached one when it is fresh.
+func Outdated(enabled bool, wait time.Duration) (news, how string) {
+	u := NewAutoUpdater(enabled)
+	if u == nil {
+		return "", ""
+	}
+	return u.outdated(wait)
+}
+
+func (u *AutoUpdater) outdated(wait time.Duration) (news, how string) {
+	got := make(chan SelfUpdate, 1)
+	go func() { got <- u.Check() }()
+	var s SelfUpdate
+	select {
+	case s = <-got:
+	case <-time.After(wait):
+		return "", ""
+	}
+	switch {
+	case s.State == UpdateBehind:
+		return fmt.Sprintf("this td is out of date: %s, main is at %s", short(s.Version), short(s.Remote)), "update with: td update"
+	case s.State == UpdateFollowing && s.Remote != "" && !version.MatchesVersion(s.Version, s.Remote):
+		return fmt.Sprintf("branch %s has moved on to %s", s.Branch, short(s.Remote)), "update with: td update"
+	}
+	return "", ""
+}
