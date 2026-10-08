@@ -95,6 +95,7 @@ func (s *Session) setTailnet(self tailnet.Self, err error) {
 // Options are one launcher run.
 type Options struct {
 	Version string
+	Date    string // the commit's date, shown beside the version
 	Prefs   *config.Prefs
 	Session *Session
 	Last    *Outcome

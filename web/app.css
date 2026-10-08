@@ -69,6 +69,7 @@ b { font-weight: 700; }
 body.cur-attack canvas.view { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Cg fill='none' stroke='%23ff4030' stroke-width='2.5'%3E%3Ccircle cx='16' cy='16' r='9'/%3E%3Cpath d='M16 2v8M16 22v8M2 16h8M22 16h8'/%3E%3C/g%3E%3C/svg%3E") 16 16, crosshair; }
 body.cur-target canvas.view { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Cg fill='none' stroke='%23ffd040' stroke-width='2.5'%3E%3Ccircle cx='16' cy='16' r='10'/%3E%3Ccircle cx='16' cy='16' r='2' fill='%23ffd040'/%3E%3C/g%3E%3C/svg%3E") 16 16, crosshair; }
 body.cur-build canvas.view { cursor: cell; }
+body.cur-ping canvas.view, body.cur-ping .minimap canvas { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' shape-rendering='crispEdges'%3E%3Cpath d='M6 2h4v28H6z' fill='%23000'/%3E%3Cpath d='M7 3h2v26H7z' fill='%23d9d1b3'/%3E%3Cpath d='M9 3h17l-4 6 4 6H9z' fill='%23000'/%3E%3Cpath d='M9 4h15l-3 5 3 5H9z' fill='%23e0a63a'/%3E%3C/svg%3E") 8 29, crosshair; }
 body.cur-loot canvas.view { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Cg fill='none' stroke-linecap='round'%3E%3Cpath d='M19 19l9 9' stroke='%23000' stroke-width='6'/%3E%3Cpath d='M19 19l9 9' stroke='%23ffd040' stroke-width='3'/%3E%3Ccircle cx='12' cy='12' r='8' stroke='%23000' stroke-width='5'/%3E%3Ccircle cx='12' cy='12' r='8' stroke='%23ffd040' stroke-width='2.5'/%3E%3C/g%3E%3C/svg%3E") 12 12, pointer; }
 
 /* ---------- materials ---------- */
@@ -116,6 +117,21 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .top .chip .pips i.on { background: var(--rust); }
 .top .chip.weather svg { display: block; }
 .top .chip.weather .info { color: var(--khaki); font-size: 12px; max-width: 360px; overflow: hidden; text-overflow: ellipsis; }
+.top .chip.base { gap: 7px; cursor: pointer; }
+.top .chip.base svg { display: block; }
+.top .chip.base .lbl { font: 700 11px/1 var(--font); color: var(--khaki); text-transform: uppercase; letter-spacing: 0.06em; }
+.top .chip.base .bbar { position: relative; width: 96px; height: 10px; background: #2a1712; box-shadow: 0 0 0 2px var(--black); }
+.top .chip.base .bbar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--moss); box-shadow: inset 0 1px 0 rgba(255, 255, 230, 0.25); transition: width 0.25s steps(4); }
+/* Segments, like every other bar in the kit. */
+.top .chip.base .bbar::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 11px, rgba(0, 0, 0, 0.5) 11px 12px); }
+.top .chip.base .num { font-size: 19px; line-height: 1; min-width: 34px; text-align: right; color: var(--bone); }
+.top .chip.base.mid .bbar i { background: var(--amber); }
+.top .chip.base.low .bbar i { background: var(--rust); }
+.top .chip.base.low { animation: basepulse 0.8s steps(2) infinite; }
+.top .chip.base.low .num { color: #ff8a6a; }
+.top .chip.base.hit { background: #4a2018; }
+.top .chip.base.hit .bbar i { background: #ffd8c8; }
+@keyframes basepulse { 50% { box-shadow: var(--bevel), 0 0 0 2px var(--rust); } }
 .top .spacer { flex: 1; }
 .top .kills { font: 20px/1 var(--crt); color: var(--khaki); white-space: nowrap; }
 .top .kills b { color: var(--bone); font-weight: 400; }
@@ -173,6 +189,11 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .announce div { font: 700 26px/1.25 var(--font); color: var(--bone); text-shadow: 3px 3px 0 var(--black), -1px -1px 0 var(--black); animation: ann 4s steps(24) forwards; }
 .announce div.good { color: #c3dc86; }
 .announce div.bad { color: #f09276; }
+.countdown { position: absolute; top: 34%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; }
+.countdown .cw { font: 700 22px/1.1 var(--font); color: #f09276; text-shadow: 3px 3px 0 var(--black); letter-spacing: 1px; text-transform: uppercase; }
+.countdown .cn { font: 112px/0.9 var(--crt); color: #f4c25c; text-shadow: 5px 5px 0 var(--black), -2px -2px 0 var(--black); }
+.countdown .cn.tick { animation: cdn 1s steps(10) forwards; }
+@keyframes cdn { 0% { transform: scale(1.35); opacity: 0.4; } 15% { transform: scale(1); opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0.55; } }
 @keyframes ann { 0% { opacity: 0; transform: translateY(-6px); } 8% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; } }
 .toasts { position: absolute; bottom: calc(var(--bottom-h) + 16px); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 5px; pointer-events: none; z-index: var(--z-toasts); }
 .toasts div { padding: 3px 12px 4px; background: var(--grain), #4a1e14; border: 2px solid var(--black); box-shadow: inset 0 2px 0 #6c2c1c, 3px 3px 0 rgba(0, 0, 0, 0.45); color: #f6dccb; animation: toast 3s steps(18) forwards; }
@@ -199,6 +220,11 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .minimap { position: relative; padding: 6px; flex: none; display: flex; align-items: center; }
 .minimap canvas { display: block; width: var(--mm-w) !important; height: auto !important; cursor: pointer; image-rendering: pixelated; border: 2px solid var(--black); box-shadow: 0 0 0 1px var(--line); }
 .minimap .mmtip { position: absolute; left: 8px; right: 8px; bottom: calc(100% + 6px); padding: 3px 8px 4px; font-size: 12px; pointer-events: none; text-align: left; }
+.minimap .mmcap { display: none; }
+/* M: the map floats big over the middle of the view; the console keeps its slot. */
+.minimap.big canvas { position: fixed; left: 50%; top: var(--mm-top); transform: translateX(-50%); z-index: 40; width: var(--mm-big) !important; box-shadow: 0 0 0 1px var(--line), 0 0 0 100vmax rgba(7,8,10,0.45); }
+.minimap.big .mmcap { display: block; position: fixed; left: 50%; top: calc(var(--mm-top) - 24px); transform: translateX(-50%); z-index: 41; font-size: 13px; color: var(--bone); text-shadow: 2px 2px 0 #000; pointer-events: none; }
+.minimap.big .mmtip { position: fixed; left: 50%; right: auto; bottom: 24px; transform: translateX(-50%); z-index: 41; }
 .minimap .mmtip .skulls { color: var(--rust); letter-spacing: 1px; }
 
 .console { flex: 1; display: flex; gap: 14px; padding: 10px 14px 10px 12px; min-width: 0; }
@@ -347,6 +373,21 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .over .row button { padding: 8px 18px 9px; font-size: 15px; }
 .over .note { margin-top: 8px; font-size: 12px; color: var(--khaki); }
 
+/* ---------- boot splash ---------- */
+
+.splash { position: fixed; inset: 0; z-index: 60; overflow: hidden; background: var(--black); cursor: default; }
+.splash canvas { position: absolute; left: 0; top: 0; image-rendering: pixelated; image-rendering: crisp-edges; }
+.splash .tape { position: absolute; transform: rotate(-3deg) scale(1.3); transform-origin: right center; opacity: 0; font-size: 12px; }
+.splash .tape.on { opacity: 1; animation: tapeon 0.2s steps(3) both; }
+@keyframes tapeon { from { transform: rotate(-10deg) scale(2.2); opacity: 0; } to { transform: rotate(-3deg) scale(1.3); opacity: 1; } }
+.splash .tag { position: absolute; left: 0; right: 0; text-align: center; font: 28px/1 var(--crt); color: #f4c25c; text-shadow: 2px 2px 0 var(--black); white-space: pre; min-height: 28px; }
+.splash .bar { position: absolute; left: 50%; transform: translateX(-50%); height: 12px; background: #1a1c14; box-shadow: 0 0 0 2px var(--black), 0 0 0 4px var(--line); }
+.splash .bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--moss);
+  -webkit-mask-image: repeating-linear-gradient(90deg, #000 0 10px, transparent 10px 12px); mask-image: repeating-linear-gradient(90deg, #000 0 10px, transparent 10px 12px); }
+.splash .hint { position: absolute; bottom: 18px; right: 22px; font: 18px/1 var(--crt); color: var(--khaki); opacity: 0; }
+.splash .hint.on { opacity: 0.7; }
+.cover img.mark { image-rendering: pixelated; max-width: min(90vw, 660px); height: auto; }
+
 /* ---------- connection cover ---------- */
 
 .cover { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 14px; text-align: center; z-index: var(--z-cover);
@@ -385,11 +426,13 @@ canvas, .hud img, .hud svg { image-rendering: pixelated; }
   :root { --mm-w: 124px; --card-w: 210px; --hero-w: 178px; --slot: 42px; }
   .top { gap: 6px; padding: 0 6px; }
   .top .kills { display: none; }
+  .top .chip.base .lbl { display: none; }
+  .top .chip.base .bbar { width: 60px; }
   .top button { padding: 0 8px; }
   .slot .cooltxt { font-size: 22px; }
   .wslot { width: 36px; }
   .abilities { gap: 5px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .over .stamp, .cover .spin { animation: none; }
+  .over .stamp, .cover .spin, .top .chip.base.low { animation: none; }
 }

@@ -2,6 +2,9 @@ import { Frame, MAX_CREEPS, PF_ALIVE, type Player, type Welcome, Weather, decode
 
 // Everything the client knows about the world: the last two frames and the interpolation
 // state derived from them. Renderers read the r* arrays, indexed like the current frame.
+// How long a ping stays on the map, in ms.
+export const PING_LIFE = 5000;
+
 export class Game {
   welcome: Welcome | null = null;
   tiles = new Uint8Array(0);
@@ -65,6 +68,9 @@ export class Game {
   }
 
   // Thick fog: teammates drop off the map and their bars go, only the figures stay.
+  // Pings the team placed in the last PING_LIFE ms, oldest first; at is performance.now().
+  pings: { player: number; x: number; y: number; kind: number; at: number }[] = [];
+
   fogged(): boolean {
     return this.cur.weather === Weather.Fog && this.cur.weatherAmt > 0.4;
   }
@@ -78,6 +84,8 @@ export class Game {
     this.cur = f;
     this.frames++;
     const serial = this.frames;
+    for (const g of f.pings) this.pings.push({ ...g, at: now });
+    while (this.pings.length && (now - this.pings[0].at > PING_LIFE || this.pings.length > 24)) this.pings.shift();
     if (this.frameAt > 0) this.interval = Math.min(120, Math.max(30, this.interval * 0.9 + (now - this.frameAt) * 0.1));
     this.frameAt = now;
     const contiguous = f.tick === prevTick + 1 || f.tick === prevTick;

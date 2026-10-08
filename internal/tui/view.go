@@ -84,6 +84,9 @@ func (m *Model) header(w, h int) []string {
 func (m *Model) versionLine() string {
 	s := m.sess.Update()
 	line := ui.StyleDim.Render("td " + m.o.Version)
+	if m.o.Date != "" {
+		line += ui.StyleDim.Render(" · " + m.o.Date)
+	}
 	text := s.Text()
 	switch s.State {
 	case cli.UpdateUpdating:

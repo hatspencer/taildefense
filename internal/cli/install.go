@@ -116,6 +116,7 @@ type VersionOptions struct {
 type VersionResult struct {
 	Version   string `json:"version"`
 	Stamped   string `json:"stamped"`
+	Date      string `json:"date,omitempty"`
 	Installed bool   `json:"installed"`
 	Prefix    string `json:"prefix,omitempty"`
 	Repo      string `json:"repo,omitempty"`
@@ -132,6 +133,7 @@ func PrintVersion(w io.Writer, o VersionOptions) int {
 	res := VersionResult{
 		Version:   version.Current(),
 		Stamped:   version.Stamped(),
+		Date:      version.Date(),
 		Installed: install.IsInstalled(),
 		Branch:    install.DefaultBranch,
 	}
@@ -170,6 +172,9 @@ func PrintVersion(w io.Writer, o VersionOptions) int {
 	rows := [][2]string{{"version", res.Version}}
 	if res.Stamped != res.Version {
 		rows = append(rows, [2]string{"stamped", res.Stamped})
+	}
+	if res.Date != "" {
+		rows = append(rows, [2]string{"committed", res.Date})
 	}
 	if res.Installed {
 		rows = append(rows, [2]string{"installed", tilde(res.Prefix)})

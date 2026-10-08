@@ -247,7 +247,7 @@ func launcher(prefs *config.Prefs) int {
 	sess := tui.NewSession(cli.NewAutoUpdater(prefs.AutoUpdate()))
 	var last *tui.Outcome
 	for {
-		act, err := tui.Run(tui.Options{Version: version.Current(), Prefs: prefs, Session: sess, Last: last})
+		act, err := tui.Run(tui.Options{Version: version.Current(), Date: version.Date(), Prefs: prefs, Session: sess, Last: last})
 		if err != nil {
 			ui.Errorf("%v", err)
 			return 1

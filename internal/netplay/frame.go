@@ -460,4 +460,11 @@ func events(b *enc, w *game.World) {
 		b.u8(n.Level)
 		b.str(n.Text)
 	}
+	b.uv(uint64(len(w.Pings)))
+	for _, g := range w.Pings {
+		b.u8(g.Player)
+		b.u16(qpos(g.X))
+		b.u16(qpos(g.Y))
+		b.u8(uint8(g.Kind))
+	}
 }

@@ -13,8 +13,10 @@ export const CF_BURNING = 1, CF_SLOWED = 2, CF_GUARD = 4, CF_HUNTING = 8, CF_SIE
 
 export const enum Order { Idle = 0, Move, AMove, Attack, Hold, Build, Repair, Loot, Revive }
 export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake }
-export const enum Weather { Clear = 0, Fog, Rain, Storm, Snow }
+export const enum Weather { Clear = 0, Fog, Rain, Storm, Snow, Drizzle, Thunder }
 export const enum Emote { None = 0, Taunt }
+// What a ping means: picked from what is under the cursor when it is placed.
+export const enum PingKind { Here = 0, Danger, Loot, Defend }
 export const enum SiteKind { House = 0, Car, Crate, Outpost, Pickup, Police, Ambulance, Bus, Army }
 // A building searched from inside, rather than a thing in the open.
 export function walled(k: number): boolean { return k === SiteKind.House || k === SiteKind.Outpost; }
@@ -90,7 +92,8 @@ export type Command =
   | { op: 'gear'; g: number }
   | { op: 'buyAbility'; slot: number }
   | { op: 'ready'; on: boolean }
-  | { op: 'chat'; text: string };
+  | { op: 'chat'; text: string }
+  | { op: 'ping'; x: number; y: number; kind: number };
 
 export class Player {
   id = 0; flags = 0; x = 0; y = 0; aim = 0; hp = 0; maxHp = 1; cur = 0; ammo = 0; mag = 0;
@@ -178,6 +181,7 @@ export class Frame {
   eLeft = new Uint8Array(32); eTotal = new Uint8Array(32);
 
   notes: { level: number; text: string }[] = [];
+  pings: { player: number; x: number; y: number; kind: number }[] = [];
 
   constructor() {
     for (let i = 0; i < 256; i++) this.players.push(new Player());
@@ -328,6 +332,13 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
     const len = d.getUint16(o + 1, true); o += 3;
     f.notes.push({ level, text: utf8.decode(bytes.subarray(o, o + len)) });
     o += len;
+  }
+
+  const ng = d.getUint8(o); o += 1;
+  f.pings.length = 0;
+  for (let i = 0; i < ng; i++) {
+    f.pings.push({ player: bytes[o], x: d.getUint16(o + 1, true) * Q, y: d.getUint16(o + 3, true) * Q, kind: bytes[o + 5] });
+    o += 6;
   }
   if (o > buf.byteLength) throw new Error('frame truncated');
 }

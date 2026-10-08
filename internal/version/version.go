@@ -8,12 +8,15 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"time"
 )
 
-// Commit and Dirty are stamped by build.sh with -ldflags -X.
+// Commit, Dirty and CommitDate (the commit's date, RFC 3339) are stamped by build.sh with
+// -ldflags -X.
 var (
-	Commit string
-	Dirty  string
+	Commit     string
+	Dirty      string
+	CommitDate string
 )
 
 // RecordFile is written by the installer beside the binary, holding the commit the install
@@ -58,6 +61,38 @@ func Stamped() string {
 		}
 	}
 	return "dev"
+}
+
+// Date is when the commit this binary was built from was made, in the local zone as
+// "2006-01-02 15:04", or "" when the build carries no date. The date belongs to the stamp, so
+// it is left out when an install record names another commit than the one compiled in.
+func Date() string {
+	t, ok := commitTime()
+	if !ok || !sameCommit(Current(), Stamped()) {
+		return ""
+	}
+	return t.Local().Format("2006-01-02 15:04")
+}
+
+func sameCommit(a, b string) bool {
+	a, b = strings.TrimSuffix(a, "-dirty"), strings.TrimSuffix(b, "-dirty")
+	n := min(len(a), len(b))
+	return n >= 7 && strings.EqualFold(a[:n], b[:n])
+}
+
+func commitTime() (time.Time, bool) {
+	raw := CommitDate
+	if raw == "" {
+		if info, ok := debug.ReadBuildInfo(); ok {
+			for _, s := range info.Settings {
+				if s.Key == "vcs.time" {
+					raw = s.Value
+				}
+			}
+		}
+	}
+	t, err := time.Parse(time.RFC3339, raw)
+	return t, err == nil
 }
 
 func recorded() string {

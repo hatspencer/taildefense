@@ -471,6 +471,13 @@ export class Effects {
     for (const p of [this.glow, this.smoke, this.streaks, this.spheres, this.rings, this.decals, this.stars]) p.flush();
   }
 
+  // A team ping: three rings rippling out wide, brighter than a command ping, so it reads
+  // across the screen.
+  teamPing(x: number, y: number, hex: number): void {
+    const t = this.sec;
+    for (let k = 0; k < 3; k++) this.rings.add(t + k * 0.22, x, 0.12, y, 0, 0, 0, 0.8, hex, 0.4, 2.6, 0, 1, 1, 1.6);
+  }
+
   // A one-off ground ping at a commanded point.
   ping(x: number, y: number, hex: number): void {
     const t = this.sec;

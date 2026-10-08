@@ -9,6 +9,8 @@ const (
 	WRain
 	WStorm
 	WSnow
+	WDrizzle
+	WThunder
 	NumWeathers
 )
 
@@ -19,14 +21,20 @@ type WeatherDef struct {
 	Weight int // how often it comes up between waves
 }
 
-// Weathers is indexed by WeatherKind.
+// Weathers is indexed by WeatherKind. Heavy rain and storms are rare; drizzle and a passing
+// thunder shower are their everyday, lighter forms.
 var Weathers = [NumWeathers]WeatherDef{
-	WClear: {Name: "Clear", Weight: 40},
-	WFog:   {Name: "Fog", Info: "you and your turrets reach 25% less far; creeps notice you later", Weight: 18},
-	WRain:  {Name: "Rain", Info: "fire burns half as hot; creeps 8% slower", Weight: 18},
-	WStorm: {Name: "Storm", Info: "rain, and lightning strikes creeps out in the open", Weight: 12},
-	WSnow:  {Name: "Snow", Info: "creeps 15% slower, survivors 8% slower", Weight: 12},
+	WClear:   {Name: "Clear", Weight: 40},
+	WFog:     {Name: "Fog", Info: "you and your turrets reach 25% less far; creeps notice you later", Weight: 18},
+	WRain:    {Name: "Heavy rain", Info: "fire burns half as hot; creeps 8% slower", Weight: 5},
+	WStorm:   {Name: "Storm", Info: "heavy rain, and lightning strikes creeps out in the open", Weight: 3},
+	WSnow:    {Name: "Snow", Info: "creeps 15% slower, survivors 8% slower", Weight: 12},
+	WDrizzle: {Name: "Drizzle", Info: "fire burns a little cooler", Weight: 16},
+	WThunder: {Name: "Thunder shower", Info: "light rain; now and then lightning strikes a creep in the open", Weight: 8},
 }
+
+// wetness is how much each weather counts as rain, for fire, speed and noise.
+var wetness = [NumWeathers]float32{WRain: 1, WStorm: 1, WDrizzle: .3, WThunder: .5}
 
 // weatherFade is how many seconds a weather takes to come in or clear.
 const weatherFade = 6
@@ -46,14 +54,18 @@ func (w *World) stepWeather() {
 	default:
 		w.WeatherAmt = min(w.WeatherAmt+Dt/weatherFade, 1)
 	}
-	if w.Weather != WStorm || w.WeatherAmt < .5 || len(w.Creeps) == 0 {
+	if (w.Weather != WStorm && w.Weather != WThunder) || w.WeatherAmt < .5 || len(w.Creeps) == 0 {
 		return
 	}
 	w.lightning -= Dt
 	if w.lightning > 0 {
 		return
 	}
-	w.lightning = 1.5 + w.rng.Float32()*3
+	if w.Weather == WStorm {
+		w.lightning = 1.5 + w.rng.Float32()*3
+	} else {
+		w.lightning = 7 + w.rng.Float32()*8
+	}
 	// Strike a creep out in the open: never inside the walls, where it would look like the
 	// sky is defending the base for you.
 	for try := 0; try < 6; try++ {
@@ -91,7 +103,8 @@ func (w *World) amt(k WeatherKind) float32 {
 	return 0
 }
 
-func (w *World) wet() float32 { return w.amt(WRain) + w.amt(WStorm) }
+// wet is how rainy it is right now, 0..1: heavy rain counts fully, a drizzle a little.
+func (w *World) wet() float32 { return wetness[w.Weather] * w.WeatherAmt }
 
 // rangeMul scales survivors' and turrets' reach: fog shortens it.
 func (w *World) rangeMul() float32 { return 1 - .25*w.amt(WFog) }

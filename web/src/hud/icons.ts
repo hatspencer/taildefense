@@ -20,7 +20,7 @@ export function iconFor(name: string): string {
   return S('<circle cx="16" cy="16" r="10"/><path d="M16 2v8M16 22v8M2 16h8M22 16h8"/>', '#e6d29a');
 }
 
-// Weather glyphs for the top bar, 16px, by weather kind (0 clear .. 4 snow).
+// Weather glyphs for the top bar, 16px, by weather kind (0 clear .. 4 snow, 5 drizzle, 6 thunder shower).
 const W = (body: string) =>
   `<svg viewBox="0 0 16 16" width="16" height="16" shape-rendering="crispEdges">${body}</svg>`;
 const WEATHER = [
@@ -29,6 +29,8 @@ const WEATHER = [
   W('<path d="M3 3h9v2h2v3H2V5h1z" fill="#8a9298"/><path d="M4 10v2M8 11v2M12 10v2M6 13v2M10 14v1" stroke="#86a2a6" stroke-width="1.5"/>'),
   W('<path d="M3 2h9v2h2v3H2V4h1z" fill="#6a6f74"/><path d="M8 7l-3 4h3l-2 4 5-6H8l2-2z" fill="#f4c25c"/>'),
   W('<path d="M8 1v14M1 8h14M3 3l10 10M13 3L3 13" stroke="#d9d1b3" stroke-width="1.5"/><rect x="6" y="6" width="4" height="4" fill="#2d3123"/>'),
+  W('<path d="M3 4h9v2h2v3H2V6h1z" fill="#9aa2a6"/><path d="M5 11v1M10 12v1M7 14v1" stroke="#86a2a6" stroke-width="1.5"/>'),
+  W('<path d="M3 3h9v2h2v3H2V5h1z" fill="#8a9298"/><path d="M9 8l-2 3h2l-1 3 3-4H9l1-2z" fill="#f4c25c"/><path d="M4 10v2M12 10v2" stroke="#86a2a6" stroke-width="1.5"/>'),
 ];
 
 export function weatherIcon(kind: number): string {

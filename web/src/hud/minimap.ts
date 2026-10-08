@@ -1,5 +1,6 @@
 import type { Controller } from '../controller';
-import { PF_ALIVE, PF_CONNECTED, siteX, siteY } from '../protocol';
+import { PF_ALIVE, PF_CONNECTED, PingKind, siteX, siteY } from '../protocol';
+import { PING_LIFE } from '../state';
 import { cssHex, playerColor } from '../scene/util';
 import { el, esc, show } from './dom';
 
@@ -20,16 +21,25 @@ export class Minimap {
   private dpr = 1;
   private tip: HTMLElement;
   private hoverSite = -1;
+  // Expanded (M): the map fills the middle of the screen.
+  expanded = false;
+  private box: HTMLElement;
 
   constructor(parent: HTMLElement, private ctl: Controller) {
+    this.box = parent;
     this.canvas = document.createElement('canvas');
     parent.appendChild(this.canvas);
+    el('div', 'mmcap', parent, 'Map · M or Esc to close');
+    window.addEventListener('resize', () => { if (this.expanded) this.size(); });
     this.tip = el('div', 'mmtip panel hidden', parent);
     this.ctx = this.canvas.getContext('2d')!;
     this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     this.canvas.addEventListener('pointerdown', (e) => {
       const [x, y] = this.toWorld(e);
-      if (e.button === 0) { this.drag = true; this.canvas.setPointerCapture(e.pointerId); this.look(x, y); }
+      if (e.button === 0 && (e.altKey || ctl.mode.k === 'ping')) {
+        ctl.pingAt(x, y, true);
+        if (ctl.mode.k === 'ping' && !e.shiftKey) ctl.setMode({ k: 'none' });
+      } else if (e.button === 0) { this.drag = true; this.canvas.setPointerCapture(e.pointerId); this.look(x, y); }
       else if (e.button === 2) ctl.moveTo(x, y);
     });
     this.canvas.addEventListener('pointermove', (e) => {
@@ -39,6 +49,33 @@ export class Minimap {
     });
     this.canvas.addEventListener('pointerup', () => { this.drag = false; });
     this.canvas.addEventListener('pointerleave', () => { this.hoverSite = -1; show(this.tip, false); });
+  }
+
+  toggle(on = !this.expanded): void {
+    if (on === this.expanded) return;
+    // The panel keeps its place in the console while the map itself floats over the view.
+    if (on) { const r = this.box.getBoundingClientRect(); this.box.style.width = `${r.width}px`; this.box.style.height = `${r.height}px`; }
+    else { this.box.style.width = ''; this.box.style.height = ''; }
+    this.expanded = on;
+    this.box.classList.toggle('big', on);
+    this.size();
+  }
+
+  // The canvas's size on screen and its backing store.
+  private size(): void {
+    const g = this.ctl.game;
+    if (!g.w || !g.h) return;
+    this.dpr = Math.min(window.devicePixelRatio, 2);
+    const aspect = g.h / Math.max(1, g.w);
+    // Big, it fits between the compass and the console, caption on top.
+    const top = 100, bottom = this.box.parentElement?.getBoundingClientRect().height ?? 180;
+    const room = Math.max(160, window.innerHeight - top - bottom - 12);
+    const w = this.expanded ? Math.round(Math.min(window.innerWidth - 32, room / aspect)) : WIDTH;
+    const h = Math.round(w * aspect);
+    this.box.style.setProperty('--mm-big', `${w}px`); this.box.style.setProperty('--mm-top', `${top}px`);
+    this.canvas.width = Math.round(w * this.dpr); this.canvas.height = Math.round(h * this.dpr);
+    this.sx = this.canvas.width / g.w; this.sy = this.canvas.height / g.h;
+    this.last = 0;
   }
 
   private look(x: number, y: number): void {
@@ -94,11 +131,7 @@ export class Minimap {
     }
     cx.putImageData(img, 0, 0);
     this.terrain = c;
-    this.dpr = Math.min(window.devicePixelRatio, 2);
-    const h = Math.round(WIDTH * g.h / Math.max(1, g.w));
-    this.canvas.style.width = `${WIDTH}px`; this.canvas.style.height = `${h}px`;
-    this.canvas.width = Math.round(WIDTH * this.dpr); this.canvas.height = Math.round(h * this.dpr);
-    this.sx = this.canvas.width / g.w; this.sy = this.canvas.height / g.h;
+    this.size();
   }
 
   draw(now: number, viewW: number, viewH: number): void {
@@ -107,7 +140,7 @@ export class Minimap {
     if (g.terrainVersion !== this.version) { this.version = g.terrainVersion; this.prerender(); }
     if (now - this.last < 66) return;
     this.last = now;
-    const c = this.ctx, f = g.cur, sx = this.sx, sy = this.sy, dpr = this.dpr;
+    const c = this.ctx, f = g.cur, sx = this.sx, sy = this.sy, dpr = this.dpr * (this.expanded ? 1.6 : 1);
     c.imageSmoothingEnabled = false;
     c.drawImage(this.terrain!, 0, 0, this.canvas.width, this.canvas.height);
 
@@ -163,6 +196,7 @@ export class Minimap {
       c.fillStyle = '#000'; c.fillRect(px - r - dpr, py - r - dpr, r * 2 + 2 * dpr, r * 2 + 2 * dpr);
       c.fillStyle = cssHex(playerColor(p.id)); c.fillRect(px - r, py - r, r * 2, r * 2);
     }
+    this.drawPings(now, dpr);
     const q = this.ctl.rig.viewQuad(viewW, viewH);
     c.strokeStyle = 'rgba(217,209,179,0.9)'; c.lineWidth = 1.5 * dpr;
     c.beginPath();
@@ -178,5 +212,43 @@ export class Minimap {
       c.fillText(t, x, y);
     }
     if (this.hoverSite >= 0) this.updateTip();
+  }
+
+  // Team pings: a diamond in the pinger's colour (red for danger) with rings rippling out of
+  // it, quickly at first, then once a second until it fades. Drawn over everything but the view frame, so
+  // a ping is never lost under a horde.
+  private drawPings(now: number, dpr: number): void {
+    const g = this.ctl.game, c = this.ctx, sx = this.sx, sy = this.sy;
+    for (const p of g.pings) {
+      const age = (now - p.at) / 1000, life = PING_LIFE / 1000;
+      if (age < 0 || age > life) continue;
+      const x = Math.round(p.x * sx), y = Math.round(p.y * sy);
+      const col = p.kind === PingKind.Danger ? '#ff5a3c' : cssHex(playerColor(p.player));
+      const fade = Math.min(1, (life - age) / 1);
+      c.globalAlpha = fade;
+      // Ripples: fast at first, then one a second until it fades.
+      const ripple = (t: number) => {
+        if (t < 0 || t > 1) return;
+        const r = Math.round((4 + 18 * t) * dpr);
+        c.globalAlpha = fade * (1 - t);
+        diamond(r + dpr, '#000', 2 * dpr + 2 * dpr);
+        diamond(r, col, 2 * dpr);
+      };
+      const diamond = (r: number, stroke: string, lw: number) => {
+        c.lineWidth = lw; c.strokeStyle = stroke;
+        c.beginPath(); c.moveTo(x, y - r); c.lineTo(x + r, y); c.lineTo(x, y + r); c.lineTo(x - r, y); c.closePath(); c.stroke();
+      };
+      for (let k = 0; k < 3; k++) ripple(age * 1.6 - k * 0.3);
+      if (age > 1.6) ripple((age - 1.6) % 1);
+      c.globalAlpha = fade;
+      // The pin: a diamond, so it never reads as a player's square.
+      const s = Math.round((Math.floor(age * 4) % 2 ? 4 : 5) * dpr);
+      c.fillStyle = '#000';
+      c.beginPath(); c.moveTo(x, y - s - 2 * dpr); c.lineTo(x + s + 2 * dpr, y); c.lineTo(x, y + s + 2 * dpr); c.lineTo(x - s - 2 * dpr, y); c.closePath(); c.fill();
+      c.fillStyle = col;
+      c.beginPath(); c.moveTo(x, y - s); c.lineTo(x + s, y); c.lineTo(x, y + s); c.lineTo(x - s, y); c.closePath(); c.fill();
+      c.fillStyle = '#fff'; c.fillRect(x - dpr, y - dpr, 2 * dpr, 2 * dpr);
+    }
+    c.globalAlpha = 1;
   }
 }

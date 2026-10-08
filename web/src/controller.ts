@@ -1,10 +1,10 @@
 import * as THREE from 'three/webgpu';
 import type { CameraRig } from './camera';
-import { walled, type Command, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_READY, Phase, siteX, siteY, Tile } from './protocol';
+import { walled, type Command, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_READY, Phase, PingKind, siteX, siteY, Tile } from './protocol';
 import type { Effects } from './scene/effects';
 import type { Game } from './state';
 
-export type Mode = { k: 'none' } | { k: 'amove' } | { k: 'ability'; slot: number } | { k: 'build'; kind: number };
+export type Mode = { k: 'none' } | { k: 'amove' } | { k: 'ping' } | { k: 'ability'; slot: number } | { k: 'build'; kind: number };
 export type Pick = { t: 'creep' | 'struct' | 'hero' | 'site'; id: number } | null;
 
 export interface AbilityInfo { name: string; desc: string; key: string; range: number; radius: number; cool: number; target: string; level: number; maxLevel: number; left: number; nextCost: number }
@@ -43,6 +43,7 @@ export class Controller {
     this.mode = m;
     document.body.classList.toggle('cur-attack', m.k === 'amove');
     document.body.classList.toggle('cur-target', m.k === 'ability');
+    document.body.classList.toggle('cur-ping', m.k === 'ping');
     document.body.classList.toggle('cur-build', m.k === 'build');
     this.onModeChange();
   }
@@ -157,9 +158,14 @@ export class Controller {
 
   // --- clicks ---
 
-  leftClick(): void {
+  leftClick(alt = false): void {
     if (!this.groundOk) return;
     const x = this.ground.x, y = this.ground.z;
+    if (alt || this.mode.k === 'ping') {
+      this.pingAt(x, y);
+      if (this.mode.k === 'ping' && !this.shift) this.setMode({ k: 'none' });
+      return;
+    }
     switch (this.mode.k) {
       case 'amove':
         this.send({ op: 'amove', x, y });
@@ -214,6 +220,26 @@ export class Controller {
       return;
     }
     this.moveTo(this.ground.x, this.ground.z);
+  }
+
+  // Marks a spot for the whole team. Its meaning comes from what is under the cursor: a creep
+  // is danger, an unsearched site loot, a structure "defend this", anything else "here".
+  pingAt(x: number, y: number, fromMap = false): void {
+    const h = fromMap ? null : this.hover, f = this.game.cur;
+    let kind = PingKind.Here;
+    if (h?.t === 'creep') {
+      kind = PingKind.Danger;
+      const i = this.game.indexById[h.id];
+      if (i >= 0) { x = this.game.rx[i]; y = this.game.ry[i]; }
+    } else if (h?.t === 'site' && !f.siteSearched(h.id)) {
+      kind = PingKind.Loot;
+      const s = this.game.welcome!.sites[h.id];
+      x = siteX(s); y = siteY(s);
+    } else if (h?.t === 'struct') {
+      kind = PingKind.Defend;
+      x = f.sX[h.id] + f.sW[h.id] / 2; y = f.sY[h.id] + f.sH[h.id] / 2;
+    }
+    this.send({ op: 'ping', x, y, kind });
   }
 
   moveTo(x: number, y: number): void {

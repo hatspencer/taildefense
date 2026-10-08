@@ -428,3 +428,28 @@ func (w *World) dealLook() uint32 {
 	}
 	return w.rng.Uint32()&^15 | free[w.rng.IntN(len(free))]
 }
+
+// pingCost is how many ticks of budget one ping spends, and pingBurst how many a player may
+// send back to back before they have to wait for it to refill.
+const (
+	pingCost  = TickRate
+	pingBurst = 3
+)
+
+// Ping marks a spot for the whole team. Pings are cheap but metered, so one player holding
+// Alt cannot fill everyone's map; past the burst they are dropped quietly.
+func (w *World) Ping(p *Player, x, y float32, k PingKind) error {
+	if k >= NumPingKinds {
+		k = PingHere
+	}
+	if x < 0 || y < 0 || x > float32(w.W) || y > float32(w.H) {
+		return errors.New("that is off the map")
+	}
+	free := max(p.pingFree, w.Tick)
+	if free > w.Tick+(pingBurst-1)*pingCost {
+		return nil
+	}
+	p.pingFree = free + pingCost
+	w.Pings = append(w.Pings, Ping{Player: p.ID, X: x, Y: y, Kind: k})
+	return nil
+}

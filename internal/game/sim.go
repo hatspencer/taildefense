@@ -16,7 +16,8 @@ func (w *World) Step() {
 	// Notes and toasts from commands that arrived since the last tick go out with this one.
 	w.Notes = append(w.Notes[:0], w.Notes[w.sentNotes:]...)
 	w.Toasts = append(w.Toasts[:0], w.Toasts[w.sentToasts:]...)
-	defer func() { w.sentNotes, w.sentToasts = len(w.Notes), len(w.Toasts) }()
+	w.Pings = append(w.Pings[:0], w.Pings[w.sentPings:]...)
+	defer func() { w.sentNotes, w.sentToasts, w.sentPings = len(w.Notes), len(w.Toasts), len(w.Pings) }()
 	if w.Paused >= 0 {
 		return
 	}
@@ -26,9 +27,13 @@ func (w *World) Step() {
 	case PhaseOver:
 		return
 	case PhaseBuild:
+		was := w.PhaseLeft
 		w.PhaseLeft -= Dt
 		if w.allReady() && w.PhaseLeft > 3 {
 			w.PhaseLeft = 3
+		}
+		if w.longBreak() && was > callBack && w.PhaseLeft <= callBack {
+			w.note(2, "wave %d in %ds  ·  head back to the base", w.Wave+1, callBack)
 		}
 		if w.PhaseLeft <= 0 {
 			w.startWave()
@@ -169,11 +174,17 @@ func (w *World) endWave(left int) {
 	}
 	w.Phase = PhaseBuild
 	w.PhaseLeft = w.diff().Build
+	if w.longBreak() {
+		w.PhaseLeft = w.diff().Rest
+	}
 	w.rollWeather()
 	if left > 0 {
 		w.note(2, "wave %d is still out there (%d left)  ·  +%d gold each  ·  the next comes in %.0fs", w.Wave, left, bonus, w.PhaseLeft)
 	} else {
-		w.note(1, "wave %d cleared  ·  +%d gold each  ·  back to the armory", w.Wave, bonus)
+		w.note(1, "wave %d cleared  ·  +%d gold each  ·  wave %d in %.0fs", w.Wave, bonus, w.Wave+1, w.PhaseLeft)
+	}
+	if w.longBreak() {
+		w.note(1, "long break: %.0fs to explore and loot before wave %d", w.PhaseLeft, w.Wave+1)
 	}
 	if w.Wave%5 == 0 {
 		if n := w.restock(); n > 0 {
@@ -181,6 +192,13 @@ func (w *World) endWave(left int) {
 		}
 	}
 }
+
+// callBack is how long before the end of a long break the team is told to come home.
+const callBack = 10
+
+// longBreak reports whether the break after the wave just played is the long one: every
+// fifth wave, time to go out exploring and looting.
+func (w *World) longBreak() bool { return w.Wave > 0 && w.Wave%5 == 0 }
 
 // Budget is the wave's size in walker equivalents. It grows faster the longer the game goes,
 // and each player beyond the first adds more of it as the game goes on.

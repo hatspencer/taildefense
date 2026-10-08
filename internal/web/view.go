@@ -174,7 +174,7 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 		e.u8(r.Target[id])
 	})
 
-	tr, bl, de, notes := r.Drain()
+	tr, bl, de, notes, pings := r.Drain()
 	tr = tr[:min(len(tr), 65535)]
 	e.u16(uint16(len(tr)))
 	for _, t := range tr {
@@ -220,6 +220,14 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 		}
 		e.u16(uint16(len(t)))
 		e.b = append(e.b, t...)
+	}
+	pings = pings[:min(len(pings), 255)]
+	e.u8(uint8(len(pings)))
+	for _, g := range pings {
+		e.u8(g.Player)
+		e.pos(g.X)
+		e.pos(g.Y)
+		e.u8(uint8(g.Kind))
 	}
 	return e.b
 }

@@ -2,6 +2,7 @@ package game
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -427,5 +428,36 @@ func TestEveryoneGetsTheirOwnLook(t *testing.T) {
 	w.Leave(p)
 	if q, _ := w.Join("p0", "p0@example"); q.Look != look {
 		t.Fatal("a returning player should keep their look")
+	}
+}
+
+func TestEveryFifthWaveBringsALongBreak(t *testing.T) {
+	w := New(8)
+	w.Join("ana", "ana@example")
+	d := w.diff()
+	for wave := 1; wave <= 10; wave++ {
+		w.Phase, w.Wave = PhaseWave, wave
+		w.endWave(0)
+		want := d.Build
+		if wave%5 == 0 {
+			want = d.Rest
+		}
+		if w.PhaseLeft != want {
+			t.Fatalf("after wave %d: a %.0fs break, want %.0fs", wave, w.PhaseLeft, want)
+		}
+	}
+	if d := Difficulties[DiffNormal]; d.Build != 15 || d.Rest != 60 {
+		t.Fatalf("normal breaks %v and %v", d.Build, d.Rest)
+	}
+	// Ten seconds before the long break ends, the team is called home.
+	w.Notes = w.Notes[:0]
+	w.PhaseLeft = callBack + Dt/2
+	w.Step()
+	called := false
+	for _, n := range w.Notes {
+		called = called || strings.Contains(n.Text, "head back")
+	}
+	if !called {
+		t.Fatalf("no call home: %+v", w.Notes)
 	}
 }

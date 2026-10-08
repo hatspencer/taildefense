@@ -7,13 +7,15 @@ import {
   PF_HURT, PF_MOVING, PF_READY, PF_RELOADING, CF_BURNING, CF_SLOWED, CF_GUARD, CF_HUNTING, CF_SIEGE, CF_ASLEEP,
   BlastKind, Emote, type SiteDef, SiteKind, Weather, type Welcome,
 } from '../protocol';
-import { ABILITY_RADIUS, CREEPS, STRUCTS, WEAPON_BASE, demoWelcome } from './defs';
+import { ABILITY_RADIUS, CREEPS, STRUCTS, WEAPON_BASE, WEATHERS, demoWelcome } from './defs';
 import { Writer } from './encode';
 import { type DemoMap, generateMap, rng } from './map';
 
 // weather: a fixed kind, or -1 to cycle. down: a teammate starts downed. coreHp: the generator's share of hp.
 export interface DemoOptions { creeps: number; phase: 'wave' | 'build' | 'over'; wave: number; gold: number; weather?: number; down?: boolean; coreHp?: number }
 
+// How much each weather counts as rain, as the host's wetness.
+const WET = [0, 0, 1, 1, 0, 0.3, 0.5];
 // Guard creeps take the top ids, clear of the wave's.
 const GUARD_ID0 = 16000;
 // Guard states.
@@ -54,6 +56,7 @@ export class DemoHost implements Transport {
   private structs: DStruct[] = [];
   private effects: DEffect[] = [];
   private notes: { level: number; text: string }[] = [];
+  private pings: { player: number; x: number; y: number; kind: number }[] = [];
   private sites: SiteDef[] = [];
   private searched = new Uint8Array(0);
   private guardIds: number[][] = [];
@@ -552,7 +555,7 @@ export class DemoHost implements Transport {
   private moveCreeps(): void {
     const core = this.structs[0];
     const ccx = core.x + core.w / 2, ccy = core.y + core.h / 2;
-    const slowW = this.weather === Weather.Snow ? 1 - 0.15 * this.weatherAmt : this.weather >= Weather.Rain && this.weather <= Weather.Storm ? 1 - 0.08 * this.weatherAmt : 1;
+    const slowW = this.weather === Weather.Snow ? 1 - 0.15 * this.weatherAmt : 1 - 0.08 * this.weatherAmt * WET[this.weather];
     for (let id = 0; id < MAX_CREEPS; id++) {
       if (!this.cAlive[id]) {
         if (this.cRespawn[id] > 0) {
@@ -935,7 +938,7 @@ export class DemoHost implements Transport {
   // Weather drifts from one kind to the next every so often, easing out and in.
   private stepWeather(): void {
     const fixed = this.opt.weather !== undefined && this.opt.weather >= 0;
-    if (!fixed && (this.weatherT -= DT) <= 0) { this.weatherT = 30; this.nextWeather = (this.weather + 1) % 5; }
+    if (!fixed && (this.weatherT -= DT) <= 0) { this.weatherT = 30; this.nextWeather = (this.weather + 1) % WEATHERS.length; }
     if (this.nextWeather !== this.weather) {
       this.weatherAmt = Math.max(0, this.weatherAmt - DT / 3);
       if (this.weatherAmt <= 0) {
@@ -943,9 +946,10 @@ export class DemoHost implements Transport {
         this.notes.push({ level: 0, text: `The weather turns: ${this.welcome.weathers[this.weather].name.toLowerCase()}` });
       }
     } else if (this.weather !== Weather.Clear) this.weatherAmt = Math.min(1, this.weatherAmt + DT / 3);
-    if (this.weather !== Weather.Storm || this.weatherAmt < 0.5 || (this.boltT -= DT) > 0) return;
+    const bolts = this.weather === Weather.Storm || this.weather === Weather.Thunder;
+    if (!bolts || this.weatherAmt < 0.5 || (this.boltT -= DT) > 0) return;
     // Lightning finds a creep in the open near the action, else the ground.
-    this.boltT = 1.2 + this.rnd() * 3;
+    this.boltT = this.weather === Weather.Storm ? 1.2 + this.rnd() * 3 : 7 + this.rnd() * 8;
     const me = this.players[0], ids = this.q, n = this.query(me.x, me.y, 26, ids, 400);
     let x = me.x + (this.rnd() - 0.5) * 36, y = me.y + (this.rnd() - 0.5) * 24;
     if (n > 0) { const id = ids[Math.floor(this.rnd() * n)]; x = this.cX[id]; y = this.cY[id]; }
@@ -965,7 +969,7 @@ export class DemoHost implements Transport {
       this.stepEffects();
     }
     dispatch(this.h, this.encode());
-    this.notes.length = 0;
+    this.notes.length = 0; this.pings.length = 0;
     if (--this.statusTimer <= 0) {
       this.statusTimer = 40;
       const n = this.cAlive.reduce((a, b) => a + b, 0);
@@ -1048,6 +1052,8 @@ export class DemoHost implements Transport {
     }
     w.u8(this.notes.length);
     for (const nt of this.notes) { w.u8(nt.level); w.str16(nt.text); }
+    w.u8(this.pings.length);
+    for (const g of this.pings) { w.u8(g.player); w.q8(g.x); w.q8(g.y); w.u8(g.kind); }
     return w.take();
   }
 
@@ -1141,6 +1147,7 @@ export class DemoHost implements Transport {
         break;
       }
       case 'chat': this.notes.push({ level: 3, text: `${p.name}: ${cmd.text}` }); break;
+      case 'ping': this.pings.push({ player: p.id, x: cmd.x, y: cmd.y, kind: Math.min(3, Math.max(0, cmd.kind | 0)) }); break;
       case 'pause':
         this.paused = this.paused >= 0 ? -1 : p.id;
         this.notes.push({ level: 0, text: `${p.name} ${this.paused >= 0 ? 'paused' : 'resumed'} the game` });

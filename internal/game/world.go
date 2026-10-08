@@ -100,6 +100,7 @@ type Player struct {
 	TauntCool float32
 	Sprint    bool    // sprint held
 	Winded    bool    // stamina ran out; no sprinting until it is back to windedUntil
+	pingFree  uint32  // the tick from which a ping costs nothing; see World.Ping
 	Stamina   float32 // 0..1
 	noise     float32 // seconds until firing makes noise again
 	Dry       uint8   // searches in a row that found little, which makes the next luckier
@@ -171,6 +172,25 @@ type Note struct {
 // NoteChat is the level of a player's chat line, "name: text".
 const NoteChat uint8 = 3
 
+// Ping is a spot a player marked on the map for the team: everyone sees it in the world and
+// on the minimap for a few seconds.
+type Ping struct {
+	Player uint8
+	X, Y   float32
+	Kind   PingKind
+}
+
+// PingKind says what a ping means; the page picks it from what is under the cursor.
+type PingKind uint8
+
+const (
+	PingHere   PingKind = iota // look here, go here
+	PingDanger                 // on a creep: watch out
+	PingLoot                   // on a loot site
+	PingDefend                 // on a structure: defend it
+	NumPingKinds
+)
+
 // Projectile is a rocket in flight.
 type Projectile struct {
 	X, Y, VX, VY float32
@@ -207,6 +227,7 @@ type World struct {
 	Deaths  []Death
 	Notes   []Note
 	Toasts  []Toast
+	Pings   []Ping
 
 	Tick       uint32
 	Phase      Phase
@@ -218,6 +239,7 @@ type World struct {
 	Paused     int8 // the player who paused the game, or -1 while it runs
 	sentNotes  int  // how many of Notes and Toasts the last tick already carried
 	sentToasts int
+	sentPings  int
 	stall      float32 // seconds since a creep of the wave last died, once all are out
 	overtime   float32 // seconds of overtime, counted once the wave is all out and at the base
 	waveLeft   int     // creeps of the wave alive at the last count

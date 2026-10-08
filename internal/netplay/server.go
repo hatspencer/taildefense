@@ -473,6 +473,8 @@ func (s *Server) command(p *peer, c Cmd) {
 		w.SetSprint(pl, c.A == 1)
 	case OpPause:
 		w.TogglePause(pl)
+	case OpPing:
+		err = w.Ping(pl, c.X, c.Y, game.PingKind(c.A))
 	case OpRevive:
 		err = w.OrderRevive(pl, int(c.T))
 	case OpUpgradeStruct:
@@ -596,6 +598,7 @@ const (
 	OpRevive // T player id
 	OpSprint // A 1 held, 0 let go
 	OpPause  // toggles
+	OpPing   // A kind, X Y
 )
 
 // Cmd is a discrete request from a player. X and Y are tiles, sent to 1/8; T names a creep
