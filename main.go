@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"taildefense/internal/cli"
 	"taildefense/internal/config"
@@ -194,6 +195,11 @@ func run(args []string) int {
 		}
 		return joinCmd(prefs, pos[0])
 	case "serve":
+		if news, how := cli.Outdated(prefs.AutoUpdate(), 2*time.Second); news != "" {
+			p := ui.New(os.Stdout)
+			p.Warn("%s", news)
+			p.Detail("%s", how)
+		}
 		return cli.Serve(os.Stdout, cli.HostOptions{Port: prefs.Port(), Seed: o.seed, Diff: prefs.Difficulty(), Name: prefs.Name(), Version: version.Current()})
 	case "ls":
 		if o.json {
@@ -274,6 +280,11 @@ func play(p *ui.Printer, prefs *config.Prefs, o web.Options) (web.Result, error)
 	o.Browser = prefs.Browser()
 	if o.Browser == config.BrowserNone {
 		o.Browser = ""
+	}
+	if news, how := cli.Outdated(prefs.AutoUpdate(), 2*time.Second); news != "" {
+		p.Warn("%s", news)
+		p.Detail("%s", how)
+		o.Notice = news + " · " + how
 	}
 	o.Ready = func(pg web.Page) {
 		switch {

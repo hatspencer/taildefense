@@ -123,3 +123,19 @@ func TestRunThatInstallsNothingFails(t *testing.T) {
 		t.Errorf("got %+v", r)
 	}
 }
+
+func TestOutdatedSaysHowToUpdate(t *testing.T) {
+	u, _, _ := fakeUpdater(t, "aaaaaaa", "bbbbbbbbbbbbbbbb")
+	if news, how := u.outdated(time.Second); news == "" || how != "update with: td update" {
+		t.Fatalf("behind: %q %q", news, how)
+	}
+	u, _, _ = fakeUpdater(t, "bbbbbbb", "bbbbbbbbbbbbbbbb")
+	if news, _ := u.outdated(time.Second); news != "" {
+		t.Fatalf("current: %q", news)
+	}
+	u, _, _ = fakeUpdater(t, "aaaaaaa", "bbbbbbbbbbbbbbbb")
+	u.remote = func(string) (string, error) { time.Sleep(time.Second); return "b", nil }
+	if news, _ := u.outdated(10 * time.Millisecond); news != "" {
+		t.Fatalf("slow remote: %q", news)
+	}
+}
