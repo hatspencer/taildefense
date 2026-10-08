@@ -17,6 +17,10 @@ type PlayerView struct {
 	PX, PY                                     float32 // position one frame earlier
 	HP, MaxHP                                  uint16
 	Order                                      game.OrderKind
+	Channel                                    float32 // how far a search or revive is, 0..1
+	Revived                                    float32 // while down: how far a revive on them is
+	Emote                                      uint8
+	EmoteLeft, TauntCool                       float32 // seconds
 	Cur                                        game.WeaponKind
 	Ammo                                       uint16
 	ReloadFrac                                 float32 // 1 just started, 0 done
@@ -80,14 +84,18 @@ type Replica struct {
 	Seed    uint64
 	You     uint8
 
-	Tick      uint32
-	Phase     game.Phase
-	Wave      int
-	PhaseLeft float32
-	Pending   int // creeps of this wave still to spawn
-	Kills     uint64
-	Best      int
-	Players   []PlayerView
+	Tick       uint32
+	Phase      game.Phase
+	Wave       int
+	PhaseLeft  float32
+	Pending    int // creeps of this wave still to spawn
+	Kills      uint64
+	Best       int
+	Weather    game.WeatherKind
+	WeatherAmt float32
+	Players    []PlayerView
+	Searched   []bool  // per loot site, from the welcome's list
+	Guards     []uint8 // per loot site, its living guards
 
 	Alive  bitset
 	CX, CY [game.MaxCreeps]float32 // current position
@@ -95,6 +103,7 @@ type Replica struct {
 	Kind   [game.MaxCreeps]uint8
 	HP     [game.MaxCreeps]uint8
 	Flags  [game.MaxCreeps]uint8
+	Target [game.MaxCreeps]uint8 // the chased player's id, 255 none
 	Flash  [game.MaxCreeps]uint8 // frames since the creep was last hurt, saturating
 	qx, qy [game.MaxCreeps]uint16
 	Count  int
@@ -209,12 +218,12 @@ func (r *Replica) Apply(p []byte) error {
 		id = 0
 		for i := 0; i < n && d.err == nil; i++ {
 			id += int(d.uv())
-			h, f := d.u8(), d.u8()
+			h, f, tg := d.u8(), d.u8(), d.u8()
 			if id < game.MaxCreeps {
 				if h < r.HP[id] {
 					r.Flash[id] = 0
 				}
-				r.HP[id], r.Flags[id] = h, f
+				r.HP[id], r.Flags[id], r.Target[id] = h, f, tg
 			}
 		}
 	}
@@ -308,12 +317,12 @@ func (r *Replica) Apply(p []byte) error {
 }
 
 func (r *Replica) creepRec(d *dec, id int) {
-	k, x, y, h, f := d.u8(), d.u16(), d.u16(), d.u8(), d.u8()
+	k, x, y, h, f, tg := d.u8(), d.u16(), d.u16(), d.u8(), d.u8(), d.u8()
 	if id >= game.MaxCreeps || d.err != nil {
 		return
 	}
 	r.Alive.set(uint16(id))
-	r.Kind[id], r.HP[id], r.Flags[id] = k, h, f
+	r.Kind[id], r.HP[id], r.Flags[id], r.Target[id] = k, h, f, tg
 	r.qx[id], r.qy[id] = x, y
 	r.CX[id], r.CY[id] = unq(x), unq(y)
 	r.PX[id], r.PY[id] = r.CX[id], r.CY[id]
@@ -328,6 +337,21 @@ func (r *Replica) header(d *dec) {
 	r.Pending = int(d.uv())
 	r.Kills = d.uv()
 	r.Best = int(d.u16())
+	r.Weather = game.WeatherKind(d.u8())
+	r.WeatherAmt = float32(d.u8()) / 255
+	ns := int(d.uv())
+	if ns > 4096 {
+		d.err = fmt.Errorf("%d loot sites", ns)
+		return
+	}
+	if len(r.Searched) != ns {
+		r.Searched = make([]bool, ns)
+		r.Guards = make([]uint8, ns)
+	}
+	for i := 0; i < ns; i++ {
+		m := d.u8()
+		r.Searched[i], r.Guards[i] = m&128 != 0, m&127
+	}
 	n := int(d.u8())
 	old := r.Players
 	r.Players = make([]PlayerView, 0, n)
@@ -349,6 +373,11 @@ func (r *Replica) header(d *dec) {
 		p.Aim = unqAngle(d.u16())
 		p.HP, p.MaxHP = d.u16(), d.u16()
 		p.Order = game.OrderKind(d.u8())
+		p.Channel = float32(d.u8()) / 255
+		p.Revived = float32(d.u8()) / 255
+		p.Emote = d.u8()
+		p.EmoteLeft = float32(d.u8()) / 10
+		p.TauntCool = float32(d.u16()) / 10
 		p.Cur = game.WeaponKind(d.u8())
 		p.Ammo = d.u16()
 		p.ReloadFrac = float32(d.u8()) / 255

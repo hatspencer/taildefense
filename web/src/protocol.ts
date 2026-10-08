@@ -9,10 +9,13 @@ export const enum Phase { Build = 0, Wave = 1, Over = 2 }
 
 export const PF_CONNECTED = 1, PF_ALIVE = 2, PF_FIRING = 4, PF_READY = 8, PF_RELOADING = 16,
   PF_HURT = 32, PF_ARMORY = 64, PF_MOVING = 128;
-export const CF_BURNING = 1, CF_SLOWED = 2;
+export const CF_BURNING = 1, CF_SLOWED = 2, CF_GUARD = 4, CF_HUNTING = 8, CF_SIEGE = 16, CF_ASLEEP = 32;
 
-export const enum Order { Idle = 0, Move, AMove, Attack, Hold, Build, Repair }
-export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike }
+export const enum Order { Idle = 0, Move, AMove, Attack, Hold, Build, Repair, Loot, Revive }
+export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake }
+export const enum Weather { Clear = 0, Fog, Rain, Storm, Snow }
+export const enum Emote { None = 0, Taunt }
+export const enum SiteKind { House = 0, Car, Crate }
 export const enum EffectKind { Grenade = 1, Napalm = 2, AirTarget = 3 }
 
 export interface CreepDef { name: string; hp: number; speed: number; radius: number; size: number; ranged: boolean; bounty: number }
@@ -30,12 +33,24 @@ export interface StructDef {
   name: string; price: number; hp: number; w: number; h: number; range: number; ranges?: number[]; turret: boolean;
   key: string; desc: string; upgrade: number[];
 }
+export interface SiteKindDef { name: string; search: number }
+// A loot site: the tiles it covers, the spot it is searched from, how far out it is, and how
+// hard its guards are (0 none .. 3 a lair).
+export interface SiteDef { kind: number; x: number; y: number; w: number; h: number; sx: number; sy: number; tier: number; guard: number }
+export interface WeatherDef { name: string; info: string }
+// Where a site's loot stands: a house's search spot, the middle of a car's or crate's tile.
+export function siteX(s: SiteDef): number { return s.kind === SiteKind.House ? s.sx : s.x + s.w / 2; }
+export function siteY(s: SiteDef): number { return s.kind === SiteKind.House ? s.sy : s.y + s.h / 2; }
 export interface Welcome {
   t: 'welcome'; proto: number; version: string; you: number; w: number; h: number; seed: string;
   host: string; hosting: boolean; hint: string; tickRate: number; core: { x: number; y: number };
   buildRadius: number; shopRadius: number; maxLevel: number; maxStructLevel: number;
   repairCostPerHP: number; sellFraction?: number; tracks: string[]; creeps: CreepDef[]; weapons: WeaponDef[];
   gear: GearDef[]; abilities: AbilityDef[]; structs: StructDef[]; buildable: number[];
+  siteKinds: SiteKindDef[]; sites: SiteDef[];
+  difficulty: { id: number; name: string }; difficulties: string[]; weathers: WeatherDef[];
+  taunt: { cool: number; radius: number; time: number };
+  revive: { reach: number; time: number; hp: number };
 }
 // turretRange is a turret's reach at a level (1-based), from the per-level table when the
 // host sends one.
@@ -58,10 +73,12 @@ export type TextMsg = Welcome | Toast | Status | End;
 export type Command =
   | { op: 'move' | 'amove'; x: number; y: number }
   | { op: 'attack'; id: number }
-  | { op: 'stop' } | { op: 'hold' } | { op: 'reload' } | { op: 'restart' } | { op: 'leave' }
+  | { op: 'stop' } | { op: 'hold' } | { op: 'reload' } | { op: 'restart' } | { op: 'leave' } | { op: 'taunt' }
+  | { op: 'revive'; p: number }
   | { op: 'ability'; slot: number; x: number; y: number }
   | { op: 'build'; kind: number; tx: number; ty: number }
   | { op: 'repair' | 'upgradeStruct' | 'sell'; s: number }
+  | { op: 'loot'; site: number }
   | { op: 'buyWeapon' | 'select'; w: number }
   | { op: 'upgrade'; w: number; track: number }
   | { op: 'gear'; g: number }
@@ -72,8 +89,10 @@ export type Command =
 export class Player {
   id = 0; flags = 0; x = 0; y = 0; aim = 0; hp = 0; maxHp = 1; cur = 0; ammo = 0; mag = 0;
   reload = 0; respawn = 0; gold = 0; kills = 0; damage = 0; owned = 0;
-  levels = new Uint8Array(28); gear = new Uint8Array(3);
-  order = 0; buff = 0; buffLeft = 0;
+  levels = new Uint8Array(28); gear = new Uint8Array(4);
+  // channel: the current search's (order Loot) or revive's (order Revive) progress, 0..1.
+  // revived: for a downed survivor, how far someone's revive of them is, 0..1.
+  order = 0; channel = 0; revived = 0; emote = 0; emoteLeft = 0; tauntCool = 0; buff = 0; buffLeft = 0;
   abLevel = new Uint8Array(4); abCool = new Float32Array(4);
   name = '';
   private nameBytes = new Uint8Array(0);
@@ -93,7 +112,8 @@ export class Player {
     this.hp = o.hp; this.maxHp = o.maxHp; this.cur = o.cur; this.ammo = o.ammo; this.mag = o.mag;
     this.reload = o.reload; this.respawn = o.respawn; this.gold = o.gold; this.kills = o.kills;
     this.damage = o.damage; this.owned = o.owned; this.levels.set(o.levels); this.gear.set(o.gear);
-    this.order = o.order; this.buff = o.buff; this.buffLeft = o.buffLeft;
+    this.order = o.order; this.channel = o.channel; this.revived = o.revived; this.emote = o.emote;
+    this.emoteLeft = o.emoteLeft; this.tauntCool = o.tauntCool; this.buff = o.buff; this.buffLeft = o.buffLeft;
     this.abLevel.set(o.abLevel); this.abCool.set(o.abCool); this.name = o.name;
   }
 }
@@ -111,9 +131,15 @@ function grow<T extends Uint8Array | Uint16Array | Int8Array | Float32Array>(a: 
 
 export class Frame {
   tick = 0; phase = 0; wave = 0; phaseLeft = 0; pending = 0; totalKills = 0; best = 0;
+  // weatherAmt: 0..1, how strongly the weather shows right now.
+  weather = 0; weatherAmt = 0;
 
   nPlayers = 0;
   players: Player[] = [];
+
+  // Per site: bit 7 searched, bits 0..6 guards still alive.
+  nSites = 0;
+  sites = new Uint8Array(128);
 
   nStructs = 0;
   sAlive = new Uint8Array(256); sKind = new Uint8Array(256);
@@ -125,6 +151,8 @@ export class Frame {
   nCreeps = 0;
   cId = new Uint16Array(MAX_CREEPS); cX = new Float32Array(MAX_CREEPS); cY = new Float32Array(MAX_CREEPS);
   cKind = new Uint8Array(MAX_CREEPS); cHp = new Uint8Array(MAX_CREEPS); cFlags = new Uint8Array(MAX_CREEPS);
+  // The hunted player's id for CF_HUNTING, else 255.
+  cTarget = new Uint8Array(MAX_CREEPS);
 
   nTracers = 0;
   tX0 = new Float32Array(256); tY0 = new Float32Array(256); tX1 = new Float32Array(256); tY1 = new Float32Array(256);
@@ -147,6 +175,15 @@ export class Frame {
     for (let i = 0; i < 256; i++) this.players.push(new Player());
   }
 
+  siteSearched(i: number): boolean {
+    return i < this.nSites && (this.sites[i] & 0x80) !== 0;
+  }
+
+  // siteGuards is how many of site i's guards are alive; it cannot be searched until 0.
+  siteGuards(i: number): number {
+    return i < this.nSites ? this.sites[i] & 0x7f : 0;
+  }
+
   player(id: number): Player | null {
     for (let i = 0; i < this.nPlayers; i++) if (this.players[i].id === id) return this.players[i];
     return null;
@@ -167,6 +204,7 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
   f.pending = d.getUint32(o, true); o += 4;
   f.totalKills = d.getUint32(o, true); o += 4;
   f.best = d.getUint16(o, true); o += 2;
+  f.weather = d.getUint8(o); f.weatherAmt = d.getUint8(o + 1) / 255; o += 2;
 
   const np = d.getUint8(o); o += 1;
   f.nPlayers = np;
@@ -183,14 +221,21 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
     p.owned = d.getUint8(o + 31);
     o += 32;
     p.levels.set(bytes.subarray(o, o + 28)); o += 28;
-    p.gear.set(bytes.subarray(o, o + 3)); o += 3;
-    p.order = d.getUint8(o); p.buff = d.getUint8(o + 1); p.buffLeft = d.getUint8(o + 2) / 10; o += 3;
+    p.gear.set(bytes.subarray(o, o + 4)); o += 4;
+    p.order = d.getUint8(o); p.channel = d.getUint8(o + 1) / 255; p.revived = d.getUint8(o + 2) / 255;
+    p.emote = d.getUint8(o + 3); p.emoteLeft = d.getUint8(o + 4) / 10; p.tauntCool = d.getUint16(o + 5, true) / 10;
+    p.buff = d.getUint8(o + 7); p.buffLeft = d.getUint8(o + 8) / 10; o += 9;
     for (let a = 0; a < 4; a++) {
       p.abLevel[a] = d.getUint8(o); p.abCool[a] = d.getUint16(o + 1, true) / 10; o += 3;
     }
     const nl = d.getUint8(o); o += 1;
     p.setName(bytes.subarray(o, o + nl)); o += nl;
   }
+
+  const nsite = d.getUint16(o, true); o += 2;
+  f.sites = grow(f.sites, nsite);
+  f.sites.set(bytes.subarray(o, o + nsite)); o += nsite;
+  f.nSites = nsite;
 
   const ns = d.getUint16(o, true); o += 2;
   if (f.sAlive.length < ns) {
@@ -211,12 +256,12 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
   let nc = d.getUint16(o, true); o += 2;
   if (nc > MAX_CREEPS) nc = MAX_CREEPS;
   f.nCreeps = nc;
-  const cId = f.cId, cX = f.cX, cY = f.cY, cKind = f.cKind, cHp = f.cHp, cFlags = f.cFlags;
+  const cId = f.cId, cX = f.cX, cY = f.cY, cKind = f.cKind, cHp = f.cHp, cFlags = f.cFlags, cTarget = f.cTarget;
   for (let i = 0; i < nc; i++) {
     cId[i] = d.getUint16(o, true);
     cX[i] = d.getUint16(o + 2, true) * Q;
     cY[i] = d.getUint16(o + 4, true) * Q;
-    cKind[i] = bytes[o + 6]; cHp[i] = bytes[o + 7]; cFlags[i] = bytes[o + 8];
+    cKind[i] = bytes[o + 6]; cHp[i] = bytes[o + 7]; cFlags[i] = bytes[o + 8]; cTarget[i] = bytes[o + 9];
     o += 10;
   }
 

@@ -67,6 +67,9 @@ func TestDeltasTrackTheWorld(t *testing.T) {
 		if tick == 200 {
 			w.Structs[5].HP = 0 // a wall falls
 		}
+		if tick%50 == 0 {
+			w.Sites[tick/50].Searched = true
+		}
 		d := e.Delta(w, nil)
 		if err := r.Apply(d); err != nil {
 			t.Fatal(err)
@@ -82,6 +85,11 @@ func TestDeltasTrackTheWorld(t *testing.T) {
 			}
 		}
 		checkReplica(t, w, r)
+		for i, s := range w.Sites {
+			if r.Searched[i] != s.Searched || r.Guards[i] != s.Guards {
+				t.Fatalf("tick %d: site %d searched %v guards %d, replica %v %d", tick, i, s.Searched, s.Guards, r.Searched[i], r.Guards[i])
+			}
+		}
 		if late != nil {
 			checkReplica(t, w, late)
 		}
@@ -129,6 +137,9 @@ func TestHostOnLoopback(t *testing.T) {
 	}
 	defer c.Close()
 	r := NewReplica(wel.W, wel.H, wel.Terrain, wel.You, wel.Seed)
+	if len(wel.Sites) == 0 || wel.Sites[3].Tier > 2 || wel.Sites[3].SX == 0 {
+		t.Fatalf("welcome sites: %+v", wel.Sites[:min(len(wel.Sites), 4)])
+	}
 	frames := 0
 	sentCmd := false
 	toast := ""

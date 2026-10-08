@@ -18,6 +18,21 @@ type Creep struct {
 	Kind      CreepKind
 	LastHit   int8 // player who last damaged it, -1 none, for the bounty
 	Hit       uint8
+
+	// Aggro: a creep hunts a survivor it was pulled, taunted or provoked by, or goes for a
+	// structure that caught its eye, instead of following the field to the generator.
+	Hunt      int8    // player hunted, -1 none
+	HuntLeft  float32 // seconds the hunt lasts
+	Siege     int16   // structure gone for, -1 none
+	SiegeLeft float32
+	Chase     int8    // player chased this tick, for the wire; -1 none
+	think     float32 // seconds until it next considers something else to attack
+
+	// Guards of a loot site sleep at home until woken, and go back when led too far.
+	Home      int16 // site index + 1, 0 for a creep of the waves
+	HX, HY    float32
+	Asleep    bool
+	Returning bool
 }
 
 // Structure is a building. Index in World.Structs is its ID; dead slots are reused.
@@ -78,6 +93,12 @@ type Player struct {
 	Firing    bool
 	Moving    bool
 	Hurt      float32
+	Search    float32 // seconds into searching a loot site or reviving a teammate
+	Revived   float32 // while down: how far the best revive on them is, 0..1
+	Emote     uint8   // 0 none, 1 taunting
+	EmoteLeft float32
+	TauntCool float32
+	Dry       uint8 // searches in a row that found little, which makes the next luckier
 
 	walk walker
 }
@@ -162,12 +183,14 @@ type World struct {
 	W, H    int
 	Terrain []Tile
 	Seed    uint64
+	Diff    Difficulty
 
 	Creeps  []Creep
 	Structs []Structure
 	Players []*Player
 	Rockets []Projectile
 	Effects []Effect
+	Sites   []Site
 
 	// Per tick outputs, cleared at the start of Step.
 	Tracers []Tracer
@@ -190,6 +213,12 @@ type World struct {
 	CoreY      float32
 	Best       int // waves survived when the game ended
 	TotalKills uint32
+	Weather    WeatherKind
+	WeatherAmt float32 // 0..1, how strongly it holds
+
+	weatherNext WeatherKind
+	lightning   float32
+	shooter     int8 // the player whose shot is being resolved, -1 for turrets and the sky
 
 	structAt []int16 // per tile, structure index or -1
 	flow     flowField
@@ -203,12 +232,19 @@ type World struct {
 	paths    pathfinder
 }
 
-// New builds a world from a seed: terrain, the base with its walls, gates and starting
-// turrets, and the spawn points on the map edge.
-func New(seed uint64) *World {
+// New builds a world from a seed at the default difficulty.
+func New(seed uint64) *World { return NewGame(seed, DefaultDifficulty) }
+
+// NewGame builds a world from a seed: terrain, the base with its walls, gates and starting
+// turrets, the spawn points on the map edge, and the loot sites with their guards.
+func NewGame(seed uint64, diff Difficulty) *World {
 	const w, h = 320, 200
-	wd := &World{W: w, H: h, Seed: seed, rng: rand.New(rand.NewPCG(seed, seed^0x9e3779b97f4a7c15))}
-	wd.Terrain = Generate(seed, w, h)
+	if diff >= NumDifficulties {
+		diff = DefaultDifficulty
+	}
+	wd := &World{W: w, H: h, Seed: seed, Diff: diff, shooter: -1, rng: rand.New(rand.NewPCG(seed, seed^0x9e3779b97f4a7c15))}
+	var houses [][4]int
+	wd.Terrain, houses = generate(seed, w, h)
 	wd.structAt = make([]int16, w*h)
 	for i := range wd.structAt {
 		wd.structAt[i] = -1
@@ -225,7 +261,7 @@ func New(seed uint64) *World {
 	wd.buildBase()
 	wd.SpawnPts = spawnPoints(wd.Terrain, w, h)
 	wd.Phase = PhaseBuild
-	wd.PhaseLeft = 45
+	wd.PhaseLeft = wd.diff().First
 	wd.flowDirt = true
 	wd.updateFlow()
 	// Keep only spawn points with a way in; the road ends always have one.
@@ -236,6 +272,11 @@ func New(seed uint64) *World {
 		}
 	}
 	wd.SpawnPts = pts
+	wd.Sites = wd.placeSites(houses)
+	for i := range wd.Sites {
+		wd.spawnGuards(i)
+	}
+	wd.countGuards()
 	return wd
 }
 
@@ -255,12 +296,15 @@ func (w *World) StructAt(x, y int) int {
 	return int(w.structAt[y*w.W+x])
 }
 
+// baseRadius is the half-width of the starting walls' square.
+const baseRadius = 14
+
 // buildBase lays out the generator, the armory, a square of walls with a gate on each side,
 // floor inside, and four gun turrets by the gates.
 func (w *World) buildBase() {
 	cx, cy := w.W/2, w.H/2
 	w.CoreX, w.CoreY = float32(cx), float32(cy)
-	const r = 11
+	const r = baseRadius
 	for y := cy - r - 2; y <= cy+r+2; y++ {
 		for x := cx - r - 2; x <= cx+r+2; x++ {
 			if y >= cy-r && y <= cy+r && x >= cx-r && x <= cx+r {
@@ -270,8 +314,8 @@ func (w *World) buildBase() {
 			}
 		}
 	}
-	w.Core = w.place(SCore, cx-1, cy-1, -1)
-	w.Armory = w.place(SArmory, cx+3, cy-1, -1)
+	w.Core = w.place(SCore, cx-2, cy-2, -1)
+	w.Armory = w.place(SArmory, cx+4, cy-1, -1)
 	for i := -r; i <= r; i++ {
 		for _, p := range [][2]int{{cx + i, cy - r}, {cx + i, cy + r}, {cx - r, cy + i}, {cx + r, cy + i}} {
 			if w.StructAt(p[0], p[1]) >= 0 {
@@ -330,6 +374,13 @@ func (w *World) remove(idx int) {
 // Generate makes the terrain: grass with dirt and sand patches, lakes, forests, ruined
 // buildings, and four roads into the middle. Deterministic for a seed.
 func Generate(seed uint64, w, h int) []Tile {
+	t, _ := generate(seed, w, h)
+	return t
+}
+
+// generate is Generate, also returning each ruined house as x, y, w, h.
+func generate(seed uint64, w, h int) ([]Tile, [][4]int) {
+	var houses [][4]int
 	rng := rand.New(rand.NewPCG(seed, 0x5eed))
 	t := make([]Tile, w*h)
 	n1 := newNoise(rng)
@@ -360,6 +411,7 @@ func Generate(seed uint64, w, h int) []Tile {
 		if abs(bx+bw/2-w/2) < 34 && abs(by+bh/2-h/2) < 30 {
 			continue
 		}
+		houses = append(houses, [4]int{bx, by, bw, bh})
 		door := rng.IntN(2*(bw+bh) - 4)
 		k := 0
 		for y := by; y < by+bh; y++ {
@@ -409,7 +461,7 @@ func Generate(seed uint64, w, h int) []Tile {
 	for y := 0; y < h; y++ {
 		t[y*w], t[y*w+w-1] = TRock, TRock
 	}
-	return t
+	return t, houses
 }
 
 // spawnPoints picks open tiles just inside the border: the four road ends and four corners.

@@ -38,6 +38,8 @@ export interface DemoMap {
   spawns: { x: number; y: number }[];
   // The wall ring around the base and where gates go.
   ring: { x0: number; y0: number; x1: number; y1: number };
+  // The ruined houses, walls included.
+  houses: { x: number; y: number; w: number; h: number }[];
 }
 
 export function generateMap(w: number, h: number, seed: number): DemoMap {
@@ -72,10 +74,13 @@ export function generateMap(w: number, h: number, seed: number): DemoMap {
   t.set(shore);
 
   // Ruins: hollow rock rectangles with collapsed gaps and an old floor.
+  const houses: DemoMap['houses'] = [];
   for (let n = 0; n < 22; n++) {
     const rw = 5 + Math.floor(rnd() * 8), rh = 4 + Math.floor(rnd() * 6);
     const x0 = 6 + Math.floor(rnd() * (w - rw - 12)), y0 = 6 + Math.floor(rnd() * (h - rh - 12));
     if (Math.hypot(x0 + rw / 2 - cx, y0 + rh / 2 - cy) < 40) continue;
+    if (houses.some((o) => x0 < o.x + o.w + 1 && o.x < x0 + rw + 1 && y0 < o.y + o.h + 1 && o.y < y0 + rh + 1)) continue;
+    houses.push({ x: x0, y: y0, w: rw, h: rh });
     for (let y = y0; y < y0 + rh; y++) for (let x = x0; x < x0 + rw; x++) {
       const edge = x === x0 || y === y0 || x === x0 + rw - 1 || y === y0 + rh - 1;
       if (edge) set(x, y, rnd() < 0.78 ? Tile.Rock : Tile.Dirt);
@@ -110,14 +115,14 @@ export function generateMap(w: number, h: number, seed: number): DemoMap {
   }
 
   // The base: cleared ground, a concrete floor inside the wall ring.
-  const ring = { x0: cx - 13, y0: cy - 10, x1: cx + 13, y1: cy + 10 };
-  for (let y = cy - 30; y <= cy + 30; y++) for (let x = cx - 36; x <= cx + 36; x++) {
+  const ring = { x0: cx - 14, y0: cy - 14, x1: cx + 14, y1: cy + 14 };
+  for (let y = cy - 34; y <= cy + 34; y++) for (let x = cx - 40; x <= cx + 40; x++) {
     const v = get(x, y);
-    if (v >= Tile.Water && Math.hypot((x - cx) / 36, (y - cy) / 30) < 1) set(x, y, Tile.Grass);
+    if (v >= Tile.Water && Math.hypot((x - cx) / 40, (y - cy) / 34) < 1) set(x, y, Tile.Grass);
   }
   for (let y = ring.y0 + 1; y < ring.y1; y++) for (let x = ring.x0 + 1; x < ring.x1; x++) {
     const corner = (x < ring.x0 + 3 || x > ring.x1 - 3) && (y < ring.y0 + 3 || y > ring.y1 - 3);
     if (!corner) set(x, y, Tile.Floor);
   }
-  return { tiles: t, spawns, ring };
+  return { tiles: t, spawns, ring, houses };
 }

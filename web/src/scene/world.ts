@@ -1,9 +1,13 @@
 import * as THREE from 'three/webgpu';
 import { Retro } from './retro';
+import type { WeatherLook } from './weather';
 
 // A dark, smoky haze: the edge of the view fades into it like a blackout town.
 export const SKY = 0x2a2d26;
 const DUSK_SKY = 0x161a20;
+const RAIN_SKY = new THREE.Color(0x343a40), FOG_SKY = new THREE.Color(0x7a807c), SNOW_SKY = new THREE.Color(0xaab0b8);
+const FLASH_SKY = new THREE.Color(0xd8e0ff), COOL_SUN = new THREE.Color(0xa8b8d0), WET_HEMI = new THREE.Color(0x9aa6b4);
+const SNOW_GROUND = new THREE.Color(0xc8ccd2), GROUND = new THREE.Color(0x4a4632);
 
 export interface Backend { name: 'WebGPU' | 'WebGL2'; }
 
@@ -23,6 +27,8 @@ export class World {
   retro: Retro | null = null;
   pixel = 0;
   night = 0;
+  // The weather's look, eased; null for clear skies.
+  look: WeatherLook | null = null;
   private shadowSpan = 40;
   private cssW = 1; private cssH = 1;
 
@@ -68,8 +74,27 @@ export class World {
     this.flashlight.position.set(hx - Math.cos(aim) * 0.5, 3, hy - Math.sin(aim) * 0.5);
     this.flashlight.target.position.set(hx + Math.cos(aim) * 5, 0, hy + Math.sin(aim) * 5);
     this.lamp.intensity = 26 * m;
-    this.lamp.position.set(cx, 3, cy);
-    if (this.retro) this.retro.uNight.value = m * 0.35;
+    this.lamp.position.set(cx, 3.2, cy);
+    let tint = 0;
+    const w = this.look;
+    if (w) {
+      // Rain and storms: darker and cooler. Fog: a grey wash. Snow: a pale sky and bright
+      // ground bounce. Lightning lights everything for an instant.
+      this.sun.intensity *= Math.max(0.3, 1 - 0.4 * w.rain - 0.2 * w.storm - 0.3 * w.fog);
+      this.sun.color.lerp(COOL_SUN, 0.6 * w.rain);
+      this.hemi.color.lerp(WET_HEMI, 0.6 * w.rain);
+      this.hemi.intensity *= 1 - 0.2 * w.rain + 0.3 * w.snow;
+      this.hemi.groundColor.copy(GROUND).lerp(SNOW_GROUND, 0.7 * w.snow);
+      bg.lerp(RAIN_SKY, 0.7 * w.rain * (1 - m * 0.5)).lerp(FOG_SKY, 0.75 * w.fog * (1 - m * 0.6)).lerp(SNOW_SKY, 0.55 * w.snow * (1 - m * 0.5));
+      if (w.flash > 0) {
+        this.hemi.intensity += 4 * w.flash;
+        this.sun.intensity += 1.5 * w.flash;
+        bg.lerp(FLASH_SKY, 0.6 * w.flash);
+      }
+      (this.scene.fog as THREE.Fog).color.copy(bg);
+      tint = 0.25 * w.rain + 0.1 * w.fog;
+    }
+    if (this.retro) this.retro.uNight.value = Math.min(0.5, m * 0.35 + tint);
   }
 
   async init(): Promise<void> {
@@ -114,7 +139,8 @@ export class World {
 
   setFog(dist: number): void {
     const f = this.scene.fog as THREE.Fog;
-    f.near = dist * 1.1; f.far = dist * 2.6;
+    const wf = this.look?.fog ?? 0;
+    f.near = dist * 1.1 * (1 - 0.6 * wf); f.far = dist * 2.6 * (1 - 0.45 * wf);
   }
 
   render(): void {

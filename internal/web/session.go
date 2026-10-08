@@ -15,6 +15,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io/fs"
 	"net"
 	"net/http"
@@ -43,11 +44,28 @@ type Options struct {
 	Hint    string // how friends join, for the page
 	// Status is an optional line for the page, such as who is connected, asked every 2 s.
 	Status func() string
-	// Ready is called once the page is served, with its URL, before anything waits on a
-	// browser. The caller opens the browser or prints the URL.
-	Ready func(url string)
+	// Browser is the BROWSER setting to open the page with; "" opens nothing.
+	Browser string
+	// Ready is called once the page is served and the browser started, before anything
+	// waits on a browser. The caller says where the game is.
+	Ready func(Page)
 	// Listen overrides where the page is served, for tests.
 	Listen string
+}
+
+// Page is where the game is being served, for the terminal to say.
+type Page struct {
+	URL     string // the game, for any browser
+	Opened  string // where Browser opened it, such as "Google Chrome, full screen"; "" for nowhere
+	OpenErr error  // why it was not opened, nil when it was or nothing was asked
+	Links   []Link // one per installed browser: following it starts the game there
+}
+
+// Link starts the game in one browser when followed, in whatever browser follows it: a
+// terminal hyperlink opens the system's browser, which asks td to start this one.
+type Link struct {
+	Browser Browser
+	URL     string
 }
 
 // Result is how a session ended.
@@ -102,13 +120,22 @@ func Run(ctx context.Context, o Options) (Result, error) {
 	in := make(chan inbound, 64)
 	done := make(chan struct{})
 	defer close(done)
-	srv := &http.Server{Handler: handler(token, port, conns, in, done), ReadHeaderTimeout: 10 * time.Second}
+	url := fmt.Sprintf("http://127.0.0.1:%d/#%s", port, token)
+	var browsers launcher
+	srv := &http.Server{Handler: handler(token, port, conns, in, done, &browsers, url), ReadHeaderTimeout: 10 * time.Second}
 	go func() { _ = srv.Serve(ln) }()
 	defer srv.Close()
+	defer browsers.closeSoon(1500 * time.Millisecond)
 
-	url := fmt.Sprintf("http://127.0.0.1:%d/#%s", port, token)
+	page := Page{URL: url}
+	if o.Browser != "" {
+		page.Opened, page.OpenErr = browsers.open(o.Browser, url)
+	}
+	for _, b := range Browsers() {
+		page.Links = append(page.Links, Link{b, fmt.Sprintf("http://127.0.0.1:%d/launch/%s?token=%s", port, b.ID, token)})
+	}
 	if o.Ready != nil {
-		o.Ready(url)
+		o.Ready(page)
 	}
 
 	s := &session{o: o, cl: cl}
@@ -279,6 +306,8 @@ type cmd struct {
 	TY    int     `json:"ty"`
 	ID    int     `json:"id"`
 	S     int     `json:"s"`
+	Site  int     `json:"site"`
+	P     int     `json:"p"`
 	Slot  int     `json:"slot"`
 	Kind  int     `json:"kind"`
 	W     int     `json:"w"`
@@ -317,6 +346,8 @@ func (s *session) command(p []byte) bool {
 		nc = netplay.Cmd{Op: netplay.OpBuild, A: u8(c.Kind), X: float32(c.TX), Y: float32(c.TY)}
 	case "repair":
 		nc = netplay.Cmd{Op: netplay.OpRepair, T: u16(c.S)}
+	case "loot":
+		nc = netplay.Cmd{Op: netplay.OpLoot, T: u16(c.Site)}
 	case "upgradeStruct":
 		nc = netplay.Cmd{Op: netplay.OpUpgradeStruct, T: u16(c.S)}
 	case "sell":
@@ -333,6 +364,10 @@ func (s *session) command(p []byte) bool {
 		nc = netplay.Cmd{Op: netplay.OpSelect, A: u8(c.W)}
 	case "reload":
 		nc = netplay.Cmd{Op: netplay.OpReload}
+	case "taunt":
+		nc = netplay.Cmd{Op: netplay.OpTaunt}
+	case "revive":
+		nc = netplay.Cmd{Op: netplay.OpRevive, T: u16(c.P)}
 	case "ready":
 		nc = netplay.Cmd{Op: netplay.OpReady}
 		if c.On {
@@ -365,8 +400,28 @@ func newToken() string {
 // handler serves the page and the socket. The socket wants the token from the page's URL
 // and an Origin of this server: any other page open in the browser could otherwise drive
 // the game, or read it.
-func handler(token string, port int, conns chan<- *browser, in chan<- inbound, done <-chan struct{}) http.Handler {
+func handler(token string, port int, conns chan<- *browser, in chan<- inbound, done <-chan struct{}, browsers *launcher, url string) http.Handler {
 	mux := http.NewServeMux()
+	// A launch link from the terminal: start the game in that browser, full screen. It needs
+	// the token too, or any page could start browsers.
+	mux.HandleFunc("/launch/{id}", func(w http.ResponseWriter, r *http.Request) {
+		if subtle.ConstantTimeCompare([]byte(r.URL.Query().Get("token")), []byte(token)) != 1 {
+			http.Error(w, "wrong token", http.StatusForbidden)
+			return
+		}
+		b, ok := FindBrowser(r.PathValue("id"))
+		if !ok {
+			http.Error(w, "no such browser here", http.StatusNotFound)
+			return
+		}
+		msg := "Opening the game in " + describe(b) + ". This tab can go."
+		if err := browsers.launch(b, url); err != nil {
+			msg = "Could not start " + b.Name + ": " + err.Error()
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		fmt.Fprintf(w, launchPage, html.EscapeString(msg))
+	})
 	origins := map[string]bool{
 		"http://127.0.0.1:" + strconv.Itoa(port): true,
 		"http://localhost:" + strconv.Itoa(port): true,
@@ -477,3 +532,9 @@ func (b *browser) writeQueued(p []byte) error {
 	}
 	return b.ws.write(opText, p)
 }
+
+// launchPage is what the tab a launch link opened shows, briefly: it closes itself where the
+// browser lets it.
+const launchPage = `<!doctype html><meta charset="utf-8"><title>taildefense</title>
+<body style="margin:0;display:grid;place-items:center;height:100vh;background:#16140f;color:#d8cfb4;font:16px monospace">
+<p>%s</p><script>setTimeout(() => window.close(), 1200)</script>`

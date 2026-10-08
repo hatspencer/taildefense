@@ -1,5 +1,5 @@
 import type { Controller } from '../controller';
-import { PF_ARMORY } from '../protocol';
+import { PF_ARMORY, Phase } from '../protocol';
 import { el, esc, fmtGold, show } from './dom';
 
 type Tab = 'weapons' | 'gear' | 'abilities';
@@ -16,8 +16,9 @@ export class Armory {
   constructor(parent: HTMLElement, private ctl: Controller) {
     this.root = el('div', 'window panel armory hidden', parent);
     const h = el('h2', '', this.root);
-    this.title = el('span', '', h, 'Armory');
-    const x = el('button', 'x', h, 'Close');
+    this.title = el('span', '', h);
+    const x = el('button', 'x', h);
+    x.innerHTML = 'Close <kbd>G</kbd>';
     x.onclick = () => ctl.openArmory(false);
     const tabs = el('div', 'tabs', this.root);
     for (const t of ['weapons', 'gear', 'abilities'] as Tab[]) {
@@ -32,19 +33,21 @@ export class Armory {
 
   update(): void {
     const ctl = this.ctl, me = ctl.me(), wd = ctl.game.welcome;
-    show(this.root, ctl.armoryOpen && !!me && !!wd);
-    if (!ctl.armoryOpen || !me || !wd) return;
+    const open = ctl.armoryOpen && !!me && !!wd && ctl.game.cur.phase !== Phase.Over;
+    show(this.root, open);
+    if (!open || !me || !wd) return;
     const at = (me.flags & PF_ARMORY) !== 0;
     const key = [this.tab, at, Math.floor(me.gold), me.owned, me.cur, me.levels.join(','), me.gear.join(','), me.abLevel.join(',')].join('|');
     if (key === this.key) return;
     this.key = key;
     for (const [t, b] of this.tabs) b.classList.toggle('on', t === this.tab);
-    this.title.innerHTML = `Armory <span class="gold" style="font-size:14px">${fmtGold(me.gold)} gold</span>`;
+    this.title.innerHTML = `<span class="tape">Armory</span><span class="wallet crt">${fmtGold(me.gold)}g</span>`;
+    this.title.style.display = 'contents';
     const b = this.body;
     b.innerHTML = '';
     if (!at) {
       const away = el('div', 'away', b);
-      el('span', '', away, 'Walk to the armory to buy and upgrade. You can browse from here.');
+      el('span', '', away, 'You are away from the armory. Browse from here, then walk over to buy and upgrade.');
       const go = el('button', 'primary', away, 'Walk there');
       go.onclick = () => ctl.walkToArmory();
     }

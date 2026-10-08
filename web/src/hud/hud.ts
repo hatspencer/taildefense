@@ -1,13 +1,18 @@
 import type { ConnState } from '../net';
-import { PF_ALIVE, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, sellValue, turretRange } from '../protocol';
+import { Emote, Order, PF_ALIVE, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, type Player, type Welcome, sellValue, turretRange } from '../protocol';
 import type { Controller } from '../controller';
 import { cssHex, playerColor } from '../scene/util';
 import { Armory } from './armory';
 import { el, esc, fmtGold, setClass, setText, show } from './dom';
-import { iconFor } from './icons';
+import { iconFor, weatherIcon } from './icons';
 import { Minimap } from './minimap';
 
-const ORDER = ['idle', 'moving', 'attack-moving', 'attacking', 'holding', 'building', 'repairing'];
+const ORDER = ['idle', 'moving', 'attack-moving', 'attacking', 'holding', 'building', 'repairing', 'searching', 'reviving'];
+
+// One digit after the point below ten seconds, whole seconds above.
+const secs = (s: number) => (s < 10 ? s.toFixed(1) : String(Math.ceil(s)));
+
+interface Slot { root: HTMLElement; icon: HTMLElement; key: HTMLElement; lvl: HTMLElement; cool: HTMLElement; coolTxt: HTMLElement; name: string; pipsFor: number; wasCooling: boolean }
 
 // The HTML overlay: top bar, bottom console, the command card, windows and messages.
 export class Hud {
@@ -15,29 +20,40 @@ export class Hud {
   minimap: Minimap;
   armory: Armory;
   buildCard = false;
-  private top: { wave: HTMLElement; kills: HTMLElement; ready: HTMLButtonElement; readies: HTMLElement };
+  private top: { wave: HTMLElement; diff: HTMLElement; weather: HTMLElement; kills: HTMLElement; ready: HTMLButtonElement; readies: HTMLElement };
   private statusEl: HTMLElement;
+  private alertsEl: HTMLElement;
+  private alertsKey = '';
+  private downed: { root: HTMLElement; sub: HTMLElement; bar: HTMLElement; fill: HTMLElement };
   private announceEl: HTMLElement;
   private toastsEl: HTMLElement;
   private chat: { root: HTMLElement; log: HTMLElement; input: HTMLInputElement };
-  private hero: { portrait: HTMLElement; resp: HTMLElement; name: HTMLElement; hp: HTMLElement; hpTxt: HTMLElement; gold: HTMLElement; weapon: HTMLElement; ammo: HTMLElement; ammoBar: HTMLElement; ammoTxt: HTMLElement; order: HTMLElement; buff: HTMLElement };
-  private slots: { root: HTMLElement; icon: HTMLElement; key: HTMLElement; lvl: HTMLElement; cool: HTMLElement; coolTxt: HTMLElement; name: string; pipsFor: number }[] = [];
+  private hero: {
+    portrait: HTMLElement; resp: HTMLElement; name: HTMLElement; hp: HTMLElement; hpTxt: HTMLElement; gold: HTMLElement;
+    weapon: HTMLElement; ammoNum: HTMLElement; reload: HTMLButtonElement; ammo: HTMLElement; ammoBar: HTMLElement; ammoTxt: HTMLElement;
+    order: HTMLElement; buff: HTMLElement;
+  };
+  private slots: Slot[] = [];
+  private taunt: Slot & { cap: HTMLElement };
   private wslots: HTMLElement[] = [];
   private card: HTMLElement;
   private cardKey = '';
   private modeEl: HTMLElement;
   private tip: HTMLElement;
   private tipFor: (() => string) | null = null;
+  private tipEl: HTMLElement | null = null;
   private score: HTMLElement;
   private help: HTMLElement;
   private menu: HTMLElement;
   private over: HTMLElement;
+  private overBoard: HTMLElement | null = null;
   private cover: HTMLElement;
   private statsEl: HTMLElement;
   private conn: ConnState = 'connecting';
   private connDetail = '';
   private chatTimer = 0;
   private lastSec = -1;
+  private lastBoard = 0;
 
   constructor(parent: HTMLElement, private ctl: Controller) {
     const root = el('div', 'hud', parent);
@@ -45,7 +61,11 @@ export class Hud {
 
     // Top bar.
     const top = el('div', 'top', root);
-    const wave = el('div', 'wave', top);
+    const wave = el('div', 'wave crt', top);
+    const diff = el('div', 'chip diff', top);
+    this.tipOn(diff, () => this.diffTip());
+    const weather = el('div', 'chip weather', top);
+    this.tipOn(weather, () => this.weatherTip());
     el('div', 'spacer', top);
     const kills = el('div', 'kills', top);
     const readies = el('div', 'readies', top);
@@ -56,13 +76,24 @@ export class Hud {
     armBtn.title = 'Armory (G)';
     armBtn.onclick = () => ctl.openArmory(!ctl.armoryOpen);
     const helpBtn = el('button', '', top, '?');
-    helpBtn.title = 'Help (F1)';
+    helpBtn.title = 'Controls (F1)';
     helpBtn.onclick = () => this.toggleHelp();
     const menuBtn = el('button', '', top, 'Menu');
     menuBtn.title = 'Menu (F10)';
     menuBtn.onclick = () => this.toggleMenu();
-    this.top = { wave, kills, ready, readies };
+    this.top = { wave, diff, weather, kills, ready, readies };
     this.statusEl = el('div', 'status', root);
+    this.alertsEl = el('div', 'alerts', root);
+
+    // You are down.
+    const dn = el('div', 'downed hidden', root);
+    el('div', 'dh', dn, 'You are down');
+    const sub = el('div', 'ds', dn);
+    const dbar = el('div', 'bar revive', dn);
+    const dfill = el('div', 'fill', dbar);
+    el('div', 'txt', dbar, 'being revived');
+    this.downed = { root: dn, sub, bar: dbar, fill: dfill };
+
     this.announceEl = el('div', 'announce', root);
     this.toastsEl = el('div', 'toasts', root);
     this.modeEl = el('div', 'mode panel hidden', root);
@@ -93,32 +124,51 @@ export class Hud {
     const portrait = el('div', 'portrait', r1);
     const resp = el('div', 'resp', portrait);
     const nameCol = el('div', '', r1);
+    nameCol.style.minWidth = '0';
     const name = el('div', 'name', nameCol);
     const gold = el('div', 'goldline gold', nameCol);
     const hpBar = el('div', 'bar', hero);
     const hp = el('div', 'fill', hpBar);
     const hpTxt = el('div', 'txt', hpBar);
-    const weapon = el('div', '', hero);
+    const gun = el('div', 'gun', hero);
+    const weapon = el('div', 'wname', gun);
+    const ammoNum = el('div', 'ammo crt', gun);
+    const reload = el('button', 'reload', gun);
+    reload.innerHTML = 'Reload <kbd>T</kbd>';
+    reload.onclick = () => ctl.send({ op: 'reload' });
+    this.tipOn(reload, () => '<b>Reload</b><kbd>T</kbd><br>Swap in a fresh magazine now instead of when it runs dry.');
     const ammoBar = el('div', 'bar ammo', hero);
     const ammo = el('div', 'fill', ammoBar);
     const ammoTxt = el('div', 'txt', ammoBar);
     const order = el('div', 'order', hero);
     const buff = el('div', 'buff', hero);
-    this.hero = { portrait, resp, name, hp, hpTxt, gold, weapon, ammo, ammoBar, ammoTxt, order, buff };
+    this.hero = { portrait, resp, name, hp, hpTxt, gold, weapon, ammoNum, reload, ammo, ammoBar, ammoTxt, order, buff };
 
     const actions = el('div', 'actions', con);
     const abil = el('div', 'abilities', actions);
-    for (let i = 0; i < 4; i++) {
-      const s = el('div', 'slot', abil);
+    const mkSlot = (cls: string, key: string): Slot => {
+      const s = el('div', cls, abil);
       const icon = el('div', 'icon', s);
       const cool = el('div', 'cool', s);
       const coolTxt = el('div', 'cooltxt', s);
-      const key = el('div', 'key', s, 'QWER'[i]);
+      const k = el('div', 'key', s, key);
       const lvl = el('div', 'lvl', s);
-      s.onclick = () => ctl.startAbility(i);
-      this.tipOn(s, () => this.abilityTip(i));
-      this.slots.push({ root: s, icon, key, lvl, cool, coolTxt, name: '', pipsFor: -1 });
+      return { root: s, icon, key: k, lvl, cool, coolTxt, name: '', pipsFor: -1, wasCooling: false };
+    };
+    for (let i = 0; i < 4; i++) {
+      const s = mkSlot('slot', 'QWER'[i]);
+      s.root.onclick = () => ctl.startAbility(i);
+      this.tipOn(s.root, () => this.abilityTip(i));
+      this.slots.push(s);
     }
+    el('div', 'sep', abil);
+    const ts = mkSlot('slot taunt', 'V');
+    ts.icon.innerHTML = iconFor('taunt');
+    const cap = el('div', 'cap', ts.root, 'taunt');
+    ts.root.onclick = () => ctl.send({ op: 'taunt' });
+    this.tipOn(ts.root, () => this.tauntTip());
+    this.taunt = { ...ts, cap };
+
     const ws = el('div', 'weapons', actions);
     for (let i = 0; i < 7; i++) {
       const w = el('div', 'wslot', ws);
@@ -131,13 +181,13 @@ export class Hud {
     this.card = el('div', 'card panel', bottom);
 
     this.armory = new Armory(root, ctl);
-    this.tip = el('div', 'tip panel hidden', root);
     this.score = el('div', 'window panel score hidden', root);
     this.help = el('div', 'window panel help hidden', root);
     this.buildHelp();
     this.menu = el('div', 'window panel menu hidden', root);
     this.buildMenu();
-    this.over = el('div', 'cover hidden', root);
+    this.over = el('div', 'over hidden', root);
+    this.tip = el('div', 'tip panel hidden', root);
     this.cover = el('div', 'cover', root);
     this.statsEl = el('div', 'stats panel hidden', root);
     this.renderCover();
@@ -146,26 +196,36 @@ export class Hud {
   // --- windows and messages ---
 
   private tipOn(e: HTMLElement, f: () => string): void {
-    e.addEventListener('mouseenter', () => { this.tipFor = f; this.placeTip(e); });
-    e.addEventListener('mouseleave', () => { this.tipFor = null; show(this.tip, false); });
+    e.addEventListener('mouseenter', () => { this.tipFor = f; this.tipEl = e; this.placeTip(e); });
+    e.addEventListener('mouseleave', () => { this.tipFor = null; this.tipEl = null; show(this.tip, false); });
   }
 
+  // Above the element, or below it when there is no room (the top bar).
   private placeTip(e: HTMLElement): void {
     if (!this.tipFor) return;
-    this.tip.innerHTML = this.tipFor();
+    const html = this.tipFor();
+    if (!html) { show(this.tip, false); return; }
+    this.tip.innerHTML = html;
     show(this.tip, true);
     const r = e.getBoundingClientRect();
     const tw = this.tip.offsetWidth, th = this.tip.offsetHeight;
     this.tip.style.left = `${Math.max(4, Math.min(window.innerWidth - tw - 4, r.left + r.width / 2 - tw / 2))}px`;
-    this.tip.style.top = `${Math.max(4, r.top - th - 8)}px`;
+    const above = r.top - th - 10;
+    this.tip.style.top = `${above >= 4 ? above : r.bottom + 10}px`;
   }
 
   private abilityTip(i: number): string {
     const a = this.ctl.ability(i);
     if (!a) return '';
-    const lv = a.level > 0 ? `level ${a.level}${a.maxLevel > 1 ? '/' + a.maxLevel : ''}` : 'locked: buy at the armory';
+    const lv = a.level > 0 ? `level ${a.level}${a.maxLevel > 1 ? '/' + a.maxLevel : ''}` : 'locked: buy it at the armory';
     const next = a.nextCost ? ` · next level <span class="c">${a.nextCost}g</span>` : '';
-    return `<b>${esc(a.name)}</b> <kbd>${a.key}</kbd><br>${esc(a.desc)}<br><span class="muted">${lv} · cooldown ${a.cool || '—'}s${a.range ? ' · range ' + a.range : ''}${next}</span>`;
+    return `<b>${esc(a.name)}</b><kbd>${a.key}</kbd><br>${esc(a.desc)}<br><span class="muted">${lv} · cooldown ${a.cool || '—'}s${a.range ? ' · range ' + a.range : ''}${next}</span>`;
+  }
+
+  private tauntTip(): string {
+    const t = this.ctl.game.welcome?.taunt;
+    if (!t) return '';
+    return `<b>Taunt</b><kbd>V</kbd><br>Shout: every creep within ${t.radius} tiles comes for you for ${t.time}s. Pull them off a teammate or into your turrets.<br><span class="muted">cooldown ${t.cool}s</span>`;
   }
 
   private weaponTip(i: number): string {
@@ -174,7 +234,22 @@ export class Hud {
     if (!w || !me) return '';
     const owned = (me.owned & (1 << i)) !== 0;
     const lv = [0, 1, 2, 3].map((t) => `${wd!.tracks[t]} ${me.levels[i * 4 + t]}`).join(' · ');
-    return `<b>${esc(w.name)}</b> <kbd>${i + 1}</kbd><br><span class="muted">${w.fire} · range ${w.range} · special ${esc(w.special)}</span><br>${owned ? lv : `not owned · <span class="c">${w.price}g</span> at the armory`}<br><span class="muted">signature: ${esc(w.sig.name)}</span>`;
+    return `<b>${esc(w.name)}</b><kbd>${i + 1}</kbd><br><span class="muted">${w.fire} · range ${w.range} · special ${esc(w.special)}</span><br>${owned ? lv : `not owned · <span class="c">${w.price}g</span> at the armory`}<br><span class="muted">signature: ${esc(w.sig.name)}</span>`;
+  }
+
+  private diffTip(): string {
+    const wd = this.ctl.game.welcome;
+    if (!wd) return '';
+    return `<b>${esc(wd.difficulty.name)}</b><br>The host's choice for this game. It sets creep health and wave size, gold drops, build time, how tough loot guards are and how long a downed survivor can be revived.`;
+  }
+
+  private weatherTip(): string {
+    const wd = this.ctl.game.welcome, f = this.ctl.game.cur;
+    const w = wd?.weathers[f.weather];
+    if (!w) return '';
+    const amt = Math.round(f.weatherAmt * 100);
+    const state = f.weather === 0 ? '' : amt >= 98 ? '' : `<br><span class="muted">${amt < 50 && f.weatherAmt > 0 ? 'passing or rolling in' : 'building'} · ${amt}%</span>`;
+    return `<b>${esc(w.name)}</b><br>${w.info ? esc(w.info) : 'No effect on the fight.'}${state}<br><span class="muted">Changes between waves.</span>`;
   }
 
   note(level: number, text: string): void {
@@ -216,7 +291,12 @@ export class Hud {
     this.chat.input.blur();
   }
 
-  showScore(on: boolean): void { show(this.score, on); if (on) this.renderScore(); }
+  // The game-over report carries its own scoreboard, so the window stays shut then.
+  showScore(on: boolean): void {
+    if (this.ctl.game.cur.phase === Phase.Over) on = false;
+    show(this.score, on);
+    if (on) this.renderScore();
+  }
   toggleHelp(): void { show(this.help, this.help.classList.contains('hidden')); }
   toggleMenu(): void { show(this.menu, this.menu.classList.contains('hidden')); }
   toggleStats(): void { show(this.statsEl, this.statsEl.classList.contains('hidden')); }
@@ -251,12 +331,14 @@ export class Hud {
 
   private buildHelp(): void {
     const rows: [string, string][] = [
-      ['Right-click', 'move · on a creep: attack · on a damaged structure: repair · on the armory: walk there'],
+      ['Right-click', 'move · on a creep: attack · on a damaged structure: repair · on the armory: walk there · on a loot site: search it'],
+      ['Right-click a downed teammate', 'walk over and revive them: stay close until the bar fills'],
       ['<kbd>A</kbd> + left-click', 'attack-move (Shift keeps the mode)'],
       ['<kbd>S</kbd> / <kbd>H</kbd>', 'stop / hold position'],
       ['<kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd>', 'abilities; point abilities then left-click to cast, right-click or Esc cancels'],
+      ['<kbd>V</kbd>', 'taunt: pull every creep nearby onto you, then a cooldown'],
       ['<kbd>1</kbd>–<kbd>7</kbd>', 'equip an owned weapon'],
-      ['<kbd>T</kbd>', 'reload'],
+      ['<kbd>T</kbd> or Reload', 'reload now (the button sits next to your ammo)'],
       ['<kbd>B</kbd>', 'build card; its hotkeys pick a structure, left-click places, Shift keeps placing'],
       ['Left-click', 'select a structure, creep or hero'],
       ['<kbd>U</kbd> / <kbd>X</kbd> / <kbd>F</kbd>', 'upgrade / sell / repair the selected structure'],
@@ -271,107 +353,220 @@ export class Hud {
       ['<kbd>F4</kbd>', 'pixel view on or off'],
       ['<kbd>F10</kbd> / <kbd>Esc</kbd>', 'menu (Esc first cancels the current mode or window)'],
     ];
-    this.help.innerHTML = `<h2>Controls <button class="x">Close</button></h2><table>${rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</table>`;
+    this.help.innerHTML = `<h2><span class="tape">Controls</span><button class="x">Close</button></h2><table>${rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</table>`;
     (this.help.querySelector('.x') as HTMLButtonElement).onclick = () => show(this.help, false);
   }
 
   private buildMenu(): void {
     const m = this.menu;
-    el('h2', '', m, 'Menu');
+    el('h2', '', m).innerHTML = '<span class="tape">Menu</span>';
     const resume = el('button', '', m, 'Resume');
     resume.onclick = () => show(m, false);
     const help = el('button', '', m, 'Controls (F1)');
     help.onclick = () => { show(m, false); this.toggleHelp(); };
-    const leave = el('button', '', m, 'Leave game');
-    leave.onclick = () => {
-      const hosting = this.ctl.game.welcome?.hosting;
-      if (hosting && !confirm('You are hosting: leaving ends the game for everyone. Leave?')) return;
-      this.ctl.send({ op: 'leave' });
-    };
+    const leave = el('button', 'danger', m, 'Leave game');
+    leave.onclick = () => this.leave();
     el('div', 'muted', m, '').id = 'menu-hint';
   }
 
-  private renderScore(): void {
+  private leave(): void {
+    const hosting = this.ctl.game.welcome?.hosting;
+    if (hosting && !confirm('You are hosting: leaving ends the game for everyone. Leave?')) return;
+    this.ctl.send({ op: 'leave' });
+  }
+
+  private scoreTable(): string {
     const g = this.ctl.game, f = g.cur;
     const rows = [];
     for (let i = 0; i < f.nPlayers; i++) {
       const p = f.players[i];
-      const st = !(p.flags & PF_CONNECTED) ? 'away' : !(p.flags & PF_ALIVE) ? `dead ${p.respawn}s` : '';
-      rows.push(`<tr><td><span class="dot" style="background:${cssHex(playerColor(p.id))}"></span>${esc(p.name)}${p.id === g.welcome?.you && p.name !== 'you' ? ' (you)' : ''} <span class="muted">${st}</span></td><td>${p.kills}</td><td>${fmtGold(p.damage)}</td><td class="gold">${fmtGold(p.gold)}</td></tr>`);
+      const st = !(p.flags & PF_CONNECTED) ? '<span class="st muted">away</span>' : !(p.flags & PF_ALIVE) ? `<span class="st down">down ${p.respawn}s</span>` : '';
+      const you = p.id === g.welcome?.you && p.name !== 'you' ? ' <span class="muted">(you)</span>' : '';
+      rows.push(`<tr><td><span class="dot" style="background:${cssHex(playerColor(p.id))}"></span>${esc(p.name)}${you}${st}</td><td>${p.kills}</td><td>${fmtGold(p.damage)}</td><td class="gold">${fmtGold(p.gold)}</td></tr>`);
     }
-    this.score.innerHTML = `<h2>Scoreboard <span class="muted" style="font-size:12px;font-weight:400">wave ${f.wave} · ${fmtGold(f.totalKills)} kills</span></h2><table><tr><th>Player</th><th>Kills</th><th>Damage</th><th>Gold</th></tr>${rows.join('')}</table>`;
+    return `<table class="scoretable"><tr><th>Survivor</th><th>Kills</th><th>Damage</th><th>Gold</th></tr>${rows.join('')}</table>`;
+  }
+
+  private renderScore(): void {
+    const f = this.ctl.game.cur;
+    this.score.innerHTML = `<h2><span class="tape">Scoreboard</span><span class="muted">wave ${f.wave} · ${fmtGold(f.totalKills)} kills</span></h2>${this.scoreTable()}`;
   }
 
   // --- per frame ---
 
   update(now: number): void {
-    const ctl = this.ctl, g = ctl.game, f = g.cur, wd = g.welcome, me = ctl.me();
+    const ctl = this.ctl, g = ctl.game, wd = g.welcome, me = ctl.me();
     if (!wd) return;
-    // Wave line.
+    this.updateTop(wd, now);
+    if (me) this.updateHero(me, wd, now);
+    this.updateDown(me, wd);
+    this.updateCard();
+    this.updateMode();
+    this.armory.update();
+    if (this.tipFor && this.tipEl && now - this.lastSec > 250) { this.placeTip(this.tipEl); this.lastSec = now; }
+    const tick = now - this.lastBoard > 500;
+    if (tick) this.lastBoard = now;
+    if (tick && !this.score.classList.contains('hidden')) this.renderScore();
+    this.updateOver(tick);
+  }
+
+  private updateTop(wd: Welcome, now: number): void {
+    const ctl = this.ctl, f = ctl.game.cur, me = ctl.me();
     let wave: string;
-    if (f.phase === Phase.Build) wave = `Wave ${f.wave + 1} in <span class="phase">${Math.ceil(f.phaseLeft / 10)}s</span>`;
-    else if (f.phase === Phase.Wave) wave = `Wave ${f.wave} · <span class="phase">${fmtGold(f.pending + f.nCreeps)}</span> creeps left`;
-    else wave = `Game over · survived ${f.best} waves`;
+    if (f.phase === Phase.Build) {
+      const left = Math.max(0, f.phaseLeft / 10 - (now - ctl.game.frameAt) / 1000);
+      wave = `<span class="lbl">wave ${f.wave + 1} in</span><span class="phase">${Math.ceil(left)}s</span>`;
+    } else if (f.phase === Phase.Wave) wave = `<span class="lbl">wave</span>${f.wave}<span class="lbl">·</span><span class="phase">${fmtGold(f.pending + f.nCreeps)}</span><span class="lbl">creeps left</span>`;
+    else wave = `<span class="lbl">overrun · held</span><span class="phase">${f.best}</span><span class="lbl">waves</span>`;
     if (this.top.wave.innerHTML !== wave) this.top.wave.innerHTML = wave;
-    setText(this.top.kills, `${fmtGold(f.totalKills)} kills`);
+
+    const di = Math.max(0, Math.min(wd.difficulties.length - 1, wd.difficulty.id));
+    const diff = `<span class="pips">${wd.difficulties.map((_, i) => `<i class="${i <= di ? 'on' : ''}"></i>`).join('')}</span>${esc(wd.difficulty.name)}`;
+    if (this.top.diff.innerHTML !== diff) this.top.diff.innerHTML = diff;
+
+    const w = wd.weathers[f.weather] ?? wd.weathers[0];
+    const amt = f.weather === 0 ? 1 : f.weatherAmt;
+    const wh = `${weatherIcon(f.weather)}<span>${esc(w?.name ?? 'Clear')}</span>${w?.info && amt > 0.3 ? `<span class="info">${esc(w.info)}</span>` : ''}`;
+    if (this.top.weather.innerHTML !== wh) this.top.weather.innerHTML = wh;
+    this.top.weather.style.opacity = (0.4 + 0.6 * amt).toFixed(2);
+
+    const kills = `<b>${fmtGold(f.totalKills)}</b> kills`;
+    if (this.top.kills.innerHTML !== kills) this.top.kills.innerHTML = kills;
     const build = f.phase === Phase.Build;
     show(this.top.ready, build);
     show(this.top.readies, build);
     setClass(this.top.ready, 'on', !!me && (me.flags & PF_READY) !== 0);
+    setText(this.top.ready, me && me.flags & PF_READY ? 'Ready ✓' : 'Ready');
     if (build) {
       let dots = '';
       for (let i = 0; i < f.nPlayers; i++) {
         const p = f.players[i];
-        dots += `<span class="${p.flags & PF_READY ? 'on' : ''}" style="background:${cssHex(playerColor(p.id))};color:${cssHex(playerColor(p.id))}" title="${esc(p.name)}"></span>`;
+        dots += `<span class="${p.flags & PF_READY ? 'on' : ''}" style="background:${cssHex(playerColor(p.id))}" title="${esc(p.name)}${p.flags & PF_READY ? ' is ready' : ''}"></span>`;
       }
       if (this.top.readies.innerHTML !== dots) this.top.readies.innerHTML = dots;
     }
-
-    if (me) this.updateHero(me, wd, now);
-    this.updateCard();
-    this.updateMode();
-    this.armory.update();
-    if (this.tipFor && now - this.lastSec > 250) { this.tip.innerHTML = this.tipFor(); this.lastSec = now; }
-    if (!this.score.classList.contains('hidden') && Math.floor(now / 500) !== Math.floor((now - 17) / 500)) this.renderScore();
-
-    // Game over screen.
-    const isOver = f.phase === Phase.Over;
-    show(this.over, isOver);
-    if (isOver && !this.over.dataset.shown) {
-      this.over.dataset.shown = '1';
-      this.over.innerHTML = `<h1>The generator has fallen</h1><div class="big">You survived <b class="gold">${f.best}</b> waves · ${fmtGold(f.totalKills)} kills</div><div class="row"></div>`;
-      const row = this.over.querySelector('.row') as HTMLElement;
-      const rs = el('button', 'primary', row, 'Restart');
-      rs.onclick = () => ctl.send({ op: 'restart' });
-      const sc = el('button', '', row, 'Scoreboard');
-      sc.onclick = () => this.showScore(this.score.classList.contains('hidden'));
-      const lv = el('button', '', row, 'Leave');
-      lv.onclick = () => ctl.send({ op: 'leave' });
-    }
-    if (!isOver) delete this.over.dataset.shown;
   }
 
-  private updateHero(me: NonNullable<ReturnType<Controller['me']>>, wd: NonNullable<Controller['game']['welcome']>, now: number): void {
+  // Your own downed banner, and a radio call for each teammate who is down.
+  private updateDown(me: Player | null, wd: Welcome): void {
+    const ctl = this.ctl, f = ctl.game.cur;
+    const over = f.phase === Phase.Over;
+    const down = !!me && !(me.flags & PF_ALIVE) && !over;
+    show(this.downed.root, down);
+    if (down) {
+      let mates = 0;
+      for (let i = 0; i < f.nPlayers; i++) {
+        const p = f.players[i];
+        if (p.id !== me!.id && p.flags & PF_CONNECTED && p.flags & PF_ALIVE) mates++;
+      }
+      const sub = mates > 0
+        ? `a teammate can revive you here · or respawn at base in<span class="n">${me!.respawn}s</span>`
+        : `no teammate is standing · respawn at base in<span class="n">${me!.respawn}s</span>`;
+      if (this.downed.sub.innerHTML !== sub) this.downed.sub.innerHTML = sub;
+      show(this.downed.bar, me!.revived > 0);
+      this.downed.fill.style.transform = `scaleX(${me!.revived.toFixed(3)})`;
+    }
+
+    // Teammates down.
+    const rows: Player[] = [];
+    if (!over) for (let i = 0; i < f.nPlayers; i++) {
+      const p = f.players[i];
+      if (p.id !== wd.you && p.flags & PF_CONNECTED && !(p.flags & PF_ALIVE)) rows.push(p);
+    }
+    const reviving = !!me && me.order === Order.Revive;
+    const key = rows.map((p) => `${p.id}:${p.name}:${p.respawn}:${Math.round(p.revived * 40)}`).join('|') + `:${reviving}`;
+    if (key === this.alertsKey) return;
+    this.alertsKey = key;
+    const root = this.alertsEl;
+    root.innerHTML = '';
+    for (const p of rows) {
+      const d = el('div', 'down', root);
+      d.title = `Walk over and revive ${p.name}`;
+      el('span', 'who', d).style.background = cssHex(playerColor(p.id));
+      const t = el('span', 't', d);
+      t.innerHTML = p.revived > 0
+        ? `<b>${esc(p.name)}</b> is being revived${reviving ? ' · stay close' : ''}`
+        : `<b>${esc(p.name)}</b> is down · right-click them to revive`;
+      el('span', 'n', d, `${p.respawn}s`);
+      if (p.revived > 0) {
+        const bar = el('div', 'bar revive', d);
+        el('div', 'fill', bar).style.transform = `scaleX(${p.revived.toFixed(3)})`;
+      }
+      d.onclick = () => ctl.send({ op: 'revive', p: p.id });
+    }
+  }
+
+  private updateOver(tick: boolean): void {
+    const ctl = this.ctl, f = ctl.game.cur, wd = ctl.game.welcome!;
+    const isOver = f.phase === Phase.Over;
+    show(this.over, isOver);
+    if (!isOver) { delete this.over.dataset.shown; this.overBoard = null; return; }
+    if (!this.over.dataset.shown) {
+      this.over.dataset.shown = '1';
+      show(this.score, false);
+      let n = 0;
+      for (let i = 0; i < f.nPlayers; i++) if (f.players[i].flags & PF_CONNECTED) n++;
+      this.over.innerHTML = `<div class="sheet panel">
+        <span class="tape red">Field report</span>
+        <div class="stamp">Overrun</div>
+        <h1>The generator has fallen</h1>
+        <div class="meta">${esc(wd.difficulty.name)} · ${n} ${n === 1 ? 'survivor' : 'survivors'} · map ${esc(wd.seed)}</div>
+        <div class="tally">
+          <div class="crt"><b>${f.best}</b><span>${f.best === 1 ? 'wave' : 'waves'} held</span></div>
+          <div class="crt"><b>${fmtGold(f.totalKills)}</b><span>creeps killed</span></div>
+        </div>
+        <div class="board"></div>
+        <div class="row"></div>
+        <div class="note">${wd.hosting ? 'Restart deals a new map to everyone in the game.' : 'Restart deals a new map to everyone in the game; leaving takes you back to the terminal.'}</div>
+      </div>`;
+      this.overBoard = this.over.querySelector('.board') as HTMLElement;
+      const row = this.over.querySelector('.row') as HTMLElement;
+      const rs = el('button', 'primary', row, 'Restart on a new map');
+      rs.onclick = () => ctl.send({ op: 'restart' });
+      const lv = el('button', 'danger', row, 'Leave game');
+      lv.onclick = () => this.leave();
+      tick = true;
+    }
+    if (tick && this.overBoard) this.overBoard.innerHTML = this.scoreTable();
+  }
+
+  private updateHero(me: Player, wd: Welcome, now: number): void {
     const h = this.hero;
     const alive = (me.flags & PF_ALIVE) !== 0;
     h.portrait.style.setProperty('--pc', cssHex(playerColor(me.id)));
     setClass(h.portrait, 'dead', !alive);
     setText(h.resp, alive ? '' : `${me.respawn}`);
     setText(h.name, me.name);
-    setText(h.gold, `${fmtGold(me.gold)} gold`);
+    setText(h.gold, `${fmtGold(me.gold)}`);
     const frac = me.hp / Math.max(1, me.maxHp);
     h.hp.style.transform = `scaleX(${frac})`;
-    h.hp.style.background = frac > 0.5 ? '' : frac > 0.25 ? 'linear-gradient(#f0d060,#b09020)' : 'linear-gradient(#ff6a50,#b02a18)';
+    h.hp.style.background = frac > 0.5 ? '' : frac > 0.25 ? 'var(--amber)' : 'var(--rust)';
     setText(h.hpTxt, `${me.hp} / ${me.maxHp}`);
     const w = wd.weapons[me.cur];
     setText(h.weapon, w ? w.name : '');
     const reloading = (me.flags & PF_RELOADING) !== 0;
     setClass(h.ammoBar, 'reload', reloading);
     h.ammo.style.transform = `scaleX(${reloading ? 1 - me.reload : me.ammo / Math.max(1, me.mag)})`;
-    setText(h.ammoTxt, reloading ? 'reloading…' : `${me.ammo} / ${me.mag}`);
-    setText(h.order, alive ? ORDER[me.order] ?? '' : `respawning in ${me.respawn}s`);
+    setText(h.ammoTxt, reloading ? 'reloading' : '');
+    const an = `${me.ammo}<i>/${me.mag}</i>`;
+    if (h.ammoNum.innerHTML !== an) h.ammoNum.innerHTML = an;
+    h.ammoNum.style.color = !reloading && me.ammo <= Math.max(1, me.mag * 0.2) ? 'var(--rust)' : '';
+    const full = me.ammo >= me.mag;
+    h.reload.disabled = !alive || full || reloading;
+    setClass(h.reload, 'busy', reloading);
+    h.reload.title = reloading ? 'Reloading' : full ? 'The magazine is full' : 'Reload now (T)';
+    setText(h.order, alive ? (me.emote === Emote.Taunt && me.emoteLeft > 0 ? `taunting · ${me.emoteLeft.toFixed(1)}s` : ORDER[me.order] ?? '') : `down · ${me.respawn}s`);
     setText(h.buff, me.buff && me.buffLeft > 0 ? `${wd.weapons[me.buff]?.sig.name ?? 'buff'} · ${me.buffLeft.toFixed(1)}s` : '');
 
+    const since = (now - this.ctl.game.frameAt) / 1000;
+    const sweep = (s: Slot, left: number, cool: number) => {
+      const cooling = cool > 0 && left >= 0.05;
+      const deg = cooling ? Math.min(360, (left / cool) * 360) : 0;
+      s.cool.style.setProperty('--a', `${deg.toFixed(1)}deg`);
+      setText(s.coolTxt, cooling ? secs(left) : '');
+      if (s.wasCooling && !cooling) { s.root.classList.remove('ready-flash'); void s.root.offsetWidth; s.root.classList.add('ready-flash'); }
+      s.wasCooling = cooling;
+    };
     for (let i = 0; i < 4; i++) {
       const s = this.slots[i], a = this.ctl.ability(i);
       if (!a) continue;
@@ -384,11 +579,15 @@ export class Hud {
         s.lvl.innerHTML = a.maxLevel > 1 ? Array.from({ length: a.maxLevel }, (_, k) => `<i class="${k < a.level ? 'on' : ''}"></i>`).join('') : '';
       }
       // Cooldown sweep, interpolated between frames.
-      const left = Math.max(0, a.left - (now - this.ctl.game.frameAt) / 1000);
-      const deg = a.cool > 0 && left >= 0.05 ? Math.min(360, (left / a.cool) * 360) : 0;
-      s.cool.style.setProperty('--a', `${deg.toFixed(1)}deg`);
-      setText(s.coolTxt, left >= 0.05 ? (left < 10 ? left.toFixed(1) : String(Math.ceil(left))) : '');
+      sweep(s, Math.max(0, a.left - since), a.cool);
     }
+    // Taunt: its cooldown, and lit while the shout is running.
+    const t = this.taunt;
+    sweep(t, Math.max(0, me.tauntCool - since), wd.taunt.cool);
+    setClass(t.root, 'on', me.emote === Emote.Taunt && me.emoteLeft > 0);
+    setClass(t.root, 'locked', !alive);
+    setText(t.cap, me.tauntCool > 0 ? '' : 'taunt');
+
     for (let i = 0; i < 7; i++) {
       const e = this.wslots[i], w2 = wd.weapons[i];
       show(e, !!w2);
@@ -408,20 +607,23 @@ export class Hud {
     if (this.buildCard) key = `b:${ctl.mode.k === 'build' ? ctl.mode.kind : -1}:${me ? Math.floor(me.gold) : 0}`;
     else if (s?.t === 'struct') key = `s:${s.id}:${f.sKind[s.id]}:${f.sHp[s.id]}:${f.sMaxHp[s.id]}:${f.sLevel[s.id]}:${me ? Math.floor(me.gold) : 0}`;
     else if (s?.t === 'creep') { const i = g.indexById[s.id]; key = `c:${s.id}:${i >= 0 ? f.cHp[i] + ':' + f.cFlags[i] : ''}`; }
-    else if (s?.t === 'hero') { const p = f.player(s.id); key = `h:${s.id}:${p?.hp}:${p?.cur}:${p?.kills}`; }
+    else if (s?.t === 'hero') { const p = f.player(s.id); key = `h:${s.id}:${p?.hp}:${p?.cur}:${p?.kills}:${p?.flags}:${p?.respawn}`; }
     else key = 'none';
     if (key === this.cardKey) return;
     this.cardKey = key;
     const c = this.card;
     c.innerHTML = '';
     const gold = me ? me.gold : 0;
+    const head = (title: string, aside = '', cls = '') => {
+      el('h3', '', c).innerHTML = `<span class="tape ${cls}">${title}</span>${aside ? `<span class="muted">${aside}</span>` : ''}`;
+    };
     if (this.buildCard) {
-      const h = el('h3', '', c); h.innerHTML = 'Build <span class="muted" style="font-weight:400;font-size:11px">B closes</span>';
+      head('Build', 'B closes');
       const grid = el('div', 'grid', c);
       for (const k of wd.buildable) {
         const d = wd.structs[k];
         const b = el('button', ctl.mode.k === 'build' && ctl.mode.kind === k ? 'sel' : '', grid);
-        b.innerHTML = `${esc(d.name)}<span class="p">${d.price}g</span><span class="k">${esc(d.key)}</span>`;
+        b.innerHTML = `<span class="n">${esc(d.name)}</span><span class="p">${d.price}g</span><span class="k">${esc(d.key)}</span>`;
         b.disabled = gold < d.price;
         b.title = d.desc;
         b.onclick = () => ctl.startBuild(k);
@@ -432,7 +634,7 @@ export class Hud {
     if (s?.t === 'struct') {
       const id = s.id, d = wd.structs[f.sKind[id]];
       const owner = f.sOwner[id] < 0 ? 'base' : f.player(f.sOwner[id])?.name ?? `player ${f.sOwner[id]}`;
-      const h = el('h3', '', c); h.innerHTML = `${esc(d?.name ?? '?')} <span class="muted" style="font-weight:400">${esc(owner)}</span>`;
+      head(esc(d?.name ?? '?'), esc(owner));
       el('div', 'sub', c, `HP ${f.sHp[id]} / ${f.sMaxHp[id]}${d?.turret ? ` · level ${f.sLevel[id]}/${wd.maxStructLevel} · range ${turretRange(d, f.sLevel[id]).toFixed(1).replace(/\.0$/, '')}` : ''}`);
       if (d?.desc) el('div', 'sub', c, d.desc);
       const btns = el('div', 'btns', c);
@@ -464,11 +666,11 @@ export class Hud {
     if (s?.t === 'creep') {
       const i = g.indexById[s.id];
       const d = i >= 0 ? wd.creeps[f.cKind[i]] : undefined;
-      el('h3', '', c, d ? d.name[0].toUpperCase() + d.name.slice(1) : 'creep');
+      head(d ? esc(d.name[0].toUpperCase() + d.name.slice(1)) : 'Creep', '', 'red');
       if (d && i >= 0) {
         const fl = f.cFlags[i];
         el('div', 'sub', c, `HP ~${Math.round(f.cHp[i] / 255 * 100)}% · base HP ${d.hp} · speed ${d.speed}${d.ranged ? ' · ranged' : ''}`);
-        el('div', 'sub', c, `bounty ${d.bounty}g${fl & 1 ? ' · burning' : ''}${fl & 2 ? ' · slowed' : ''}`);
+        el('div', 'sub', c, `bounty ${d.bounty}g${fl & 1 ? ' · burning' : ''}${fl & 2 ? ' · slowed' : ''}${fl & 4 ? ' · loot guard' : ''}${fl & 32 ? ' · asleep' : ''}`);
         const btns = el('div', 'btns', c);
         const at = el('button', 'primary', btns, 'Attack');
         at.onclick = () => ctl.send({ op: 'attack', id: s.id });
@@ -478,12 +680,19 @@ export class Hud {
     if (s?.t === 'hero') {
       const p = f.player(s.id);
       if (!p) return;
-      const h = el('h3', '', c); h.innerHTML = `<span style="color:${cssHex(playerColor(p.id))}">${esc(p.name)}</span>`;
+      const down = !(p.flags & PF_ALIVE);
+      head(`<span style="display:inline-block;width:8px;height:10px;margin-right:6px;background:${cssHex(playerColor(p.id))};box-shadow:0 0 0 1px #000"></span>${esc(p.name)}`, down ? `down · ${p.respawn}s` : '', down ? 'red' : '');
       el('div', 'sub', c, `HP ${p.hp} / ${p.maxHp} · ${wd.weapons[p.cur]?.name ?? ''}`);
       el('div', 'sub', c, `${p.kills} kills · ${fmtGold(p.damage)} damage · ${ORDER[p.order] ?? ''}`);
+      if (down && p.id !== wd.you) {
+        const btns = el('div', 'btns', c);
+        const rv = el('button', 'primary', btns, 'Revive');
+        rv.title = 'Or right-click them';
+        rv.onclick = () => ctl.send({ op: 'revive', p: p.id });
+      }
       return;
     }
-    el('h3', '', c, 'Commands');
+    head('Orders');
     const btns = el('div', 'btns', c);
     const b1 = el('button', '', btns); b1.innerHTML = 'Build <kbd>B</kbd>'; b1.onclick = () => { this.buildCard = true; };
     const b2 = el('button', '', btns); b2.innerHTML = 'Armory <kbd>G</kbd>'; b2.onclick = () => ctl.openArmory(true);

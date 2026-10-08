@@ -34,7 +34,7 @@ everything it knows, a terrain message follows).
 ```jsonc
 {
   "t": "welcome",
-  "proto": 2,
+  "proto": 4,
   "version": "a1b2c3d",
   "you": 0,                    // your player id
   "w": 320, "h": 200,          // map size in tiles
@@ -43,6 +43,14 @@ everything it knows, a terrain message follows).
   "hosting": true,             // this td is the host (leaving ends the game for everyone)
   "hint": "td join box",       // how friends join, "" when only this machine can
   "tickRate": 20,
+  "difficulty": {"id": 1, "name": "Normal"},   // chosen by the host before hosting
+  "difficulties": ["Easy", "Normal", "Hard", "Brutal"],
+  "weathers": [                // index = weather kind in the frame
+    {"name": "Clear", "info": ""},
+    {"name": "Fog", "info": "everyone sees and shoots 25% less far; creeps notice you later"}
+  ],
+  "taunt": {"cool": 12, "radius": 12, "time": 5},  // the taunt command: cooldown s, pull radius, s hunted
+  "revive": {"reach": 1.6, "time": 2.5, "hp": 0.4}, // stand within reach for time seconds; up with hp*maxHp
   "core": {"x": 160, "y": 100},// generator centre, tiles
   "buildRadius": 24,           // building only within this distance of core
   "shopRadius": 4.5,           // shop only within this distance of the armory centre
@@ -66,6 +74,7 @@ everything it knows, a terrain message follows).
     }
   ],
   "gear": [ {"name": "Armor", "info": "+25 max HP", "costs": [90, 153, 260, 442, 752]} ],
+                               // 0 Armor, 1 Boots, 2 Medkit, 3 Scavenger (luck when searching)
   "abilities": [               // index = ability slot 0..3, keys Q W E R
     {"name": "Signature", "key": "Q", "desc": "the equipped weapon's own ability",
      "target": "point", "range": 0, "cool": [0, 0, 0], "costs": [0, 0, 0], "always": true},
@@ -76,9 +85,46 @@ everything it knows, a terrain message follows).
     {"name": "Wall", "price": 20, "hp": 320, "w": 1, "h": 1, "range": 0, "turret": false,
      "key": "W", "desc": "...", "upgrade": [0, 96, 192, 288, 384]}   // [level] price level -> level+1
   ],
-  "buildable": [3, 4, 5, 6, 7, 8]
+  "buildable": [3, 4, 5, 6, 7, 8],
+  "siteKinds": [               // index = site kind
+    {"name": "Ruined house", "search": 3},   // search: seconds it takes
+    {"name": "Car wreck", "search": 2},
+    {"name": "Supply crate", "search": 1.5}
+  ],
+  "sites": [                   // index = site id, used in the loot command
+    {"kind": 0, "x": 40, "y": 30, "w": 8, "h": 6,  // tiles covered: the house with its walls
+     "sx": 43.5, "sy": 32.5,                        // the spot a survivor searches from
+     "tier": 2,                                     // 0 near the base .. 2 far out: better loot
+     "guard": 2}                                    // 0 unguarded .. 3 a lair: how hard its guards are
+  ]
 }
 ```
+
+Weather is the host's and the same for everyone. It changes between waves, easing out and
+the next one in over a few seconds; its effects scale with `weatherAmt`:
+
+| kind | name  | effect |
+|------|-------|--------|
+| 0    | Clear | none |
+| 1    | Fog   | survivors and turrets reach 25% less far; creeps notice survivors at 60% of the distance |
+| 2    | Rain  | burning does half the damage; creeps 8% slower |
+| 3    | Storm | rain, and lightning strikes creeps out in the open now and then (blast kind 8) |
+| 4    | Snow  | creeps 15% slower, survivors 8% slower |
+
+Difficulty is the host's choice, fixed for the game (a restart keeps it): it scales creep
+health and wave size, the gold creeps drop, the build time between waves, the strength of
+loot guards and how long a downed survivor can be revived.
+
+Loot sites are fixed for a map. A house is a ruin of rock tiles with a doorway; the
+searcher stands inside at `sx, sy`. A car wreck or a crate covers one tile and is not solid.
+Each site can be searched once; whether it has been is in every frame. Every fifth wave
+some searched sites are restocked, and their guards come back.
+
+Most sites are guarded, like small dungeons: creeps (flag 4) sleep around them from the
+start of the game, stronger the higher the site's `guard`. Guards do not take part in waves
+and a wave ends without them. They wake when a survivor comes close or shoots one, chase,
+and go back home when led too far away. A site cannot be searched while any of its guards
+lives; the frame carries how many are left per site. Better guarded sites find better loot.
 
 The signature ability (slot 0, Q) depends on the equipped weapon: its name, cooldown and range
 are in `weapons[cur].sig`. It is always available at level 1. Slots 1–3 start at level 0
@@ -112,6 +158,8 @@ u16  phaseLeft        deciseconds until the next wave, build phase only
 u32  pending          creeps of this wave still to spawn
 u32  totalKills
 u16  best             waves survived, when over
+u8   weather          index into the welcome's weathers: 0 clear, 1 fog, 2 rain, 3 storm, 4 snow
+u8   weatherAmt       how strong it is right now, 0..255; it eases in and out between waves
 
 u8   nPlayers
   u8   id
@@ -123,16 +171,27 @@ u8   nPlayers
   u8   cur            equipped weapon kind
   u16  ammo, u16 mag
   u8   reload         fraction of the reload left, 0..255
-  u8   respawn        seconds until respawn when dead
+  u8   respawn        seconds until respawn when down; until then a teammate can revive
+                      them where they fell
   u32  gold, u32 kills, u32 damage
   u8   owned          bit k set: weapon k owned
   u8   levels[28]     weapon-major: levels[w*4 + track]
-  u8   gear[3]
-  u8   order          0 idle, 1 move, 2 attack-move, 3 attack, 4 hold, 5 build, 6 repair
+  u8   gear[4]        Armor, Boots, Medkit, Scavenger
+  u8   order          0 idle, 1 move, 2 attack-move, 3 attack, 4 hold, 5 build, 6 repair,
+                      7 loot, 8 revive
+  u8   channel        how far the current search (order 7) or revive (order 8) is, 0..255;
+                      0 while walking there
+  u8   revived        for a downed survivor: how far the best revive on them is, 0..255
+  u8   emote          0 none, 1 taunting
+  u8   emoteLeft      deciseconds left of the emote
+  u16  tauntCool      deciseconds until the taunt can be used again
   u8   buff           0 none, else the weapon kind whose signature buff is running
   u8   buffLeft       deciseconds
   4 × (u8 level, u16 cooldown deciseconds left)     ability slots Q W E R
   u8   nameLen, name (utf-8)
+
+u16  nSites           same as the welcome's site list
+  u8   site[nSites]   bit 7 set: searched; bits 0..6: guards of the site still alive
 
 u16  nStructs         the whole list; the index is the struct id used in commands
   u8   alive          dead slots are kept (alive 0) so ids stay stable
@@ -148,8 +207,11 @@ u16  nCreeps
   u16  x q8, u16 y q8
   u8   kind
   u8   hp             fraction of max, 1..255
-  u8   flags          1 burning, 2 slowed
-  u8   reserved
+  u8   flags          1 burning, 2 slowed, 4 guard (of a loot site, not of the wave),
+                      8 hunting a survivor (aggro: pulled, taunted or provoked),
+                      16 going for a structure (a turret or wall caught its eye),
+                      32 asleep (a guard resting at its site)
+  u8   target         for flag 8: the hunted survivor's player id, else 255
 
 u16  nTracers         shots fired this tick
   u16  x0, y0, x1, y1 q8
@@ -158,7 +220,10 @@ u16  nTracers         shots fired this tick
 u16  nBlasts          explosions and pulses this tick
   u16  x, y q8
   u8   r              radius * 8
-  u8   kind           0 explosion, 1 frost pulse, 2 tesla spark, 3 concussion, 4 airstrike
+  u8   kind           0 explosion, 1 frost pulse, 2 tesla spark, 3 concussion, 4 airstrike,
+                      5 loot found (r: 8 = jackpot or rare, else common), 6 ambush (a nest wakes),
+                      7 taunt (a ring the size of the pull), 8 lightning strike (storm),
+                      9 revived (a survivor stands up), 10 guards wake (at the guard)
 u16  nDeaths          creeps that died this tick
   u16  x, y q8
   u8   kind
@@ -195,6 +260,7 @@ integers. The host checks everything; a refusal comes back as a `toast` with lev
 {"op": "ability", "slot": 1, "x": 150, "y": 98}  // cast Q W E R (slot 0..3) at a point
 {"op": "build",   "kind": 5, "tx": 150, "ty": 96}  // walk to the tile and build there
 {"op": "repair",  "s": 12}                   // walk to struct 12 and repair it (costs gold)
+{"op": "loot",    "site": 3}                 // walk to site 3 and search it
 {"op": "upgradeStruct", "s": 12}             // anywhere
 {"op": "sell",    "s": 12}                   // anywhere, your own or the base's
 {"op": "buyWeapon", "w": 2}                  // at the armory
@@ -202,7 +268,9 @@ integers. The host checks everything; a refusal comes back as a `toast` with lev
 {"op": "gear",    "g": 1}                    // at the armory
 {"op": "buyAbility", "slot": 2}              // at the armory
 {"op": "select",  "w": 2}                    // equip an owned weapon
-{"op": "reload"}
+{"op": "reload"}                             // reload the equipped weapon now
+{"op": "taunt"}                              // pull every creep within taunt.radius onto you
+{"op": "revive",  "p": 2}                    // walk to downed player 2 and revive them
 {"op": "ready",   "on": true}                // ready for the next wave (all ready: starts in 3 s)
 {"op": "restart"}                            // a new map, only once the game is over
 {"op": "chat",    "text": "gg"}

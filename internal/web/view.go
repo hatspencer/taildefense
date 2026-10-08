@@ -58,6 +58,8 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 	e.u32(uint32(r.Pending))
 	e.u32(clamp32(r.Kills))
 	e.u16(uint16(r.Best))
+	e.u8(uint8(r.Weather))
+	e.u8(uint8(min(max(r.WeatherAmt, 0), 1) * 255))
 
 	e.u8(uint8(len(r.Players)))
 	for i := range r.Players {
@@ -103,6 +105,11 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 			e.u8(g)
 		}
 		e.u8(uint8(p.Order))
+		e.u8(uint8(min(max(p.Channel, 0), 1) * 255))
+		e.u8(uint8(min(max(p.Revived, 0), 1) * 255))
+		e.u8(p.Emote)
+		e.u8(deci8(p.EmoteLeft))
+		e.u16(deci16(p.TauntCool))
 		e.u8(p.Buff)
 		e.u8(deci8(p.BuffLeft))
 		for _, a := range p.Abil {
@@ -115,6 +122,15 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 		}
 		e.u8(uint8(len(name)))
 		e.b = append(e.b, name...)
+	}
+
+	e.u16(uint16(len(r.Searched)))
+	for i, done := range r.Searched {
+		m := r.Guards[i] & 127
+		if done {
+			m |= 128
+		}
+		e.u8(m)
 	}
 
 	e.u16(uint16(len(r.Structs)))
@@ -144,7 +160,7 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 		e.u8(r.Kind[id])
 		e.u8(r.HP[id])
 		e.u8(r.Flags[id])
-		e.u8(0)
+		e.u8(r.Target[id])
 	})
 
 	tr, bl, de, notes := r.Drain()

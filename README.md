@@ -30,21 +30,31 @@ WebGL 2 where WebGPU isn't available. Any current Chrome, Edge, Firefox or Safar
 
 | command | what it does |
 |---|---|
-| `td` | launcher: host, join (lists the games on your tailnet), settings, update status |
-| `td host [--port N] [--seed S] [--name NAME]` | host a game and play it in the browser |
+| `td` | launcher: host (←/→ picks the difficulty), join (lists the games on your tailnet), settings, update status |
+| `td host [--port N] [--seed S] [--name NAME] [--difficulty D]` | host a game and play it in the browser |
 | `td join HOST[:PORT] [--name NAME]` | join a game by tailnet name or address |
-| `td serve [--port N] [--seed S]` | headless dedicated host; logs to stdout until interrupted |
+| `td serve [--port N] [--seed S] [--difficulty D]` | headless dedicated host; logs to stdout until interrupted |
 | `td ls [--json]` | games running on your tailnet |
 | `td bench [--wave N] [--players P] [--seconds S]` | time a busy wave offline: simulation, encoding, relay |
 | `td frame [--view menu\|join\|settings\|help]` | render one launcher frame from demo data |
 | `td doctor` | check tailscale, the browser, container engine, install |
-| `td config [KEY [VALUE]]` | show or change settings: NAME, PORT, BROWSER, AUTOUPDATE |
+| `td config [KEY [VALUE]]` | show or change settings: NAME, PORT, DIFFICULTY, BROWSER, AUTOUPDATE |
 | `td update [-f] [-b BRANCH]` | rebuild from the repo's main (or a branch) and reinstall |
 | `td install [-f]` | install this build |
 | `td version [--offline] [--json]` | this build and whether a newer one exists |
 
-`BROWSER` is `default` (the system browser), `none` (print the URL instead) or a command to run
-with the URL. `--no-browser` does the same as `none` for one run, which is handy over SSH.
+`DIFFICULTY` is `easy`, `normal` (the default), `hard` or `brutal`, for the games you host. It
+scales creep health and wave size, gold, the time between waves, how tough the loot guards are
+and how long a downed player can be revived. A restart keeps the game's difficulty.
+
+`BROWSER` is `auto` by default: td finds the browsers installed (Chrome, Chromium, Brave, Edge,
+Vivaldi, Firefox, and Safari on macOS) and starts the best one full screen, as an app window with
+a profile of its own that keeps the GPU busy even unfocused, and closes it when the game ends. It
+also prints a clickable link per browser it found, so the game can be started in another one, plus
+a plain link for any browser. A browser's name (`chrome`, `firefox`…) always uses that one,
+`default` opens an ordinary tab in the system's browser, `none` only prints the links, and anything
+else is a command run with the URL. `--no-browser` does the same as `none` for one run, which is
+handy over SSH.
 
 The host listens on its tailnet address and on loopback, port 7787, and never on any other
 interface. Players are identified by their tailnet login (`tailscale whois`), so someone who drops
@@ -65,11 +75,12 @@ Your hero fights by itself: standing idle or holding, it shoots the nearest cree
 
 | input | |
 |---|---|
-| right-click | move; on a creep, attack it; on a damaged building, repair it; on the armory, walk there and shop |
+| right-click | move; on a creep, attack it; on a damaged building, repair it; on the armory, walk there and shop; on a loot site, search it; on a downed teammate, revive them |
 | A, then left-click | attack-move: walk there, stopping to fight anything on the way |
 | S / H | stop / hold position |
 | Q W E R | abilities: Q is the equipped weapon's signature, W grenade, E dash, R airstrike |
-| 1-7, T | equip a weapon, reload |
+| 1-7, T | equip a weapon, reload (or the reload button) |
+| V | taunt: every creep around you comes for you for 5 s, sleeping guards too |
 | B | build: W wall, G gate, T gun turret, C cannon, F frost tower, L tesla coil; shift keeps placing |
 | left-click | select a building, creep or player |
 | U / X / F | upgrade / sell / repair the selected building |
@@ -81,6 +92,29 @@ Your hero fights by itself: standing idle or holding, it shoots the nearest cree
 | Enter, Tab, F1, F3, Esc | chat, scoreboard, help, stats, cancel / menu |
 
 On the minimap, left-drag moves the view and right-click gives a move order.
+
+Outside the walls are ruined houses, car wrecks and supply crates worth looting; a glint marks
+the ones nobody has searched yet. Right-click one to walk over and search it, which takes a few
+seconds and stops if you get hit. The further from the base, the better the loot, and searching
+during a wave is luckier. Scavenger gear from the armory raises your luck too. Sometimes a house
+hides a nest, and every fifth wave some of the searched sites are restocked.
+
+Most sites are guarded like little dungeons: creeps sleep around them, from a few walkers to a
+lair with a brute, and the site can't be searched until they're dead. Better guarded sites hold
+better loot. Guards wake when you get close or shoot one, and give up and walk home if you lead
+them too far away. In fog they notice you later.
+
+Creeps can be pulled. Shooting one may make it come for you instead of the generator, and a
+taunt (V) pulls everything around you. Creeps also take against things by themselves now and
+then: a turret or wall they pass, or a survivor further off than they'd normally notice.
+
+When you go down you can be revived where you fell: a teammate right-clicks you and stays
+next to you for a few seconds, and a hit starts it over. If nobody does, you're back at the base
+when the countdown runs out.
+
+The weather changes between waves and is the same for everyone. Fog shortens everyone's range,
+rain dampens fire and slows creeps a little, a storm throws lightning at creeps out in the open,
+and snow slows everything down.
 
 Each weapon has its own signature ability on Q, stronger with its special upgrades:
 

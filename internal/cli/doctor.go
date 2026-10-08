@@ -78,16 +78,38 @@ func checkTailscale(p *ui.Printer) {
 
 func checkBrowser(p *ui.Printer) {
 	setting := config.Load().Browser()
-	argv := web.Opener(setting)
-	if len(argv) == 0 {
-		p.Info("browser: none; td prints the game's URL to open yourself")
-		return
+	found := web.Browsers()
+	var names []string
+	for _, b := range found {
+		n := b.Name
+		if !b.Fullscreen() {
+			n += " (windowed)"
+		}
+		names = append(names, n)
 	}
-	if path, err := exec.LookPath(argv[0]); err == nil {
-		p.Pass("browser opens with %s", tilde(path))
-	} else {
-		p.Warn("browser: %s is not installed; td will print the game's URL instead", argv[0])
-		p.Detail("pick another with: td config browser COMMAND, e.g. firefox or google-chrome")
+	switch {
+	case setting == config.BrowserNone:
+		p.Info("browser: none; td prints the game's links to open yourself")
+	case setting == config.BrowserAuto && len(found) > 0:
+		p.Pass("browser: %s, full screen in a window of its own", found[0].Name)
+	case setting == config.BrowserAuto:
+		p.Warn("browser: none td knows is installed; the game opens in the system's browser")
+	case web.IsBrowserID(setting):
+		if b, ok := web.FindBrowser(setting); ok {
+			p.Pass("browser: %s, full screen", b.Name)
+		} else {
+			p.Warn("browser: %s is not installed; td will print the game's links instead", setting)
+		}
+	default:
+		argv := web.Opener(setting)
+		if path, err := exec.LookPath(argv[0]); err == nil {
+			p.Pass("browser opens with %s", tilde(path))
+		} else {
+			p.Warn("browser: %s is not installed; td will print the game's links instead", argv[0])
+		}
+	}
+	if len(names) > 0 {
+		p.Detail("installed: %s; td config browser auto, default or one of them", strings.Join(names, ", "))
 	}
 	p.Detail("the game runs on WebGPU where the browser has it, WebGL 2 elsewhere")
 }

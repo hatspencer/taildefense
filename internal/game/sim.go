@@ -31,11 +31,12 @@ func (w *World) Step() {
 	case PhaseWave:
 		w.WaveTime += Dt
 		w.spawnDue()
-		if w.QueueHead >= len(w.Queue) && len(w.Creeps) == 0 {
+		if w.QueueHead >= len(w.Queue) && w.waveCreeps() == 0 {
 			w.endWave()
 		}
 	}
 
+	w.stepWeather()
 	w.updateFlow()
 	w.grid.build(w.Creeps)
 	w.indexCreeps()
@@ -45,6 +46,7 @@ func (w *World) Step() {
 	w.stepEffects()
 	w.stepCreeps()
 	w.reap()
+	w.countGuards()
 }
 
 func (w *World) connected() int {
@@ -97,7 +99,7 @@ func (w *World) startWave() {
 }
 
 func (w *World) endWave() {
-	bonus := int32(40 + 15*w.Wave)
+	bonus := int32(float32(40+15*w.Wave) * w.diff().Gold)
 	for _, p := range w.Players {
 		if !p.Connected {
 			continue
@@ -108,8 +110,14 @@ func (w *World) endWave() {
 		}
 	}
 	w.Phase = PhaseBuild
-	w.PhaseLeft = 30
+	w.PhaseLeft = w.diff().Build
+	w.rollWeather()
 	w.note(1, "wave %d cleared  ·  +%d gold each  ·  back to the armory", w.Wave, bonus)
+	if w.Wave%5 == 0 {
+		if n := w.restock(); n > 0 {
+			w.note(0, "%d searched places out there have something in them again", n)
+		}
+	}
 }
 
 // Budget is the wave's size in walker equivalents.
@@ -128,7 +136,7 @@ var groupSize = [NumCreepKinds][2]int{CWalker: {4, 12}, CRunner: {3, 8}, CSwarme
 // plan lays out every spawn of a wave: groups of one kind at one spawn point, spread over the
 // wave's opening seconds.
 func (w *World) plan(wave, players int) []Spawn {
-	budget := Budget(wave, players)
+	budget := Budget(wave, players) * w.diff().Count
 	swarm := wave%5 == 0
 	var weights [NumCreepKinds]float32
 	for k := CreepKind(0); k < NumCreepKinds; k++ {
@@ -202,8 +210,9 @@ func (w *World) SpawnCreep(k CreepKind, x, y float32) bool {
 	}
 	id := w.freeIDs[len(w.freeIDs)-1]
 	w.freeIDs = w.freeIDs[:len(w.freeIDs)-1]
-	hp := Creeps[k].HP * HPScale(max(w.Wave, 1))
-	w.Creeps = append(w.Creeps, Creep{X: x, Y: y, HP: hp, MaxHP: hp, ID: id, Kind: k, LastHit: -1, Cool: w.rng.Float32()})
+	hp := Creeps[k].HP * HPScale(max(w.Wave, 1)) * w.diff().HP
+	w.Creeps = append(w.Creeps, Creep{X: x, Y: y, HP: hp, MaxHP: hp, ID: id, Kind: k, LastHit: -1, Cool: w.rng.Float32(),
+		Hunt: -1, Siege: -1, Chase: -1, think: w.rng.Float32() * 2})
 	return true
 }
 
@@ -218,33 +227,55 @@ func (w *World) stepCreeps() {
 		d := &Creeps[c.Kind]
 		if c.Burn > 0 {
 			c.Burn -= Dt
-			c.HP -= c.BurnDPS * Dt
+			c.HP -= c.BurnDPS * w.burnMul() * Dt
 			if c.HP <= 0 {
 				continue
 			}
 		}
-		speed := d.Speed
+		speed := d.Speed * w.creepSpeedMul()
 		if c.Slow > 0 {
 			c.Slow -= Dt
 			speed *= .45
 		}
 		c.Cool -= Dt
-
-		// A player close enough is chased; otherwise follow the field to the generator.
-		var tp *Player
-		best := d.Aggro * d.Aggro
-		for _, p := range w.Players {
-			if !p.Alive || !p.Connected {
+		c.Chase = -1
+		if c.Asleep {
+			if !w.wakes(c, d) {
 				continue
 			}
-			dx, dy := p.X-c.X, p.Y-c.Y
-			if dd := dx*dx + dy*dy; dd < best {
-				best, tp = dd, p
+			w.wakeSite(c)
+		}
+		if c.Home == 0 {
+			w.think(c, d)
+		}
+
+		// The survivor it is after, if any; else a guard goes home, a creep that took against
+		// a structure goes for it, and the rest follow the field to the generator.
+		tp := w.creepTarget(c, d)
+		var mx, my float32
+		if tp == nil && c.Home > 0 {
+			w.goHome(c, d, speed)
+			continue
+		}
+		if tp == nil && c.Siege >= 0 {
+			s := &w.Structs[c.Siege]
+			if !s.Alive {
+				c.Siege = -1
+			} else {
+				dx, dy := s.CX()-c.X, s.CY()-c.Y
+				dist := sqrt32(dx*dx+dy*dy) + 1e-6
+				if dist <= d.Radius+d.Reach+float32(max(s.W, s.H))/2+.2 {
+					w.attackStruct(c, d, int(c.Siege))
+					continue
+				}
+				w.moveCreep(c, d, c.X+dx/dist*speed*Dt, c.Y+dy/dist*speed*Dt)
+				continue
 			}
 		}
-		var mx, my float32
 		if tp != nil {
-			dist := sqrt32(best)
+			c.Chase = int8(tp.ID)
+			dx, dy := tp.X-c.X, tp.Y-c.Y
+			dist := sqrt32(dx*dx + dy*dy)
 			if dist <= d.Radius+d.Reach {
 				if c.Cool <= 0 {
 					c.Cool = 1 / d.Rate
@@ -377,9 +408,11 @@ func (w *World) hurtPlayer(p *Player, dmg float32) {
 	if p.HP <= 0 {
 		p.HP = 0
 		p.Alive = false
-		p.Respawn = 8
+		p.Respawn = w.diff().Revive
 		p.Firing = false
-		w.note(2, "%s is down  ·  back in 8s", p.Name)
+		p.Order = Order{}
+		p.Search, p.Revived, p.Emote, p.EmoteLeft = 0, 0, 0, 0
+		w.note(2, "%s is down  ·  revive them within %.0fs or they are back at the base", p.Name, p.Respawn)
 	}
 }
 
@@ -388,8 +421,9 @@ func (w *World) hurtPlayer(p *Player, dmg float32) {
 func (w *World) respawn(p *Player) {
 	p.Alive = true
 	p.HP = p.MaxHP
-	p.X, p.Y = w.CoreX+.5, w.CoreY+3
+	p.X, p.Y = w.CoreX+.5, w.CoreY+3.8
 	p.Order = Order{}
+	p.Search, p.Revived = 0, 0
 	p.walk.reset()
 	p.BuffLeft = 0
 	for i := range p.Weapons {
@@ -602,6 +636,7 @@ func (w *World) damage(i int32, dmg float32, owner int8) {
 		d = dmg * .25
 	}
 	c.HP -= d
+	w.provoke(c)
 	if owner >= 0 {
 		c.LastHit = owner
 		if int(owner) < len(w.Players) {
@@ -637,6 +672,7 @@ func (w *World) stepTurrets() {
 			continue
 		}
 		dmg, rng, rate := TurretStats(s.Kind, s.Level)
+		rng *= w.rangeMul()
 		x, y := s.CX(), s.CY()
 		t := w.nearestCreep(x, y, rng)
 		if t < 0 {
@@ -721,7 +757,9 @@ func (w *World) stepRockets() {
 			}
 		}
 		if boom {
+			w.shooter = r.Owner
 			w.explode(r.X, r.Y, r.Blast, r.Damage, r.Owner, 0)
+			w.shooter = -1
 			continue
 		}
 		w.tracer(r.X-r.VX*Dt, r.Y-r.VY*Dt, r.X, r.Y, uint8(WLauncher))
@@ -734,7 +772,7 @@ func (w *World) stepRockets() {
 
 // reap removes dead creeps, pays their bounties, and tears down destroyed structures.
 func (w *World) reap() {
-	mult := 1 + .04*float32(w.Wave)
+	mult := (1 + .04*float32(w.Wave)) * w.diff().Gold
 	for i := 0; i < len(w.Creeps); {
 		c := &w.Creeps[i]
 		if c.HP > 0 {

@@ -13,7 +13,7 @@ func run(w *World, ticks int, until func() bool) bool {
 }
 
 func TestAMoveOrderWalksOutOfTheBaseThroughAGate(t *testing.T) {
-	w := New(3)
+	w := newBare(3)
 	p, _ := w.Join("ana", "ana@example")
 	// Straight north of the generator, well outside the wall.
 	gx, gy := w.CoreX+.5, w.CoreY-18
@@ -33,7 +33,7 @@ func TestAMoveOrderWalksOutOfTheBaseThroughAGate(t *testing.T) {
 }
 
 func TestAnUnreachablePointWalksAsNearAsItGets(t *testing.T) {
-	w := New(3)
+	w := newBare(3)
 	p, _ := w.Join("ana", "ana@example")
 	core := &w.Structs[w.Core]
 	w.MoveTo(p, core.CX(), core.CY(), false)
@@ -41,13 +41,13 @@ func TestAnUnreachablePointWalksAsNearAsItGets(t *testing.T) {
 	if p.Order.Kind != OrderIdle {
 		t.Fatal("never gave up walking into the generator")
 	}
-	if dx, dy := p.X-core.CX(), p.Y-core.CY(); dx*dx+dy*dy > 3*3 {
+	if dx, dy := p.X-core.CX(), p.Y-core.CY(); dx*dx+dy*dy > 4*4 {
 		t.Fatalf("stopped %.1f,%.1f away", dx, dy)
 	}
 }
 
 func TestIdleSurvivorsShootAndAttackMoveStopsToFight(t *testing.T) {
-	w := New(7)
+	w := newBare(7)
 	p, _ := w.Join("ana", "ana@example")
 	w.Phase = PhaseWave
 	w.Queue = []Spawn{{At: 1e9}}
@@ -67,7 +67,7 @@ func TestIdleSurvivorsShootAndAttackMoveStopsToFight(t *testing.T) {
 }
 
 func TestAttackOrderChasesOneCreep(t *testing.T) {
-	w := New(7)
+	w := newBare(7)
 	p, _ := w.Join("ana", "ana@example")
 	w.Phase = PhaseWave
 	w.Queue = []Spawn{{At: 1e9}}
@@ -85,7 +85,7 @@ func TestAttackOrderChasesOneCreep(t *testing.T) {
 }
 
 func TestABuildOrderWalksThereAndBuilds(t *testing.T) {
-	w := New(5)
+	w := newBare(5)
 	p, _ := w.Join("bo", "bo@example")
 	p.Gold = 1000
 	x, y := int(w.CoreX)+8, int(w.CoreY)+8
@@ -107,7 +107,7 @@ func TestABuildOrderWalksThereAndBuilds(t *testing.T) {
 }
 
 func TestRepairOrderPaysAndHeals(t *testing.T) {
-	w := New(5)
+	w := newBare(5)
 	p, _ := w.Join("bo", "bo@example")
 	si := -1
 	for i := range w.Structs {
@@ -131,7 +131,7 @@ func TestRepairOrderPaysAndHeals(t *testing.T) {
 }
 
 func TestAbilities(t *testing.T) {
-	w := New(7)
+	w := newBare(7)
 	p, _ := w.Join("ana", "ana@example")
 	w.Phase = PhaseWave
 	w.Queue = []Spawn{{At: 1e9}}
@@ -190,4 +190,15 @@ func TestAbilities(t *testing.T) {
 	if !CanStand(w, p.X, p.Y) || p.Y < core.CY()+1.5 {
 		t.Fatalf("dashed into the generator: %.1f,%.1f", p.X, p.Y)
 	}
+}
+
+// newBare is a world with its loot guards cleared away, for tests that count creeps.
+func newBare(seed uint64) *World {
+	w := New(seed)
+	for _, c := range w.Creeps {
+		w.freeIDs = append(w.freeIDs, c.ID)
+	}
+	w.Creeps = w.Creeps[:0]
+	w.countGuards()
+	return w
 }

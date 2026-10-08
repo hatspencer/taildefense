@@ -5,11 +5,13 @@ import {
 } from 'three/tsl';
 import { BlastKind, EffectKind } from '../protocol';
 import type { Game } from '../state';
-import { K_TESLA } from './structs';
+import { K_ARMORY, K_CORE, K_TESLA } from './structs';
 import { linInto, writeMatrix } from './util';
 
 const STRIDE = 16;
 type Mode = 'billboard' | 'streak' | 'mesh';
+// Pooled muzzle lights: few, always in the scene so a shot never changes the light count.
+const LIGHTS = 4;
 
 // Effect instances live entirely on the GPU: the CPU writes an instance once when it spawns
 // (start, end or velocity, birth time, life, colour, sizes) and the TSL material computes
@@ -24,7 +26,7 @@ class FxPool {
   private lo = Infinity; private hi = -1;
 
   constructor(parent: THREE.Object3D, geo: THREE.BufferGeometry, private cap: number, mode: Mode, now: THREE.UniformNode<'float', number>,
-    right: THREE.UniformNode<'vec3', THREE.Vector3>, up: THREE.UniformNode<'vec3', THREE.Vector3>, additive: boolean, soft: boolean, rim = false) {
+    right: THREE.UniformNode<'vec3', THREE.Vector3>, up: THREE.UniformNode<'vec3', THREE.Vector3>, additive: boolean, soft: boolean, rim = false, star = false) {
     this.data = new Float32Array(cap * STRIDE);
     // Unused slots must not render: born far in the future.
     for (let i = 0; i < cap; i++) { this.data[i * STRIDE + 3] = 1e9; this.data[i * STRIDE + 7] = 1; }
@@ -60,6 +62,13 @@ class FxPool {
     if (soft) {
       const q = length(uv().sub(0.5)).mul(2);
       fade = fade.mul(pow(clamp(float(1).sub(q), 0, 1), 1.5));
+    }
+    // A four-pointed muzzle star: a hot core and two thin crossed spikes.
+    if (star) {
+      const q = uv().sub(0.5).mul(2), ax = abs(q.x), ay = abs(q.y);
+      const core = pow(clamp(float(1).sub(length(q).mul(1.8)), 0, 1), 1.2);
+      const spikes = clamp(float(1).sub(ax.mul(9)), 0, 1).mul(float(1).sub(ay)).add(clamp(float(1).sub(ay.mul(9)), 0, 1).mul(float(1).sub(ax)));
+      fade = fade.mul(core.add(spikes.mul(0.8)));
     }
     // Fireballs: glow where they face the camera, fade towards the silhouette.
     if (rim) fade = fade.mul(pow(abs(normalView.z), 1.8));
@@ -102,6 +111,8 @@ class FxPool {
 }
 
 const TRACER: Record<number, number> = { 0: 0xffe9a0, 1: 0xffb060, 2: 0xfff0b0, 3: 0xa0f0ff, 4: 0xff7a20, 5: 0xffd860, 6: 0xffffff };
+// Muzzle flash size per player weapon: pistol, shotgun, SMG, rifle, flamer, minigun, rockets.
+const MUZZLE: Record<number, number> = { 0: 0.8, 1: 1.5, 2: 0.9, 3: 1.3, 4: 0, 5: 1.1, 6: 1.6 };
 const TURRET: Record<number, number> = { 5: 0xfff0a0, 6: 0xffa040, 7: 0x9fe4ff, 8: 0xd8b0ff };
 // Blood, dark and everywhere; the spitter bleeds bile.
 const CREEP_GORE = [0x4a0c0a, 0x56100c, 0x3e0a08, 0x5a1410, 0x4a5a14, 0x3a0808];
@@ -113,7 +124,15 @@ export class Effects {
   private uRight = uniform(new THREE.Vector3(1, 0, 0));
   private uUp = uniform(new THREE.Vector3(0, 1, 0));
   private glow: FxPool; private smoke: FxPool; private streaks: FxPool;
-  private spheres: FxPool; private rings: FxPool; private decals: FxPool;
+  private spheres: FxPool; private rings: FxPool; private decals: FxPool; private stars: FxPool;
+  // How dark it is (dusk, heavy weather), 0..1: muzzle flashes grow with it.
+  dark = 0;
+  private lights: THREE.PointLight[] = [];
+  private lightLeft = new Float32Array(LIGHTS);
+  private lightPeak = new Float32Array(LIGHTS);
+  private nextLight = 0;
+  private lastSmoke = 0;
+  private lastDamage = 0;
   private lasting: THREE.InstancedMesh; private lastingFire: THREE.InstancedMesh; private grenades: THREE.InstancedMesh;
   private t0 = performance.now();
   private sec = 0;
@@ -132,6 +151,13 @@ export class Effects {
     const disc = new THREE.CircleGeometry(1, 9); disc.rotateX(-Math.PI / 2);
     this.decals = new FxPool(this.group, disc, 2048, 'mesh', n, r, u, false, false);
     this.decals.mesh.renderOrder = 1;
+    this.stars = new FxPool(this.group, quad, 1024, 'billboard', n, r, u, true, false, false, true);
+    for (let i = 0; i < LIGHTS; i++) {
+      const l = new THREE.PointLight(0xffb060, 0, 7, 1.6);
+      l.castShadow = false;
+      this.lights.push(l);
+      this.group.add(l);
+    }
 
     // Lasting effects: re-laid every frame from the frame's effect list (few of them).
     const flatRing = new THREE.RingGeometry(0.9, 1, 48); flatRing.rotateX(-Math.PI / 2);
@@ -174,7 +200,11 @@ export class Effects {
         if (sk === K_TESLA) { this.arc(t, x0, h, y0, x1, 0.6, y1); continue; }
         const col = TURRET[sk] ?? 0xffffff;
         this.streaks.add(t, x0, h, y0, x1, 0.55, y1, 0.08 + dist * 0.006, col, 0.09, 0, 0, 0.45);
-        if (flashes++ < 60) this.glow.add(t, x0 + (x1 - x0) / dist * 0.6, h, y0 + (y1 - y0) / dist * 0.6, 0, 0, 0, 0.07, 0xffd070, sk === 6 ? 1.2 : 0.6, 0.3);
+        if (flashes++ < 60) {
+          const mx = x0 + (x1 - x0) / dist * 0.6, mz = y0 + (y1 - y0) / dist * 0.6;
+          this.glow.add(t, mx, h, mz, 0, 0, 0, 0.07, 0xffd070, sk === 6 ? 1.2 : 0.6, 0.3);
+          if (sk !== 7) this.muzzle(t, mx, h, mz, (x1 - x0) / dist, (y1 - y0) / dist, sk === 6 ? 1.6 : 1, i);
+        }
         continue;
       }
       // Player weapons, from gun height.
@@ -191,7 +221,11 @@ export class Effects {
       const life = k === 6 ? 0.25 + dist * 0.01 : 0.06 + dist * 0.004;
       this.streaks.add(t, x0, 1.12, y0, x1, 0.55, y1, life, col, w, 0, 0, k === 6 ? 0.25 : 0.4, 1, 1.4);
       if (k === 6) this.smoke.add(t, x0, 1.1, y0, 0, 0.6, 0, 0.8, 0x9a9a9a, 0.4, 1.2, 0, 1, 0.5);
-      if (flashes++ < 80) this.glow.add(t, x0 + (x1 - x0) / dist * 0.4, 1.12, y0 + (y1 - y0) / dist * 0.4, 0, 0, 0, 0.06, 0xffe0a0, 0.55, 0.2);
+      if (flashes++ < 80) {
+        const mx = x0 + (x1 - x0) / dist * 0.4, mz = y0 + (y1 - y0) / dist * 0.4;
+        this.glow.add(t, mx, 1.12, mz, 0, 0, 0, 0.06, 0xffe0a0, 0.55, 0.2);
+        this.muzzle(t, mx, 1.12, mz, (x1 - x0) / dist, (y1 - y0) / dist, MUZZLE[k] ?? 1, i);
+      }
       if (i % 2 === 0) this.glow.add(t + life * 0.8, x1, 0.55, y1, (Math.random() - 0.5) * 3, 2, (Math.random() - 0.5) * 3, 0.18, col, 0.18, 0.05, 9);
     }
     for (let i = 0; i < f.nBlasts; i++) this.blast(t, f.bX[i], f.bY[i], Math.max(0.5, f.bR[i]), f.bKind[i]);
@@ -205,6 +239,29 @@ export class Effects {
         for (let j = 0; j < 3; j++) this.smoke.add(t, x, 0.5, y, (Math.random() - 0.5) * 3, 2 + Math.random() * 2, (Math.random() - 0.5) * 3, 0.4, CREEP_GORE[k % CREEP_GORE.length], 0.6 * r, 0.1, 12, 1, 0.9);
       }
     }
+  }
+
+  // A muzzle flash in the dark: a star at the barrel, a short cone of fire forward, a puff of
+  // smoke and a warm light pulse from the pool. Subtle by day, bright at dusk and in storms.
+  private muzzle(t: number, x: number, y: number, z: number, dx: number, dz: number, size: number, i: number): void {
+    const d = this.dark;
+    if (d < 0.05 && i % 3) return;
+    const s = size * (0.5 + 0.9 * d);
+    this.stars.add(t, x + dx * 0.15, y, z + dz * 0.15, 0, 0, 0, 0.05 + 0.02 * Math.random(), 0xffd890, s * (0.8 + Math.random() * 0.5), s * 0.4, 0, 1, 1, 0.5 + d);
+    this.streaks.add(t, x, y, z, x + dx * 0.9 * s, y, z + dz * 0.9 * s, 0.05, 0xffa040, 0.16 * s, 0, 0, 1.3, 1, 0.5 + d);
+    if (t - this.lastSmoke > 0.04) {
+      this.lastSmoke = t;
+      this.smoke.add(t + 0.03, x + dx * 0.3, y, z + dz * 0.3, dx * 0.4, 0.5, dz * 0.4, 0.7, 0x8a8680, 0.15 * size, 0.6 * size, 0, 1, 0.3);
+    }
+    if (d < 0.1) return;
+    // One light per shot, round the pool; a busy pool skips shots instead of flickering wildly.
+    const k = this.nextLight;
+    if (this.lightLeft[k] > 0.02) return;
+    this.nextLight = (k + 1) % LIGHTS;
+    const l = this.lights[k];
+    l.position.set(x + dx * 0.4, y + 0.3, z + dz * 0.4);
+    this.lightLeft[k] = 0.06;
+    this.lightPeak[k] = (6 + 10 * d) * size * (0.8 + Math.random() * 0.4);
   }
 
   private arc(t: number, x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): void {
@@ -238,6 +295,86 @@ export class Effects {
         this.spheres.add(t, x, 0.1, y, 0, 0, 0, 0.35, 0x8a7a5a, r * 0.2, r, 0, 0.35);
         for (let j = 0; j < 6; j++) this.smoke.add(t, x + (Math.random() - 0.5) * r, 0.3, y + (Math.random() - 0.5) * r, (Math.random() - 0.5), 0.6, (Math.random() - 0.5), 1.1, 0xb8a888, 0.8, 1.8, 0, 1, 0.45);
         return;
+      case BlastKind.Loot: {
+        // A glint of found loot: a quick flare and sparks rising, gold for a rare find.
+        const rare = r >= 1;
+        const hex = rare ? 0xffc830 : 0xfff2c0;
+        this.glow.add(t, x, 0.9, y, 0, 0, 0, 0.3, hex, rare ? 2.2 : 1.3, 0.2, 0, 1, 1, rare ? 1.4 : 1);
+        this.rings.add(t, x, 0.1, y, 0, 0, 0, 0.5, hex, 0.3, rare ? 1.4 : 1, 0, 1, 1, 1);
+        for (let j = 0; j < (rare ? 22 : 10); j++) {
+          const a = Math.random() * 6.28, s = 0.6 + Math.random() * (rare ? 2.2 : 1.2);
+          this.glow.add(t + Math.random() * 0.15, x, 0.6, y, Math.cos(a) * s, 2 + Math.random() * 2.5, Math.sin(a) * s, 0.7 + Math.random() * 0.5,
+            j % 3 ? hex : 0xffffff, 0.16, 0.03, 2.5, 1, 1, 1.3);
+        }
+        return;
+      }
+      case BlastKind.Ambush:
+        // A nest wakes: dust kicked up and a dark puff from inside the ruin.
+        this.rings.add(t, x, 0.12, y, 0, 0, 0, 0.6, 0x8a2a1a, 0.4, 2.6, 0, 1, 1, 0.9);
+        this.spheres.add(t, x, 0.1, y, 0, 0, 0, 0.5, 0x3a1a12, 0.4, 1.6, 0, 0.5, 1, 0.7);
+        for (let j = 0; j < 10; j++) {
+          const a = Math.random() * 6.28, s = 0.5 + Math.random() * 1.2;
+          this.smoke.add(t + Math.random() * 0.2, x + Math.cos(a) * 0.6, 0.4, y + Math.sin(a) * 0.6, Math.cos(a) * s, 0.5 + Math.random() * 0.6, Math.sin(a) * s,
+            1.4 + Math.random() * 0.8, j % 2 ? 0x6a5a44 : 0x2a2420, 0.7, 2.2, 0, 1, 0.6);
+        }
+        return;
+      case BlastKind.Taunt: {
+        // A shout: two shockwave rings out to the pull radius, dust kicked up along the way.
+        this.rings.add(t, x, 0.14, y, 0, 0, 0, 0.55, 0xff7a30, 0.6, r, 0, 1, 1, 1.2);
+        this.rings.add(t + 0.12, x, 0.14, y, 0, 0, 0, 0.55, 0xffc060, 0.4, r * 0.8, 0, 1, 1, 0.8);
+        this.spheres.add(t, x, 0.9, y, 0, 0, 0, 0.3, 0xffa050, 0.3, 1.6, 0, 0.5, 1, 0.6);
+        for (let j = 0; j < 14; j++) {
+          const a = j / 14 * 6.28 + Math.random() * 0.3, s = r * (1.4 + Math.random() * 0.4);
+          this.smoke.add(t + Math.random() * 0.1, x + Math.cos(a) * 0.8, 0.3, y + Math.sin(a) * 0.8, Math.cos(a) * s, 0.4, Math.sin(a) * s,
+            0.6, 0x8a7a5a, 0.4, 1.1, 0, 1, 0.35);
+        }
+        return;
+      }
+      case BlastKind.Lightning: {
+        // A bolt from the sky: a jagged trunk with a branch or two, a white flare, a scorch.
+        let px = x + (Math.random() - 0.5) * 6, py = 34, pz = y - 6 + (Math.random() - 0.5) * 4;
+        const n = 9;
+        for (let sgt = 1; sgt <= n; sgt++) {
+          const u = sgt / n, j = sgt === n ? 0 : 1.4 * (1 - u * 0.6);
+          const nx = px + (x - px) / (n - sgt + 1) + (Math.random() - 0.5) * j, ny = py - (py - 0.2) / (n - sgt + 1), nz = pz + (y - pz) / (n - sgt + 1) + (Math.random() - 0.5) * j;
+          this.streaks.add(t, px, py, pz, nx, ny, nz, 0.3, 0xffffff, 0.16, 0, 0, 1.3, 1, 2);
+          this.streaks.add(t, px, py, pz, nx, ny, nz, 0.35, 0x8aa8ff, 0.7, 0, 0, 1.3, 1, 0.7);
+          if (sgt > 2 && sgt < n - 1 && Math.random() < 0.3) {
+            const bx = nx + (Math.random() - 0.5) * 6, by = ny - 3 - Math.random() * 4, bz = nz + (Math.random() - 0.5) * 6;
+            this.streaks.add(t, nx, ny, nz, bx, by, bz, 0.25, 0xd8e0ff, 0.08, 0, 0, 1.3, 1, 1.4);
+          }
+          px = nx; py = ny; pz = nz;
+        }
+        this.glow.add(t, x, 1, y, 0, 0, 0, 0.3, 0xe0e8ff, 6, 2, 0, 1, 1, 1.5);
+        this.rings.add(t, x, 0.12, y, 0, 0, 0, 0.4, 0xc8d8ff, 0.4, r * 1.6, 0, 1, 1, 1.3);
+        for (let j = 0; j < 12; j++) {
+          const a = Math.random() * 6.28, sp = 2 + Math.random() * 5;
+          this.glow.add(t, x, 0.3, y, Math.cos(a) * sp, 2 + Math.random() * 4, Math.sin(a) * sp, 0.4 + Math.random() * 0.3, j % 2 ? 0xffffff : 0x9ab8ff, 0.15, 0.03, 12);
+        }
+        for (let j = 0; j < 4; j++) this.smoke.add(t + 0.15, x + (Math.random() - 0.5), 0.4, y + (Math.random() - 0.5), 0, 0.8, 0, 1.8, 0x3a3a3c, 0.5, 1.6, 0, 1, 0.5);
+        this.decals.add(t, x, 0.066, y, 0, 0, 0, 20, 0x141414, r * 0.7, r * 0.75, 0, 1, 0.85);
+        this.flashLight(x, 3, y, 120);
+        return;
+      }
+      case BlastKind.Revived:
+        // Back on their feet: a column of green sparkles rising round them.
+        this.rings.add(t, x, 0.12, y, 0, 0, 0, 0.6, 0x60ff90, 0.3, 1.4, 0, 1, 1, 1.2);
+        this.glow.add(t, x, 1, y, 0, 0, 0, 0.4, 0x80ffa0, 2.2, 0.4, 0, 1, 1, 0.9);
+        for (let j = 0; j < 26; j++) {
+          const a = Math.random() * 6.28, d = 0.3 + Math.random() * 0.4;
+          this.glow.add(t + Math.random() * 0.5, x + Math.cos(a) * d, 0.1 + Math.random() * 0.4, y + Math.sin(a) * d, Math.cos(a) * 0.2, 2.2 + Math.random() * 2.2, Math.sin(a) * 0.2,
+            0.7 + Math.random() * 0.4, j % 3 ? 0x70ff90 : 0xe8fff0, 0.16, 0.04, -0.5, 1, 1, 1.3);
+        }
+        return;
+      case BlastKind.GuardsWake:
+        // A guard stirs: a red burst and a snarl of sparks.
+        this.rings.add(t, x, 0.12, y, 0, 0, 0, 0.45, 0xff3020, 0.2, 1.3, 0, 1, 1, 1.2);
+        this.glow.add(t, x, 1.2, y, 0, 0, 0, 0.3, 0xff3a20, 1.6, 0.3, 0, 1, 1, 1.1);
+        for (let j = 0; j < 8; j++) {
+          const a = Math.random() * 6.28, sp = 1 + Math.random() * 2;
+          this.glow.add(t, x, 1, y, Math.cos(a) * sp, 2 + Math.random() * 2, Math.sin(a) * sp, 0.45, j % 2 ? 0xff4020 : 0xffa080, 0.14, 0.03, 9);
+        }
+        return;
       default: {
         const big = kind === BlastKind.Airstrike;
         this.spheres.add(t, x, 0.2, y, 0, 0, 0, big ? 0.6 : 0.42, 0xff8a20, r * 0.25, r, 0, 0.8, 1, 0.9);
@@ -257,10 +394,41 @@ export class Effects {
     }
   }
 
+  // A borrowed muzzle light for a big flash (lightning).
+  private flashLight(x: number, y: number, z: number, peak: number): void {
+    const k = this.nextLight;
+    this.nextLight = (k + 1) % LIGHTS;
+    this.lights[k].position.set(x, y, z);
+    this.lights[k].distance = 18;
+    this.lightLeft[k] = 0.2; this.lightPeak[k] = peak;
+  }
+
+  // Damaged structures smoke; the generator sparks as it fails.
+  private damage(game: Game, t: number): void {
+    const f = game.cur;
+    for (let i = 0; i < f.nStructs; i++) {
+      if (!f.sAlive[i]) continue;
+      const r = f.sHp[i] / Math.max(1, f.sMaxHp[i]);
+      if (r >= 0.5 || Math.random() > (0.5 - r) * 2.4) continue;
+      const k = f.sKind[i], w = f.sW[i], h = f.sH[i];
+      const x = f.sX[i] + w / 2 + (Math.random() - 0.5) * w * 0.6, z = f.sY[i] + h / 2 + (Math.random() - 0.5) * h * 0.6;
+      const top = k === K_CORE ? 2.6 : k === K_ARMORY ? 1.8 : 1.1;
+      this.smoke.add(t, x, top, z, 0.3, 1.1 + Math.random() * 0.6, 0.2, 2 + Math.random(), r < 0.25 ? 0x1e1c1a : 0x4a4642, 0.3 * w * 0.5 + 0.2, 0.9 * w * 0.4 + 0.5, 0, 1, 0.5);
+      if (r < 0.25 && Math.random() < 0.5) this.glow.add(t, x, top * 0.7, z, (Math.random() - 0.5) * 3, 2 + Math.random() * 2, (Math.random() - 0.5) * 3, 0.4, k === K_CORE ? 0x9ffff0 : 0xffb040, 0.12, 0.03, 10);
+    }
+  }
+
   // Per render frame: the clock, billboard axes, and the lasting effects.
-  update(game: Game, cam: THREE.Camera): void {
+  update(game: Game, cam: THREE.Camera, dt = 0.016): void {
     const t = this.now();
     this.sec = t;
+    for (let k = 0; k < LIGHTS; k++) {
+      const left = this.lightLeft[k] = Math.max(0, this.lightLeft[k] - dt);
+      const l = this.lights[k];
+      l.intensity = left > 0 ? this.lightPeak[k] * Math.min(1, left / 0.04) * (0.8 + Math.random() * 0.4) : 0;
+      if (left <= 0) l.distance = 7;
+    }
+    if (t - this.lastDamage > 0.1) { this.lastDamage = t; this.damage(game, t); }
     this.uNow.value = t;
     this.uRight.value.setFromMatrixColumn(cam.matrixWorld, 0);
     this.uUp.value.setFromMatrixColumn(cam.matrixWorld, 1);
@@ -300,7 +468,7 @@ export class Effects {
     }
     const done = (m: THREE.InstancedMesh, n: number) => { m.count = n; if (n) m.instanceMatrix.needsUpdate = true; };
     done(this.lasting, nr); done(this.lastingFire, nf); done(this.grenades, ng);
-    for (const p of [this.glow, this.smoke, this.streaks, this.spheres, this.rings, this.decals]) p.flush();
+    for (const p of [this.glow, this.smoke, this.streaks, this.spheres, this.rings, this.decals, this.stars]) p.flush();
   }
 
   // A one-off ground ping at a commanded point.

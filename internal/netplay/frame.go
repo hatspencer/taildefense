@@ -30,6 +30,10 @@ func (b *bitset) each(fn func(i uint16)) {
 const (
 	flagBurning = 1 << 0
 	flagSlowed  = 1 << 1
+	flagGuard   = 1 << 2
+	flagHunting = 1 << 3
+	flagSiege   = 1 << 4
+	flagAsleep  = 1 << 5
 )
 
 // Player flags on the wire.
@@ -53,6 +57,7 @@ type Encoder struct {
 	alive    bitset
 	x, y     [game.MaxCreeps]uint16
 	hp, fl   [game.MaxCreeps]uint8
+	tg       [game.MaxCreeps]uint8 // the chased player's id, 255 none
 	kind     [game.MaxCreeps]uint8
 	curAlive bitset
 	cur      [game.MaxCreeps]int32 // creep id -> index in World.Creeps this tick
@@ -98,7 +103,26 @@ func creepFlags(c *game.Creep) uint8 {
 	if c.Slow > 0 {
 		f |= flagSlowed
 	}
+	if c.Home > 0 {
+		f |= flagGuard
+	}
+	if c.Chase >= 0 {
+		f |= flagHunting
+	}
+	if c.Siege >= 0 && c.Chase < 0 {
+		f |= flagSiege
+	}
+	if c.Asleep {
+		f |= flagAsleep
+	}
 	return f
+}
+
+func creepTarget(c *game.Creep) uint8 {
+	if c.Chase < 0 {
+		return 255
+	}
+	return uint8(c.Chase)
 }
 
 // Delta encodes this tick against the last and moves the sent state forward. Call it once per
@@ -151,9 +175,9 @@ func (e *Encoder) Delta(w *game.World, atArmory func(*game.Player) bool) []byte 
 		b.i8(int8(dy))
 		e.x[id] = uint16(int(e.x[id]) + dx)
 		e.y[id] = uint16(int(e.y[id]) + dy)
-		h, f := hp8(c.HP, c.MaxHP), creepFlags(c)
-		if h != e.hp[id] || f != e.fl[id] {
-			e.hp[id], e.fl[id] = h, f
+		h, f, tg := hp8(c.HP, c.MaxHP), creepFlags(c), creepTarget(c)
+		if h != e.hp[id] || f != e.fl[id] || tg != e.tg[id] {
+			e.hp[id], e.fl[id], e.tg[id] = h, f, tg
 			changed = append(changed, id)
 		}
 	})
@@ -163,7 +187,7 @@ func (e *Encoder) Delta(w *game.World, atArmory func(*game.Player) bool) []byte 
 		c := &w.Creeps[e.cur[id]]
 		e.alive.set(id)
 		e.x[id], e.y[id] = qpos(c.X), qpos(c.Y)
-		e.hp[id], e.fl[id], e.kind[id] = hp8(c.HP, c.MaxHP), creepFlags(c), uint8(c.Kind)
+		e.hp[id], e.fl[id], e.kind[id], e.tg[id] = hp8(c.HP, c.MaxHP), creepFlags(c), uint8(c.Kind), creepTarget(c)
 		b.uv(uint64(int(id) - prev))
 		prev = int(id)
 		e.creepRec(b, id)
@@ -175,6 +199,7 @@ func (e *Encoder) Delta(w *game.World, atArmory func(*game.Player) bool) []byte 
 		prev = int(id)
 		b.u8(e.hp[id])
 		b.u8(e.fl[id])
+		b.u8(e.tg[id])
 	}
 	e.removed, e.added, e.changed = removed, added, changed
 
@@ -250,6 +275,7 @@ func (e *Encoder) creepRec(b *enc, id uint16) {
 	b.u16(e.y[id])
 	b.u8(e.hp[id])
 	b.u8(e.fl[id])
+	b.u8(e.tg[id])
 }
 
 func structRecord(b *enc, r *structRec) {
@@ -277,6 +303,17 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 	b.uv(uint64(len(w.Queue) - w.QueueHead))
 	b.uv(uint64(w.TotalKills))
 	b.u16(uint16(w.Best))
+	b.u8(uint8(w.Weather))
+	b.u8(uint8(w.WeatherAmt * 255))
+	// Per loot site: searched in bit 7, living guards below; small enough to send whole.
+	b.uv(uint64(len(w.Sites)))
+	for i := range w.Sites {
+		m := min(w.Sites[i].Guards, 127)
+		if w.Sites[i].Searched {
+			m |= 128
+		}
+		b.u8(m)
+	}
 	b.u8(uint8(len(w.Players)))
 	for _, p := range w.Players {
 		var f uint8
@@ -314,6 +351,19 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 		b.u16(uint16(max(p.HP, 0)))
 		b.u16(uint16(p.MaxHP))
 		b.u8(uint8(p.Order.Kind))
+		var channel uint8
+		switch {
+		case p.Order.Kind == game.OrderLoot && p.Order.Site < len(w.Sites):
+			channel = uint8(min(p.Search/game.SiteDefs[w.Sites[p.Order.Site].Kind].Search, 1) * 255)
+		case p.Order.Kind == game.OrderRevive:
+			_, t, _ := game.ReviveInfo()
+			channel = uint8(min(p.Search/t, 1) * 255)
+		}
+		b.u8(channel)
+		b.u8(uint8(min(p.Revived, 1) * 255))
+		b.u8(p.Emote)
+		b.u8(deci(p.EmoteLeft))
+		b.u16(uint16(min(math.Ceil(float64(p.TauntCool*10)), 65535)))
 		b.u8(uint8(p.Cur))
 		b.u16(uint16(max(ws.Ammo, 0)))
 		st := game.WeaponStats(p.Cur, ws.Lv)

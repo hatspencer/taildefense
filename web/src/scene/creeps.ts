@@ -3,7 +3,7 @@ import {
   abs, float, floor, instancedDynamicBufferAttribute, mix, positionGeometry, positionLocal, select, sin, cos, step, time,
   uniform, vec3, vertexColor,
 } from 'three/tsl';
-import { CF_BURNING, CF_SLOWED, type CreepDef, MAX_CREEPS } from '../protocol';
+import { CF_ASLEEP, CF_BURNING, CF_HUNTING, CF_SIEGE, CF_SLOWED, type CreepDef, MAX_CREEPS } from '../protocol';
 import type { Game } from '../state';
 import { box, cone, dodeca, lin, merge, part, setEmissive, sphere, writeMatrix, type Part } from './util';
 
@@ -88,9 +88,11 @@ function model(kind: number, def: CreepDef): THREE.BufferGeometry {
 // Drab clothes: rust, navy, khaki, olive, grey, off-white, black, brown, faded blue.
 const CLOTHES = [0x6a2a24, 0x2e3a56, 0x8a7e62, 0x4a5636, 0x5a5a58, 0x9a968a, 0x26262a, 0x5e4a32, 0x4e6a80];
 
-const STRIDE = 8;
+const STRIDE = 12;
+// Markers over creeps: a "z" over sleeping guards, a "!" over those hunting you.
+const MARKS = 2048;
 
-interface KindMesh { mesh: THREE.InstancedMesh; fx: Float32Array; buf: THREE.InstancedInterleavedBuffer; scale: number; n: number }
+interface KindMesh { mesh: THREE.InstancedMesh; fx: Float32Array; buf: THREE.InstancedInterleavedBuffer; scale: number; top: number; n: number }
 
 // One InstancedMesh per creep kind. Matrices are written straight into instanceMatrix; the
 // per-instance effects buffer drives the TSL material: bob/wobble and the status tints.
@@ -99,28 +101,51 @@ export class Creeps {
   private kinds: KindMesh[] = [];
   hovered = -1;
   private uHover = uniform(0);
+  private zs: THREE.InstancedMesh;
+  private bangs: THREE.InstancedMesh;
 
-  constructor(scene: THREE.Scene) { scene.add(this.group); }
+  constructor(scene: THREE.Scene) {
+    scene.add(this.group);
+    const zm = new THREE.MeshBasicNodeMaterial({ color: 0xd8e4ff, transparent: true, opacity: 0.85, depthWrite: false });
+    zm.fog = false;
+    this.zs = new THREE.InstancedMesh(merge([
+      part(box(0.26, 0.06, 0.04), 0), part(box(0.26, 0.06, 0.04), 0, 0, -0.24, 0), part(box(0.06, 0.32, 0.04), 0, 0, -0.12, 0, 0, 0, -0.9),
+    ]), zm, MARKS);
+    const bm = new THREE.MeshBasicNodeMaterial();
+    bm.colorNode = vec3(1, 0.16, 0.08).mul(sin(time.mul(9)).mul(0.25).add(1.05));
+    bm.fog = false;
+    this.bangs = new THREE.InstancedMesh(merge([part(box(0.1, 0.3, 0.06), 0, 0, 0.1, 0), part(box(0.1, 0.1, 0.06), 0, 0, -0.17, 0)]), bm, MARKS);
+    for (const m of [this.zs, this.bangs]) {
+      m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.count = 0; m.frustumCulled = false; m.renderOrder = 4;
+    }
+  }
 
   setup(defs: CreepDef[]): void {
     for (const k of this.kinds) { k.mesh.geometry.dispose(); (k.mesh.material as THREE.Material).dispose(); }
     this.kinds = [];
     this.group.clear();
+    this.group.add(this.zs, this.bangs);
     defs.forEach((d, i) => {
       const cap = MAX_CREEPS;
       const geo = model(i, d);
       const fx = new Float32Array(cap * STRIDE);
       const buf = new THREE.InstancedInterleavedBuffer(fx, STRIDE, 1);
       buf.setUsage(THREE.DynamicDrawUsage);
-      // fx: burning, slowed, flash, hovered | phase, bob amplitude, walk speed, clothes
+      // fx: burning, slowed, flash, hovered | phase, bob amplitude, walk speed, clothes |
+      //     asleep, hunting you, siege, -
       const st = instancedDynamicBufferAttribute<'vec4'>(buf, 'vec4', STRIDE, 0);
       const an = instancedDynamicBufferAttribute<'vec4'>(buf, 'vec4', STRIDE, 4);
+      const mo = instancedDynamicBufferAttribute<'vec4'>(buf, 'vec4', STRIDE, 8);
       const mat = new THREE.MeshLambertNodeMaterial();
       const t = time.mul(an.z).add(an.x);
       const gy = positionGeometry.y;
       const bob = abs(sin(t)).mul(an.y);
       const sway = vec3(sin(t.mul(0.5)), float(0), cos(t.mul(0.5))).mul(gy.mul(an.y).mul(0.35));
-      mat.positionNode = positionLocal.add(sway).add(vec3(0, bob, 0));
+      // Asleep: slumped low and forward, breathing; at a structure: leaning into it.
+      const breathe = sin(time.mul(1.6).add(an.x)).mul(0.03);
+      const slump = vec3(gy.mul(0.22).add(breathe), gy.mul(-0.3).add(breathe.mul(0.5)), float(0)).mul(mo.x);
+      const lean = vec3(gy.mul(0.18), gy.mul(-0.06), float(0)).mul(mo.z);
+      mat.positionNode = positionLocal.add(sway).add(vec3(0, bob, 0)).add(slump).add(lean);
       let c = vertexColor().rgb;
       // Shirts: an exact magenta in the model, a colour picked per creep from fx.w.
       const pick = floor(an.w.mul(CLOTHES.length));
@@ -132,11 +157,15 @@ export class Creeps {
       c = mix(c, c.mul(vec3(1.5, 0.75, 0.35)).add(vec3(0.15, 0.04, 0)), st.x.mul(0.8));
       c = mix(c, c.mul(vec3(0.6, 0.85, 1.25)).add(vec3(0.01, 0.04, 0.1)), st.y.mul(0.7));
       c = mix(c, vec3(1, 0.95, 0.85), st.z.mul(0.45));
+      // Hunting you: a red cast so you see what you pulled; asleep: a little darker.
+      c = mix(c, c.mul(vec3(1.5, 0.45, 0.4)).add(vec3(0.08, 0, 0)), mo.y.mul(0.6));
+      c = c.mul(float(1).sub(mo.x.mul(0.18)));
       mat.colorNode = c;
       const flicker = sin(time.mul(23).add(an.x.mul(7))).mul(0.25).add(0.75);
       setEmissive(mat, vec3(0.9, 0.3, 0.05).mul(st.x.mul(flicker).mul(0.45))
         .add(vec3(1, 0.9, 0.7).mul(st.z.mul(0.3)))
-        .add(vec3(0.5, 0.45, 0.2).mul(st.w.mul(this.uHover))));
+        .add(vec3(0.5, 0.45, 0.2).mul(st.w.mul(this.uHover)))
+        .add(vec3(0.35, 0.02, 0).mul(mo.y.mul(sin(time.mul(9)).mul(0.3).add(0.7)))));
       const mesh = new THREE.InstancedMesh(geo, mat, cap);
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       mesh.count = 0;
@@ -148,16 +177,23 @@ export class Creeps {
       geo.computeBoundingBox();
       const bb = geo.boundingBox!;
       const foot = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z, 0.3);
-      this.kinds.push({ mesh, fx, buf, scale: (d.radius * 2.3) / foot, n: 0 });
+      const scale = (d.radius * 2.3) / foot;
+      this.kinds.push({ mesh, fx, buf, scale, top: bb.max.y * scale, n: 0 });
     });
   }
 
-  update(game: Game, now: number, dt: number): void {
+  update(game: Game, now: number, dt: number, cam?: THREE.Camera): void {
     const f = game.cur;
     const kinds = this.kinds;
     for (const k of kinds) k.n = 0;
     const sec = now / 1000;
     this.uHover.value = 0.6 + 0.4 * Math.sin(sec * 8);
+    const you = game.welcome?.you ?? -1;
+    // Markers turn to face the camera round the vertical.
+    const e = cam?.matrixWorld.elements;
+    const face = e ? Math.atan2(-e[8], e[10]) : 0;
+    const za = this.zs.instanceMatrix.array as Float32Array, ba = this.bangs.instanceMatrix.array as Float32Array;
+    let nz = 0, nb = 0;
     for (let i = 0; i < f.nCreeps; i++) {
       const kind = f.cKind[i];
       const km = kinds[kind];
@@ -176,7 +212,25 @@ export class Creeps {
       fx[o + 5] = 0.06 * km.scale;
       fx[o + 6] = (fl & CF_SLOWED ? 5 : 10) / Math.max(0.6, km.scale);
       fx[o + 7] = (id * 0.7548776662) % 1;
+      const asleep = (fl & CF_ASLEEP) !== 0, me = (fl & CF_HUNTING) !== 0 && f.cTarget[i] === you;
+      fx[o + 8] = asleep ? 1 : 0;
+      fx[o + 9] = me ? 1 : 0;
+      fx[o + 10] = fl & CF_SIEGE && !(fl & CF_HUNTING) ? 1 : 0;
+      if (asleep) {
+        fx[o + 5] = 0;
+        if (nz < MARKS) {
+          const u = (sec * 0.45 + fx[o + 7]) % 1;
+          const s = 1 + u * 1.1;
+          writeMatrix(za, nz++ * 16, game.rx[i] + u * 0.35, km.top * 0.75 + 0.3 + u * 0.9, game.ry[i], face, s * (1 - u * u * u));
+        }
+      } else if (me && nb < MARKS) {
+        const s = 1.5 + 0.2 * Math.sin(sec * 9 + fx[o + 4]);
+        writeMatrix(ba, nb++ * 16, game.rx[i], km.top + 0.5, game.ry[i], face, s);
+      }
     }
+    this.zs.count = nz; this.bangs.count = nb;
+    if (nz) this.zs.instanceMatrix.needsUpdate = true;
+    if (nb) this.bangs.instanceMatrix.needsUpdate = true;
     void dt;
     for (const k of kinds) {
       k.mesh.count = k.n;

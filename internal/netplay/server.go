@@ -34,6 +34,7 @@ type Info struct {
 	Players []string `json:"players"`
 	Max     int      `json:"max"`
 	Wave    int      `json:"wave"`
+	Diff    string   `json:"difficulty,omitempty"`
 	Phase   string   `json:"phase"`
 	Creeps  int      `json:"creeps"`
 	Started int64    `json:"started"`
@@ -41,11 +42,12 @@ type Info struct {
 
 // ServerConfig is how a host runs.
 type ServerConfig struct {
-	Addrs   []string // listen addresses, host:port
-	Seed    uint64
-	Version string
-	Host    string // this machine's name, for the join list
-	Owner   string // the hosting login
+	Addrs      []string // listen addresses, host:port
+	Seed       uint64
+	Difficulty game.Difficulty
+	Version    string
+	Host       string // this machine's name, for the join list
+	Owner      string // the hosting login
 	// Local identity for loopback connections: the host's own player.
 	LocalLogin, LocalName string
 	// Whois names a tailnet connection; nil accepts the name a client gives (tests, LAN).
@@ -99,7 +101,7 @@ func Listen(cfg ServerConfig) (*Server, error) {
 	}
 	s := &Server{
 		cfg:     cfg,
-		world:   game.New(cfg.Seed),
+		world:   game.NewGame(cfg.Seed, cfg.Difficulty),
 		joinCh:  make(chan *peer),
 		leaveCh: make(chan *peer, 16),
 		cmdCh:   make(chan cmdMsg, 256),
@@ -348,11 +350,24 @@ func (s *Server) welcome(p *peer) outMsg {
 	b.u16(uint16(w.H))
 	b.u32(uint32(w.Seed))
 	b.u32(uint32(w.Seed >> 32))
+	b.u8(uint8(w.Diff))
 	t := make([]byte, len(w.Terrain))
 	for i, v := range w.Terrain {
 		t[i] = byte(v)
 	}
 	b.bytes(t)
+	b.uv(uint64(len(w.Sites)))
+	for _, st := range w.Sites {
+		b.u8(uint8(st.Kind))
+		b.u16(uint16(st.X))
+		b.u16(uint16(st.Y))
+		b.u8(st.W)
+		b.u8(st.H)
+		b.u16(qpos(st.SX))
+		b.u16(qpos(st.SY))
+		b.u8(st.Tier)
+		b.u8(st.Guard)
+	}
 	return outMsg{MsgWelcome, b.b}
 }
 
@@ -443,6 +458,14 @@ func (s *Server) command(p *peer, c Cmd) {
 		if pl.Alive {
 			err = w.OrderRepair(pl, int(c.T))
 		}
+	case OpLoot:
+		if pl.Alive {
+			err = w.OrderLoot(pl, int(c.T))
+		}
+	case OpTaunt:
+		err = w.Taunt(pl)
+	case OpRevive:
+		err = w.OrderRevive(pl, int(c.T))
 	case OpUpgradeStruct:
 		si := int(c.T)
 		if err = w.UpgradeStruct(pl, si); err == nil {
@@ -535,7 +558,7 @@ func (s *Server) publishInfo() {
 		}
 	}
 	s.info.Store(&Info{Proto: Proto, Version: s.cfg.Version, Host: s.cfg.Host, Owner: s.cfg.Owner, Players: names,
-		Max: game.MaxPlayers, Wave: w.Wave, Phase: w.Phase.String(), Creeps: len(w.Creeps), Started: s.started.Unix()})
+		Max: game.MaxPlayers, Wave: w.Wave, Diff: w.Diff.String(), Phase: w.Phase.String(), Creeps: len(w.Creeps), Started: s.started.Unix()})
 }
 
 // Ops a client can ask for.
@@ -559,6 +582,9 @@ const (
 	OpRepair     // T structure index
 	OpAbility    // A slot, X Y
 	OpBuyAbility // A slot
+	OpLoot       // T site index
+	OpTaunt
+	OpRevive // T player id
 )
 
 // Cmd is a discrete request from a player. X and Y are tiles, sent to 1/8; T names a creep

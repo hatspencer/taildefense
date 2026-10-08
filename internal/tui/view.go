@@ -157,6 +157,9 @@ func (m *Model) menuView(w int) []string {
 	}
 	for i, it := range items {
 		label := itemLabels[it]
+		if it == itemHost {
+			label += "  ‹ " + m.prefs.Difficulty().String() + " ›"
+		}
 		desc := m.itemHint(it)
 		if i == m.cursor {
 			out = append(out, gutter+ui.StyleAccent.Render("▶ ")+ui.StyleBold.Render(label)+"  "+ui.StyleDim.Render(desc))
@@ -179,9 +182,9 @@ func (m *Model) itemHint(it menuItem) string {
 			if host == "" {
 				host = self.Host
 			}
-			return "friends join with: " + cli.JoinCommand(host, m.prefs.Port())
+			return "←/→ difficulty · friends join with: " + cli.JoinCommand(host, m.prefs.Port())
 		}
-		return fmt.Sprintf("on port %d, this machine only until tailscale is up", m.prefs.Port())
+		return fmt.Sprintf("←/→ difficulty · on port %d, this machine only until tailscale is up", m.prefs.Port())
 	case itemJoin:
 		return "find games on your tailnet, or type an address"
 	case itemSettings:

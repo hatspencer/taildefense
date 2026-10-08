@@ -74,37 +74,83 @@ type structDef struct {
 	Upgrade []int32   `json:"upgrade"`
 }
 
+type siteKindDef struct {
+	Name   string  `json:"name"`
+	Search float32 `json:"search"`
+}
+
+type siteDef struct {
+	Kind  uint8   `json:"kind"`
+	X     int16   `json:"x"`
+	Y     int16   `json:"y"`
+	W     uint8   `json:"w"`
+	H     uint8   `json:"h"`
+	SX    float32 `json:"sx"`
+	SY    float32 `json:"sy"`
+	Tier  uint8   `json:"tier"`
+	Guard uint8   `json:"guard"`
+}
+
+type difficultyRef struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+type weatherDef struct {
+	Name string `json:"name"`
+	Info string `json:"info"`
+}
+
+type tauntDef struct {
+	Cool   float32 `json:"cool"`
+	Radius float32 `json:"radius"`
+	Time   float32 `json:"time"`
+}
+
+type reviveDef struct {
+	Reach float32 `json:"reach"`
+	Time  float32 `json:"time"`
+	HP    float32 `json:"hp"`
+}
+
 type point struct {
 	X float32 `json:"x"`
 	Y float32 `json:"y"`
 }
 
 type welcomeMsg struct {
-	T               string       `json:"t"`
-	Proto           int          `json:"proto"`
-	Version         string       `json:"version"`
-	You             uint8        `json:"you"`
-	W               int          `json:"w"`
-	H               int          `json:"h"`
-	Seed            string       `json:"seed"`
-	Host            string       `json:"host"`
-	Hosting         bool         `json:"hosting"`
-	Hint            string       `json:"hint"`
-	TickRate        int          `json:"tickRate"`
-	Core            point        `json:"core"`
-	BuildRadius     float32      `json:"buildRadius"`
-	ShopRadius      float32      `json:"shopRadius"`
-	MaxLevel        int          `json:"maxLevel"`
-	MaxStructLevel  int          `json:"maxStructLevel"`
-	RepairCostPerHP float32      `json:"repairCostPerHP"`
-	SellFraction    float32      `json:"sellFraction"`
-	Tracks          []string     `json:"tracks"`
-	Creeps          []creepDef   `json:"creeps"`
-	Weapons         []weaponDef  `json:"weapons"`
-	Gear            []gearDef    `json:"gear"`
-	Abilities       []abilityDef `json:"abilities"`
-	Structs         []structDef  `json:"structs"`
-	Buildable       []int        `json:"buildable"`
+	T               string        `json:"t"`
+	Proto           int           `json:"proto"`
+	Version         string        `json:"version"`
+	You             uint8         `json:"you"`
+	W               int           `json:"w"`
+	H               int           `json:"h"`
+	Seed            string        `json:"seed"`
+	Host            string        `json:"host"`
+	Hosting         bool          `json:"hosting"`
+	Hint            string        `json:"hint"`
+	TickRate        int           `json:"tickRate"`
+	Core            point         `json:"core"`
+	BuildRadius     float32       `json:"buildRadius"`
+	ShopRadius      float32       `json:"shopRadius"`
+	MaxLevel        int           `json:"maxLevel"`
+	MaxStructLevel  int           `json:"maxStructLevel"`
+	RepairCostPerHP float32       `json:"repairCostPerHP"`
+	SellFraction    float32       `json:"sellFraction"`
+	Tracks          []string      `json:"tracks"`
+	Creeps          []creepDef    `json:"creeps"`
+	Weapons         []weaponDef   `json:"weapons"`
+	Gear            []gearDef     `json:"gear"`
+	Abilities       []abilityDef  `json:"abilities"`
+	Structs         []structDef   `json:"structs"`
+	Buildable       []int         `json:"buildable"`
+	SiteKinds       []siteKindDef `json:"siteKinds"`
+	Sites           []siteDef     `json:"sites"`
+	Difficulty      difficultyRef `json:"difficulty"`
+	Difficulties    []string      `json:"difficulties"`
+	Weathers        []weatherDef  `json:"weathers"`
+	Taunt           tauntDef      `json:"taunt"`
+	Revive          reviveDef     `json:"revive"`
 }
 
 var fireNames = map[game.Fire]string{game.FireHitscan: "hitscan", game.FireCone: "cone", game.FireRocket: "rocket"}
@@ -177,5 +223,23 @@ func welcome(wel netplay.Welcome, core point, host, hint string, hosting bool) w
 	for _, k := range game.Buildable {
 		m.Buildable = append(m.Buildable, int(k))
 	}
+	for _, d := range game.SiteDefs {
+		m.SiteKinds = append(m.SiteKinds, siteKindDef{d.Name, d.Search})
+	}
+	m.Sites = []siteDef{}
+	for _, s := range wel.Sites {
+		m.Sites = append(m.Sites, siteDef{uint8(s.Kind), s.X, s.Y, s.W, s.H, s.SX, s.SY, s.Tier, s.Guard})
+	}
+	m.Difficulty = difficultyRef{int(wel.Diff), wel.Diff.String()}
+	for _, d := range game.Difficulties {
+		m.Difficulties = append(m.Difficulties, d.Name)
+	}
+	for _, d := range game.Weathers {
+		m.Weathers = append(m.Weathers, weatherDef{d.Name, d.Info})
+	}
+	cool, radius, t := game.TauntInfo()
+	m.Taunt = tauntDef{cool, radius, t}
+	reach, rt, hp := game.ReviveInfo()
+	m.Revive = reviveDef{reach, rt, hp}
 	return m
 }

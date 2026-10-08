@@ -213,21 +213,22 @@ func WeaponStats(w WeaponKind, lv [NumTracks]uint8) Stats {
 type Gear uint8
 
 const (
-	GearArmor  Gear = iota // max HP
-	GearBoots              // move speed
-	GearMedkit             // regeneration
+	GearArmor     Gear = iota // max HP
+	GearBoots                 // move speed
+	GearMedkit                // regeneration
+	GearScavenger             // luck when searching loot sites
 	NumGear
 )
 
 // GearNames label the gear rows.
-var GearNames = [NumGear]string{"Armor", "Boots", "Medkit"}
+var GearNames = [NumGear]string{"Armor", "Boots", "Medkit", "Scavenger"}
 
 // GearInfo describes one level of each gear row.
-var GearInfo = [NumGear]string{"+25 max HP", "+8% speed", "+1.5 HP/s regen"}
+var GearInfo = [NumGear]string{"+25 max HP", "+8% speed", "+1.5 HP/s regen", "+luck when searching"}
 
 // GearCost is the price of raising gear from level to level+1.
 func GearCost(g Gear, level uint8) int32 {
-	base := [NumGear]float64{90, 110, 130}[g]
+	base := [NumGear]float64{90, 110, 130, 100}[g]
 	return int32(math.Round(base * math.Pow(1.7, float64(level))))
 }
 
@@ -266,8 +267,8 @@ type StructDef struct {
 
 // Structs is indexed by StructKind.
 var Structs = [NumStructKinds]StructDef{
-	SCore:         {Name: "Generator", HP: 2500, W: 3, H: 3, Desc: "Powers the base. When it falls, the game is over."},
-	SArmory:       {Name: "Armory", HP: 1200, W: 2, H: 2, Desc: "Buy and upgrade weapons, gear and abilities here. Creeps ignore it."},
+	SCore:         {Name: "Generator", HP: 3200, W: 5, H: 5, Desc: "Powers the base. When it falls, the game is over."},
+	SArmory:       {Name: "Armory", HP: 1200, W: 3, H: 3, Desc: "Buy and upgrade weapons, gear and abilities here. Creeps ignore it."},
 	SWall:         {Name: "Wall", Price: 20, HP: 320, W: 1, H: 1, Key: 'W', Desc: "Blocks creeps; they path round it or break through."},
 	SGate:         {Name: "Gate", Price: 45, HP: 320, W: 1, H: 1, Key: 'G', Desc: "A wall survivors can walk through."},
 	STurretGun:    {Name: "Gun turret", Price: 120, HP: 220, W: 1, H: 1, Range: 9, Damage: 11, Rate: 4, Turret: true, Key: 'T', Desc: "Fast single shots; pierces from level 3."},
@@ -298,10 +299,10 @@ func TurretStats(k StructKind, level uint8) (dmg, rng, rate float32) {
 const RepairCostPerHP = .1
 
 // BuildRadius is how far from the generator's centre building is allowed.
-const BuildRadius = 24
+const BuildRadius = 28
 
 // ShopRadius is how close to the armory a player must stand to buy.
-const ShopRadius = 4.5
+const ShopRadius = 5
 
 // Phase is where the session is in its wave cycle.
 type Phase uint8

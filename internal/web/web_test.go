@@ -99,7 +99,7 @@ func TestTheBrowserPlaysThroughTheBridge(t *testing.T) {
 	done := make(chan ended, 1)
 	go func() {
 		res, err := Run(context.Background(), Options{Addr: srv.Addrs()[0], Name: "ana", Version: "test", Host: "box",
-			Hosting: true, Ready: func(u string) { urls <- u }})
+			Hosting: true, Ready: func(p Page) { urls <- p.URL }})
 		done <- ended{res, err}
 	}()
 	var url string
@@ -150,6 +150,9 @@ func TestTheBrowserPlaysThroughTheBridge(t *testing.T) {
 			continue
 		}
 		f := parseFrame(t, p)
+		if f.sites != len(wel.Sites) || len(wel.Sites) == 0 || len(wel.SiteKinds) != int(game.NumSiteKinds) {
+			t.Fatalf("frame has %d sites, welcome %d", f.sites, len(wel.Sites))
+		}
 		if i == 0 {
 			x0 = f.x
 			_ = ws.send(opText, []byte(fmt.Sprintf(`{"op":"move","x":%f,"y":%f}`, f.x+3, f.y)))
@@ -175,6 +178,7 @@ type frameSummary struct {
 	tick    uint32
 	x, y    float32
 	structs int
+	sites   int
 }
 
 // parseFrame walks a whole frame as PROTOCOL.md lays it out, so a layout change on one side
@@ -196,7 +200,7 @@ func parseFrame(t *testing.T, p []byte) frameSummary {
 		t.Fatal("not a frame")
 	}
 	f.tick = u32()
-	skip(1 + 2 + 2 + 4 + 4 + 2)
+	skip(1 + 2 + 2 + 4 + 4 + 2 + 2)
 	np := u8()
 	for k := 0; k < np; k++ {
 		skip(2)
@@ -204,9 +208,11 @@ func parseFrame(t *testing.T, p []byte) frameSummary {
 		if k == 0 {
 			f.x, f.y = float32(x)/8, float32(y)/8
 		}
-		skip(2 + 4 + 1 + 4 + 1 + 1 + 12 + 1 + 28 + 3 + 1 + 2 + 4*3)
+		skip(2 + 4 + 1 + 4 + 1 + 1 + 12 + 1 + 28 + 4 + 1 + 1 + 1 + 1 + 1 + 2 + 1 + 1 + 4*3)
 		skip(u8())
 	}
+	f.sites = u16()
+	skip(f.sites)
 	f.structs = u16()
 	skip(f.structs * 14)
 	skip(u16() * 10)
