@@ -96,8 +96,8 @@ export class Terrain {
       for (let k = 0; k < 4; k++) { pos[(v + k) * 3] = xs[k]; pos[(v + k) * 3 + 1] = hs[k]; pos[(v + k) * 3 + 2] = ys[k]; }
       c.setHex(GROUND[t] ?? GROUND[Tile.Grass], THREE.SRGBColorSpace);
       // Per-tile noise, plus a slab pattern on concrete and darker wheel ruts on roads.
-      let m = 0.9 + hash(x, y) * 0.18;
-      if (t === Tile.Floor) m *= ((x >> 1) + (y >> 1)) & 1 ? 1.04 : 0.95;
+      let m = 0.94 + hash(x, y) * 0.1;
+      if (t === Tile.Floor) m *= ((x >> 1) + (y >> 1)) & 1 ? 1.03 : 0.97;
       if (t === Tile.Grass) {
         // Patches of dry, yellowed grass and darker, lusher ground.
         const big = hash(x >> 3, y >> 3, 3), mid = hash(x >> 1, y >> 1, 4);
@@ -115,7 +115,7 @@ export class Terrain {
     geo.computeVertexNormals();
     const mat = new THREE.MeshLambertNodeMaterial({ vertexColors: true });
     const fine = texelNoise(4, 0), coarse = texelNoise(2, 7);
-    const base = vertexColor().rgb.mul(fine.mul(0.14).add(0.93)).mul(coarse.mul(0.06).add(0.97));
+    const base = vertexColor().rgb.mul(fine.mul(0.07).add(0.965)).mul(coarse.mul(0.06).add(0.97));
     // Rain leaves puddles in the low spots: dark, with a cold sheen that ripples.
     const puddle = smoothstep(0.55, 0.75, texelNoise(0.5, 13).mul(0.6).add(texelNoise(1, 17).mul(0.4))).mul(uWet);
     const ripple = sin(time.mul(7).add(texelNoise(6, 23).mul(40))).mul(0.5).add(0.5);
@@ -263,7 +263,7 @@ export class Terrain {
       if (tiles[y * w + x] !== Tile.Grass) continue;
       const r = hash(x, y, 31);
       if (r < 0.035) spots.push(x, y, 0);
-      else if (r < 0.11) spots.push(x, y, 1);
+      else if (r < 0.08) spots.push(x, y, 1);
     }
     const bush = merge([
       part(dodeca(0.3), 0x3a5424, 0, 0.18, 0, 0, 0, 0, 1.2, 0.7, 1),
