@@ -141,9 +141,9 @@ When you go down you can be revived where you fell: a teammate right-clicks you 
 next to you for a few seconds, and a hit starts it over. If nobody does, you're back at the base
 when the countdown runs out.
 
-The weather changes between waves and is the same for everyone. Fog shortens everyone's range,
-rain dampens fire and slows creeps a little, a storm throws lightning at creeps out in the open,
-and snow slows everything down.
+The weather changes between waves and is the same for everyone. Fog shortens everyone's range
+and hides teammates from the map and their health bars, rain dampens fire and slows creeps a
+little, a storm throws lightning at creeps out in the open, and snow slows everything down.
 
 Each weapon has its own signature ability on Q, stronger with its special upgrades:
 

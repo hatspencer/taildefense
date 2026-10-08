@@ -165,16 +165,19 @@ export class Labels {
 
     // Heroes: name and HP; the downed show where they fell, their countdown and any revive.
     const fs = Math.round(13 * Math.max(0.85, zoom));
-    const lift = 30 * Math.max(0.85, zoom);
+    const lift = 30 * Math.max(0.85, zoom), fog = game.fogged();
     for (let i = 0; i < f.nPlayers; i++) {
       const p = f.players[i];
       const alive = (p.flags & PF_ALIVE) !== 0;
+      // In thick fog other survivors show only their name: no bar, ring or countdown.
+      const hide = fog && p.id !== wd.you;
       const col = cssHex(playerColor(p.id));
       if (!this.project(cam, game.prx[p.id], alive ? 2.25 : 0.5, game.pry[p.id])) continue;
       const x = this.v.x, y = this.v.y;
       c.font = `500 ${fs}px ${FONT}`;
       if (alive) {
         this.text(p.name, x, y - 3, col);
+        if (hide) continue;
         this.bar(x, y + 1, 46 * zoom, p.hp / Math.max(1, p.maxHp));
         if (p.order === Order.Loot && p.channel > 0) this.ring(x, y - lift, p.channel, AMBER, 'searching…');
         else if (p.order === Order.Revive && p.channel > 0) this.ring(x, y - lift, p.channel, MOSS, 'reviving…');
@@ -182,10 +185,11 @@ export class Labels {
         // A blinking cross over the body, the name and the seconds left to reach them; a
         // revive in progress rings the cross.
         const blink = Math.floor(now / 450) % 2 === 0;
-        if (p.revived > 0) this.ring(x, y - 17, p.revived, MOSS, '', 16);
+        if (p.revived > 0 && !hide) this.ring(x, y - 17, p.revived, MOSS, '', 16);
         c.fillStyle = INK; c.fillRect(x - 5, y - 26, 10, 18); c.fillRect(x - 9, y - 22, 18, 6);
         c.fillStyle = blink ? RUST : '#7a2a1c'; c.fillRect(x - 3, y - 24, 6, 14); c.fillRect(x - 7, y - 20, 14, 2);
-        this.text(p.name, x, y - (p.revived > 0 ? 37 : 30), col);
+        this.text(p.name, x, y - (p.revived > 0 && !hide ? 37 : 30), col);
+        if (hide) continue;
         c.font = `${Math.round(fs * 1.5)}px ${CRT}`;
         this.text(`${p.respawn}s`, x, y + 14, '#e8846a');
       }

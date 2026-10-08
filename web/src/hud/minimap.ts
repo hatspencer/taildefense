@@ -146,9 +146,10 @@ export class Minimap {
     c.fillStyle = '#d04a34';
     const d = Math.max(1.5, sx * 1.1);
     for (let i = 0; i < f.nCreeps; i++) c.fillRect(f.cX[i] * sx - d / 2, f.cY[i] * sy - d / 2, d, d);
-    const blink = Math.floor(now / 400) % 2 === 0;
+    const blink = Math.floor(now / 400) % 2 === 0, fog = g.fogged();
     for (let i = 0; i < f.nPlayers; i++) {
       const p = f.players[i];
+      if (fog && p.id !== wd.you) continue;
       const r = 3 * dpr;
       const px = Math.round(p.x * sx), py = Math.round(p.y * sy);
       if (!(p.flags & PF_ALIVE)) {

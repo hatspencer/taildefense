@@ -541,7 +541,9 @@ export class Hud {
       if (p.id !== wd.you && p.flags & PF_CONNECTED && !(p.flags & PF_ALIVE)) rows.push(p);
     }
     const reviving = !!me && me.order === Order.Revive;
-    const key = rows.map((p) => `${p.id}:${p.name}:${p.respawn}:${Math.round(p.revived * 40)}:${where(p.x, p.y, wd.core.x, wd.core.y)}`).join('|') + `:${reviving}`;
+    const fog = this.ctl.game.fogged();
+    const at = (p: Player) => fog ? 'somewhere in the fog' : where(p.x, p.y, wd.core.x, wd.core.y);
+    const key = rows.map((p) => `${p.id}:${p.name}:${p.respawn}:${Math.round(p.revived * 40)}:${at(p)}`).join('|') + `:${reviving}`;
     if (key === this.alertsKey) return;
     this.alertsKey = key;
     const root = this.alertsEl;
@@ -553,7 +555,7 @@ export class Hud {
       const t = el('span', 't', d);
       t.innerHTML = p.revived > 0
         ? `<b>${esc(p.name)}</b> is being revived${reviving ? ' · stay close' : ''}`
-        : `<b>${esc(p.name)}</b> is down ${esc(where(p.x, p.y, wd.core.x, wd.core.y))} · right-click them to revive`;
+        : `<b>${esc(p.name)}</b> is down ${esc(at(p))} · right-click them to revive`;
       el('span', 'n', d, `${p.respawn}s`);
       if (p.revived > 0) {
         const bar = el('div', 'bar revive', d);

@@ -1,4 +1,4 @@
-import { Frame, MAX_CREEPS, PF_ALIVE, type Player, type Welcome, decodeFrame } from './protocol';
+import { Frame, MAX_CREEPS, PF_ALIVE, type Player, type Welcome, Weather, decodeFrame } from './protocol';
 
 // Everything the client knows about the world: the last two frames and the interpolation
 // state derived from them. Renderers read the r* arrays, indexed like the current frame.
@@ -62,6 +62,11 @@ export class Game {
 
   me(): Player | null {
     return this.welcome ? this.cur.player(this.welcome.you) : null;
+  }
+
+  // Thick fog: teammates drop off the map and their bars go, only the figures stay.
+  fogged(): boolean {
+    return this.cur.weather === Weather.Fog && this.cur.weatherAmt > 0.4;
   }
 
   // Decodes a frame and advances the interpolation state. now is performance.now().
