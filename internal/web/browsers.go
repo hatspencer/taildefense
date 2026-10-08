@@ -140,9 +140,8 @@ func (b Browser) args(url string) ([]string, error) {
 		"--no-first-run",
 		"--no-default-browser-check",
 		"--disable-features=Translate,MediaRouter",
-		// The game draws on the GPU and must keep up with the host even unfocused.
-		"--ignore-gpu-blocklist",
-		"--enable-gpu-rasterization",
+		// The game must keep up with the host even unfocused. No GPU overrides: forcing
+		// WebGPU past the browser's blocklist ran some GPUs out of memory, a black scene.
 		"--disable-background-timer-throttling",
 		"--disable-renderer-backgrounding",
 		"--disable-backgrounding-occluded-windows",
