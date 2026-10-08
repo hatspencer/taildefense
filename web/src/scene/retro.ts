@@ -15,7 +15,7 @@ export class Retro {
   private uNear = uniform(0.5);
   private uFar = uniform(400);
   readonly uNight = uniform(0);
-  private uLevels = uniform(12);
+  private uLevels = uniform(24);
   px = 3;
 
   constructor(renderer: THREE.WebGPURenderer, scene: THREE.Scene, private camera: THREE.PerspectiveCamera) {
@@ -54,7 +54,8 @@ export class Retro {
     c = c.mul(float(1).sub(smoothstep(0.45, 1.05, length(q).mul(1.414)).mul(0.5)));
     // The ordered dither and quantization.
     const b2 = (a: THREE.Node<'vec2'>) => fract(a.x.mul(0.5).add(a.y.mul(a.y).mul(0.75)));
-    const bayer = b2(floor(lp.mul(0.5))).mul(0.25).add(b2(lp));
+    // Half strength around the middle: enough to break up banding without a visible crosshatch.
+    const bayer = b2(floor(lp.mul(0.5))).mul(0.25).add(b2(lp)).sub(0.5).mul(0.5).add(0.5);
     const n = this.uLevels.sub(1);
     c = floor(c.mul(n).add(bayer)).div(n);
 
