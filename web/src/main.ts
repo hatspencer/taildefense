@@ -3,9 +3,10 @@ import { Controller } from './controller';
 import { DemoHost, type DemoOptions } from './demo/host';
 import { Hud } from './hud/hud';
 import { Labels } from './hud/labels';
+import { Splash } from './hud/splash';
 import { Input } from './input';
 import { type Handlers, type Transport, WsTransport } from './net';
-import { PF_ALIVE, PF_ARMORY, Phase, SiteKind, siteX, siteY, turretRange, type Welcome, wreck } from './protocol';
+import { PF_ALIVE, PF_ARMORY, Phase, PingKind, SiteKind, siteX, siteY, turretRange, type Welcome, wreck } from './protocol';
 import { Creeps } from './scene/creeps';
 import { Effects } from './scene/effects';
 import { Heroes } from './scene/heroes';
@@ -14,6 +15,7 @@ import { Overlays } from './scene/overlays';
 import { K_CANNON, K_FROST, K_GUN, K_TESLA, Structs } from './scene/structs';
 import { Terrain } from './scene/terrain';
 import { Weather } from './scene/weather';
+import { playerColor } from './scene/util';
 import { World } from './scene/world';
 import { Game } from './state';
 
@@ -54,6 +56,8 @@ async function makeWorld(app: HTMLElement, forceWebGL: boolean): Promise<World> 
 async function main(): Promise<void> {
   const app = document.getElementById('app')!;
   const P = params();
+  // The boot splash covers loading; #nosplash skips it, #splash=1.4 holds it at 1.4 s in.
+  if (!P.has('nosplash')) new Splash(document.body, P.has('splash') ? Number(P.get('splash')) || 0 : -1);
   const demo = P.has('demo');
   let lostBefore = false;
   try { lostBefore = sessionStorage.getItem('td.webgl') === '1'; } catch { /* storage blocked */ }
@@ -116,6 +120,7 @@ async function main(): Promise<void> {
       const f = game.applyFrame(buf, performance.now());
       effects.onFrame(game, turretHeight, (x0, y0, x1, y1) => structs.onShot(game, x0, y0, x1, y1, performance.now()));
       for (const n of f.notes) hud.note(n.level, n.text);
+      for (const g of f.pings) effects.teamPing(g.x, g.y, g.kind === PingKind.Danger ? 0xff5a3c : playerColor(g.player));
       ctl.tickArmory();
       if (!centredOnHero) {
         const me = game.me();

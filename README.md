@@ -96,6 +96,8 @@ range, and doesn't waste shots on walls.
 | G | armory: weapons, upgrade tracks, gear, abilities (you have to be standing by it) |
 | N | ready for the next wave |
 | P | pause or resume the game, for everyone; anyone can do either |
+| M | big map, and back |
+| Alt+left-click, or Z then left-click | ping: mark the spot for the whole team, in the world or on the map. On a creep it warns of danger, on a loot site it marks loot, on a building it calls to defend it |
 | hold Space | sprint, until you run out of stamina |
 | middle-drag, Alt+wheel | rotate the camera |
 | wheel | zoom |
@@ -103,7 +105,14 @@ range, and doesn't waste shots on walls.
 | T or Enter | chat with the team; in the chat, Tab adds where you are ("NE of the base, 40 m") |
 | Tab, F1, F3, Esc | scoreboard, help, stats, cancel / menu |
 
-On the minimap, left-drag moves the view and right-click gives a move order.
+The top bar always shows the base's health, the generator's, next to the wave. Click it to look at
+the base.
+
+On the minimap, left-drag moves the view, right-click gives a move order and Alt+click pings.
+
+A ping shows for 5 s: rings on the ground and a beacon with your name over the spot, a pulse on
+everyone's minimap, and an arrow at the edge of the screen for anyone looking elsewhere. Pings
+show through fog. Three can go back to back, then one a second.
 
 North is the top of the map. The compass strip at the top of the view shows which way the camera
 faces as you rotate it, and clicking it turns the view north up again. The minimap is always north
@@ -144,6 +153,8 @@ when the countdown runs out.
 The weather changes between waves and is the same for everyone. Fog shortens everyone's range
 and hides teammates from the map and their health bars, rain dampens fire and slows creeps a
 little, a storm throws lightning at creeps out in the open, and snow slows everything down.
+Wet weather is mostly light, a drizzle or a passing thunder shower. Heavy rain and full storms
+are rare.
 
 Each weapon has its own signature ability on Q, stronger with its special upgrades:
 
@@ -169,6 +180,11 @@ abomination.
 The waves don't wait. 40 s after a wave has all come out and reached the base, the countdown to
 the next one starts whether or not the last is dead, so a team out looting comes back to two
 waves at once.
+
+Between waves there is a short break, 15 s on Normal, and after every fifth wave a long one,
+a minute on Normal, to go out exploring and looting; ten seconds before it ends everyone is
+called home. The last seconds of every break count down in the middle of the screen. When
+everyone is ready the countdown jumps to 3 s.
 
 ## Why it's built this way
 
@@ -204,6 +220,7 @@ waves at once.
 ```
 
 The client source is in `web/` (TypeScript, three.js 0.186 with `three/webgpu` and TSL,
-camera-controls, esbuild). `web/PROTOCOL.md` is the contract between `td` and the page. Open
+camera-controls, esbuild). `web/PROTOCOL.md` is the contract between `td` and the page, and
+`docs/game-design.md` records the game design decisions and why they were made. Open
 `internal/web/dist/index.html#demo` straight from disk for a self-running demo with a fake host;
 `#demo&webgl` forces the WebGL 2 path, and `#demo&creeps=8000` stresses it.

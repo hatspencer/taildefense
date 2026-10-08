@@ -15,7 +15,7 @@ var loudness = [NumWeapons]float32{WPistol: 11, WShotgun: 15, WSMG: 13, WRifle: 
 
 // noiseRange is how far p's current weapon is heard now.
 func (w *World) noiseRange(p *Player) float32 {
-	return loudness[p.Cur] * (1 - .3*max(w.amt(WRain), w.amt(WStorm)))
+	return loudness[p.Cur] * (1 - .3*w.wet())
 }
 
 // noise is p's gunfire reaching the creeps around them.

@@ -53,3 +53,19 @@ func TestStampedDecorates(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 }
+
+func TestSameCommitIgnoresDirtyAndLength(t *testing.T) {
+	for _, c := range []struct {
+		a, b string
+		want bool
+	}{
+		{"abc1234", "abc1234def0123456789", true},
+		{"abc1234-dirty", "abc1234", true},
+		{"abc1234", "abc1235", false},
+		{"dev", "dev", false},
+	} {
+		if got := sameCommit(c.a, c.b); got != c.want {
+			t.Errorf("sameCommit(%q, %q) = %v, want %v", c.a, c.b, got, c.want)
+		}
+	}
+}

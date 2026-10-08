@@ -202,3 +202,33 @@ func newBare(seed uint64) *World {
 	w.countGuards()
 	return w
 }
+
+func TestPingsGoOutOnceAndAreMetered(t *testing.T) {
+	w := newBare(3)
+	p, _ := w.Join("ana", "ana@example")
+	for i := 0; i < 5; i++ {
+		if err := w.Ping(p, 10, 12, PingDanger); err != nil {
+			t.Fatal(err)
+		}
+	}
+	w.Step()
+	if len(w.Pings) != pingBurst {
+		t.Fatalf("%d pings went out, want the burst of %d", len(w.Pings), pingBurst)
+	}
+	if g := w.Pings[0]; g.Player != p.ID || g.X != 10 || g.Y != 12 || g.Kind != PingDanger {
+		t.Fatalf("ping %+v", g)
+	}
+	w.Step()
+	if len(w.Pings) != 0 {
+		t.Fatalf("%d pings carried into the next tick", len(w.Pings))
+	}
+	run(w, pingCost, func() bool { return false })
+	_ = w.Ping(p, 10, 12, PingHere)
+	w.Step()
+	if len(w.Pings) != 1 {
+		t.Fatalf("after a second, %d pings went out, want 1", len(w.Pings))
+	}
+	if err := w.Ping(p, -1, 12, PingHere); err == nil {
+		t.Fatal("a ping off the map was taken")
+	}
+}

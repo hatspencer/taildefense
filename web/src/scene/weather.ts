@@ -12,6 +12,17 @@ export const uSnow = uniform(0);
 
 const RAIN = 9000, SNOW = 7000;
 
+// How much fog, rain, storm and snow each weather kind shows at full strength.
+const LOOKS: Record<number, { fog: number; rain: number; storm: number; snow: number }> = {
+  [W.Clear]: { fog: 0, rain: 0, storm: 0, snow: 0 },
+  [W.Fog]: { fog: 1, rain: 0, storm: 0, snow: 0 },
+  [W.Rain]: { fog: 0.2, rain: 1, storm: 0, snow: 0 },
+  [W.Storm]: { fog: 0.35, rain: 1, storm: 1, snow: 0 },
+  [W.Snow]: { fog: 0.3, rain: 0, storm: 0, snow: 1 },
+  [W.Drizzle]: { fog: 0.1, rain: 0.3, storm: 0, snow: 0 },
+  [W.Thunder]: { fog: 0.15, rain: 0.5, storm: 0.2, snow: 0 },
+};
+
 // How the weather looks right now, eased: World reads it for fog, light and tint.
 export interface WeatherLook { fog: number; rain: number; storm: number; snow: number; flash: number; dark: number }
 
@@ -82,11 +93,14 @@ export class Weather {
     const k = f.weather, amt = game.welcome ? f.weatherAmt : 0;
     const e = Math.min(1, dt * 1.5);
     const to = (v: number, goal: number) => v + (goal - v) * e;
-    l.fog = to(l.fog, k === W.Fog ? amt : k === W.Storm ? amt * 0.35 : k === W.Rain ? amt * 0.2 : k === W.Snow ? amt * 0.3 : 0);
-    l.rain = to(l.rain, k === W.Rain ? amt : k === W.Storm ? amt : 0);
-    l.storm = to(l.storm, k === W.Storm ? amt : 0);
-    l.snow = to(l.snow, k === W.Snow ? amt : 0);
-    l.dark = Math.max(l.storm * 0.7, l.rain * 0.4, l.fog * 0.3);
+    // Heavy rain and storms are the full effect; a drizzle and a thunder shower are a fraction
+    // of it, so the everyday wet weather stays easy on the eyes.
+    const g = LOOKS[k] ?? LOOKS[W.Clear];
+    l.fog = to(l.fog, g.fog * amt);
+    l.rain = to(l.rain, g.rain * amt);
+    l.storm = to(l.storm, g.storm * amt);
+    l.snow = to(l.snow, g.snow * amt);
+    l.dark = Math.max(l.storm * 0.6, l.rain * 0.35, l.fog * 0.3);
 
     // Lightning: a strike flashes twice, quickly.
     if (f.tick !== this.lastTick) {

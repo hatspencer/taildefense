@@ -225,6 +225,7 @@ func parseFrame(t *testing.T, p []byte) frameSummary {
 		skip(1)
 		skip(u16())
 	}
+	skip(u8() * 6)
 	if i != len(p) {
 		t.Fatalf("frame has %d bytes left over", len(p)-i)
 	}

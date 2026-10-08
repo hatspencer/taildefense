@@ -101,8 +101,13 @@ dirty() {
   fi
 }
 
+# The commit's date, ISO 8601 with no spaces so it survives -ldflags; empty when git cannot say.
+commit_date() {
+  git log -1 --format=%cI "$(commit)" 2>/dev/null || true
+}
+
 ldflags() {
-  echo "-s -w -X taildefense/internal/version.Commit=$(commit) -X taildefense/internal/version.Dirty=$(dirty)"
+  echo "-s -w -X taildefense/internal/version.Commit=$(commit) -X taildefense/internal/version.Dirty=$(dirty) -X taildefense/internal/version.CommitDate=$(commit_date)"
 }
 
 host_target() {

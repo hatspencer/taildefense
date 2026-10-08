@@ -113,9 +113,11 @@ the next one in over a few seconds; its effects scale with `weatherAmt`:
 |------|-------|--------|
 | 0    | Clear | none |
 | 1    | Fog   | survivors and turrets reach 25% less far; creeps notice survivors at 60% of the distance |
-| 2    | Rain  | burning does half the damage; creeps 8% slower |
-| 3    | Storm | rain, and lightning strikes creeps out in the open now and then (blast kind 8) |
+| 2    | Heavy rain | burning does half the damage; creeps 8% slower (rare) |
+| 3    | Storm | heavy rain, and lightning strikes creeps out in the open every few seconds (blast kind 8; rare) |
 | 4    | Snow  | creeps 15% slower, survivors 8% slower |
+| 5    | Drizzle | light rain: burning does 15% less damage, creeps 2.4% slower |
+| 6    | Thunder shower | light rain, and lightning now and then (every 7–15 s) |
 
 Difficulty is the host's choice, fixed for the game (a restart keeps it): it scales creep
 health and wave size, the gold creeps drop, the build time between waves, the strength of
@@ -171,7 +173,8 @@ u16  phaseLeft        deciseconds until the next wave, build phase only
 u32  pending          creeps of this wave still to spawn
 u32  totalKills
 u16  best             waves survived, when over
-u8   weather          index into the welcome's weathers: 0 clear, 1 fog, 2 rain, 3 storm, 4 snow
+u8   weather          index into the welcome's weathers: 0 clear, 1 fog, 2 heavy rain, 3 storm, 4 snow,
+                      5 drizzle, 6 thunder shower
 u8   weatherAmt       how strong it is right now, 0..255; it eases in and out between waves
 u8   pausedBy         0 running, else 1 + the id of the player who paused the game
 
@@ -258,6 +261,10 @@ u16  nEffects         lasting effects, the full current list every frame
 u8   nNotes           announcements to everyone this tick
   u8   level          0 info, 1 good, 2 bad, 3 a player's chat line "name: text"
   u16  len, text (utf-8)
+u8   nPings           spots players marked for the team this tick
+  u8   player         who pinged
+  u16  x, y q8
+  u8   kind           0 here, 1 danger (on a creep), 2 loot (on a site), 3 defend (on a structure)
 ```
 
 ### Other text messages
@@ -296,5 +303,6 @@ integers. The host checks everything; a refusal comes back as a `toast` with lev
 {"op": "ready",   "on": true}                // ready for the next wave (all ready: starts in 3 s)
 {"op": "restart"}                            // a new map, only once the game is over
 {"op": "chat",    "text": "gg"}
+{"op": "ping",    "x": 150, "y": 98, "kind": 1}  // mark a spot for everyone; 3 back to back, then one a second
 {"op": "leave"}                              // back to the terminal; ends the game if hosting
 ```

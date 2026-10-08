@@ -32,7 +32,7 @@ export class Input {
     canvas.addEventListener('pointerdown', (e) => {
       ctl.mx = e.clientX; ctl.my = e.clientY; ctl.mouseIn = true; ctl.shift = e.shiftKey;
       this.hud.closeTransient();
-      if (e.button === 0) ctl.leftClick();
+      if (e.button === 0) ctl.leftClick(e.altKey);
       else if (e.button === 2) ctl.rightClick();
     });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -116,6 +116,7 @@ export class Input {
     if (k >= '1' && k <= '7') { const w = Number(k) - 1; const me = ctl.me(); if (me && me.owned & (1 << w)) ctl.send({ op: 'select', w }); return; }
     switch (up) {
       case 'A': ctl.setMode({ k: 'amove' }); return;
+      case 'Z': ctl.setMode({ k: ctl.mode.k === 'ping' ? 'none' : 'ping' }); return;
       case 'S': ctl.cancel(); ctl.send({ op: 'stop' }); return;
       case 'H': ctl.cancel(); ctl.send({ op: 'hold' }); return;
       case 'T': e.preventDefault(); hud.openChat(); return;
@@ -124,6 +125,7 @@ export class Input {
       case 'G': ctl.openArmory(!ctl.armoryOpen); return;
       case 'N': ctl.toggleReady(); return;
       case 'P': ctl.send({ op: 'pause' }); return;
+      case 'M': hud.minimap.toggle(); return;
       case 'U': ctl.upgradeSel(); return;
       case 'X': ctl.sellSel(); return;
       case 'F': ctl.repairSel(); return;

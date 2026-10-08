@@ -120,6 +120,7 @@ type Replica struct {
 	Blasts  []Blast
 	Deaths  []Death
 	Notes   []game.Note
+	Pings   []game.Ping
 	// Effects is the whole current list, replaced by every frame.
 	Effects []Effect
 
@@ -310,6 +311,13 @@ func (r *Replica) Apply(p []byte) error {
 		lvl := d.u8()
 		r.Notes = append(r.Notes, game.Note{Level: lvl, Text: d.str()})
 	}
+	ng := int(d.uv())
+	for i := 0; i < ng && d.err == nil; i++ {
+		g := game.Ping{Player: d.u8(), X: unq(d.u16()), Y: unq(d.u16()), Kind: game.PingKind(d.u8())}
+		if len(r.Pings) < 64 {
+			r.Pings = append(r.Pings, g)
+		}
+	}
 	if d.err != nil {
 		return fmt.Errorf("frame: %w", d.err)
 	}
@@ -434,9 +442,9 @@ func (r *Replica) rebuildStructAt() {
 
 // Drain hands the accumulated events to the renderer and forgets them. The slices are only
 // valid until the next Apply; the game loop consumes them before it applies another frame.
-func (r *Replica) Drain() (t []Tracer, b []Blast, d []Death, n []game.Note) {
-	t, b, d, n = r.Tracers, r.Blasts, r.Deaths, r.Notes
-	r.Tracers, r.Blasts, r.Deaths, r.Notes = r.Tracers[:0], r.Blasts[:0], r.Deaths[:0], nil
+func (r *Replica) Drain() (t []Tracer, b []Blast, d []Death, n []game.Note, g []game.Ping) {
+	t, b, d, n, g = r.Tracers, r.Blasts, r.Deaths, r.Notes, r.Pings
+	r.Tracers, r.Blasts, r.Deaths, r.Notes, r.Pings = r.Tracers[:0], r.Blasts[:0], r.Deaths[:0], nil, nil
 	return
 }
 

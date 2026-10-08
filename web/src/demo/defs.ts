@@ -80,9 +80,11 @@ export const STRUCTS: StructDef[] = [
 export const WEATHERS = [
   { name: 'Clear', info: '' },
   { name: 'Fog', info: 'everyone sees and shoots 25% less far; creeps notice you later' },
-  { name: 'Rain', info: 'burning does half the damage; creeps 8% slower' },
-  { name: 'Storm', info: 'rain, and lightning strikes creeps out in the open' },
+  { name: 'Heavy rain', info: 'fire burns half as hot; creeps 8% slower' },
+  { name: 'Storm', info: 'heavy rain, and lightning strikes creeps out in the open' },
   { name: 'Snow', info: 'creeps 15% slower, survivors 8% slower' },
+  { name: 'Drizzle', info: 'fire burns a little cooler' },
+  { name: 'Thunder shower', info: 'light rain; now and then lightning strikes a creep in the open' },
 ];
 
 export function demoWelcome(w: number, h: number): Welcome {

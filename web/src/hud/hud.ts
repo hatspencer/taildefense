@@ -8,6 +8,7 @@ import { el, esc, fmtGold, setClass, setText, show } from './dom';
 import { iconFor, weatherIcon } from './icons';
 import { Compass, where } from './compass';
 import { Minimap } from './minimap';
+import { wordmarkURL } from './splash';
 
 const ORDER = ['idle', 'moving', 'attack-moving', 'attacking', 'holding', 'building', 'repairing', 'searching', 'reviving'];
 
@@ -16,6 +17,10 @@ const secs = (s: number) => (s < 10 ? s.toFixed(1) : String(Math.ceil(s)));
 
 interface Slot { root: HTMLElement; icon: HTMLElement; key: HTMLElement; lvl: HTMLElement; cool: HTMLElement; coolTxt: HTMLElement; name: string; pipsFor: number; wasCooling: boolean }
 
+let mark = '';
+// The finished wordmark, drawn once.
+function markURL(): string { return mark || (mark = wordmarkURL(3)); }
+
 // The HTML overlay: top bar, bottom console, the command card, windows and messages.
 export class Hud {
   root: HTMLElement;
@@ -23,6 +28,8 @@ export class Hud {
   private compass: Compass;
   armory: Armory;
   buildCard = false;
+  // The generator's health, always in the top bar: the one number the game is lost on.
+  private base: { root: HTMLElement; fill: HTMLElement; num: HTMLElement; hp: number; hitUntil: number };
   private top: { wave: HTMLElement; diff: HTMLElement; weather: HTMLElement; kills: HTMLElement; ready: HTMLButtonElement; readies: HTMLElement };
   private statusEl: HTMLElement;
   private alertsEl: HTMLElement;
@@ -33,6 +40,7 @@ export class Hud {
   private paused!: { root: HTMLElement; sub: HTMLElement };
   private downed: { root: HTMLElement; sub: HTMLElement; bar: HTMLElement; fill: HTMLElement };
   private announceEl: HTMLElement;
+  private countEl!: { root: HTMLElement; wave: HTMLElement; n: HTMLElement };
   private toastsEl: HTMLElement;
   private chat: { root: HTMLElement; log: HTMLElement; input: HTMLInputElement };
   private hero: {
@@ -69,6 +77,11 @@ export class Hud {
     // Top bar.
     const top = el('div', 'top', root);
     const wave = el('div', 'wave crt', top);
+    const base = el('div', 'chip base', top);
+    base.innerHTML = '<svg viewBox="0 0 16 16" width="16" height="16" shape-rendering="crispEdges"><path d="M3 5h10v10H3z" fill="#07080a"/><path d="M4 6h8v8H4z" fill="#5d604a"/><path d="M6 8h4v4H6z" fill="#e0a63a"/><path d="M7 1h2v4H7zM5 3h6v1H5z" fill="#86a2a6"/></svg><span class="lbl">base</span><span class="bbar"><i></i></span><span class="num crt"></span>';
+    base.title = 'The generator: if it falls, the game is over. Click to look at it.';
+    base.onclick = () => { const c = ctl.game.welcome?.core; if (c) { ctl.rig.follow = false; ctl.rig.center(c.x, c.y, false); } };
+    this.base = { root: base, fill: base.querySelector('.bbar i') as HTMLElement, num: base.querySelector('.num') as HTMLElement, hp: -1, hitUntil: 0 };
     const diff = el('div', 'chip diff', top);
     this.tipOn(diff, () => this.diffTip());
     const weather = el('div', 'chip weather', top);
@@ -113,6 +126,8 @@ export class Hud {
     this.paused = { root: pz, sub: el('div', 'ds', pz) };
 
     this.announceEl = el('div', 'announce', root);
+    const cd = el('div', 'countdown hidden', root);
+    this.countEl = { root: cd, wave: el('div', 'cw', cd), n: el('div', 'cn', cd) };
     this.toastsEl = el('div', 'toasts', root);
     this.modeEl = el('div', 'mode panel hidden', root);
 
@@ -357,6 +372,7 @@ export class Hud {
   closeWindows(): boolean {
     for (const w of [this.menu, this.help, this.score]) if (!w.classList.contains('hidden')) { show(w, false); return true; }
     if (this.ctl.armoryOpen) { this.ctl.openArmory(false); return true; }
+    if (this.minimap.expanded) { this.minimap.toggle(false); return true; }
     return false;
   }
 
@@ -373,9 +389,9 @@ export class Hud {
     if (this.conn === 'open') { show(c, false); return; }
     show(c, true);
     if (this.conn === 'ended') {
-      c.innerHTML = `<h1>taildefense</h1><div class="big">The game is over for this tab</div><div class="muted">${esc(this.connDetail)}</div><div class="muted">You can close this tab; <kbd>td</kbd> is back in the terminal.</div>`;
+      c.innerHTML = `<img class="mark" src="${markURL()}" alt="taildefense"><div class="big">The game is over for this tab</div><div class="muted">${esc(this.connDetail)}</div><div class="muted">You can close this tab; <kbd>td</kbd> is back in the terminal.</div>`;
     } else {
-      c.innerHTML = `<h1>taildefense</h1><div class="spin"></div><div class="big">${this.conn === 'connecting' ? 'Connecting…' : 'Reconnecting…'}</div><div class="muted">to the td running on this machine</div>`;
+      c.innerHTML = `<img class="mark" src="${markURL()}" alt="taildefense"><div class="spin"></div><div class="big">${this.conn === 'connecting' ? 'Connecting…' : 'Reconnecting…'}</div><div class="muted">to the td running on this machine</div>`;
     }
   }
 
@@ -384,6 +400,7 @@ export class Hud {
       ['Right-click', 'move · on a creep: attack · on a damaged structure: repair · on the armory: walk there · on a loot site: search it'],
       ['Right-click a downed teammate', 'walk over and revive them: stay close until the bar fills'],
       ['<kbd>A</kbd> + left-click', 'attack-move (Shift keeps the mode)'],
+      ['<kbd>Alt</kbd> + left-click, or <kbd>Z</kbd> then click', 'ping the spot for the whole team, in the world or on the map: on a creep it warns, on a loot site it marks loot, on a structure it calls to defend it'],
       ['<kbd>S</kbd> / <kbd>H</kbd>', 'stop / hold position'],
       ['<kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>D</kbd>', 'abilities; point abilities then left-click to cast, right-click or Esc cancels'],
       ['<kbd>V</kbd>', 'taunt: pull every creep nearby onto you, then a cooldown'],
@@ -399,6 +416,7 @@ export class Hud {
       ['Arrows / screen edge', 'pan'],
       ['Minimap', 'left-click/drag: look there · right-click: move there'],
       ['<kbd>P</kbd>', 'pause or resume the game, for everyone'],
+      ['<kbd>M</kbd>', 'big map, and back; click it to look, right-click to walk there'],
       ['<kbd>T</kbd> / <kbd>Enter</kbd>', 'chat with the team · in the chat, <kbd>Tab</kbd> adds where you are'],
       ['Compass', 'the strip at the top shows which way the view faces; click it to turn north up'],
       ['<kbd>Tab</kbd>', 'scoreboard (hold)'],
@@ -455,6 +473,7 @@ export class Hud {
     if (me) this.updateHero(me, wd, now);
     this.updateDown(me, wd);
     this.updatePause();
+    this.updateCountdown(now);
     this.updateCard();
     this.updateMode();
     this.armory.update();
@@ -474,6 +493,8 @@ export class Hud {
     } else if (f.phase === Phase.Wave) wave = `<span class="lbl">wave</span>${f.wave}<span class="lbl">·</span><span class="phase">${fmtGold(f.pending + f.nCreeps)}</span><span class="lbl">creeps left</span>`;
     else wave = `<span class="lbl">overrun · held</span><span class="phase">${f.best}</span><span class="lbl">waves</span>`;
     if (this.top.wave.innerHTML !== wave) this.top.wave.innerHTML = wave;
+
+    this.updateBase(now);
 
     const di = Math.max(0, Math.min(wd.difficulties.length - 1, wd.difficulty.id));
     const diff = `<span class="pips">${wd.difficulties.map((_, i) => `<i class="${i <= di ? 'on' : ''}"></i>`).join('')}</span>${esc(wd.difficulty.name)}`;
@@ -499,6 +520,39 @@ export class Hud {
         dots += `<span class="${p.flags & PF_READY ? 'on' : ''}" style="background:${cssHex(playerColor(p.id))}" title="${esc(p.name)}${p.flags & PF_READY ? ' is ready' : ''}"></span>`;
       }
       if (this.top.readies.innerHTML !== dots) this.top.readies.innerHTML = dots;
+    }
+  }
+
+  // The base chip: a segmented bar coloured by how much is left, flashing when it is hit and
+  // pulsing once it is below a third.
+  private updateBase(now: number): void {
+    const f = this.ctl.game.cur, b = this.base;
+    let hp = 0, max = 1;
+    for (let i = 0; i < f.nStructs; i++) if (f.sAlive[i] && f.sKind[i] === 1) { hp = f.sHp[i]; max = Math.max(1, f.sMaxHp[i]); break; }
+    if (b.hp >= 0 && hp < b.hp) b.hitUntil = now + 450;
+    b.hp = hp;
+    const frac = Math.max(0, Math.min(1, hp / max));
+    b.fill.style.width = `${(frac * 100).toFixed(1)}%`;
+    setText(b.num, `${Math.ceil(frac * 100)}%`);
+    setClass(b.root, 'mid', frac <= 0.6 && frac > 0.3);
+    setClass(b.root, 'low', frac <= 0.3);
+    setClass(b.root, 'hit', now < b.hitUntil);
+    b.root.title = `The generator: ${Math.ceil(hp)} / ${Math.ceil(max)}. If it falls, the game is over. Click to look at it.`;
+  }
+
+  // The last seconds of a break count down big in the middle of the screen.
+  private updateCountdown(now: number): void {
+    const g = this.ctl.game, f = g.cur;
+    const left = f.phase === Phase.Build && f.pausedBy < 0 ? f.phaseLeft / 10 - (now - g.frameAt) / 1000 : 0;
+    const on = left > 0 && left <= 5;
+    show(this.countEl.root, on);
+    if (!on) return;
+    setText(this.countEl.wave, `wave ${f.wave + 1} incoming`);
+    const n = String(Math.ceil(left));
+    if (this.countEl.n.textContent !== n) {
+      this.countEl.n.textContent = n;
+      // Restart the pulse on every new number.
+      this.countEl.n.classList.remove('tick'); void this.countEl.n.offsetWidth; this.countEl.n.classList.add('tick');
     }
   }
 

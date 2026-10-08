@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
-import { EffectKind, Order, PF_ALIVE, siteX, siteY, walled } from '../protocol';
-import type { Game } from '../state';
+import { EffectKind, Order, PF_ALIVE, PingKind, siteX, siteY, walled } from '../protocol';
+import { type Game, PING_LIFE } from '../state';
 import { cssHex, playerColor } from '../scene/util';
 
 export interface LabelFocus { hoverStruct: number; selStruct: number; hoverCreep: number; selCreep: number; showAllBars: boolean; hoverSite: number; siteHint: string }
@@ -9,6 +9,15 @@ export interface LabelFocus { hoverStruct: number; selStruct: number; hoverCreep
 const FONT = '"Pixelify Sans", "Lucida Console", monospace';
 const CRT = '"VT323", "Lucida Console", monospace';
 const INK = '#07080a', AMBER = '#e0a63a', MOSS = '#86a24c', RUST = '#b5472f', BONE = '#d9d1b3', KHAKI = '#938a66', TAPE = '#bfab72';
+
+// 7x7 ping glyphs, by PingKind: here (a down arrow), danger (!), loot (a coin), defend (a shield).
+const PING_GLYPH = [
+  ['#######', '.#####.', '..###..', '...#...', '.......', '.#####.', '.......'],
+  ['..###..', '..###..', '..###..', '..###..', '.......', '..###..', '..###..'],
+  ['..###..', '.#...#.', '#..#..#', '#.###.#', '#..#..#', '.#...#.', '..###..'],
+  ['#######', '#.....#', '#.###.#', '#.###.#', '.#.#.#.', '..#.#..', '...#...'],
+];
+const PING_WORD = ['here', 'danger', 'loot', 'defend'];
 
 // A 5x4 skull, one guard-level pip.
 const SKULL = ['.###.', '#.#.#', '#####', '.#.#.'];
@@ -213,5 +222,67 @@ export class Labels {
       const s = Math.max(0, f.eLeft[i] / 10 - since).toFixed(1);
       this.text(s, this.v.x, this.v.y, '#e8846a');
     }
+    this.pings(game, cam, now);
+  }
+
+  // Team pings: a pixel beacon standing over the spot with the pinger's name, or, when the
+  // spot is off screen, an arrow at the screen's edge pointing to it.
+  private pings(game: Game, cam: THREE.Camera, now: number): void {
+    const c = this.ctx;
+    for (const p of game.pings) {
+      const age = (now - p.at) / 1000, life = PING_LIFE / 1000;
+      if (age < 0 || age > life) continue;
+      const fade = Math.min(1, (life - age) / 0.8);
+      const col = p.kind === PingKind.Danger ? '#ff5a3c' : cssHex(playerColor(p.player));
+      const name = game.cur.player(p.player)?.name ?? '';
+      // Unclamped projection: behind the camera flips, so mirror it to keep the arrow honest.
+      this.v.set(p.x, 0, p.y).project(cam);
+      let nx = this.v.x, ny = this.v.y;
+      if (this.v.z > 1) { nx = -nx; ny = -ny; }
+      const on = this.v.z <= 1 && nx > -0.95 && nx < 0.95 && ny > -0.9 && ny < 0.9;
+      c.globalAlpha = fade;
+      if (on) {
+        const gx = Math.round((nx + 1) / 2 * this.w), gy = Math.round((1 - ny) / 2 * this.h);
+        // Drop in from above, then bob.
+        const drop = Math.max(0, 1 - age / 0.25);
+        const top = gy - 64 - Math.round(drop * 40) - (age > 0.25 ? Math.round(Math.sin(age * 5) * 2) : 0);
+        c.fillStyle = INK; c.fillRect(gx - 2, top + 26, 4, gy - top - 26);
+        c.fillStyle = col;
+        for (let yy = top + 28; yy < gy - 2; yy += 6) c.fillRect(gx - 1, yy, 2, 3);
+        this.glyph(gx, top, p.kind, col, age);
+        c.font = `12px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'bottom';
+        this.text(name ? `${name} · ${PING_WORD[p.kind] ?? ''}` : PING_WORD[p.kind] ?? '', gx, top - 14, col);
+      } else {
+        // The edge arrow: on the line from the screen centre towards the spot.
+        // It keeps inside the play area, clear of the top bar and the console.
+        const x0 = 28, x1 = this.w - 28, y0 = 84, y1 = this.h - 210;
+        const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+        const dx = (nx + 1) / 2 * this.w - cx, dy = (1 - ny) / 2 * this.h - cy;
+        const k = 1 / Math.max(Math.abs(dx) / ((x1 - x0) / 2), Math.abs(dy) / ((y1 - y0) / 2), 1e-6);
+        const ex = Math.round(cx + dx * Math.min(1, k)), ey = Math.round(cy + dy * Math.min(1, k));
+        const ang = Math.atan2(dy, dx);
+        c.save(); c.translate(ex, ey); c.rotate(ang);
+        const pulse = Math.floor(age * 4) % 2 ? 0 : 3;
+        c.fillStyle = INK; c.beginPath(); c.moveTo(14 + pulse, 0); c.lineTo(-8, -11); c.lineTo(-8, 11); c.closePath(); c.fill();
+        c.fillStyle = col; c.beginPath(); c.moveTo(10 + pulse, 0); c.lineTo(-5, -7); c.lineTo(-5, 7); c.closePath(); c.fill();
+        c.restore();
+        c.font = `12px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'middle';
+        const tx = Math.min(this.w - 40, Math.max(40, ex - Math.cos(ang) * 30)), ty = Math.min(this.h - 20, Math.max(20, ey - Math.sin(ang) * 22));
+        this.text(name || PING_WORD[p.kind], tx, ty, col);
+      }
+    }
+    c.globalAlpha = 1;
+    c.textBaseline = 'bottom';
+  }
+
+  // A ping's glyph in a bevelled pixel box, 3px per glyph pixel, flashing white as it lands.
+  private glyph(x: number, top: number, kind: number, col: string, age: number): void {
+    const c = this.ctx, g = PING_GLYPH[kind] ?? PING_GLYPH[0], px = 3, n = 7, box = n * px + 6;
+    const bx = x - box / 2, flash = age < 0.35 && Math.floor(age * 12) % 2 === 0;
+    c.fillStyle = INK; c.fillRect(bx - 2, top - 2, box + 4, box + 4);
+    c.fillStyle = flash ? '#ffffff' : col; c.fillRect(bx, top, box, box);
+    c.fillStyle = 'rgba(0,0,0,0.55)'; c.fillRect(bx + 2, top + 2, box - 4, box - 4);
+    c.fillStyle = flash ? col : '#ffffff';
+    for (let yy = 0; yy < n; yy++) for (let xx = 0; xx < n; xx++) if (g[yy][xx] === '#') c.fillRect(bx + 3 + xx * px, top + 3 + yy * px, px, px);
   }
 }

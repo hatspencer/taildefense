@@ -110,6 +110,24 @@ func TestATruncatedFrameIsAnErrorNotAPanic(t *testing.T) {
 	}
 }
 
+func TestPingsReachTheReplica(t *testing.T) {
+	w := newWorldWithCreeps(10)
+	var e Encoder
+	r := NewReplica(w.W, w.H, w.Terrain, 0, w.Seed)
+	if err := r.Apply(e.Key(w, nil)); err != nil {
+		t.Fatal(err)
+	}
+	_ = w.Ping(w.Players[0], 40.5, 33.25, game.PingLoot)
+	w.Step()
+	if err := r.Apply(e.Delta(w, nil)); err != nil {
+		t.Fatal(err)
+	}
+	_, _, _, _, g := r.Drain()
+	if len(g) != 1 || g[0].X != 40.5 || g[0].Y != 33.25 || g[0].Kind != game.PingLoot || g[0].Player != w.Players[0].ID {
+		t.Fatalf("pings %+v", g)
+	}
+}
+
 func TestCommandRoundTrip(t *testing.T) {
 	c := Cmd{Op: OpAbility, A: 2, X: 12.5, Y: 199.25, T: 4000, Text: "hi"}
 	gc, err := decodeCmd(c.encode())
