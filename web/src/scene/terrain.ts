@@ -1,7 +1,8 @@
 import * as THREE from 'three/webgpu';
-import { color, dot, floor, fract, mix, positionWorld, sin, time, vec2, vec3, vertexColor, float } from 'three/tsl';
+import { color, dot, floor, fract, mix, normalWorld, positionWorld, sin, smoothstep, time, vec2, vec3, vertexColor, float } from 'three/tsl';
 import { Tile } from '../protocol';
 import { box, cone, cyl, dodeca, merge, part, setEmissive, writeMatrix } from './util';
+import { uSnow, uWet } from './weather';
 
 function hash(x: number, y: number, s = 0): number {
   let h = Math.imul(x * 374761393 + y * 668265263 + s * 1442695041, 1274126177);
@@ -22,6 +23,20 @@ function texelNoise(perTile: number, seed: number) {
 }
 
 export const WATER_Y = -0.24;
+
+// Weather on a colour: wet darkens it, snow settles white on whatever faces up.
+function weathered(c: THREE.Node<'vec3'>, up: THREE.Node<'float'>): THREE.Node<'vec3'> {
+  const n = texelNoise(3, 41);
+  const wet = c.mul(float(1).sub(uWet.mul(0.28)));
+  return mix(wet, vec3(0.84, 0.87, 0.9).mul(n.mul(0.1).add(0.92)), uSnow.mul(0.85).mul(smoothstep(0.35, 0.8, up)).mul(n.mul(0.35).add(0.65)));
+}
+
+// A lit material for instanced props that takes the weather.
+function propMaterial(): THREE.MeshLambertNodeMaterial {
+  const m = new THREE.MeshLambertNodeMaterial({ vertexColors: true });
+  m.colorNode = weathered(vertexColor().rgb, normalWorld.y);
+  return m;
+}
 
 export class Terrain {
   group = new THREE.Group();
@@ -100,7 +115,12 @@ export class Terrain {
     geo.computeVertexNormals();
     const mat = new THREE.MeshLambertNodeMaterial({ vertexColors: true });
     const fine = texelNoise(4, 0), coarse = texelNoise(2, 7);
-    mat.colorNode = vertexColor().rgb.mul(fine.mul(0.14).add(0.93)).mul(coarse.mul(0.06).add(0.97));
+    const base = vertexColor().rgb.mul(fine.mul(0.14).add(0.93)).mul(coarse.mul(0.06).add(0.97));
+    // Rain leaves puddles in the low spots: dark, with a cold sheen that ripples.
+    const puddle = smoothstep(0.55, 0.75, texelNoise(0.5, 13).mul(0.6).add(texelNoise(1, 17).mul(0.4))).mul(uWet);
+    const ripple = sin(time.mul(7).add(texelNoise(6, 23).mul(40))).mul(0.5).add(0.5);
+    const sheen = vec3(0.24, 0.28, 0.32).mul(ripple.mul(0.25).add(0.85));
+    mat.colorNode = mix(weathered(base, float(1)), sheen, puddle.mul(float(1).sub(uSnow)).mul(0.8));
     const mesh = new THREE.Mesh(geo, mat);
     mesh.receiveShadow = true;
     mesh.name = 'ground';
@@ -151,7 +171,7 @@ export class Terrain {
       part(dodeca(0.4), 0x354f22, -0.3, 1.4, -0.2),
       part(dodeca(0.3), 0x50702f, 0.05, 1.72, -0.05),
     ]);
-    const mat = new THREE.MeshLambertNodeMaterial({ vertexColors: true });
+    const mat = propMaterial();
     const kinds = [geoPine, geoRound];
     const counts = [0, 0];
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (tiles[y * w + x] === Tile.Tree) counts[hash(x >> 2, y >> 2, 5) < 0.6 ? 0 : 1]++;
@@ -206,7 +226,7 @@ export class Terrain {
       part(box(0.4, 0.32, 0.4), 0x6a4a2c, -0.18, 0.36, -0.12, 0, 0.5, 0.15),
       part(box(0.7, 0.05, 0.12), 0x7a5a36, 0.05, 0.3, 0.25, 0, 0.9, 0.25),
     ]);
-    const mat = new THREE.MeshLambertNodeMaterial({ vertexColors: true });
+    const mat = propMaterial();
     const make = (geo: THREE.BufferGeometry, list: number[], f: (m: Float32Array, o: number, x: number, y: number) => void) => {
       const cnt = list.length / 2;
       if (!cnt) return;
@@ -256,7 +276,7 @@ export class Terrain {
       part(cone(0.05, 0.28, 3), 0x5e6e30, -0.1, 0.14, -0.08, 0.1, 0, -0.25),
       part(box(0.05, 0.05, 0.05), 0xc8b860, 0.12, 0.28, 0.06),
     ]);
-    const mat = new THREE.MeshLambertNodeMaterial({ vertexColors: true });
+    const mat = propMaterial();
     [bush, weeds].forEach((geo, k) => {
       const list: number[] = [];
       for (let i = 0; i < spots.length; i += 3) if (spots[i + 2] === k) list.push(spots[i], spots[i + 1]);

@@ -22,7 +22,7 @@ import (
 
 // Proto is the wire protocol version. A host refuses a client with a different one and names
 // both versions, so the fix (td update) is obvious.
-const Proto = 2
+const Proto = 4
 
 // DefaultPort is where a host listens.
 const DefaultPort = 7787

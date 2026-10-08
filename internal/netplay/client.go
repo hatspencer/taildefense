@@ -33,7 +33,9 @@ type Welcome struct {
 	You     uint8
 	W, H    int
 	Seed    uint64
+	Diff    game.Difficulty
 	Terrain []game.Tile
+	Sites   []game.Site
 }
 
 // DecodeWelcome reads a welcome payload.
@@ -42,6 +44,7 @@ func DecodeWelcome(p []byte) (Welcome, error) {
 	w := Welcome{Proto: int(d.u8()), Version: d.str(), You: d.u8(), W: int(d.u16()), H: int(d.u16())}
 	lo, hi := d.u32(), d.u32()
 	w.Seed = uint64(hi)<<32 | uint64(lo)
+	w.Diff = game.Difficulty(d.u8())
 	t := d.bytes()
 	if d.err != nil {
 		return w, d.err
@@ -53,7 +56,13 @@ func DecodeWelcome(p []byte) (Welcome, error) {
 	for i, v := range t {
 		w.Terrain[i] = game.Tile(v)
 	}
-	return w, nil
+	n := int(d.uv())
+	for i := 0; i < n && d.err == nil && i < 4096; i++ {
+		s := game.Site{Kind: game.SiteKind(d.u8()), X: int16(d.u16()), Y: int16(d.u16()), W: d.u8(), H: d.u8()}
+		s.SX, s.SY, s.Tier, s.Guard = unq(d.u16()), unq(d.u16()), d.u8(), d.u8()
+		w.Sites = append(w.Sites, s)
+	}
+	return w, d.err
 }
 
 // Client is a connection to a host.

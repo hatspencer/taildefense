@@ -1,9 +1,17 @@
 import * as THREE from 'three/webgpu';
-import { EffectKind, PF_ALIVE } from '../protocol';
+import { EffectKind, Order, PF_ALIVE, SiteKind, siteX, siteY } from '../protocol';
 import type { Game } from '../state';
 import { cssHex, playerColor } from '../scene/util';
 
-export interface LabelFocus { hoverStruct: number; selStruct: number; hoverCreep: number; selCreep: number; showAllBars: boolean }
+export interface LabelFocus { hoverStruct: number; selStruct: number; hoverCreep: number; selCreep: number; showAllBars: boolean; hoverSite: number; siteHint: string }
+
+// The HUD's palette and faces, for the canvas (see app.css).
+const FONT = '"Pixelify Sans", "Lucida Console", monospace';
+const CRT = '"VT323", "Lucida Console", monospace';
+const INK = '#07080a', AMBER = '#e0a63a', MOSS = '#86a24c', RUST = '#b5472f', BONE = '#d9d1b3', KHAKI = '#938a66', TAPE = '#bfab72';
+
+// A 5x4 skull, one guard-level pip.
+const SKULL = ['.###.', '#.#.#', '#####', '.#.#.'];
 
 // Names, HP bars and countdowns drawn on a 2D canvas over the 3D view: cheaper than DOM
 // elements when there are hundreds of them.
@@ -29,17 +37,99 @@ export class Labels {
   private project(cam: THREE.Camera, x: number, y: number, z: number): boolean {
     this.v.set(x, y, z).project(cam);
     if (this.v.z > 1 || this.v.x < -1.1 || this.v.x > 1.1 || this.v.y < -1.1 || this.v.y > 1.1) return false;
-    this.v.x = (this.v.x + 1) / 2 * this.w; this.v.y = (1 - this.v.y) / 2 * this.h;
+    this.v.x = Math.round((this.v.x + 1) / 2 * this.w); this.v.y = Math.round((1 - this.v.y) / 2 * this.h);
     return true;
   }
 
+  // A segmented pixel bar with a hard black outline.
   private bar(x: number, y: number, w: number, frac: number, hex = -1): void {
     const c = this.ctx;
     const h = 5;
-    c.fillStyle = 'rgba(0,0,0,0.75)';
-    c.fillRect(x - w / 2 - 1, y - 1, w + 2, h + 2);
-    c.fillStyle = hex >= 0 ? cssHex(hex) : frac > 0.5 ? '#45d35a' : frac > 0.25 ? '#e8c040' : '#e8452f';
-    c.fillRect(x - w / 2, y, w * Math.max(0, Math.min(1, frac)), h);
+    w = Math.round(w); x = Math.round(x - w / 2);
+    c.fillStyle = INK;
+    c.fillRect(x - 2, y - 2, w + 4, h + 4);
+    c.fillStyle = '#2a1712';
+    c.fillRect(x, y, w, h);
+    c.fillStyle = hex >= 0 ? cssHex(hex) : frac > 0.5 ? MOSS : frac > 0.25 ? AMBER : RUST;
+    c.fillRect(x, y, Math.round(w * Math.max(0, Math.min(1, frac))), h);
+    c.fillStyle = 'rgba(255,255,230,0.2)';
+    c.fillRect(x, y, Math.round(w * Math.max(0, Math.min(1, frac))), 1);
+    c.fillStyle = 'rgba(0,0,0,0.45)';
+    for (let s = x + 6; s < x + w; s += 7) c.fillRect(s, y, 1, h);
+  }
+
+  // Text with a hard 2px pixel shadow instead of a soft outline.
+  private text(s: string, x: number, y: number, col: string): void {
+    const c = this.ctx;
+    c.fillStyle = INK;
+    c.fillText(s, x + 2, y + 2); c.fillText(s, x - 1, y); c.fillText(s, x + 1, y); c.fillText(s, x, y - 1);
+    c.fillStyle = col;
+    c.fillText(s, x, y);
+  }
+
+  // A segmented progress ring with a caption: a search, or a revive.
+  private ring(x: number, y: number, frac: number, col: string, caption: string, r = 10): void {
+    const c = this.ctx, segs = 12;
+    const lit = Math.floor(Math.min(1, frac) * segs + 0.001);
+    const step = (Math.PI * 2) / segs, gap = 0.12;
+    c.lineCap = 'butt';
+    c.lineWidth = 7; c.strokeStyle = INK;
+    c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.stroke();
+    c.lineWidth = 4;
+    for (let i = 0; i < segs; i++) {
+      const a = -Math.PI / 2 + i * step;
+      c.strokeStyle = i < lit ? col : '#3a3a2c';
+      c.beginPath(); c.arc(x, y, r, a + gap, a + step - gap); c.stroke();
+    }
+    if (!caption) return;
+    c.save();
+    c.font = `500 12px ${FONT}`; c.textAlign = 'left'; c.textBaseline = 'middle';
+    this.text(caption, x + r + 7, y, col);
+    c.restore();
+  }
+
+  private skulls(x: number, y: number, n: number, col: string): void {
+    const c = this.ctx, px = 2;
+    for (let k = 0; k < n; k++) {
+      const ox = x + k * (5 * px + 3);
+      c.fillStyle = INK; c.fillRect(ox - 1, y - 1, 5 * px + 2, 4 * px + 2);
+      c.fillStyle = col;
+      for (let r = 0; r < SKULL.length; r++) for (let q = 0; q < 5; q++) if (SKULL[r][q] === '#') c.fillRect(ox + q * px, y + r * px, px, px);
+    }
+  }
+
+  // The hovered site's tag: what it is, how hard its guards are and how many still stand.
+  private siteTag(game: Game, i: number, hint: string, x: number, y: number, zoom: number): void {
+    const c = this.ctx, wd = game.welcome!, f = game.cur, s = wd.sites[i];
+    const searched = f.siteSearched(i);
+    const guards = f.siteGuards(i);
+    const level = Math.max(0, Math.min(3, s.guard ?? 0));
+    const fs = Math.round(13 * Math.max(0.9, zoom));
+    c.save();
+    c.textAlign = 'left'; c.textBaseline = 'middle';
+    c.font = `500 ${fs}px ${FONT}`;
+    const line2 = searched ? (level > 0 ? 'picked clean' : '') : level === 0 ? 'unguarded' : guards > 0 ? `${guards} ${guards === 1 ? 'guard' : 'guards'} left · clear the guards first` : 'guards cleared';
+    const w1 = c.measureText(hint).width;
+    c.font = `500 ${fs - 1}px ${FONT}`;
+    const skullW = level > 0 ? level * 13 + 4 : 0;
+    const w2 = line2 ? c.measureText(line2).width + skullW : 0;
+    const w = Math.round(Math.max(w1, w2) + 16), lh = fs + 5;
+    const h = line2 ? lh * 2 + 6 : lh + 6;
+    const bx = Math.round(x - w / 2), by = Math.round(y - h);
+    // Plate: black edge, drab fill, tape strip down the left.
+    c.fillStyle = INK; c.fillRect(bx - 2, by - 2, w + 4, h + 4);
+    c.fillStyle = 'rgba(28,30,22,0.94)'; c.fillRect(bx, by, w, h);
+    c.fillStyle = searched ? KHAKI : guards > 0 ? RUST : TAPE; c.fillRect(bx, by, 3, h);
+    c.font = `500 ${fs}px ${FONT}`;
+    this.text(hint, bx + 9, by + 3 + lh / 2, searched ? KHAKI : '#f4c25c');
+    if (line2) {
+      const ly = by + 3 + lh + lh / 2;
+      let tx = bx + 9;
+      if (level > 0) { this.skulls(tx, Math.round(ly - 4), level, guards > 0 && !searched ? RUST : KHAKI); tx += skullW; }
+      c.font = `500 ${fs - 1}px ${FONT}`;
+      this.text(line2, tx, ly, guards > 0 && !searched ? '#e8846a' : searched ? KHAKI : BONE);
+    }
+    c.restore();
   }
 
   draw(game: Game, cam: THREE.Camera, focus: LabelFocus, now: number, dist: number): void {
@@ -70,38 +160,54 @@ export class Labels {
       if (!focused && !(def && def.size >= 2 && f.cHp[i] < 255)) continue;
       const r = def ? def.radius : 0.45;
       if (!this.project(cam, game.rx[i], r * 2.1 * 1.9 + 0.3, game.ry[i])) continue;
-      this.bar(this.v.x, this.v.y, Math.max(24, r * 40) * zoom, f.cHp[i] / 255, focused ? -1 : 0xd04040);
+      this.bar(this.v.x, this.v.y, Math.max(24, r * 40) * zoom, f.cHp[i] / 255, focused ? -1 : 0xb5472f);
     }
 
-    // Heroes: name and HP; the dead show where they fell and when they return.
-    c.font = `600 ${Math.round(12 * Math.max(0.85, zoom))}px system-ui, sans-serif`;
+    // Heroes: name and HP; the downed show where they fell, their countdown and any revive.
+    const fs = Math.round(13 * Math.max(0.85, zoom));
+    const lift = 30 * Math.max(0.85, zoom);
     for (let i = 0; i < f.nPlayers; i++) {
       const p = f.players[i];
       const alive = (p.flags & PF_ALIVE) !== 0;
       const col = cssHex(playerColor(p.id));
       if (!this.project(cam, game.prx[p.id], alive ? 2.25 : 0.5, game.pry[p.id])) continue;
       const x = this.v.x, y = this.v.y;
-      c.lineWidth = 3; c.strokeStyle = 'rgba(0,0,0,0.8)';
+      c.font = `500 ${fs}px ${FONT}`;
       if (alive) {
-        c.strokeText(p.name, x, y - 2); c.fillStyle = col; c.fillText(p.name, x, y - 2);
+        this.text(p.name, x, y - 3, col);
         this.bar(x, y + 1, 46 * zoom, p.hp / Math.max(1, p.maxHp));
+        if (p.order === Order.Loot && p.channel > 0) this.ring(x, y - lift, p.channel, AMBER, 'searching…');
+        else if (p.order === Order.Revive && p.channel > 0) this.ring(x, y - lift, p.channel, MOSS, 'reviving…');
       } else {
-        const s = `✝ ${p.name} · ${p.respawn}s`;
-        c.globalAlpha = 0.85;
-        c.strokeText(s, x, y); c.fillStyle = col; c.fillText(s, x, y);
-        c.globalAlpha = 1;
+        // A blinking cross over the body, the name and the seconds left to reach them; a
+        // revive in progress rings the cross.
+        const blink = Math.floor(now / 450) % 2 === 0;
+        if (p.revived > 0) this.ring(x, y - 17, p.revived, MOSS, '', 16);
+        c.fillStyle = INK; c.fillRect(x - 5, y - 26, 10, 18); c.fillRect(x - 9, y - 22, 18, 6);
+        c.fillStyle = blink ? RUST : '#7a2a1c'; c.fillRect(x - 3, y - 24, 6, 14); c.fillRect(x - 7, y - 20, 14, 2);
+        this.text(p.name, x, y - (p.revived > 0 ? 37 : 30), col);
+        c.font = `${Math.round(fs * 1.5)}px ${CRT}`;
+        this.text(`${p.respawn}s`, x, y + 14, '#e8846a');
+      }
+    }
+
+    // The hovered loot site says what it is and what guards it.
+    const site = focus.hoverSite >= 0 ? wd.sites[focus.hoverSite] : undefined;
+    if (site && focus.siteHint) {
+      if (this.project(cam, siteX(site), site.kind === SiteKind.House ? 2.2 : 1.6, siteY(site))) {
+        this.siteTag(game, focus.hoverSite, focus.siteHint, this.v.x, this.v.y, zoom);
       }
     }
 
     // Airstrike countdowns.
-    c.font = '700 16px system-ui, sans-serif';
+    c.textAlign = 'center'; c.textBaseline = 'bottom';
+    c.font = `26px ${CRT}`;
     const since = (now - game.frameAt) / 1000;
     for (let i = 0; i < f.nEffects; i++) {
       if (f.eKind[i] !== EffectKind.AirTarget) continue;
       if (!this.project(cam, f.eX[i], 0.3, f.eY[i])) continue;
       const s = Math.max(0, f.eLeft[i] / 10 - since).toFixed(1);
-      c.lineWidth = 3; c.strokeStyle = '#000'; c.strokeText(s, this.v.x, this.v.y);
-      c.fillStyle = '#ff6a50'; c.fillText(s, this.v.x, this.v.y);
+      this.text(s, this.v.x, this.v.y, '#e8846a');
     }
   }
 }

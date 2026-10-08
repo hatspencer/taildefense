@@ -25,12 +25,14 @@ const usage = `td: co-op wave defense in your browser, over your tailnet
 
 usage:
   td                             the launcher: host, join, settings
-  td host [--port N] [--seed S] [--name NAME]   host a game and play it in the browser
+  td host [--port N] [--seed S] [--name NAME] [--difficulty D]
+                                 host a game and play it in the browser
   td join HOST[:PORT] [--name NAME]             join a friend's game in the browser
-  td serve [--port N] [--seed S] a dedicated game with no player of its own, until ctrl+c
+  td serve [--port N] [--seed S] [--difficulty D]
+                                 a dedicated game with no player of its own, until ctrl+c
   td ls [--json] [--port N]      the games on your tailnet
   td doctor                      check tailscale, the browser and what updates need
-  td config [KEY [VALUE]]        show, read or set name, port, browser, autoupdate
+  td config [KEY [VALUE]]        show, read or set name, port, difficulty, browser, autoupdate
                                  (td config KEY --reset returns one to its default)
   td frame [--width W] [--height H] [--view menu|join|settings|help]
                                  render one launcher frame from demo data
@@ -43,6 +45,8 @@ usage:
 flags:
   --port N         game port, default 7787 (or TAILDEFENSE_PORT, td config port)
   --name NAME      your name in the game (or TAILDEFENSE_NAME, td config name)
+  --difficulty D   easy, normal (the default), hard or brutal, for games you host
+                   (or TAILDEFENSE_DIFFICULTY, td config difficulty)
   --no-browser     print the game's URL instead of opening it (td config browser none)
   --seed S         the map seed when hosting; 0 picks one
   --theme NAME     colour theme for the launcher and output (or TAILDEFENSE_THEME)
@@ -60,7 +64,7 @@ type opts struct {
 	port, width, height                   int
 	wave, seconds, players                int
 	seed                                  uint64
-	name, theme, view                     string
+	name, theme, view, difficulty         string
 }
 
 func main() {
@@ -101,6 +105,7 @@ func run(args []string) int {
 	fs.BoolVar(&o.launcherFrame, "launcher", false, "")
 	fs.Uint64Var(&o.seed, "seed", 0, "")
 	fs.StringVar(&o.name, "name", "", "")
+	fs.StringVar(&o.difficulty, "difficulty", "", "")
 	fs.StringVar(&o.theme, "theme", os.Getenv("TAILDEFENSE_THEME"), "")
 	fs.StringVar(&o.view, "view", tui.FrameMenu, "")
 
@@ -159,7 +164,7 @@ func run(args []string) int {
 			return 2
 		}
 	}
-	for flagName, key := range map[string]string{"port": config.KeyPort, "name": config.KeyName} {
+	for flagName, key := range map[string]string{"port": config.KeyPort, "name": config.KeyName, "difficulty": config.KeyDifficulty} {
 		if set[flagName] {
 			if err := prefs.Override(key, fs.Lookup(flagName).Value.String()); err != nil {
 				ui.Errorf("%v", err)
@@ -189,7 +194,7 @@ func run(args []string) int {
 		}
 		return joinCmd(prefs, pos[0])
 	case "serve":
-		return cli.Serve(os.Stdout, cli.HostOptions{Port: prefs.Port(), Seed: o.seed, Name: prefs.Name(), Version: version.Current()})
+		return cli.Serve(os.Stdout, cli.HostOptions{Port: prefs.Port(), Seed: o.seed, Diff: prefs.Difficulty(), Name: prefs.Name(), Version: version.Current()})
 	case "ls":
 		if o.json {
 			ui.SetJSON(true)
@@ -266,15 +271,27 @@ func play(p *ui.Printer, prefs *config.Prefs, o web.Options) (web.Result, error)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	o.Name, o.Version = prefs.Name(), version.Current()
-	o.Ready = func(url string) {
-		if err := web.Open(prefs.Browser(), url); err != nil {
-			if !errors.Is(err, web.ErrNoBrowser) {
-				p.Warn("could not open a browser: %v", err)
-			}
-			p.OK("open the game in your browser: %s", ui.StyleBold.Render(url))
+	o.Browser = prefs.Browser()
+	if o.Browser == config.BrowserNone {
+		o.Browser = ""
+	}
+	o.Ready = func(pg web.Page) {
+		switch {
+		case pg.Opened != "":
+			p.OK("the game is open in %s", pg.Opened)
+		case pg.OpenErr != nil:
+			p.Warn("could not open a browser: %v", pg.OpenErr)
+		}
+		// Clickable in the terminal: each starts the game full screen in that browser.
+		var links []string
+		for _, l := range pg.Links {
+			links = append(links, ui.Link(l.URL, l.Browser.Name))
+		}
+		links = append(links, ui.Link(pg.URL, "any browser"))
+		if pg.Opened == "" {
+			p.OK("open the game: %s", strings.Join(links, "  ·  "))
 		} else {
-			p.OK("the game is open in your browser")
-			p.Detail("closed the tab? it is still here: %s", url)
+			p.Detail("open it again: %s", strings.Join(links, "  ·  "))
 		}
 		if o.Hosting {
 			p.Note("ctrl+c here, or Leave in the game, ends it for everyone")
@@ -289,7 +306,7 @@ func play(p *ui.Printer, prefs *config.Prefs, o web.Options) (web.Result, error)
 // when the player leaves: a game hosted from a laptop lasts as long as its host plays.
 func hostAndPlay(p *ui.Printer, prefs *config.Prefs, seed uint64) (web.Result, error) {
 	srv, plan, err := cli.StartHost(context.Background(), cli.HostOptions{
-		Port: prefs.Port(), Seed: seed, Name: prefs.Name(), Version: version.Current(),
+		Port: prefs.Port(), Seed: seed, Diff: prefs.Difficulty(), Name: prefs.Name(), Version: version.Current(),
 	}, nil)
 	for _, n := range plan.Notes {
 		p.Warn("%s", n)

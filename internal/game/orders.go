@@ -17,6 +17,8 @@ const (
 	OrderHold                        // stand, shoot what comes in range, never move
 	OrderBuild                       // walk to a tile and build there
 	OrderRepair                      // walk to a structure and repair it
+	OrderLoot                        // walk to a loot site and search it
+	OrderRevive                      // walk to a downed teammate and revive them
 )
 
 // Order is a survivor's current order.
@@ -25,6 +27,8 @@ type Order struct {
 	X, Y   float32    // destination
 	Target uint16     // OrderAttack: creep id
 	Struct int        // OrderRepair: structure index
+	Site   int        // OrderLoot: site index
+	Mate   int        // OrderRevive: player index
 	Build  StructKind // OrderBuild
 	TX, TY int        // OrderBuild: tile
 }
@@ -89,8 +93,9 @@ func (w *World) OrderRepair(p *Player, si int) error {
 
 func (w *World) order(p *Player, o Order) {
 	p.Order = o
+	p.Search = 0
 	p.walk.reset()
-	if o.Kind == OrderMove || o.Kind == OrderAttackMove || o.Kind == OrderBuild || o.Kind == OrderRepair {
+	if o.Kind == OrderMove || o.Kind == OrderAttackMove || o.Kind == OrderBuild || o.Kind == OrderRepair || o.Kind == OrderLoot || o.Kind == OrderRevive {
 		w.route(p, o.X, o.Y)
 	}
 }
@@ -149,7 +154,7 @@ func (w *World) route(p *Player, x, y float32) {
 // step walks the player one tick along the path; false when there is nowhere left to go.
 func (w *World) step(p *Player) bool {
 	k := &p.walk
-	speed := p.Speed() * Dt
+	speed := p.Speed() * w.playerSpeedMul() * Dt
 	for speed > 0 && !k.done() {
 		t := k.pts[k.i]
 		dx, dy := t[0]-p.X, t[1]-p.Y
@@ -196,8 +201,19 @@ func (w *World) step(p *Player) bool {
 
 func (w *World) stepPlayers() {
 	for _, p := range w.Players {
+		p.Revived = 0 // revivers below set it again
+	}
+	for _, p := range w.Players {
 		if !p.Connected {
 			continue
+		}
+		if p.TauntCool > 0 {
+			p.TauntCool = max(p.TauntCool-Dt, 0)
+		}
+		if p.EmoteLeft > 0 {
+			if p.EmoteLeft -= Dt; p.EmoteLeft <= 0 {
+				p.EmoteLeft, p.Emote = 0, 0
+			}
 		}
 		if !p.Alive {
 			p.Respawn -= Dt
@@ -241,6 +257,7 @@ func (w *World) stepPlayers() {
 			c := &w.Creeps[target]
 			ang := float32(math.Atan2(float64(c.Y-p.Y), float64(c.X-p.X)))
 			p.Aim = ang
+			w.shooter = int8(p.ID)
 			for ws.Cool <= 0 && ws.Reload <= 0 && ws.Ammo > 0 {
 				w.shoot(p, st, ang)
 				ws.Ammo--
@@ -249,6 +266,7 @@ func (w *World) stepPlayers() {
 					ws.Reload = st.Reload
 				}
 			}
+			w.shooter = -1
 		}
 		if ws.Cool < 0 {
 			ws.Cool = 0
@@ -339,6 +357,45 @@ func (w *World) act(p *Player, st Stats) int32 {
 		}
 		if !walk() {
 			w.toast(p, 2, "cannot get there to repair")
+			o.Kind = OrderIdle
+		}
+		return -1
+	case OrderLoot:
+		s := &w.Sites[o.Site]
+		if s.Searched {
+			w.toast(p, 2, "someone searched the %s first", SiteDefs[s.Kind].lower())
+			o.Kind = OrderIdle
+			p.Search = 0
+			return -1
+		}
+		dx, dy := s.SX-p.X, s.SY-p.Y
+		if dx*dx+dy*dy <= lootReach*lootReach {
+			if err := guarded(s); err != nil {
+				w.toast(p, 2, "%v", err)
+				o.Kind = OrderIdle
+				p.Search = 0
+				return -1
+			}
+			// Searching is all a survivor does: no shooting, and a hit starts it over.
+			if p.Hurt > 0 {
+				p.Search = 0
+				return -1
+			}
+			p.Search += Dt
+			if p.Search >= SiteDefs[s.Kind].Search {
+				o.Kind = OrderIdle
+				p.Search = 0
+				w.search(p, o.Site)
+			}
+			return -1
+		}
+		if !walk() {
+			w.toast(p, 2, "cannot get there to search")
+			o.Kind = OrderIdle
+		}
+		return -1
+	case OrderRevive:
+		if !w.actRevive(p, o) {
 			o.Kind = OrderIdle
 		}
 		return -1

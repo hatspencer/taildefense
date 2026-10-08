@@ -91,7 +91,7 @@ func (w *World) resetPlayer(p *Player) {
 	}
 	w.respawn(p)
 	n := float32(p.ID)
-	p.X, p.Y = w.CoreX-3+n, w.CoreY+3
+	p.X, p.Y = w.CoreX-3+n, w.CoreY+3.8
 }
 
 // Leave marks a player gone. They stay in the roster so a reconnect picks up where they were.
@@ -342,7 +342,7 @@ func (w *World) Sell(p *Player, si int) (int32, error) {
 
 // Restart begins a new game on a new map with the same players, everything reset.
 func (w *World) Restart(seed uint64) *World {
-	nw := New(seed)
+	nw := NewGame(seed, w.Diff)
 	for _, p := range w.Players {
 		np := &Player{ID: p.ID, Name: p.Name, Login: p.Login, Connected: p.Connected}
 		nw.resetPlayer(np)

@@ -6,7 +6,7 @@ import (
 
 func TestEverySpawnPointReachesTheGenerator(t *testing.T) {
 	for seed := uint64(1); seed <= 20; seed++ {
-		w := New(seed)
+		w := newBare(seed)
 		if len(w.SpawnPts) < 4 {
 			t.Errorf("seed %d: only %d spawn points reach the generator", seed, len(w.SpawnPts))
 		}
@@ -14,7 +14,7 @@ func TestEverySpawnPointReachesTheGenerator(t *testing.T) {
 }
 
 func TestTheBaseIsWalledWithGatesAndTheGeneratorIsReachable(t *testing.T) {
-	w := New(7)
+	w := newBare(7)
 	gates, walls := 0, 0
 	for _, s := range w.Structs {
 		switch s.Kind {
@@ -44,7 +44,7 @@ func TestTheBaseIsWalledWithGatesAndTheGeneratorIsReachable(t *testing.T) {
 }
 
 func TestSpatialGridFindsEveryCreepOnce(t *testing.T) {
-	w := New(3)
+	w := newBare(3)
 	for i := 0; i < 3000; i++ {
 		w.SpawnCreep(CWalker, float32(5+i%300), float32(5+(i*7)%190))
 	}
@@ -62,7 +62,7 @@ func TestSpatialGridFindsEveryCreepOnce(t *testing.T) {
 }
 
 func TestAWaveIsPlayedThroughAndPaysOut(t *testing.T) {
-	w := New(11)
+	w := newBare(11)
 	p, err := w.Join("ana", "ana@example")
 	if err != nil {
 		t.Fatal(err)
@@ -88,7 +88,7 @@ func TestAWaveIsPlayedThroughAndPaysOut(t *testing.T) {
 }
 
 func TestShopAndBuild(t *testing.T) {
-	w := New(5)
+	w := newBare(5)
 	p, _ := w.Join("bo", "bo@example")
 	p.Gold = 100000
 	if err := w.BuyWeapon(p, WShotgun); err == nil {
@@ -127,7 +127,7 @@ func TestShopAndBuild(t *testing.T) {
 }
 
 func TestPlayersCannotWalkThroughWallsButThroughGates(t *testing.T) {
-	w := New(9)
+	w := newBare(9)
 	var wall, gate *Structure
 	for i := range w.Structs {
 		s := &w.Structs[i]
@@ -148,7 +148,7 @@ func TestPlayersCannotWalkThroughWallsButThroughGates(t *testing.T) {
 
 // The scale the game is built for: thousands of creeps converging on the base.
 func benchCreeps(b *testing.B, n int) {
-	w := New(42)
+	w := newBare(42)
 	for i := 0; i < 4; i++ {
 		w.Join("p", string(rune('a'+i)))
 	}

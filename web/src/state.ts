@@ -42,12 +42,15 @@ export class Game {
   private structSig = '';
 
   reset(w: Welcome): void {
+    w.siteKinds ??= []; w.sites ??= []; w.weathers ??= [{ name: 'Clear', info: '' }];
+    w.difficulties ??= ['Normal']; w.difficulty ??= { id: 0, name: 'Normal' };
+    w.taunt ??= { cool: 12, radius: 12, time: 5 }; w.revive ??= { reach: 1.6, time: 2.5, hp: 0.4 };
     this.welcome = w;
     this.w = w.w; this.h = w.h;
     this.frames++;
     this.seen.fill(0);
     this.indexById.fill(-1);
-    this.cur.nCreeps = 0; this.cur.nStructs = 0; this.cur.nPlayers = 0;
+    this.cur.nCreeps = 0; this.cur.nStructs = 0; this.cur.nPlayers = 0; this.cur.nSites = 0;
     this.structSig = '';
   }
 

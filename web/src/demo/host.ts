@@ -4,13 +4,20 @@
 import { dispatch, type Handlers, type Transport } from '../net';
 import {
   type Command, MAX_CREEPS, Tile, Phase, Order, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_FIRING,
-  PF_HURT, PF_MOVING, PF_READY, PF_RELOADING, CF_BURNING, CF_SLOWED, type Welcome,
+  PF_HURT, PF_MOVING, PF_READY, PF_RELOADING, CF_BURNING, CF_SLOWED, CF_GUARD, CF_HUNTING, CF_SIEGE, CF_ASLEEP,
+  BlastKind, Emote, type SiteDef, SiteKind, Weather, type Welcome,
 } from '../protocol';
 import { ABILITY_RADIUS, CREEPS, STRUCTS, WEAPON_BASE, demoWelcome } from './defs';
 import { Writer } from './encode';
-import { generateMap, rng } from './map';
+import { type DemoMap, generateMap, rng } from './map';
 
-export interface DemoOptions { creeps: number; phase: 'wave' | 'build' | 'over'; wave: number; gold: number }
+// weather: a fixed kind, or -1 to cycle. down: a teammate starts downed. coreHp: the generator's share of hp.
+export interface DemoOptions { creeps: number; phase: 'wave' | 'build' | 'over'; wave: number; gold: number; weather?: number; down?: boolean; coreHp?: number }
+
+// Guard creeps take the top ids, clear of the wave's.
+const GUARD_ID0 = 16000;
+// Guard states.
+const G_ASLEEP = 1, G_HUNT = 2, G_HOME = 3;
 
 const W = 320, H = 200, DT = 0.05;
 
@@ -20,6 +27,7 @@ interface DPlayer {
   owned: number; levels: Uint8Array; gear: Uint8Array; order: number; tx: number; ty: number; target: number;
   buildKind: number; repairId: number; buff: number; buffLeft: number; abLevel: number[]; abCool: number[];
   ready: boolean; fireCd: number; shot: number; hurt: number; moving: boolean; wander: number;
+  site: number; searchT: number; revTarget: number; channel: number; emoteLeft: number; tauntCool: number; downT: number;
 }
 interface DStruct { alive: boolean; kind: number; x: number; y: number; w: number; h: number; hp: number; maxHp: number; level: number; owner: number; cd: number }
 interface DEffect { kind: number; x0: number; y0: number; x: number; y: number; r: number; left: number; total: number; owner: number; dmg: number }
@@ -46,6 +54,10 @@ export class DemoHost implements Transport {
   private structs: DStruct[] = [];
   private effects: DEffect[] = [];
   private notes: { level: number; text: string }[] = [];
+  private sites: SiteDef[] = [];
+  private searched = new Uint8Array(0);
+  private guardIds: number[][] = [];
+  private weather = 0; private weatherAmt = 0; private nextWeather = 0; private weatherT = 0; private boltT = 2;
 
   // Creeps, by id.
   private cAlive = new Uint8Array(MAX_CREEPS);
@@ -59,6 +71,13 @@ export class DemoHost implements Transport {
   private cRespawn = new Float32Array(MAX_CREEPS);
   private cOffX = new Float32Array(MAX_CREEPS);
   private cOffY = new Float32Array(MAX_CREEPS);
+  // Guards: the site (-1 for wave creeps), state and home. Any creep can be hunting a player.
+  private cSite = new Int16Array(MAX_CREEPS).fill(-1);
+  private cState = new Uint8Array(MAX_CREEPS);
+  private cHomeX = new Float32Array(MAX_CREEPS);
+  private cHomeY = new Float32Array(MAX_CREEPS);
+  private cHunt = new Uint8Array(MAX_CREEPS).fill(255);
+  private cHuntT = new Float32Array(MAX_CREEPS);
   private bosses = 0;
 
   // Per-tick events.
@@ -78,11 +97,13 @@ export class DemoHost implements Transport {
   private q = new Int32Array(MAX_CREEPS);
 
   constructor(private h: Handlers, private opt: DemoOptions) {
-    this.target = Math.min(opt.creeps, MAX_CREEPS - 1);
+    this.target = Math.min(opt.creeps, GUARD_ID0);
     this.welcome = demoWelcome(W, H);
     const m = generateMap(W, H, 424242);
     this.tiles = m.tiles; this.spawns = m.spawns; this.ring = m.ring;
     this.welcome.core = { x: W / 2 + 0.5, y: H / 2 + 0.5 };
+    this.sites = this.placeSites(m);
+    this.welcome.sites = this.sites;
     this.reset();
     h.onConn('connecting');
     // Asynchronous like a socket, so the client finishes its own setup first.
@@ -114,30 +135,41 @@ export class DemoHost implements Transport {
   private reset(): void {
     const cx = W / 2, cy = H / 2, r = this.ring;
     this.structs = [];
-    this.addStruct(1, cx - 1, cy - 1, -1);
-    this.addStruct(2, cx + 4, cy - 6, -1);
+    this.addStruct(1, cx - 2, cy - 2, -1);
+    this.addStruct(2, cx + 4, cy - 1, -1);
     const gate = (x: number, y: number) =>
       ((y === r.y0 || y === r.y1) && Math.abs(x - cx) <= 1) || ((x === r.x0 || x === r.x1) && Math.abs(y - cy) <= 1);
     for (let x = r.x0; x <= r.x1; x++) for (const y of [r.y0, r.y1]) this.addStruct(gate(x, y) ? 4 : 3, x, y, -1);
     for (let y = r.y0 + 1; y < r.y1; y++) for (const x of [r.x0, r.x1]) this.addStruct(gate(x, y) ? 4 : 3, x, y, -1);
     const t = (k: number, x: number, y: number, lvl: number, owner = -1) => { const s = this.addStruct(k, x, y, owner); s.level = lvl; };
-    t(5, r.x0 + 2, r.y0 + 2, 2); t(5, r.x1 - 2, r.y0 + 2, 1); t(5, r.x0 + 2, r.y1 - 2, 1); t(5, r.x1 - 2, r.y1 - 2, 3);
-    t(6, cx - 4, r.y0 + 2, 1); t(6, cx + 4, r.y1 - 2, 2); t(6, r.x0 + 2, cy + 4, 1, 0);
-    t(7, r.x0 + 3, cy - 3, 1); t(7, r.x1 - 3, cy + 3, 2);
-    t(8, cx + 4, r.y0 + 2, 1); t(8, cx - 4, r.y1 - 2, 4, 1);
-    // A broken wall to show damage bars.
+    // The base's own four turrets, then some the players built.
+    t(5, cx - 3, cy - 12, 1); t(5, cx + 3, cy + 12, 1); t(5, cx - 12, cy + 3, 1); t(5, cx + 12, cy - 3, 1);
+    t(6, r.x0 + 2, r.y0 + 2, 2, 0); t(7, r.x1 - 2, r.y0 + 2, 1, 1); t(8, r.x0 + 2, r.y1 - 2, 3, 2); t(5, r.x1 - 2, r.y1 - 2, 3, 0);
+    t(6, cx + 6, r.y0 + 3, 1, 1); t(8, cx - 7, r.y1 - 3, 4, 1); t(7, r.x0 + 4, cy - 5, 2, 2);
+    // A broken wall to show damage bars, and the generator as the options say.
     this.structs[5].hp = 140;
+    const core = this.structs[0];
+    core.hp = Math.max(1, Math.round(core.maxHp * Math.min(1, this.opt.coreHp ?? 1)));
     this.rebuildFlow();
 
     this.players = [];
-    this.addPlayer(0, 'you', false, cx + 6, cy - 2, 0);
+    this.addPlayer(0, 'you', false, cx + 5, cy + 4, 0);
     this.addPlayer(1, 'mira', true, r.x0 + 3, cy + 1, 2);
     this.addPlayer(2, 'kofi', true, cx + 1, r.y1 - 3, 3);
     const me = this.players[0];
     me.gold = this.opt.gold; me.owned = 0b1000101; me.levels[0] = 2; me.levels[1] = 1; me.levels[8] = 1;
     me.abLevel = [1, 1, 1, 0];
 
+    // A few sites start picked over, to show both states.
+    this.searched = new Uint8Array(this.sites.length);
+    for (let i = 0; i < this.sites.length; i++) this.searched[i] = i % 4 === 3 ? 1 : 0;
+
     this.cAlive.fill(0);
+    this.cSite.fill(-1); this.cHunt.fill(255); this.cHuntT.fill(0); this.cState.fill(0);
+    this.spawnGuards();
+    if (this.opt.down) { const k = this.players[2]; k.hp = 0; k.respawn = 25; k.downT = 0; k.x = cx + 3; k.y = cy + 6; }
+    this.weather = this.opt.weather !== undefined && this.opt.weather >= 0 ? this.opt.weather : 0;
+    this.weatherAmt = this.weather ? 1 : 0; this.nextWeather = this.weather; this.weatherT = 30;
     this.effects = [];
     this.wave = this.opt.wave;
     this.totalKills = 1234;
@@ -164,12 +196,134 @@ export class DemoHost implements Transport {
     const p: DPlayer = {
       id, name, bot, x, y, aim: 0, hp: 100, maxHp: 100, cur, ammo: WEAPON_BASE[cur].mag, reloadLeft: 0, respawn: 0,
       gold: 400 + id * 150, kills: 40 + id * 17, damage: 9000 + id * 2100, owned: 1 | (1 << cur),
-      levels: new Uint8Array(28), gear: new Uint8Array(3), order: Order.Idle, tx: x, ty: y, target: -1, buildKind: 0,
+      levels: new Uint8Array(28), gear: new Uint8Array(4), order: Order.Idle, tx: x, ty: y, target: -1, buildKind: 0,
       repairId: -1, buff: 0, buffLeft: 0, abLevel: [1, 0, 0, 0], abCool: [0, 0, 0, 0], ready: bot, fireCd: 0, shot: 0, hurt: 0,
-      moving: false, wander: 2 + id,
+      moving: false, wander: 2 + id, site: -1, searchT: 0, revTarget: -1, channel: 0, emoteLeft: 0, tauntCool: 0, downT: 0,
     };
     p.levels[cur * 4] = 2;
     this.players.push(p);
+  }
+
+  // --- loot sites ---
+
+  // Sites the host would make: the map's ruined houses, cars along the roads, crates in the open.
+  private placeSites(m: DemoMap): SiteDef[] {
+    const cx = W / 2, cy = H / 2, r = rng(99);
+    const sites: SiteDef[] = [];
+    const tier = (x: number, y: number) => { const d = Math.hypot(x - cx, y - cy); return d < 50 ? 0 : d < 85 ? 1 : 2; };
+    for (const h of m.houses) {
+      const sx = Math.floor(h.x + h.w / 2) + 0.5, sy = Math.floor(h.y + h.h / 2) + 0.5;
+      if (this.tiles[Math.floor(sy) * W + Math.floor(sx)] >= Tile.Water) continue;
+      const tr = tier(sx, sy);
+      sites.push({ kind: SiteKind.House, x: h.x, y: h.y, w: h.w, h: h.h, sx, sy, tier: tr, guard: Math.min(3, tr + (r() < 0.35 ? 1 : 0)) });
+    }
+    const free = (x: number, y: number) => sites.every((s) => Math.hypot(s.x + s.w / 2 - x - 0.5, s.y + s.h / 2 - y - 0.5) > s.w / 2 + 5);
+    const scatter = (kind: number, want: number, tile: number, minD: number) => {
+      for (let n = 0, tries = 0; n < want && tries < 20000; tries++) {
+        const x = 2 + Math.floor(r() * (W - 4)), y = 2 + Math.floor(r() * (H - 4));
+        const d = Math.hypot(x - cx, (y - cy) * 1.3);
+        if (d < minD || this.tiles[y * W + x] !== tile || !free(x, y)) continue;
+        const tr = tier(x, y);
+        sites.push({ kind, x, y, w: 1, h: 1, sx: x + 0.5, sy: y + 0.5, tier: tr, guard: r() < 0.3 ? 0 : Math.min(2, tr) });
+        n++;
+      }
+    };
+    scatter(SiteKind.Car, 4, Tile.Dirt, 20);
+    scatter(SiteKind.Car, 10, Tile.Dirt, 34);
+    scatter(SiteKind.Crate, 4, Tile.Grass, 20);
+    scatter(SiteKind.Crate, 8, Tile.Grass, 34);
+    return sites;
+  }
+
+  // Guards sleep around their sites from the start: more and tougher the higher the site's guard.
+  private spawnGuards(): void {
+    this.guardIds = this.sites.map(() => []);
+    let id = GUARD_ID0;
+    const r = rng(5);
+    for (let i = 0; i < this.sites.length && id < MAX_CREEPS; i++) {
+      const s = this.sites[i], n = [0, 2, 4, 7][s.guard] ?? 0;
+      const cx = s.x + s.w / 2, cy = s.y + s.h / 2;
+      for (let k = 0; k < n && id < MAX_CREEPS; k++) {
+        let x = cx, y = cy;
+        for (let tries = 0; tries < 12; tries++) {
+          const a = r() * 6.28, d = (s.kind === SiteKind.House ? Math.max(s.w, s.h) / 2 + 0.8 : 1.4) + r() * 2.2;
+          x = cx + Math.cos(a) * d; y = cy + Math.sin(a) * d;
+          if (!this.blocked(Math.floor(x), Math.floor(y))) break;
+        }
+        const kind = s.guard >= 3 && k === 0 ? 3 : s.guard >= 2 && k % 3 === 1 ? (k === 1 ? 4 : 1) : r() < 0.3 ? 2 : 0;
+        const hp = CREEPS[kind].hp * (1 + 0.4 * s.guard);
+        this.cAlive[id] = 1; this.cKind[id] = kind; this.cX[id] = x; this.cY[id] = y; this.cHp[id] = hp; this.cMax[id] = hp;
+        this.cBurn[id] = 0; this.cSlow[id] = 0; this.cRespawn[id] = -1;
+        this.cSite[id] = i; this.cState[id] = G_ASLEEP; this.cHomeX[id] = x; this.cHomeY[id] = y;
+        this.guardIds[i].push(id++);
+      }
+    }
+  }
+
+  private guardsLeft(site: number): number {
+    let n = 0;
+    for (const id of this.guardIds[site] ?? []) n += this.cAlive[id];
+    return n;
+  }
+
+  // A site's sleeping guards wake and go for the nearest survivor.
+  private wakeSite(site: number): void {
+    for (const id of this.guardIds[site] ?? []) {
+      if (!this.cAlive[id] || this.cState[id] === G_HUNT) continue;
+      let best = 255, bd = Infinity;
+      for (const p of this.players) {
+        if (p.hp <= 0) continue;
+        const d = Math.hypot(p.x - this.cX[id], p.y - this.cY[id]);
+        if (d < bd) { bd = d; best = p.id; }
+      }
+      if (best === 255) continue;
+      if (this.cState[id] === G_ASLEEP) this.bl.push(this.cX[id], this.cY[id], 1, BlastKind.GuardsWake);
+      this.cState[id] = G_HUNT; this.cHunt[id] = best; this.cHuntT[id] = 1e9;
+    }
+  }
+
+  // Walking to a site and searching it; true while the order goes on.
+  private stepLoot(p: DPlayer): boolean {
+    const s = this.sites[p.site];
+    if (!s || this.searched[p.site]) return false;
+    if (this.guardsLeft(p.site) > 0) { this.toast(`guarded: kill its ${this.guardsLeft(p.site)} guards first`); return false; }
+    const kind = this.welcome.siteKinds[s.kind];
+    const reach = s.kind === SiteKind.House ? 0.3 : 1.2;
+    const ox = p.x, oy = p.y;
+    if (!this.walk(p, s.sx, s.sy, reach)) {
+      // The demo has no pathfinding: squeeze through a ruin's wall rather than stick to it.
+      if (p.x === ox && p.y === oy) {
+        const d = Math.hypot(s.sx - p.x, s.sy - p.y), sp = Math.min(d, 4.2 * DT);
+        p.x += (s.sx - p.x) / d * sp; p.y += (s.sy - p.y) / d * sp;
+      }
+      p.searchT = 0;
+      return true;
+    }
+    if (p.hurt > 0.2 && p.searchT > 0) { this.toast('search interrupted'); p.searchT = 0; return false; }
+    p.searchT += DT;
+    if (p.searchT < kind.search) return true;
+    this.searched[p.site] = 1;
+    const x = s.x + s.w / 2, y = s.y + s.h / 2, name = kind.name.toLowerCase();
+    if (s.kind === SiteKind.House && this.rnd() < 0.2) {
+      this.bl.push(x, y, 2, 6);
+      this.notes.push({ level: 2, text: `${p.name} woke a nest in a ${name}` });
+      for (let id = 0, n = 0; id < MAX_CREEPS && n < 5; id++) {
+        if (this.cAlive[id] || this.cRespawn[id] > 0) continue;
+        const hp = CREEPS[0].hp * (1 + 0.14 * (this.wave - 1));
+        this.cAlive[id] = 1; this.cKind[id] = 0; this.cHp[id] = hp; this.cMax[id] = hp; this.cBurn[id] = 0; this.cSlow[id] = 0;
+        this.cX[id] = x + (this.rnd() - 0.5) * (s.w - 2); this.cY[id] = y + (this.rnd() - 0.5) * (s.h - 2);
+        this.cOffX[id] = (this.rnd() - 0.5) * 1.4; this.cOffY[id] = (this.rnd() - 0.5) * 1.4;
+        n++;
+      }
+      return false;
+    }
+    const luck = 1 + 0.1 * p.gear[3] + (this.phase === Phase.Wave ? 0.5 : 0);
+    const rare = this.rnd() < 0.12 * luck;
+    const gold = Math.round([60, 40, 25][s.kind] * (1 + s.tier) * luck * (0.7 + this.rnd() * 0.6) * (rare ? 3 : 1));
+    p.gold += gold;
+    this.bl.push(x, y, rare ? 1 : 0.5, 5);
+    this.notes.push({ level: 1, text: `${rare ? 'jackpot: ' : ''}${p.name} found ${gold} gold in a ${name}` });
+    return false;
   }
 
   // --- terrain and pathing ---
@@ -272,6 +426,7 @@ export class DemoHost implements Transport {
       x = (i % W) + 0.5 + this.cOffX[id] * 0.4; y = ((i / W) | 0) + 0.5 + this.cOffY[id] * 0.4;
     }
     this.cAlive[id] = 1; this.cKind[id] = k; this.cX[id] = x; this.cY[id] = y;
+    this.cSite[id] = -1; this.cHunt[id] = 255; this.cHuntT[id] = 0; this.cState[id] = 0;
     const hp = CREEPS[k].hp * (1 + 0.14 * (this.wave - 1));
     this.cHp[id] = hp; this.cMax[id] = hp; this.cBurn[id] = 0; this.cSlow[id] = 0;
     if (prefill && this.rnd() < 0.3) this.cHp[id] = hp * (0.2 + this.rnd() * 0.8);
@@ -286,7 +441,7 @@ export class DemoHost implements Transport {
       this.totalKills++;
       if (by) { by.kills++; by.gold += CREEPS[this.cKind[id]].bounty; }
     }
-    this.cRespawn[id] = this.pending > 0 ? 0.5 + this.rnd() * 3 : -1;
+    this.cRespawn[id] = this.pending > 0 && this.cSite[id] < 0 ? 0.5 + this.rnd() * 3 : -1;
   }
 
   private hurt(id: number, dmg: number, by: DPlayer | null): void {
@@ -295,6 +450,7 @@ export class DemoHost implements Transport {
     const d = Math.max(1, dmg - (k === 3 ? 4 : k === 5 ? 9 : 0));
     this.cHp[id] -= d;
     if (by) by.damage += d;
+    if (this.cSite[id] >= 0 && this.cState[id] !== G_HUNT) this.wakeSite(this.cSite[id]);
     if (this.cHp[id] <= 0) this.kill(id, by, true);
   }
 
@@ -340,14 +496,58 @@ export class DemoHost implements Transport {
     let best = -1, bd = Infinity;
     for (let i = 0; i < n; i++) {
       const id = qn[i], d = (this.cX[id] - x) ** 2 + (this.cY[id] - y) ** 2;
+      if (this.cState[id] === G_ASLEEP) continue;
       if (d < bd) { bd = d; best = id; }
     }
     return best;
   }
 
+  // Straight towards (gx, gy), sliding along anything solid; true on arrival.
+  private stepTo(id: number, gx: number, gy: number, sp: number, stop: number): boolean {
+    const x = this.cX[id], y = this.cY[id], dx = gx - x, dy = gy - y, d = Math.hypot(dx, dy);
+    if (d <= stop) return true;
+    const s = Math.min(sp, d - stop * 0.5), nx = x + (dx / d) * s, ny = y + (dy / d) * s;
+    if (!this.blocked(Math.floor(nx), Math.floor(ny))) { this.cX[id] = nx; this.cY[id] = ny; }
+    else if (!this.blocked(Math.floor(nx), Math.floor(y))) this.cX[id] = nx;
+    else if (!this.blocked(Math.floor(x), Math.floor(ny))) this.cY[id] = ny;
+    else { this.cX[id] = nx; this.cY[id] = ny; }
+    return false;
+  }
+
+  // Guards sleep until someone comes close, chase, and go home when led too far.
+  private moveGuard(id: number, sp: number): void {
+    const st = this.cState[id];
+    if (st === G_ASLEEP) return;
+    if (st === G_HOME) {
+      if (this.stepTo(id, this.cHomeX[id], this.cHomeY[id], sp, 0.2)) this.cState[id] = G_ASLEEP;
+      return;
+    }
+    const p = this.players[this.cHunt[id]];
+    if (!p || p.hp <= 0 || Math.hypot(this.cX[id] - this.cHomeX[id], this.cY[id] - this.cHomeY[id]) > 26) {
+      this.cState[id] = G_HOME; this.cHunt[id] = 255;
+      return;
+    }
+    this.stepTo(id, p.x + this.cOffX[id] * 0.4, p.y + this.cOffY[id] * 0.4, sp, 0.5);
+  }
+
+  // Sleeping guards notice a survivor near their site.
+  private wakeGuards(): void {
+    const notice = 7 * (this.weather === Weather.Fog ? 1 - 0.4 * this.weatherAmt : 1);
+    for (let i = 0; i < this.sites.length; i++) {
+      const ids = this.guardIds[i];
+      for (const id of ids) {
+        if (!this.cAlive[id] || this.cState[id] !== G_ASLEEP) continue;
+        let near = false;
+        for (const p of this.players) if (p.hp > 0 && Math.hypot(p.x - this.cX[id], p.y - this.cY[id]) < notice) near = true;
+        if (near) { this.wakeSite(i); break; }
+      }
+    }
+  }
+
   private moveCreeps(): void {
     const core = this.structs[0];
-    const ccx = core.x + 1.5, ccy = core.y + 1.5;
+    const ccx = core.x + core.w / 2, ccy = core.y + core.h / 2;
+    const slowW = this.weather === Weather.Snow ? 1 - 0.15 * this.weatherAmt : this.weather >= Weather.Rain && this.weather <= Weather.Storm ? 1 - 0.08 * this.weatherAmt : 1;
     for (let id = 0; id < MAX_CREEPS; id++) {
       if (!this.cAlive[id]) {
         if (this.cRespawn[id] > 0) {
@@ -357,9 +557,17 @@ export class DemoHost implements Transport {
         continue;
       }
       const k = this.cKind[id];
-      let sp = CREEPS[k].speed * DT;
+      let sp = CREEPS[k].speed * DT * slowW;
       if (this.cSlow[id] > 0) { sp *= 0.5; this.cSlow[id] -= DT; }
       if (this.cBurn[id] > 0) { this.cBurn[id] -= DT; this.hurt(id, 8 * DT, null); if (!this.cAlive[id]) continue; }
+      if (this.cSite[id] >= 0) { this.moveGuard(id, sp); continue; }
+      if (this.cHuntT[id] > 0) {
+        // Taunted: straight for the survivor until it wears off.
+        this.cHuntT[id] -= DT;
+        const p = this.players[this.cHunt[id]];
+        if (this.cHuntT[id] <= 0 || !p || p.hp <= 0) { this.cHuntT[id] = 0; this.cHunt[id] = 255; }
+        else { this.stepTo(id, p.x + this.cOffX[id] * 0.5, p.y + this.cOffY[id] * 0.5, sp, 0.5); continue; }
+      }
       let x = this.cX[id], y = this.cY[id];
       const tx = Math.floor(x), ty = Math.floor(y);
       const n = this.next[ty * W + tx];
@@ -369,7 +577,7 @@ export class DemoHost implements Transport {
       const dx = gx - x, dy = gy - y, d = Math.hypot(dx, dy) || 1;
       x += (dx / d) * sp; y += (dy / d) * sp;
       this.cX[id] = x; this.cY[id] = y;
-      if (Math.hypot(x - ccx, y - ccy) < 2.6 + CREEPS[k].radius) {
+      if (Math.hypot(x - ccx, y - ccy) < 3.4 + CREEPS[k].radius) {
         core.hp = Math.max(1, core.hp - (k === 5 ? 40 : 2));
         this.kill(id, null, false);
       }
@@ -424,13 +632,14 @@ export class DemoHost implements Transport {
   private armory(): DStruct { return this.structs[1]; }
   private atArmory(p: DPlayer): boolean {
     const a = this.armory();
-    return Math.hypot(p.x - (a.x + 1), p.y - (a.y + 1)) <= this.welcome.shopRadius;
+    return Math.hypot(p.x - (a.x + a.w / 2), p.y - (a.y + a.h / 2)) <= this.welcome.shopRadius;
   }
 
   private walk(p: DPlayer, tx: number, ty: number, stopAt: number): boolean {
     const dx = tx - p.x, dy = ty - p.y, d = Math.hypot(dx, dy);
     if (d <= stopAt) { p.moving = false; return true; }
-    const sp = Math.min(d, 4.2 * (1 + 0.08 * p.gear[1]) * DT);
+    const snow = this.weather === Weather.Snow ? 1 - 0.08 * this.weatherAmt : 1;
+    const sp = Math.min(d, 4.2 * (1 + 0.08 * p.gear[1]) * snow * DT);
     const nx = p.x + (dx / d) * sp, ny = p.y + (dy / d) * sp;
     const ok = (x: number, y: number) => {
       const i = Math.floor(y) * W + Math.floor(x);
@@ -446,17 +655,26 @@ export class DemoHost implements Transport {
 
   private stepPlayer(p: DPlayer): void {
     if (p.hp <= 0) {
-      p.respawn -= DT;
-      if (p.respawn <= 0) { const c = this.structs[0]; p.hp = p.maxHp; p.x = c.x + 4.5; p.y = c.y + 1.5; p.order = Order.Idle; }
+      p.respawn -= DT; p.downT += DT;
+      p.emoteLeft = 0; p.channel = 0;
+      if (p.respawn <= 0) { const c = this.structs[0]; p.hp = p.maxHp; p.x = c.x + c.w / 2; p.y = c.y + c.h + 1.5; p.order = Order.Idle; }
       return;
     }
+    p.emoteLeft = Math.max(0, p.emoteLeft - DT);
+    p.tauntCool = Math.max(0, p.tauntCool - DT);
     p.hurt = Math.max(0, p.hurt - DT);
     p.shot = Math.max(0, p.shot - DT);
     for (let i = 0; i < 4; i++) p.abCool[i] = Math.max(0, p.abCool[i] - DT);
     if (p.buffLeft > 0) { p.buffLeft -= DT; if (p.buffLeft <= 0) p.buff = 0; }
     p.hp = Math.min(p.maxHp, p.hp + (0.3 + 1.5 * p.gear[2]) * DT);
     if (p.bot) {
-      p.wander -= DT;
+      // Bots pick a downed teammate up once they have been down a while, and taunt now and then.
+      const down = this.players.find((o) => o.hp <= 0 && o.downT > 8 && o.respawn > 2);
+      if (down && p.order !== Order.Revive && !this.players.some((o) => o.order === Order.Revive && o.revTarget === down.id)) {
+        p.order = Order.Revive; p.revTarget = down.id; p.channel = 0;
+      }
+      if (this.phase === Phase.Wave && p.tauntCool <= 0 && this.rnd() < 0.004) this.taunt(p);
+      if (p.order !== Order.Revive) p.wander -= DT;
       if (p.wander <= 0) {
         p.wander = 4 + this.rnd() * 6;
         const r = this.ring;
@@ -486,6 +704,22 @@ export class DemoHost implements Transport {
         }
         break;
       }
+      case Order.Loot:
+        if (!this.stepLoot(p)) { p.order = Order.Idle; p.searchT = 0; }
+        break;
+      case Order.Revive: {
+        const o = this.players[p.revTarget];
+        if (!o || o.hp > 0 || o.respawn <= 0) { p.order = Order.Idle; p.channel = 0; break; }
+        if (!this.walk(p, o.x, o.y, this.welcome.revive.reach * 0.8)) { p.channel = 0; break; }
+        p.channel += DT / this.welcome.revive.time;
+        if (p.channel >= 1) {
+          o.hp = Math.round(o.maxHp * this.welcome.revive.hp); o.respawn = 0; o.downT = 0; o.hurt = 0;
+          this.bl.push(o.x, o.y, 1, BlastKind.Revived);
+          this.notes.push({ level: 1, text: `${p.name} got ${o.name} back up` });
+          p.order = Order.Idle; p.channel = 0;
+        }
+        break;
+      }
       case Order.Repair: {
         const s = this.structs[p.repairId];
         if (!s || !s.alive || s.hp >= s.maxHp) { p.order = Order.Idle; break; }
@@ -497,7 +731,7 @@ export class DemoHost implements Transport {
         break;
       }
     }
-    if (target < 0 && p.order !== Order.Move && p.order !== Order.Build && p.order !== Order.Repair) {
+    if (target < 0 && p.order !== Order.Move && p.order !== Order.Build && p.order !== Order.Repair && p.order !== Order.Loot && p.order !== Order.Revive) {
       target = this.nearest(p.x, p.y, w.range);
     }
     if (p.order === Order.AMove) {
@@ -516,7 +750,25 @@ export class DemoHost implements Transport {
     // The demo's own hero is tougher so a screenshot does not open on a death screen.
     if (n > 0) { p.hp -= n * (p.bot ? 6 : 1.5) * DT; p.hurt = 0.3; }
     else if (p.hurt <= 0) p.hp = Math.min(p.maxHp, p.hp + 2 * DT);
-    if (p.hp <= 0) { p.hp = 0; p.respawn = 10; this.notes.push({ level: 2, text: `${p.name} died` }); }
+    if (p.hp <= 0) { p.hp = 0; p.respawn = 20; p.downT = 0; p.order = Order.Idle; this.notes.push({ level: 2, text: `${p.name} is down` }); }
+  }
+
+  // Pulls every creep within the taunt radius onto p.
+  private taunt(p: DPlayer): void {
+    const tw = this.welcome.taunt;
+    if (p.hp <= 0) return;
+    if (p.tauntCool > 0) { if (!p.bot) this.toast(`taunt not ready: ${p.tauntCool.toFixed(1)}s`); return; }
+    p.tauntCool = tw.cool; p.emoteLeft = 1.6;
+    this.bl.push(p.x, p.y, tw.radius, BlastKind.Taunt);
+    const ids = this.q, n = this.query(p.x, p.y, tw.radius, ids, 4000);
+    for (let i = 0; i < n; i++) {
+      const id = ids[i];
+      if (this.cSite[id] >= 0) {
+        if (this.cState[id] === G_ASLEEP) this.bl.push(this.cX[id], this.cY[id], 1, BlastKind.GuardsWake);
+        this.cState[id] = G_HUNT;
+      }
+      this.cHunt[id] = p.id; this.cHuntT[id] = this.cSite[id] >= 0 ? 1e9 : tw.time;
+    }
   }
 
   private mag(p: DPlayer): number { return Math.round(WEAPON_BASE[p.cur].mag * (1 + 0.25 * p.levels[p.cur * 4 + 2])); }
@@ -662,7 +914,7 @@ export class DemoHost implements Transport {
     }
     if (this.pending === 0) {
       let any = false;
-      for (let id = 0; id < MAX_CREEPS; id++) if (this.cAlive[id]) { any = true; break; }
+      for (let id = 0; id < GUARD_ID0; id++) if (this.cAlive[id]) { any = true; break; }
       if (!any) {
         this.phase = Phase.Build; this.phaseLeft = 450;
         this.notes.push({ level: 1, text: `Wave ${this.wave} cleared` });
@@ -675,12 +927,34 @@ export class DemoHost implements Transport {
     }
   }
 
+  // Weather drifts from one kind to the next every so often, easing out and in.
+  private stepWeather(): void {
+    const fixed = this.opt.weather !== undefined && this.opt.weather >= 0;
+    if (!fixed && (this.weatherT -= DT) <= 0) { this.weatherT = 30; this.nextWeather = (this.weather + 1) % 5; }
+    if (this.nextWeather !== this.weather) {
+      this.weatherAmt = Math.max(0, this.weatherAmt - DT / 3);
+      if (this.weatherAmt <= 0) {
+        this.weather = this.nextWeather;
+        this.notes.push({ level: 0, text: `The weather turns: ${this.welcome.weathers[this.weather].name.toLowerCase()}` });
+      }
+    } else if (this.weather !== Weather.Clear) this.weatherAmt = Math.min(1, this.weatherAmt + DT / 3);
+    if (this.weather !== Weather.Storm || this.weatherAmt < 0.5 || (this.boltT -= DT) > 0) return;
+    // Lightning finds a creep in the open near the action, else the ground.
+    this.boltT = 1.2 + this.rnd() * 3;
+    const me = this.players[0], ids = this.q, n = this.query(me.x, me.y, 26, ids, 400);
+    let x = me.x + (this.rnd() - 0.5) * 36, y = me.y + (this.rnd() - 0.5) * 24;
+    if (n > 0) { const id = ids[Math.floor(this.rnd() * n)]; x = this.cX[id]; y = this.cY[id]; }
+    this.blast(x, y, 2, BlastKind.Lightning, 150, null);
+  }
+
   private step(): void {
     this.tick++;
     this.tr.length = 0; this.bl.length = 0; this.de.length = 0;
     this.stepPhase();
     if (this.phase !== Phase.Over) {
       this.buildGrid();
+      this.stepWeather();
+      this.wakeGuards();
       this.moveCreeps();
       for (const p of this.players) this.stepPlayer(p);
       this.stepStructs();
@@ -700,6 +974,7 @@ export class DemoHost implements Transport {
     w.reset();
     w.u8(1); w.u32(this.tick); w.u8(this.phase); w.u16(this.wave); w.u16(Math.max(0, this.phaseLeft));
     w.u32(this.pending); w.u32(this.totalKills); w.u16(this.best);
+    w.u8(this.weather); w.u8(Math.round(this.weatherAmt * 255));
     w.u8(this.players.length);
     for (const p of this.players) {
       const alive = p.hp > 0;
@@ -718,10 +993,19 @@ export class DemoHost implements Transport {
       w.u8(Math.ceil(Math.max(0, p.respawn)));
       w.u32(p.gold); w.u32(p.kills); w.u32(p.damage); w.u8(p.owned);
       w.bytes(p.levels); w.bytes(p.gear);
-      w.u8(p.order); w.u8(p.buff); w.u8(Math.max(0, p.buffLeft * 10));
+      w.u8(p.order);
+      const kind = p.order === Order.Loot ? this.welcome.siteKinds[this.sites[p.site]?.kind] : undefined;
+      w.u8(kind ? Math.min(255, (p.searchT / kind.search) * 255) : p.order === Order.Revive ? Math.min(255, p.channel * 255) : 0);
+      let rev = 0;
+      if (!alive) for (const o of this.players) if (o.order === Order.Revive && o.revTarget === p.id) rev = Math.max(rev, o.channel);
+      w.u8(Math.min(255, rev * 255));
+      w.u8(p.emoteLeft > 0 ? Emote.Taunt : Emote.None); w.u8(Math.ceil(p.emoteLeft * 10)); w.u16(Math.ceil(p.tauntCool * 10));
+      w.u8(p.buff); w.u8(Math.max(0, p.buffLeft * 10));
       for (let a = 0; a < 4; a++) { w.u8(p.abLevel[a]); w.u16(p.abCool[a] * 10); }
       w.str8(p.name);
     }
+    w.u16(this.sites.length);
+    for (let i = 0; i < this.sites.length; i++) w.u8((this.searched[i] ? 0x80 : 0) | Math.min(127, this.guardsLeft(i)));
     w.u16(this.structs.length);
     for (const s of this.structs) {
       w.u8(s.alive ? 1 : 0); w.u8(s.kind); w.u16(s.x); w.u16(s.y); w.u8(s.w); w.u8(s.h);
@@ -730,11 +1014,19 @@ export class DemoHost implements Transport {
     let n = 0;
     for (let id = 0; id < MAX_CREEPS; id++) n += this.cAlive[id];
     w.u16(n);
+    const core = this.structs[0], ccx = core.x + core.w / 2, ccy = core.y + core.h / 2;
     for (let id = 0; id < MAX_CREEPS; id++) {
       if (!this.cAlive[id]) continue;
       w.u16(id); w.q8(this.cX[id]); w.q8(this.cY[id]); w.u8(this.cKind[id]);
       w.u8(Math.max(1, Math.min(255, (this.cHp[id] / this.cMax[id]) * 255)));
-      w.u8((this.cBurn[id] > 0 ? CF_BURNING : 0) | (this.cSlow[id] > 0 ? CF_SLOWED : 0)); w.u8(0);
+      const guard = this.cSite[id] >= 0, st = this.cState[id];
+      const hunting = guard ? st === G_HUNT : this.cHuntT[id] > 0;
+      let fl = (this.cBurn[id] > 0 ? CF_BURNING : 0) | (this.cSlow[id] > 0 ? CF_SLOWED : 0);
+      if (guard) fl |= CF_GUARD;
+      if (guard && st === G_ASLEEP) fl |= CF_ASLEEP;
+      if (hunting) fl |= CF_HUNTING;
+      else if (!guard && Math.abs(this.cX[id] - ccx) < 18 && Math.abs(this.cY[id] - ccy) < 18) fl |= CF_SIEGE;
+      w.u8(fl); w.u8(hunting ? this.cHunt[id] : 255);
     }
     const tr = this.tr;
     w.u16(tr.length / 5);
@@ -774,6 +1066,12 @@ export class DemoHost implements Transport {
         break;
       }
       case 'repair': p.order = Order.Repair; p.repairId = cmd.s; break;
+      case 'loot':
+        if (!this.sites[cmd.site]) break;
+        if (this.searched[cmd.site]) { this.toast('already searched'); break; }
+        if (this.guardsLeft(cmd.site) > 0) { this.toast(`guarded: kill its ${this.guardsLeft(cmd.site)} guards first`); break; }
+        p.order = Order.Loot; p.site = cmd.site; p.searchT = 0;
+        break;
       case 'upgradeStruct': {
         const s = this.structs[cmd.s];
         if (!s || !s.alive || !STRUCTS[s.kind].turret) { this.toast('cannot upgrade that'); break; }
@@ -830,6 +1128,13 @@ export class DemoHost implements Transport {
         if (p.owned & (1 << cmd.w) && p.cur !== cmd.w) { p.cur = cmd.w; p.ammo = this.mag(p); p.reloadLeft = 0; }
         break;
       case 'ready': p.ready = cmd.on; break;
+      case 'taunt': this.taunt(p); break;
+      case 'revive': {
+        const o = this.players[cmd.p];
+        if (!o || o === p || o.hp > 0) { this.toast('nobody to revive there'); break; }
+        p.order = Order.Revive; p.revTarget = o.id; p.channel = 0;
+        break;
+      }
       case 'chat': this.notes.push({ level: 0, text: `${p.name}: ${cmd.text}` }); break;
       case 'restart':
         if (this.phase === Phase.Over) { this.opt.phase = 'build'; this.reset(); dispatch(this.h, JSON.stringify(this.welcome)); const t = new Uint8Array(1 + W * H); t[0] = 2; t.set(this.tiles, 1); dispatch(this.h, t.buffer); }

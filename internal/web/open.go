@@ -14,7 +14,7 @@ func Opener(setting string) []string {
 	switch setting {
 	case config.BrowserNone:
 		return nil
-	case "", config.BrowserDefault:
+	case "", config.BrowserDefault, config.BrowserAuto:
 		if runtime.GOOS == "darwin" {
 			return []string{"open"}
 		}

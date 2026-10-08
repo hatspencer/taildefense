@@ -1,11 +1,11 @@
 import * as THREE from 'three/webgpu';
 import type { CameraRig } from './camera';
-import { type Command, PF_ALIVE, PF_ARMORY, PF_READY, Phase, Tile } from './protocol';
+import { type Command, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_READY, Phase, SiteKind, siteX, siteY, Tile } from './protocol';
 import type { Effects } from './scene/effects';
 import type { Game } from './state';
 
 export type Mode = { k: 'none' } | { k: 'amove' } | { k: 'ability'; slot: number } | { k: 'build'; kind: number };
-export type Pick = { t: 'creep' | 'struct' | 'hero'; id: number } | null;
+export type Pick = { t: 'creep' | 'struct' | 'hero' | 'site'; id: number } | null;
 
 export interface AbilityInfo { name: string; desc: string; key: string; range: number; radius: number; cool: number; target: string; level: number; maxLevel: number; left: number; nextCost: number }
 
@@ -76,10 +76,13 @@ export class Controller {
       return Math.sqrt(px * px + pz * pz);
     };
     let best: Pick = null, bd = Infinity;
+    const myId = wd.you;
     for (let i = 0; i < f.nPlayers; i++) {
       const p = f.players[i];
-      if (!(p.flags & PF_ALIVE)) continue;
-      const d = segDist(g.prx[p.id], g.pry[p.id]) / 0.6;
+      // The living, and downed teammates (lying flat, so a little wider) to revive.
+      const alive = (p.flags & PF_ALIVE) !== 0;
+      if (!alive && (!(p.flags & PF_CONNECTED) || p.id === myId)) continue;
+      const d = segDist(g.prx[p.id], g.pry[p.id]) / (alive ? 0.6 : 0.85);
       if (d < 1 && d < bd) { bd = d; best = { t: 'hero', id: p.id }; }
     }
     // A quick box test first: most creeps are nowhere near the ray.
@@ -97,7 +100,18 @@ export class Controller {
       const sid = g.structAtTile(Math.floor(ax + dx * t), Math.floor(az + dz * t));
       if (sid >= 0) return { t: 'struct', id: sid };
     }
-    return null;
+    // Loot sites: anywhere inside a house, or near a car or crate along the ray.
+    let site = -1, sd = 0.9;
+    for (let i = 0; i < wd.sites.length; i++) {
+      const s = wd.sites[i];
+      if (s.kind === SiteKind.House) {
+        if (bx >= s.x && bx < s.x + s.w && bz >= s.y && bz < s.y + s.h && site < 0) site = i;
+        continue;
+      }
+      const d = segDist(siteX(s), siteY(s));
+      if (d < sd) { sd = d; site = i; }
+    }
+    return site >= 0 ? { t: 'site', id: site } : null;
   }
 
   // Selection still valid (the creep may have died)?
@@ -108,6 +122,30 @@ export class Controller {
     if (s.t === 'creep' && this.game.indexById[s.id] < 0) this.sel = null;
     else if (s.t === 'struct' && (s.id >= f.nStructs || !f.sAlive[s.id])) this.sel = null;
     else if (s.t === 'hero' && !f.player(s.id)) this.sel = null;
+  }
+
+  // What hovering a loot site says: its name and whether it can be searched yet (the HUD's
+  // tag adds the guard count underneath).
+  siteHint(i: number): string {
+    const wd = this.game.welcome, s = wd?.sites[i];
+    if (!s) return '';
+    const name = wd.siteKinds[s.kind]?.name ?? 'Loot site';
+    const f = this.game.cur;
+    return `${name} · ${f.siteSearched(i) ? 'searched' : f.siteGuards(i) > 0 ? 'guarded' : 'search'}`;
+  }
+
+  // The downed teammate under the cursor that a right-click would revive, or -1. For the
+  // cursor and the HUD; only while alive myself and not in a targeting mode.
+  reviveTarget(): number {
+    const h = this.hover, me = this.me();
+    if (h?.t !== 'hero' || this.mode.k !== 'none' || !me || !(me.flags & PF_ALIVE) || h.id === me.id) return -1;
+    const p = this.game.cur.player(h.id);
+    return p && !(p.flags & PF_ALIVE) ? h.id : -1;
+  }
+
+  taunt(): void {
+    const me = this.me();
+    if (me && me.flags & PF_ALIVE) this.send({ op: 'taunt' });
   }
 
   // --- clicks ---
@@ -128,7 +166,7 @@ export class Controller {
         this.placeBuild(this.mode.kind, this.shift);
         return;
     }
-    this.sel = this.hover;
+    this.sel = this.hover?.t === 'site' ? null : this.hover;
     if (this.sel?.t === 'struct' && this.game.cur.sKind[this.sel.id] === 2) this.openArmory(true);
   }
 
@@ -138,6 +176,13 @@ export class Controller {
     const me = this.me();
     const g = this.game, f = g.cur;
     const h = this.hover;
+    const rv = this.reviveTarget();
+    if (rv >= 0) {
+      this.toArmory = false;
+      this.send({ op: 'revive', p: rv });
+      this.fx.ping(g.prx[rv], g.pry[rv], 0x50ff80);
+      return;
+    }
     if (h?.t === 'creep') {
       this.send({ op: 'attack', id: h.id });
       const i = g.indexById[h.id];
@@ -153,6 +198,13 @@ export class Controller {
         this.fx.ping(f.sX[s] + f.sW[s] / 2, f.sY[s] + f.sH[s] / 2, 0x40c0ff);
         return;
       }
+    }
+    if (h?.t === 'site' && !f.siteSearched(h.id)) {
+      const s = g.welcome!.sites[h.id];
+      this.toArmory = false;
+      this.send({ op: 'loot', site: h.id });
+      this.fx.ping(siteX(s), siteY(s), 0xffd040);
+      return;
     }
     this.moveTo(this.ground.x, this.ground.z);
   }

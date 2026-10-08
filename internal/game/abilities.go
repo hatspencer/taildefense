@@ -75,6 +75,7 @@ func AbilityRange(p *Player, slot int) float32 {
 // playerStats is the equipped weapon's numbers with any running buff.
 func (w *World) playerStats(p *Player) Stats {
 	st := WeaponStats(p.Cur, p.Weapons[p.Cur].Lv)
+	st.Range *= w.rangeMul()
 	if p.BuffLeft > 0 && p.Buff == p.Cur {
 		switch p.Buff {
 		case WSMG:
@@ -113,6 +114,8 @@ func (w *World) Cast(p *Player, slot int, x, y float32) error {
 	}
 	ang := float32(math.Atan2(float64(y-p.Y), float64(x-p.X)))
 	lv := float32(a.Lv)
+	w.shooter = int8(p.ID)
+	defer func() { w.shooter = -1 }()
 	owner := int8(p.ID)
 	switch slot {
 	case AbSignature:
@@ -239,6 +242,7 @@ func (w *World) stepEffects() {
 	live := w.Effects[:0]
 	for _, e := range w.Effects {
 		e.Left -= Dt
+		w.shooter = e.Owner
 		switch e.Kind {
 		case EffNapalm:
 			x, y, r, dps, owner := e.X, e.Y, e.R, e.Damage, e.Owner
@@ -269,6 +273,7 @@ func (w *World) stepEffects() {
 		}
 	}
 	w.Effects = live
+	w.shooter = -1
 }
 
 // BuyAbility raises a bought ability's level.

@@ -18,6 +18,7 @@ import (
 
 	"taildefense/internal/cli"
 	"taildefense/internal/config"
+	"taildefense/internal/game"
 	"taildefense/internal/tailnet"
 	"taildefense/internal/ui"
 	"taildefense/internal/web"
@@ -403,6 +404,10 @@ func (m *Model) menuKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.cursor = (m.cursor + 1) % len(items)
 	case "q", "esc":
 		return m.quit(Action{Kind: ActionQuit})
+	case "left", "right", "h", "l":
+		if m.cursor < len(items) && items[m.cursor] == itemHost {
+			m.cycleDifficulty(k.String() == "right" || k.String() == "l")
+		}
 	case "enter", " ":
 		if m.cursor >= len(items) {
 			m.cursor = 0
@@ -531,6 +536,21 @@ func (m *Model) save(key config.Key, raw string) bool {
 		m.say(true, "saved %s = %s, but --%s overrides it for this run", strings.ToLower(key.Name), v, strings.ToLower(key.Name))
 	}
 	return true
+}
+
+// cycleDifficulty steps the difficulty games are hosted at and remembers it, so the next
+// game starts at the same one with a single enter.
+func (m *Model) cycleDifficulty(up bool) {
+	d := int(m.prefs.Difficulty())
+	n := int(game.NumDifficulties)
+	if up {
+		d = (d + 1) % n
+	} else {
+		d = (d + n - 1) % n
+	}
+	key, _ := config.Lookup(config.KeyDifficulty)
+	m.save(key, game.Difficulty(d).String())
+	m.notice = ""
 }
 
 func short(h string) string {

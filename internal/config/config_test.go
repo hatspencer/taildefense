@@ -47,7 +47,7 @@ func TestDefaultsWithNoFile(t *testing.T) {
 	if p.Err != nil {
 		t.Fatal(p.Err)
 	}
-	if p.Port() != DefaultPort || p.Browser() != BrowserDefault || !p.AutoUpdate() {
+	if p.Port() != DefaultPort || p.Browser() != BrowserAuto || !p.AutoUpdate() {
 		t.Errorf("defaults: port %d browser %q autoupdate %v", p.Port(), p.Browser(), p.AutoUpdate())
 	}
 	for _, v := range p.All() {
@@ -139,8 +139,14 @@ func TestSetWritesAndKeepsOtherKeys(t *testing.T) {
 	if _, err := Set("browser", "a\nb"); err == nil {
 		t.Error("a two-line browser accepted")
 	}
-	if _, err := Set("colour", "red"); err == nil || !strings.Contains(err.Error(), "name, port, browser, autoupdate") {
+	if _, err := Set("colour", "red"); err == nil || !strings.Contains(err.Error(), "name, port, difficulty, browser, autoupdate") {
 		t.Errorf("unknown key: %v", err)
+	}
+	if v, err := Set("difficulty", "HARD"); err != nil || v != "hard" {
+		t.Errorf("difficulty: %q %v", v, err)
+	}
+	if _, err := Set("difficulty", "nightmare"); err == nil {
+		t.Error("a nonsense difficulty accepted")
 	}
 	if _, err := Set("name", "  Grace   Hopper "); err != nil {
 		t.Fatal(err)

@@ -5,17 +5,19 @@ import { Hud } from './hud/hud';
 import { Labels } from './hud/labels';
 import { Input } from './input';
 import { type Handlers, type Transport, WsTransport } from './net';
-import { PF_ALIVE, PF_ARMORY, Phase, turretRange, type Welcome } from './protocol';
+import { PF_ALIVE, PF_ARMORY, Phase, SiteKind, siteX, siteY, turretRange, type Welcome } from './protocol';
 import { Creeps } from './scene/creeps';
 import { Effects } from './scene/effects';
 import { Heroes } from './scene/heroes';
+import { Loot } from './scene/loot';
 import { Overlays } from './scene/overlays';
 import { K_CANNON, K_FROST, K_GUN, K_TESLA, Structs } from './scene/structs';
 import { Terrain } from './scene/terrain';
+import { Weather } from './scene/weather';
 import { World } from './scene/world';
 import { Game } from './state';
 
-// #demo&creeps=5000&phase=build&cam=x,y,yawDeg,dist&build=5&armory&help&score&f3&sel=struct:12&mouse=x,y&webgl
+// #demo&weather=3&down&corehp=0.3&creeps=5000&phase=build&cam=x,y,yawDeg,dist&build=5&armory&help&score&f3&sel=struct:12&mouse=x,y&webgl
 function params(): Map<string, string> {
   const m = new Map<string, string>();
   for (const part of location.hash.slice(1).split('&')) {
@@ -62,7 +64,10 @@ async function main(): Promise<void> {
   const structs = new Structs(world.scene);
   const creeps = new Creeps(world.scene);
   const heroes = new Heroes(world.scene);
+  const loot = new Loot(world.scene);
   const effects = new Effects(world.scene);
+  const weather = new Weather(world.scene);
+  world.look = weather.look;
   const overlays = new Overlays(world.scene, structs);
   const rig = new CameraRig(world.camera, canvas);
   let transport: Transport | null = null;
@@ -93,6 +98,7 @@ async function main(): Promise<void> {
       game.reset(w);
       creeps.setup(w.creeps);
       structs.setup(w.structs);
+      loot.setup(w.sites);
       heroes.clear();
       rig.setMap(w.w, w.h);
       rig.center(w.core.x, w.core.y);
@@ -129,6 +135,9 @@ async function main(): Promise<void> {
       phase: (P.get('phase') as DemoOptions['phase']) || 'wave',
       wave: Number(P.get('wave') ?? 7) || 7,
       gold: Number(P.get('gold') ?? 2400) || 0,
+      weather: P.has('weather') ? Number(P.get('weather')) : -1,
+      down: P.has('down'),
+      coreHp: P.has('corehp') ? Number(P.get('corehp')) : 1,
     };
     transport = new DemoHost(handlers, opt);
   } else {
@@ -198,7 +207,9 @@ async function main(): Promise<void> {
 
   let last = performance.now();
   let fpsAvg = 60, msAvg = 16;
-  let hoverStruct = -1, hoverHero = -1;
+  let hoverStruct = -1, hoverHero = -1, hoverLoot = false, hoverRevive = false;
+  // A green "+" over a downed teammate (body.cur-revive too, should app.css want to style it).
+  const REVIVE_CURSOR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Cpath d='M12 4h8v8h8v8h-8v8h-8v-8H4v-8h8z' fill='%2350ff80' stroke='%23000' stroke-width='2'/%3E%3C/svg%3E") 16 16, pointer`;
   const loop = () => {
     const now = performance.now();
     const rawDt = Math.max(0.0005, (now - last) / 1000);
@@ -216,6 +227,7 @@ async function main(): Promise<void> {
     input.update(dt, W, H);
     rig.update(dt);
     world.followSun(rig.tx, rig.tz, rig.span());
+    weather.update(game, dt, world.camera, rig.tx, rig.tz, rig.dist);
     world.setFog(rig.dist);
     if (wd) {
       // Waves are fought at dusk.
@@ -224,6 +236,7 @@ async function main(): Promise<void> {
       const m = world.night + (goal - world.night) * Math.min(1, dt * 0.6);
       const alive = !!me && (me.flags & PF_ALIVE) !== 0;
       world.setMood(m, me ? game.prx[me.id] : 0, me ? game.pry[me.id] : 0, me ? game.paim[me.id] : 0, alive, wd.core.x, wd.core.y);
+      effects.dark = Math.min(1, Math.max(m, weather.look.dark));
     }
     ctl.updateMouse(W, H);
 
@@ -234,11 +247,16 @@ async function main(): Promise<void> {
       if (hs !== hoverStruct) { structs.setHover(hoverStruct, false); structs.setHover(hs, true); hoverStruct = hs; }
       if (hh !== hoverHero) { heroes.setHover(hoverHero, false); heroes.setHover(hh, true); hoverHero = hh; }
       creeps.hovered = h?.t === 'creep' ? h.id : -1;
+      const loots = h?.t === 'site' && ctl.mode.k === 'none' && !game.cur.siteSearched(h.id);
+      if (loots !== hoverLoot) { document.body.classList.toggle('cur-loot', loots); hoverLoot = loots; }
+      const revives = ctl.reviveTarget() >= 0;
+      if (revives !== hoverRevive) { document.body.classList.toggle('cur-revive', revives); canvas.style.cursor = revives ? REVIVE_CURSOR : ''; hoverRevive = revives; }
       updateOverlays();
-      creeps.update(game, now, dt);
+      creeps.update(game, now, dt, world.camera);
       structs.update(game, now, dt);
-      heroes.update(game, now, dt);
-      effects.update(game, world.camera);
+      heroes.update(game, now, dt, world.camera);
+      loot.update(game, now);
+      effects.update(game, world.camera, dt);
     }
     world.render();
     if (wd) {
@@ -247,6 +265,7 @@ async function main(): Promise<void> {
         hoverStruct: hs(), selStruct: sel?.t === 'struct' ? sel.id : -1,
         hoverCreep: ctl.hover?.t === 'creep' ? ctl.hover.id : -1, selCreep: sel?.t === 'creep' ? sel.id : -1,
         showAllBars: ctl.mode.k === 'build',
+        hoverSite: ctl.hover?.t === 'site' ? ctl.hover.id : -1, siteHint: ctl.hover?.t === 'site' ? ctl.siteHint(ctl.hover.id) : '',
       }, now, rig.dist);
       hud.minimap.draw(now, W, H);
       hud.update(now);
@@ -295,6 +314,9 @@ async function main(): Promise<void> {
         const i = game.indexById[p.id];
         if (i < 0) { overlays.ring(name, false); return; }
         x = game.rx[i]; y = game.ry[i]; r = (wd.creeps[f.cKind[i]]?.radius ?? 0.45) + 0.25; col = 0xff4030;
+      } else if (p.t === 'site') {
+        const s = wd.sites[p.id];
+        x = siteX(s); y = siteY(s); r = s.kind === SiteKind.Car ? 1.05 : 0.85; col = f.siteSearched(p.id) ? 0xa0a098 : 0xffd040;
       } else if (p.t === 'hero') {
         x = game.prx[p.id]; y = game.pry[p.id]; r = 0.75; col = p.id === wd.you ? 0x50ff70 : 0x50c0ff;
       } else {

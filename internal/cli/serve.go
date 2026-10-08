@@ -39,6 +39,7 @@ func Serve(w io.Writer, o HostOptions) int {
 		{"host", plan.Config.Host},
 		{"owner", plan.Config.Owner},
 		{"seed", fmt.Sprint(plan.Config.Seed)},
+		{"difficulty", plan.Config.Difficulty.String()},
 		{"version", o.Version},
 	}
 	p.Fields(rows)

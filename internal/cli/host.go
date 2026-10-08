@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"taildefense/internal/config"
+	"taildefense/internal/game"
 	"taildefense/internal/netplay"
 	"taildefense/internal/tailnet"
 )
@@ -25,6 +26,7 @@ var tailnetStatus = tailnet.Status
 type HostOptions struct {
 	Port    int    // 0 is netplay.DefaultPort
 	Seed    uint64 // 0 picks one from the clock
+	Diff    game.Difficulty
 	Name    string // the hosting player's name; "" is the tailnet first name
 	Version string // this build, shown to everyone who probes the game
 }
@@ -127,6 +129,7 @@ func hostConfig(ctx context.Context, status func(context.Context) (tailnet.Self,
 	plan.Config = netplay.ServerConfig{
 		Addrs:      addrs,
 		Seed:       seed,
+		Difficulty: o.Diff,
 		Version:    o.Version,
 		Host:       host,
 		Owner:      login,

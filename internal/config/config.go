@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"taildefense/internal/game"
 	"taildefense/internal/tailnet"
 )
 
@@ -39,6 +40,7 @@ const (
 	KeyPort       = "PORT"
 	KeyBrowser    = "BROWSER"
 	KeyAutoUpdate = "AUTOUPDATE"
+	KeyDifficulty = "DIFFICULTY"
 )
 
 // DefaultPort is netplay.DefaultPort, repeated here so the prefs do not import the network
@@ -48,6 +50,7 @@ const DefaultPort = 7787
 // BROWSER values with a meaning of their own; anything else is a command, run with the
 // game's URL as its last argument.
 const (
+	BrowserAuto    = "auto"    // the best browser installed, full screen as an app window
 	BrowserDefault = "default" // the system's: open on macOS, xdg-open elsewhere
 	BrowserNone    = "none"    // open nothing, print the URL
 )
@@ -85,8 +88,10 @@ var Keys = []Key{
 		Parse: parseName, Default: func() string { return DefaultName() }},
 	{Name: KeyPort, Env: "TAILDEFENSE_PORT", Help: "port games are hosted and looked for on",
 		Parse: parsePort, Default: func() string { return strconv.Itoa(DefaultPort) }},
-	{Name: KeyBrowser, Env: "TAILDEFENSE_BROWSER", Help: "what opens the game: default, none (print the URL) or a command",
-		Parse: parseBrowser, Default: func() string { return BrowserDefault }},
+	{Name: KeyDifficulty, Env: "TAILDEFENSE_DIFFICULTY", Help: "how hard the games you host are: easy, normal, hard or brutal",
+		Parse: parseDifficulty, Default: func() string { return strings.ToLower(game.DefaultDifficulty.String()) }},
+	{Name: KeyBrowser, Env: "TAILDEFENSE_BROWSER", Help: "what opens the game: auto (best browser, full screen), default, chrome, firefox…, none or a command",
+		Parse: parseBrowser, Default: func() string { return BrowserAuto }},
 	{Name: KeyAutoUpdate, Env: "TAILDEFENSE_NO_AUTOUPDATE", Help: "update td in the background when main moves on",
 		Parse: parseOnOff, Default: func() string { return "on" }, Bool: true},
 }
@@ -258,6 +263,12 @@ func (p *Prefs) Port() int {
 // Browser is what opens the game page: BrowserDefault, BrowserNone or a command.
 func (p *Prefs) Browser() string { return p.Get(KeyBrowser).Value }
 
+// Difficulty is what games are hosted at.
+func (p *Prefs) Difficulty() game.Difficulty {
+	d, _ := game.ParseDifficulty(p.Get(KeyDifficulty).Value)
+	return d
+}
+
 // AutoUpdate is whether td may update itself in the background.
 func (p *Prefs) AutoUpdate() bool { return ParseOnOff(p.Get(KeyAutoUpdate).Value, true) }
 
@@ -407,6 +418,14 @@ func parseName(s string) (string, error) {
 	return s, nil
 }
 
+func parseDifficulty(s string) (string, error) {
+	d, err := game.ParseDifficulty(s)
+	if err != nil {
+		return "", err
+	}
+	return strings.ToLower(d.String()), nil
+}
+
 func parsePort(s string) (string, error) {
 	n, err := strconv.Atoi(strings.TrimSpace(s))
 	if err != nil || n < 1 || n > 65535 {
@@ -418,7 +437,9 @@ func parsePort(s string) (string, error) {
 func parseBrowser(s string) (string, error) {
 	s = strings.TrimSpace(s)
 	switch strings.ToLower(s) {
-	case "", BrowserDefault, "system":
+	case "", BrowserAuto, "fullscreen":
+		return BrowserAuto, nil
+	case BrowserDefault, "system":
 		return BrowserDefault, nil
 	case BrowserNone, "off", "no":
 		return BrowserNone, nil

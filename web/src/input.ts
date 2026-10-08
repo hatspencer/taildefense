@@ -2,7 +2,9 @@ import type { CameraRig } from './camera';
 import type { Controller } from './controller';
 import type { Hud } from './hud/hud';
 
-const EDGE = 8;
+// Edge-pan band in CSS pixels; wide enough for fractional display scaling, where the last
+// device pixel can land a pixel or more inside the reported edge.
+const EDGE = 12;
 // Pan speed in tiles per second per tile of camera distance.
 const PAN_SPEED = 1.2;
 
@@ -26,8 +28,21 @@ export class Input {
       else if (e.button === 2) ctl.rightClick();
     });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-    window.addEventListener('pointermove', (e) => { this.ex = e.clientX; this.ey = e.clientY; this.inWin = true; this.moved = true; });
-    document.addEventListener('mouseleave', () => { ctl.mouseIn = false; this.inWin = false; });
+    // Edge panning tracks the pointer on the window in the capture phase, so nothing over the
+    // HUD can swallow it. Leaving the page at an edge in fullscreen keeps that edge: with
+    // fractional scaling the browser reports the last pixel row or column as outside the page
+    // and fires a leave while the pointer sits pinned there, and no move follows to restore it.
+    const track = (e: PointerEvent | MouseEvent) => { this.ex = e.clientX; this.ey = e.clientY; this.inWin = true; this.moved = true; };
+    window.addEventListener('pointermove', track, { capture: true, passive: true });
+    window.addEventListener('pointerdown', track, { capture: true, passive: true });
+    document.addEventListener('mouseleave', (e) => {
+      ctl.mouseIn = false;
+      const w = window.innerWidth, h = window.innerHeight;
+      const x = Number.isFinite(e.clientX) ? e.clientX : this.ex, y = Number.isFinite(e.clientY) ? e.clientY : this.ey;
+      const atEdge = x <= EDGE || y <= EDGE || x >= w - EDGE || y >= h - EDGE;
+      if (document.fullscreenElement && atEdge) { this.ex = x; this.ey = y; return; }
+      this.inWin = false;
+    });
     window.addEventListener('blur', () => this.keys.clear());
     window.addEventListener('keydown', (e) => this.down(e));
     window.addEventListener('keyup', (e) => {
@@ -91,6 +106,7 @@ export class Input {
       case 'U': ctl.upgradeSel(); return;
       case 'X': ctl.sellSel(); return;
       case 'F': ctl.repairSel(); return;
+      case 'V': ctl.taunt(); return;
     }
   }
 
@@ -102,9 +118,11 @@ export class Input {
     if (this.keys.has('ArrowUp')) dy += 1;
     if (this.keys.has('ArrowDown')) dy -= 1;
     // Edge pan only once the mouse has really moved over the page (headless runs sit at 0,0).
+    // Clamped into the page, since leave and fractional coordinates can land past the edge.
     if (this.moved && this.inWin && document.hasFocus()) {
-      if (this.ex <= EDGE) dx -= 1; else if (this.ex >= w - EDGE) dx += 1;
-      if (this.ey <= EDGE) dy += 1; else if (this.ey >= h - EDGE) dy -= 1;
+      const x = Math.min(Math.max(this.ex, 0), w - 1), y = Math.min(Math.max(this.ey, 0), h - 1);
+      if (x <= EDGE) dx -= 1; else if (x >= w - 1 - EDGE) dx += 1;
+      if (y <= EDGE) dy += 1; else if (y >= h - 1 - EDGE) dy -= 1;
     }
     if (dx || dy) {
       const s = PAN_SPEED * this.rig.dist * dt;
