@@ -48,7 +48,10 @@ func (w *World) Step() {
 			}
 			// The waves keep coming: a team off looting while the last of one roams the base
 			// gets the next on top of it.
-			if w.overtime += Dt; n == 0 || w.overtime > overtime {
+			if w.overtime > 0 || w.WaveTime > overtimeLate || w.atTheGates() {
+				w.overtime += Dt
+			}
+			if n == 0 || w.overtime > overtime {
 				w.endWave(n)
 			}
 		}
@@ -116,10 +119,23 @@ const (
 	stallLimit = 30
 	stallFew   = 10 // only this few stragglers give up; a real fight is never cut short
 
-	// overtime is how long after its last spawn a wave may run before the next countdown
-	// starts anyway, with what is left of it still about.
+	// overtime is how long a wave may run, once all of it is out and it has reached the base,
+	// before the next countdown starts anyway with what is left of it still about.
 	overtime = 40
+	// overtimeLate starts the overtime clock even if the wave never gets to the base.
+	overtimeLate = 150
 )
+
+// atTheGates reports whether a creep of the wave is within the base's build radius.
+func (w *World) atTheGates() bool {
+	for i := range w.Creeps {
+		c := &w.Creeps[i]
+		if dx, dy := c.X-w.CoreX, c.Y-w.CoreY; c.Home == 0 && dx*dx+dy*dy < BuildRadius*BuildRadius {
+			return true
+		}
+	}
+	return false
+}
 
 // dropStragglers takes the creeps of the wave still about off the map, for nobody's bounty.
 func (w *World) dropStragglers() {

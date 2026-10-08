@@ -2,6 +2,7 @@ package game
 
 import (
 	"math/rand/v2"
+	"strings"
 	"testing"
 )
 
@@ -18,7 +19,14 @@ func TestSitesAreReachableAndFixedBySeed(t *testing.T) {
 				t.Errorf("seed %d: site %d is inside the base", seed, i)
 			}
 		}
-		if n[SiteHouse] < 25 || n[SiteCar] < 10 || n[SiteCrate] < 10 {
+		wrecks, kinds := 0, 0
+		for k := SiteKind(0); k < NumSiteKinds; k++ {
+			if k.Wreck() && n[k] > 0 {
+				wrecks += n[k]
+				kinds++
+			}
+		}
+		if n[SiteHouse] < 25 || wrecks < 15 || kinds < 4 || n[SiteCrate] < 10 {
 			t.Errorf("seed %d: sites %v", seed, n)
 		}
 		if again := New(seed); len(again.Sites) != len(w.Sites) || again.Sites[len(w.Sites)-1] != w.Sites[len(w.Sites)-1] {
@@ -114,7 +122,7 @@ func TestEveryFindCanBeGiven(t *testing.T) {
 	for i := 0; i < 400; i++ {
 		r := Rarity(i % int(NumRarities))
 		gold := p.Gold
-		if what := w.grant(p, r); what == "" {
+		if what := w.grant(p, r, FavorNone); what == "" {
 			t.Fatalf("%v: no description", r)
 		}
 		if p.Gold < gold {
@@ -135,5 +143,29 @@ func TestRestockRefillsSome(t *testing.T) {
 	n := w.restock()
 	if n == 0 || n == len(w.Sites) {
 		t.Errorf("restocked %d of %d", n, len(w.Sites))
+	}
+}
+
+func TestWrecksHaveTheirOwnTwists(t *testing.T) {
+	w := New(13)
+	p, _ := w.Join("ana", "ana@example")
+	for i := range w.Sites {
+		s := &w.Sites[i]
+		if s.Kind == SiteArmy && s.Guard < 2 {
+			t.Fatalf("an army truck with guard level %d", s.Guard)
+		}
+	}
+	s := &w.Sites[0]
+	s.Kind, s.Searched, s.Guard = SiteAmbulance, false, 2
+	p.HP = 10
+	w.search(p, 0)
+	if p.HP != p.MaxHP {
+		t.Fatalf("the ambulance kit should patch the searcher up, hp %v", p.HP)
+	}
+	s.Kind, s.Searched = SiteBus, false
+	w.Notes = w.Notes[:0]
+	w.search(p, 0)
+	if n := w.Notes[len(w.Notes)-1].Text; !strings.Contains(n, " and ") {
+		t.Fatalf("a bus gives two finds: %q", n)
 	}
 }

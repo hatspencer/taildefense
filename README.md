@@ -110,7 +110,10 @@ faces as you rotate it, and clicking it turns the view north up again. The minim
 up, and a downed teammate's call says where they fell, so "brute coming in from the NW" means
 the same thing to everyone.
 
-Outside the walls are ruined houses, car wrecks and supply crates worth looting; a glint marks
+Outside the walls are ruined houses, wrecks and supply crates worth looting. The wrecks on the
+roads differ: a pickup's bed holds tools and gear, a police cruiser or an army truck guns (the
+army trucks are far out, and always guarded), an ambulance's kit patches you up, and a school
+bus is slow to search but gives two finds, if nothing is nesting in it. A glint marks
 the ones nobody has searched yet. Right-click one to walk over and search it, which takes a few
 seconds and stops if you get hit. The further from the base, the better the loot, and searching
 during a wave is luckier. Scavenger gear from the armory raises your luck too. Sometimes a house
@@ -163,8 +166,9 @@ count). Every fifth wave is a swarm that swells as the game goes on; from wave 1
 hordes, a third of which pours out of every spawn point at once. Every tenth wave brings an
 abomination.
 
-The waves don't wait. 40 s after a wave's last creep spawns, the countdown to the next one starts
-whether or not the last is dead, so a team out looting comes back to two waves at once.
+The waves don't wait. 40 s after a wave has all come out and reached the base, the countdown to
+the next one starts whether or not the last is dead, so a team out looting comes back to two
+waves at once.
 
 ## Why it's built this way
 
