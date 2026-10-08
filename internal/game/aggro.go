@@ -289,7 +289,7 @@ func (w *World) goHome(c *Creep, d *CreepDef, speed float32) {
 }
 
 // guardSize is how many guards each guard level puts on a site, before difficulty.
-var guardSize = [4]int{0, 3, 5, 7}
+var guardSize = [5]int{0, 3, 5, 7, 12}
 
 // spawnGuards puts a site's guards down around it, scaled to the current wave.
 func (w *World) spawnGuards(si int) {
@@ -305,6 +305,10 @@ func (w *World) spawnGuards(si int) {
 		k := CWalker
 		r := w.rng.IntN(10)
 		switch {
+		case lv == 4 && j == 0:
+			k = CBoss // the outpost's warlord, out of reach early on
+		case lv == 4 && j <= 2:
+			k = CBrute
 		case lv == 3 && j == 0:
 			k = CBrute
 		case lv == 3 && j == 1 && w.Wave >= 12:
@@ -316,7 +320,9 @@ func (w *World) spawnGuards(si int) {
 		}
 		for try := 0; try < 10; try++ {
 			var x, y float32
-			if s.Kind == SiteHouse {
+			if lv == 4 && j == 0 {
+				x, y = s.SX, s.SY
+			} else if s.Kind.Walled() {
 				x = float32(s.X) + 1 + w.rng.Float32()*float32(max(int(s.W)-2, 1))
 				y = float32(s.Y) + 1 + w.rng.Float32()*float32(max(int(s.H)-2, 1))
 			} else {

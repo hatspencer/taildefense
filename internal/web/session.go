@@ -371,6 +371,13 @@ func (s *session) command(p []byte) bool {
 		nc = netplay.Cmd{Op: netplay.OpReload}
 	case "taunt":
 		nc = netplay.Cmd{Op: netplay.OpTaunt}
+	case "pause":
+		nc = netplay.Cmd{Op: netplay.OpPause}
+	case "sprint":
+		nc = netplay.Cmd{Op: netplay.OpSprint}
+		if c.On {
+			nc.A = 1
+		}
 	case "revive":
 		nc = netplay.Cmd{Op: netplay.OpRevive, T: u16(c.P)}
 	case "ready":

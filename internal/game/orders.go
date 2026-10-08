@@ -23,14 +23,15 @@ const (
 
 // Order is a survivor's current order.
 type Order struct {
-	Kind   OrderKind
-	X, Y   float32    // destination
-	Target uint16     // OrderAttack: creep id
-	Struct int        // OrderRepair: structure index
-	Site   int        // OrderLoot: site index
-	Mate   int        // OrderRevive: player index
-	Build  StructKind // OrderBuild
-	TX, TY int        // OrderBuild: tile
+	Kind    OrderKind
+	X, Y    float32    // destination
+	Target  uint16     // OrderAttack: creep id
+	Struct  int        // OrderRepair: structure index
+	Site    int        // OrderLoot: site index
+	Started bool       // OrderLoot: the search has begun (an ambush may have sprung)
+	Mate    int        // OrderRevive: player index
+	Build   StructKind // OrderBuild
+	TX, TY  int        // OrderBuild: tile
 }
 
 // buildReach is how close a survivor walks to a tile before building on it.
@@ -155,6 +156,9 @@ func (w *World) route(p *Player, x, y float32) {
 func (w *World) step(p *Player) bool {
 	k := &p.walk
 	speed := p.Speed() * w.playerSpeedMul() * Dt
+	if p.Sprinting() {
+		speed *= sprintMul
+	}
 	for speed > 0 && !k.done() {
 		t := k.pts[k.i]
 		dx, dy := t[0]-p.X, t[1]-p.Y
@@ -251,6 +255,11 @@ func (w *World) stepPlayers() {
 		ws.Cool -= Dt
 
 		target := w.act(p, st)
+		p.stepStamina()
+		w.ambushOnEntry(p)
+		if p.noise > 0 {
+			p.noise -= Dt
+		}
 		fire := target >= 0
 		p.Firing = fire && ws.Reload <= 0
 		if fire {
@@ -259,6 +268,10 @@ func (w *World) stepPlayers() {
 			p.Aim = ang
 			w.shooter = int8(p.ID)
 			for ws.Cool <= 0 && ws.Reload <= 0 && ws.Ammo > 0 {
+				if p.noise <= 0 {
+					p.noise = noiseEvery
+					w.noise(p)
+				}
 				w.shoot(p, st, ang)
 				ws.Ammo--
 				ws.Cool += 1 / st.Rate
@@ -286,14 +299,14 @@ func (w *World) act(p *Player, st Stats) int32 {
 	}
 	switch o.Kind {
 	case OrderIdle, OrderHold:
-		return w.nearestCreep(p.X, p.Y, st.Range)
+		return w.nearestVisible(p.X, p.Y, st.Range)
 	case OrderMove:
 		if !walk() {
 			o.Kind = OrderIdle
 		}
 		return -1
 	case OrderAttackMove:
-		if t := w.nearestCreep(p.X, p.Y, st.Range); t >= 0 {
+		if t := w.nearestVisible(p.X, p.Y, st.Range); t >= 0 {
 			// Fighting pauses the walk; its progress check must not count the pause.
 			p.walk.check = .5
 			p.walk.cx, p.walk.cy = p.X, p.Y
@@ -307,11 +320,12 @@ func (w *World) act(p *Player, st Stats) int32 {
 		t := w.creepIndex(o.Target)
 		if t < 0 {
 			o.Kind = OrderIdle
-			return w.nearestCreep(p.X, p.Y, st.Range)
+			return w.nearestVisible(p.X, p.Y, st.Range)
 		}
 		c := &w.Creeps[t]
 		dx, dy := c.X-p.X, c.Y-p.Y
-		if dx*dx+dy*dy <= st.Range*st.Range*.9 {
+		// In range and in sight; otherwise walk on, round the wall if there is one.
+		if dx*dx+dy*dy <= st.Range*st.Range*.9 && w.clearShot(p.X, p.Y, c.X, c.Y) {
 			return t
 		}
 		k := &p.walk
@@ -370,13 +384,12 @@ func (w *World) act(p *Player, st Stats) int32 {
 		}
 		dx, dy := s.SX-p.X, s.SY-p.Y
 		if dx*dx+dy*dy <= lootReach*lootReach {
-			if err := guarded(s); err != nil {
-				w.toast(p, 2, "%v", err)
-				o.Kind = OrderIdle
-				p.Search = 0
-				return -1
+			// Searching is all a survivor does: no shooting, and a hit starts it over. Guards
+			// don't forbid it; they only make it hard to get through without a scratch.
+			if p.Search == 0 && !o.Started {
+				o.Started = true
+				w.ambushOnSearch(o.Site, p)
 			}
-			// Searching is all a survivor does: no shooting, and a hit starts it over.
 			if p.Hurt > 0 {
 				p.Search = 0
 				return -1

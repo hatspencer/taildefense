@@ -1,10 +1,17 @@
 import type { CameraRig } from './camera';
-import type { Controller } from './controller';
+import { type Controller, KEYS } from './controller';
 import type { Hud } from './hud/hud';
 
 // Edge-pan band in CSS pixels; wide enough for fractional display scaling, where the last
 // device pixel can land a pixel or more inside the reported edge.
 const EDGE = 12;
+// Full screen however it came about: the Fullscreen API (F11 in the page), or a browser
+// started full screen or as a kiosk, which td does and which the API knows nothing of.
+function fullScreen(): boolean {
+  if (document.fullscreenElement || matchMedia('(display-mode: fullscreen)').matches) return true;
+  return window.innerWidth >= screen.width - 2 && window.innerHeight >= screen.height - 2;
+}
+
 // Pan speed in tiles per second per tile of camera distance.
 const PAN_SPEED = 1.2;
 
@@ -13,6 +20,7 @@ const PAN_SPEED = 1.2;
 export class Input {
   private keys = new Set<string>();
   private lastSpace = 0;
+  private spaceAt = 0; // when Space went down, 0 while it is up
   private moved = false;
   // The pointer anywhere in the window (the HUD covers the screen edges), for edge panning.
   private ex = -1; private ey = -1; private inWin = false;
@@ -29,7 +37,7 @@ export class Input {
     });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     // Edge panning tracks the pointer on the window in the capture phase, so nothing over the
-    // HUD can swallow it. Leaving the page at an edge in fullscreen keeps that edge: with
+    // HUD can swallow it. Leaving the page at an edge in full screen keeps that edge: with
     // fractional scaling the browser reports the last pixel row or column as outside the page
     // and fires a leave while the pointer sits pinned there, and no move follows to restore it.
     const track = (e: PointerEvent | MouseEvent) => { this.ex = e.clientX; this.ey = e.clientY; this.inWin = true; this.moved = true; };
@@ -40,16 +48,31 @@ export class Input {
       const w = window.innerWidth, h = window.innerHeight;
       const x = Number.isFinite(e.clientX) ? e.clientX : this.ex, y = Number.isFinite(e.clientY) ? e.clientY : this.ey;
       const atEdge = x <= EDGE || y <= EDGE || x >= w - EDGE || y >= h - EDGE;
-      if (document.fullscreenElement && atEdge) { this.ex = x; this.ey = y; return; }
+      if (fullScreen() && atEdge) { this.ex = x; this.ey = y; return; }
       this.inWin = false;
     });
-    window.addEventListener('blur', () => this.keys.clear());
+    window.addEventListener('blur', () => { this.keys.clear(); this.spaceUp(false); });
     window.addEventListener('keydown', (e) => this.down(e));
     window.addEventListener('keyup', (e) => {
       this.keys.delete(e.key);
+      if (e.key === ' ') this.spaceUp(true);
       ctl.shift = e.shiftKey;
       if (e.key === 'Tab') this.hud.showScore(false);
     });
+  }
+
+  private spaceUp(tap: boolean): void {
+    if (!this.spaceAt) return;
+    const held = performance.now() - this.spaceAt;
+    this.spaceAt = 0;
+    this.ctl.send({ op: 'sprint', on: false });
+    if (!tap || held > 250) return;
+    const now = performance.now();
+    if (now - this.lastSpace < 400) { this.rig.locked = !this.rig.locked; this.hud.flash(this.rig.locked ? 'camera locked to hero' : 'camera unlocked'); }
+    this.lastSpace = now;
+    this.rig.follow = true;
+    const me = this.ctl.me();
+    if (me) this.rig.center(me.x, me.y, true);
   }
 
   private down(e: KeyboardEvent): void {
@@ -74,14 +97,10 @@ export class Input {
     if (k === 'Enter') { e.preventDefault(); hud.openChat(); return; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (k.startsWith('Arrow')) { e.preventDefault(); this.keys.add(k); return; }
+    // Space: held, sprint; tapped, back to the hero (twice quickly locks the camera to it).
     if (k === ' ') {
       e.preventDefault();
-      const now = performance.now();
-      if (now - this.lastSpace < 300) { this.rig.locked = !this.rig.locked; hud.flash(this.rig.locked ? 'camera locked to hero' : 'camera unlocked'); }
-      this.lastSpace = now;
-      this.rig.follow = true;
-      const me = ctl.me();
-      if (me) this.rig.center(me.x, me.y, true);
+      if (!e.repeat && !this.spaceAt) { this.spaceAt = performance.now(); ctl.send({ op: 'sprint', on: true }); }
       return;
     }
     if (e.repeat) return;
@@ -92,17 +111,19 @@ export class Input {
       const kind = wd?.buildable.find((b) => wd.structs[b]?.key.toUpperCase() === up);
       if (kind !== undefined) { ctl.startBuild(kind); return; }
     }
-    const slot = ['Q', 'W', 'E', 'R'].indexOf(up);
+    const slot = KEYS.indexOf(up);
     if (slot >= 0) { ctl.startAbility(slot); return; }
     if (k >= '1' && k <= '7') { const w = Number(k) - 1; const me = ctl.me(); if (me && me.owned & (1 << w)) ctl.send({ op: 'select', w }); return; }
     switch (up) {
       case 'A': ctl.setMode({ k: 'amove' }); return;
       case 'S': ctl.cancel(); ctl.send({ op: 'stop' }); return;
       case 'H': ctl.cancel(); ctl.send({ op: 'hold' }); return;
-      case 'T': ctl.send({ op: 'reload' }); return;
+      case 'T': e.preventDefault(); hud.openChat(); return;
+      case 'R': ctl.send({ op: 'reload' }); return;
       case 'B': hud.buildCard = !hud.buildCard; if (!hud.buildCard) ctl.cancel(); return;
       case 'G': ctl.openArmory(!ctl.armoryOpen); return;
       case 'N': ctl.toggleReady(); return;
+      case 'P': ctl.send({ op: 'pause' }); return;
       case 'U': ctl.upgradeSel(); return;
       case 'X': ctl.sellSel(); return;
       case 'F': ctl.repairSel(); return;

@@ -1,10 +1,12 @@
 import type { ConnState } from '../net';
 import { Emote, Order, PF_ALIVE, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, type Player, type Welcome, sellValue, turretRange } from '../protocol';
-import type { Controller } from '../controller';
+import { type Controller, KEYS } from '../controller';
 import { cssHex, playerColor } from '../scene/util';
 import { Armory } from './armory';
+import { archetypeName, drawPortrait, readLook } from '../scene/look';
 import { el, esc, fmtGold, setClass, setText, show } from './dom';
 import { iconFor, weatherIcon } from './icons';
+import { Compass, where } from './compass';
 import { Minimap } from './minimap';
 
 const ORDER = ['idle', 'moving', 'attack-moving', 'attacking', 'holding', 'building', 'repairing', 'searching', 'reviving'];
@@ -18,19 +20,24 @@ interface Slot { root: HTMLElement; icon: HTMLElement; key: HTMLElement; lvl: HT
 export class Hud {
   root: HTMLElement;
   minimap: Minimap;
+  private compass: Compass;
   armory: Armory;
   buildCard = false;
   private top: { wave: HTMLElement; diff: HTMLElement; weather: HTMLElement; kills: HTMLElement; ready: HTMLButtonElement; readies: HTMLElement };
   private statusEl: HTMLElement;
   private alertsEl: HTMLElement;
   private alertsKey = '';
+  private pauseBtn!: HTMLElement;
+  private face!: CanvasRenderingContext2D;
+  private faceKey = '';
+  private paused!: { root: HTMLElement; sub: HTMLElement };
   private downed: { root: HTMLElement; sub: HTMLElement; bar: HTMLElement; fill: HTMLElement };
   private announceEl: HTMLElement;
   private toastsEl: HTMLElement;
   private chat: { root: HTMLElement; log: HTMLElement; input: HTMLInputElement };
   private hero: {
     portrait: HTMLElement; resp: HTMLElement; name: HTMLElement; hp: HTMLElement; hpTxt: HTMLElement; gold: HTMLElement;
-    weapon: HTMLElement; ammoNum: HTMLElement; reload: HTMLButtonElement; ammo: HTMLElement; ammoBar: HTMLElement; ammoTxt: HTMLElement;
+    stam: HTMLElement; weapon: HTMLElement; ammoNum: HTMLElement; reload: HTMLButtonElement; ammo: HTMLElement; ammoBar: HTMLElement; ammoTxt: HTMLElement;
     order: HTMLElement; buff: HTMLElement;
   };
   private slots: Slot[] = [];
@@ -72,6 +79,13 @@ export class Hud {
     const ready = el('button', 'ready', top, 'Ready');
     ready.title = 'Ready for the next wave (N)';
     ready.onclick = () => ctl.toggleReady();
+    const pauseBtn = el('button', '', top, 'Pause');
+    pauseBtn.title = 'Pause or resume the game for everyone (P)';
+    pauseBtn.onclick = () => ctl.send({ op: 'pause' });
+    this.pauseBtn = pauseBtn;
+    const chatBtn = el('button', '', top, 'Chat');
+    chatBtn.title = 'Chat with the team (T or Enter)';
+    chatBtn.onclick = () => this.openChat();
     const armBtn = el('button', '', top, 'Armory');
     armBtn.title = 'Armory (G)';
     armBtn.onclick = () => ctl.openArmory(!ctl.armoryOpen);
@@ -83,6 +97,7 @@ export class Hud {
     menuBtn.onclick = () => this.toggleMenu();
     this.top = { wave, diff, weather, kills, ready, readies };
     this.statusEl = el('div', 'status', root);
+    this.compass = new Compass(root, ctl.rig);
     this.alertsEl = el('div', 'alerts', root);
 
     // You are down.
@@ -93,6 +108,9 @@ export class Hud {
     const dfill = el('div', 'fill', dbar);
     el('div', 'txt', dbar, 'being revived');
     this.downed = { root: dn, sub, bar: dbar, fill: dfill };
+    const pz = el('div', 'downed paused hidden', root);
+    el('div', 'dh', pz, 'Paused');
+    this.paused = { root: pz, sub: el('div', 'ds', pz) };
 
     this.announceEl = el('div', 'announce', root);
     this.toastsEl = el('div', 'toasts', root);
@@ -103,10 +121,18 @@ export class Hud {
     const log = el('div', 'log', chat);
     const input = el('input', 'hidden', chat);
     input.maxLength = 200;
-    input.placeholder = 'Say something… (Enter sends, Esc closes)';
+    input.placeholder = 'Say something… Tab adds where you are · Enter sends · Esc closes';
     input.addEventListener('keydown', (e) => {
       e.stopPropagation();
-      if (e.key === 'Enter') {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const me = ctl.me(), wd = ctl.game.welcome;
+        if (me && wd) {
+          const at = `(${where(me.x, me.y, wd.core.x, wd.core.y)})`;
+          const v = input.value.trimEnd();
+          input.value = v ? `${v} ${at} ` : `${at} `;
+        }
+      } else if (e.key === 'Enter') {
         const t = input.value.trim();
         if (t) ctl.send({ op: 'chat', text: t });
         this.closeChat();
@@ -122,6 +148,9 @@ export class Hud {
     const hero = el('div', 'hero', con);
     const r1 = el('div', 'row', hero);
     const portrait = el('div', 'portrait', r1);
+    const face = el('canvas', '', portrait) as HTMLCanvasElement;
+    face.width = 16; face.height = 16;
+    this.face = face.getContext('2d')!;
     const resp = el('div', 'resp', portrait);
     const nameCol = el('div', '', r1);
     nameCol.style.minWidth = '0';
@@ -130,19 +159,22 @@ export class Hud {
     const hpBar = el('div', 'bar', hero);
     const hp = el('div', 'fill', hpBar);
     const hpTxt = el('div', 'txt', hpBar);
+    // Stamina runs along the foot of the health bar: hold Space to sprint.
+    const stam = el('div', 'stam', hpBar);
+    hpBar.title = 'Health · the strip along the bottom is stamina, spent sprinting (hold Space)';
     const gun = el('div', 'gun', hero);
     const weapon = el('div', 'wname', gun);
     const ammoNum = el('div', 'ammo crt', gun);
     const reload = el('button', 'reload', gun);
-    reload.innerHTML = 'Reload <kbd>T</kbd>';
+    reload.innerHTML = 'Reload <kbd>R</kbd>';
     reload.onclick = () => ctl.send({ op: 'reload' });
-    this.tipOn(reload, () => '<b>Reload</b><kbd>T</kbd><br>Swap in a fresh magazine now instead of when it runs dry.');
+    this.tipOn(reload, () => '<b>Reload</b><kbd>R</kbd><br>Swap in a fresh magazine now instead of when it runs dry.');
     const ammoBar = el('div', 'bar ammo', hero);
     const ammo = el('div', 'fill', ammoBar);
     const ammoTxt = el('div', 'txt', ammoBar);
     const order = el('div', 'order', hero);
     const buff = el('div', 'buff', hero);
-    this.hero = { portrait, resp, name, hp, hpTxt, gold, weapon, ammoNum, reload, ammo, ammoBar, ammoTxt, order, buff };
+    this.hero = { portrait, resp, name, hp, hpTxt, stam, gold, weapon, ammoNum, reload, ammo, ammoBar, ammoTxt, order, buff };
 
     const actions = el('div', 'actions', con);
     const abil = el('div', 'abilities', actions);
@@ -156,7 +188,7 @@ export class Hud {
       return { root: s, icon, key: k, lvl, cool, coolTxt, name: '', pipsFor: -1, wasCooling: false };
     };
     for (let i = 0; i < 4; i++) {
-      const s = mkSlot('slot', 'QWER'[i]);
+      const s = mkSlot('slot', KEYS[i]);
       s.root.onclick = () => ctl.startAbility(i);
       this.tipOn(s.root, () => this.abilityTip(i));
       this.slots.push(s);
@@ -252,7 +284,9 @@ export class Hud {
     return `<b>${esc(w.name)}</b><br>${w.info ? esc(w.info) : 'No effect on the fight.'}${state}<br><span class="muted">Changes between waves.</span>`;
   }
 
+  // Level 3 is a player's chat line, "name: text"; the others are the game's announcements.
   note(level: number, text: string): void {
+    if (level === 3) { this.chatSaid(text); return; }
     if (level >= 1) {
       const d = el('div', level === 1 ? 'good' : 'bad', this.announceEl, text);
       setTimeout(() => d.remove(), 4000);
@@ -261,10 +295,26 @@ export class Hud {
     this.chatLine(text, level);
   }
 
-  private chatLine(text: string, level: number): void {
+  private chatSaid(text: string): void {
+    const i = text.indexOf(': ');
+    const name = i > 0 ? text.slice(0, i) : '';
+    const f = this.ctl.game.cur;
+    let who: Player | undefined;
+    for (let k = 0; k < f.nPlayers; k++) if (f.players[k].name === name) who = f.players[k];
+    const d = this.chatLine(i > 0 ? text.slice(i + 2) : text, 3, 20000);
+    if (i > 0) {
+      const n = document.createElement('b');
+      n.textContent = name + ': ';
+      if (who) n.style.color = cssHex(playerColor(who.id));
+      d.prepend(n);
+    }
+  }
+
+  private chatLine(text: string, level: number, keep = 9000): HTMLElement {
     const d = el('div', `lvl${level}`, this.chat.log, text);
-    setTimeout(() => d.classList.add('old'), 9000);
+    setTimeout(() => d.classList.add('old'), keep);
     while (this.chat.log.children.length > 12) this.chat.log.firstChild!.remove();
+    return d;
   }
 
   toast(text: string, level = 2): void {
@@ -335,19 +385,22 @@ export class Hud {
       ['Right-click a downed teammate', 'walk over and revive them: stay close until the bar fills'],
       ['<kbd>A</kbd> + left-click', 'attack-move (Shift keeps the mode)'],
       ['<kbd>S</kbd> / <kbd>H</kbd>', 'stop / hold position'],
-      ['<kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd>', 'abilities; point abilities then left-click to cast, right-click or Esc cancels'],
+      ['<kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>D</kbd>', 'abilities; point abilities then left-click to cast, right-click or Esc cancels'],
       ['<kbd>V</kbd>', 'taunt: pull every creep nearby onto you, then a cooldown'],
       ['<kbd>1</kbd>–<kbd>7</kbd>', 'equip an owned weapon'],
-      ['<kbd>T</kbd> or Reload', 'reload now (the button sits next to your ammo)'],
+      ['<kbd>R</kbd> or Reload', 'reload now (the button sits next to your ammo)'],
       ['<kbd>B</kbd>', 'build card; its hotkeys pick a structure, left-click places, Shift keeps placing'],
       ['Left-click', 'select a structure, creep or hero'],
       ['<kbd>U</kbd> / <kbd>X</kbd> / <kbd>F</kbd>', 'upgrade / sell / repair the selected structure'],
       ['<kbd>G</kbd>', 'armory window (opens by itself when you arrive)'],
       ['<kbd>N</kbd>', 'ready for the next wave'],
       ['Wheel', 'zoom · Alt+wheel or middle-drag: rotate'],
-      ['Arrows / screen edge', 'pan · <kbd>Space</kbd> back to your hero, double <kbd>Space</kbd> locks the camera'],
+      ['<kbd>Space</kbd>', 'hold: sprint, until your stamina (the strip under your health) runs out · tap: back to your hero · double tap: lock the camera to it'],
+      ['Arrows / screen edge', 'pan'],
       ['Minimap', 'left-click/drag: look there · right-click: move there'],
-      ['<kbd>Enter</kbd>', 'chat'],
+      ['<kbd>P</kbd>', 'pause or resume the game, for everyone'],
+      ['<kbd>T</kbd> / <kbd>Enter</kbd>', 'chat with the team · in the chat, <kbd>Tab</kbd> adds where you are'],
+      ['Compass', 'the strip at the top shows which way the view faces; click it to turn north up'],
       ['<kbd>Tab</kbd>', 'scoreboard (hold)'],
       ['<kbd>F3</kbd>', 'performance readout'],
       ['<kbd>F4</kbd>', 'pixel view on or off'],
@@ -382,7 +435,7 @@ export class Hud {
       const p = f.players[i];
       const st = !(p.flags & PF_CONNECTED) ? '<span class="st muted">away</span>' : !(p.flags & PF_ALIVE) ? `<span class="st down">down ${p.respawn}s</span>` : '';
       const you = p.id === g.welcome?.you && p.name !== 'you' ? ' <span class="muted">(you)</span>' : '';
-      rows.push(`<tr><td><span class="dot" style="background:${cssHex(playerColor(p.id))}"></span>${esc(p.name)}${you}${st}</td><td>${p.kills}</td><td>${fmtGold(p.damage)}</td><td class="gold">${fmtGold(p.gold)}</td></tr>`);
+      rows.push(`<tr><td><span class="dot" style="background:${cssHex(playerColor(p.id))}"></span>${esc(p.name)}${you} <span class="muted">${esc(readLook(p.look).arch.name)}</span>${st}</td><td>${p.kills}</td><td>${fmtGold(p.damage)}</td><td class="gold">${fmtGold(p.gold)}</td></tr>`);
     }
     return `<table class="scoretable"><tr><th>Survivor</th><th>Kills</th><th>Damage</th><th>Gold</th></tr>${rows.join('')}</table>`;
   }
@@ -397,9 +450,11 @@ export class Hud {
   update(now: number): void {
     const ctl = this.ctl, g = ctl.game, wd = g.welcome, me = ctl.me();
     if (!wd) return;
+    this.compass.update();
     this.updateTop(wd, now);
     if (me) this.updateHero(me, wd, now);
     this.updateDown(me, wd);
+    this.updatePause();
     this.updateCard();
     this.updateMode();
     this.armory.update();
@@ -447,6 +502,18 @@ export class Hud {
     }
   }
 
+  // Anyone may pause; the banner names who did, and anyone may resume.
+  private updatePause(): void {
+    const f = this.ctl.game.cur, by = f.pausedBy;
+    show(this.paused.root, by >= 0);
+    this.pauseBtn.textContent = by >= 0 ? 'Resume' : 'Pause';
+    if (by < 0) return;
+    const p = f.players.slice(0, f.nPlayers).find((q) => q.id === by);
+    const who = by === this.ctl.game.welcome?.you ? 'you' : p ? esc(p.name) : 'a player';
+    const sub = `paused by ${who} · press <kbd>P</kbd> to resume`;
+    if (this.paused.sub.innerHTML !== sub) this.paused.sub.innerHTML = sub;
+  }
+
   // Your own downed banner, and a radio call for each teammate who is down.
   private updateDown(me: Player | null, wd: Welcome): void {
     const ctl = this.ctl, f = ctl.game.cur;
@@ -474,7 +541,7 @@ export class Hud {
       if (p.id !== wd.you && p.flags & PF_CONNECTED && !(p.flags & PF_ALIVE)) rows.push(p);
     }
     const reviving = !!me && me.order === Order.Revive;
-    const key = rows.map((p) => `${p.id}:${p.name}:${p.respawn}:${Math.round(p.revived * 40)}`).join('|') + `:${reviving}`;
+    const key = rows.map((p) => `${p.id}:${p.name}:${p.respawn}:${Math.round(p.revived * 40)}:${where(p.x, p.y, wd.core.x, wd.core.y)}`).join('|') + `:${reviving}`;
     if (key === this.alertsKey) return;
     this.alertsKey = key;
     const root = this.alertsEl;
@@ -486,7 +553,7 @@ export class Hud {
       const t = el('span', 't', d);
       t.innerHTML = p.revived > 0
         ? `<b>${esc(p.name)}</b> is being revived${reviving ? ' · stay close' : ''}`
-        : `<b>${esc(p.name)}</b> is down · right-click them to revive`;
+        : `<b>${esc(p.name)}</b> is down ${esc(where(p.x, p.y, wd.core.x, wd.core.y))} · right-click them to revive`;
       el('span', 'n', d, `${p.respawn}s`);
       if (p.revived > 0) {
         const bar = el('div', 'bar revive', d);
@@ -533,7 +600,12 @@ export class Hud {
   private updateHero(me: Player, wd: Welcome, now: number): void {
     const h = this.hero;
     const alive = (me.flags & PF_ALIVE) !== 0;
-    h.portrait.style.setProperty('--pc', cssHex(playerColor(me.id)));
+    const fk = `${me.id}:${me.look}`;
+    if (fk !== this.faceKey) {
+      this.faceKey = fk;
+      drawPortrait(this.face, readLook(me.look), playerColor(me.id));
+      h.portrait.title = `You are ${archetypeName(me.look)}`;
+    }
     setClass(h.portrait, 'dead', !alive);
     setText(h.resp, alive ? '' : `${me.respawn}`);
     setText(h.name, me.name);
@@ -542,6 +614,9 @@ export class Hud {
     h.hp.style.transform = `scaleX(${frac})`;
     h.hp.style.background = frac > 0.5 ? '' : frac > 0.25 ? 'var(--amber)' : 'var(--rust)';
     setText(h.hpTxt, `${me.hp} / ${me.maxHp}`);
+    h.stam.style.transform = `scaleX(${me.stamina.toFixed(3)})`;
+    setClass(h.stam, 'winded', me.winded);
+    setClass(h.stam, 'full', me.stamina >= 0.999);
     const w = wd.weapons[me.cur];
     setText(h.weapon, w ? w.name : '');
     const reloading = (me.flags & PF_RELOADING) !== 0;

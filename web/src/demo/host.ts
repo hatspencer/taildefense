@@ -27,7 +27,7 @@ interface DPlayer {
   owned: number; levels: Uint8Array; gear: Uint8Array; order: number; tx: number; ty: number; target: number;
   buildKind: number; repairId: number; buff: number; buffLeft: number; abLevel: number[]; abCool: number[];
   ready: boolean; fireCd: number; shot: number; hurt: number; moving: boolean; wander: number;
-  site: number; searchT: number; revTarget: number; channel: number; emoteLeft: number; tauntCool: number; downT: number;
+  site: number; searchT: number; revTarget: number; channel: number; emoteLeft: number; tauntCool: number; downT: number; look: number;
 }
 interface DStruct { alive: boolean; kind: number; x: number; y: number; w: number; h: number; hp: number; maxHp: number; level: number; owner: number; cd: number }
 interface DEffect { kind: number; x0: number; y0: number; x: number; y: number; r: number; left: number; total: number; owner: number; dmg: number }
@@ -57,6 +57,7 @@ export class DemoHost implements Transport {
   private sites: SiteDef[] = [];
   private searched = new Uint8Array(0);
   private guardIds: number[][] = [];
+  private paused = -1;
   private weather = 0; private weatherAmt = 0; private nextWeather = 0; private weatherT = 0; private boltT = 2;
 
   // Creeps, by id.
@@ -199,6 +200,8 @@ export class DemoHost implements Transport {
       levels: new Uint8Array(28), gear: new Uint8Array(4), order: Order.Idle, tx: x, ty: y, target: -1, buildKind: 0,
       repairId: -1, buff: 0, buffLeft: 0, abLevel: [1, 0, 0, 0], abCool: [0, 0, 0, 0], ready: bot, fireCd: 0, shot: 0, hurt: 0,
       moving: false, wander: 2 + id, site: -1, searchT: 0, revTarget: -1, channel: 0, emoteLeft: 0, tauntCool: 0, downT: 0,
+      // A random survivor, a different outfit for each.
+      look: ((Math.floor(this.rnd() * 0x10000000) << 4) | (id * 3 % 10)) >>> 0,
     };
     p.levels[cur * 4] = 2;
     this.players.push(p);
@@ -948,10 +951,9 @@ export class DemoHost implements Transport {
   }
 
   private step(): void {
-    this.tick++;
     this.tr.length = 0; this.bl.length = 0; this.de.length = 0;
-    this.stepPhase();
-    if (this.phase !== Phase.Over) {
+    if (this.paused < 0) { this.tick++; this.stepPhase(); }
+    if (this.phase !== Phase.Over && this.paused < 0) {
       this.buildGrid();
       this.stepWeather();
       this.wakeGuards();
@@ -974,7 +976,7 @@ export class DemoHost implements Transport {
     w.reset();
     w.u8(1); w.u32(this.tick); w.u8(this.phase); w.u16(this.wave); w.u16(Math.max(0, this.phaseLeft));
     w.u32(this.pending); w.u32(this.totalKills); w.u16(this.best);
-    w.u8(this.weather); w.u8(Math.round(this.weatherAmt * 255));
+    w.u8(this.weather); w.u8(Math.round(this.weatherAmt * 255)); w.u8(this.paused + 1);
     w.u8(this.players.length);
     for (const p of this.players) {
       const alive = p.hp > 0;
@@ -1000,6 +1002,7 @@ export class DemoHost implements Transport {
       if (!alive) for (const o of this.players) if (o.order === Order.Revive && o.revTarget === p.id) rev = Math.max(rev, o.channel);
       w.u8(Math.min(255, rev * 255));
       w.u8(p.emoteLeft > 0 ? Emote.Taunt : Emote.None); w.u8(Math.ceil(p.emoteLeft * 10)); w.u16(Math.ceil(p.tauntCool * 10));
+      w.u8(255); w.u8(0); w.u32(p.look);
       w.u8(p.buff); w.u8(Math.max(0, p.buffLeft * 10));
       for (let a = 0; a < 4; a++) { w.u8(p.abLevel[a]); w.u16(p.abCool[a] * 10); }
       w.str8(p.name);
@@ -1135,7 +1138,11 @@ export class DemoHost implements Transport {
         p.order = Order.Revive; p.revTarget = o.id; p.channel = 0;
         break;
       }
-      case 'chat': this.notes.push({ level: 0, text: `${p.name}: ${cmd.text}` }); break;
+      case 'chat': this.notes.push({ level: 3, text: `${p.name}: ${cmd.text}` }); break;
+      case 'pause':
+        this.paused = this.paused >= 0 ? -1 : p.id;
+        this.notes.push({ level: 0, text: `${p.name} ${this.paused >= 0 ? 'paused' : 'resumed'} the game` });
+        break;
       case 'restart':
         if (this.phase === Phase.Over) { this.opt.phase = 'build'; this.reset(); dispatch(this.h, JSON.stringify(this.welcome)); const t = new Uint8Array(1 + W * H); t[0] = 2; t.set(this.tiles, 1); dispatch(this.h, t.buffer); }
         else this.toast('restart only once the game is over');

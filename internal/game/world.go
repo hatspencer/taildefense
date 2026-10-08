@@ -98,7 +98,13 @@ type Player struct {
 	Emote     uint8   // 0 none, 1 taunting
 	EmoteLeft float32
 	TauntCool float32
-	Dry       uint8 // searches in a row that found little, which makes the next luckier
+	Sprint    bool    // sprint held
+	Winded    bool    // stamina ran out; no sprinting until it is back to windedUntil
+	Stamina   float32 // 0..1
+	noise     float32 // seconds until firing makes noise again
+	Dry       uint8   // searches in a row that found little, which makes the next luckier
+	lastAct   uint32  // the tick of the player's last command
+	Look      uint32  // what the survivor looks like, dealt on joining; see Look
 
 	walk walker
 }
@@ -159,8 +165,11 @@ type Death struct {
 // Note is an announcement shown to everyone.
 type Note struct {
 	Text  string
-	Level uint8 // 0 info, 1 good, 2 bad
+	Level uint8 // 0 info, 1 good, 2 bad, NoteChat a player talking
 }
+
+// NoteChat is the level of a player's chat line, "name: text".
+const NoteChat uint8 = 3
 
 // Projectile is a rocket in flight.
 type Projectile struct {
@@ -206,6 +215,12 @@ type World struct {
 	WaveTime   float32
 	Queue      []Spawn // pending spawns of this wave, sorted by At
 	QueueHead  int
+	Paused     int8 // the player who paused the game, or -1 while it runs
+	sentNotes  int  // how many of Notes and Toasts the last tick already carried
+	sentToasts int
+	stall      float32 // seconds since a creep of the wave last died, once all are out
+	overtime   float32 // seconds since the wave's last spawn
+	waveLeft   int     // creeps of the wave alive at the last count
 	SpawnPts   [][2]float32
 	Core       int // structure index of the generator
 	Armory     int
@@ -242,9 +257,9 @@ func NewGame(seed uint64, diff Difficulty) *World {
 	if diff >= NumDifficulties {
 		diff = DefaultDifficulty
 	}
-	wd := &World{W: w, H: h, Seed: seed, Diff: diff, shooter: -1, rng: rand.New(rand.NewPCG(seed, seed^0x9e3779b97f4a7c15))}
-	var houses [][4]int
-	wd.Terrain, houses = generate(seed, w, h)
+	wd := &World{W: w, H: h, Seed: seed, Diff: diff, shooter: -1, Paused: -1, rng: rand.New(rand.NewPCG(seed, seed^0x9e3779b97f4a7c15))}
+	var ruins []ruin
+	wd.Terrain, ruins = generate(seed, w, h)
 	wd.structAt = make([]int16, w*h)
 	for i := range wd.structAt {
 		wd.structAt[i] = -1
@@ -272,7 +287,7 @@ func NewGame(seed uint64, diff Difficulty) *World {
 		}
 	}
 	wd.SpawnPts = pts
-	wd.Sites = wd.placeSites(houses)
+	wd.Sites = wd.placeSites(ruins)
 	for i := range wd.Sites {
 		wd.spawnGuards(i)
 	}
@@ -378,9 +393,17 @@ func Generate(seed uint64, w, h int) []Tile {
 	return t
 }
 
-// generate is Generate, also returning each ruined house as x, y, w, h.
-func generate(seed uint64, w, h int) ([]Tile, [][4]int) {
-	var houses [][4]int
+// ruin is a walled place the generator built: a ruined house or an overrun outpost. For an
+// outpost, cx, cy is the middle of its keep.
+type ruin struct {
+	x, y, w, h int
+	outpost    bool
+	cx, cy     int
+}
+
+// generate is Generate, also returning the ruins it built.
+func generate(seed uint64, w, h int) ([]Tile, []ruin) {
+	var houses []ruin
 	rng := rand.New(rand.NewPCG(seed, 0x5eed))
 	t := make([]Tile, w*h)
 	n1 := newNoise(rng)
@@ -411,7 +434,7 @@ func generate(seed uint64, w, h int) ([]Tile, [][4]int) {
 		if abs(bx+bw/2-w/2) < 34 && abs(by+bh/2-h/2) < 30 {
 			continue
 		}
-		houses = append(houses, [4]int{bx, by, bw, bh})
+		houses = append(houses, ruin{x: bx, y: by, w: bw, h: bh})
 		door := rng.IntN(2*(bw+bh) - 4)
 		k := 0
 		for y := by; y < by+bh; y++ {
@@ -430,6 +453,7 @@ func generate(seed uint64, w, h int) ([]Tile, [][4]int) {
 			}
 		}
 	}
+	houses = outposts(t, w, h, rng, houses)
 	// Roads from each edge to the base, wobbling a little, two tiles wide.
 	cx, cy := w/2, h/2
 	for _, e := range [][2]int{{0, cy}, {w - 1, cy}, {cx, 0}, {cx, h - 1}} {
@@ -524,4 +548,94 @@ func sign(v int) int {
 		return -1
 	}
 	return 0
+}
+
+// outposts builds the overrun outposts, big walled compounds well out from the base: an outer
+// wall with a gate on each side, a few walls breaking up the yard, and a keep in the middle
+// with a door. Houses they land on are torn down.
+func outposts(t []Tile, w, h int, rng *rand.Rand, houses []ruin) []ruin {
+	var forts []ruin
+	set := func(x, y int, k Tile) {
+		if x > 0 && y > 0 && x < w-1 && y < h-1 {
+			t[y*w+x] = k
+		}
+	}
+	for try := 0; try < 400 && len(forts) < 3; try++ {
+		fw, fh := 20+rng.IntN(7), 16+rng.IntN(5)
+		fx, fy := 3+rng.IntN(w-fw-6), 3+rng.IntN(h-fh-6)
+		cx, cy := fx+fw/2, fy+fh/2
+		if math.Hypot(float64(cx-w/2), float64(cy-h/2)) < 80 {
+			continue
+		}
+		clash := false
+		for _, f := range forts {
+			if fx < f.x+f.w+16 && f.x < fx+fw+16 && fy < f.y+f.h+16 && f.y < fy+fh+16 {
+				clash = true
+			}
+		}
+		if clash {
+			continue
+		}
+		// Clear the ground, a margin round it too, and the houses on it.
+		for y := fy - 2; y < fy+fh+2; y++ {
+			for x := fx - 2; x < fx+fw+2; x++ {
+				set(x, y, TDirt)
+			}
+		}
+		kept := houses[:0]
+		for _, r := range houses {
+			if r.x < fx+fw+2 && fx-2 < r.x+r.w && r.y < fy+fh+2 && fy-2 < r.y+r.h {
+				continue
+			}
+			kept = append(kept, r)
+		}
+		houses = kept
+		// The outer wall, with a three-wide gate in the middle of each side.
+		for x := fx; x < fx+fw; x++ {
+			if abs(x-cx) > 1 {
+				set(x, fy, TRock)
+				set(x, fy+fh-1, TRock)
+			}
+		}
+		for y := fy; y < fy+fh; y++ {
+			if abs(y-cy) > 1 {
+				set(fx, y, TRock)
+				set(fx+fw-1, y, TRock)
+			}
+		}
+		// The keep: 8 by 6 round the middle, its door facing a random side.
+		kx, ky, kw, kh := cx-4, cy-3, 8, 6
+		door := rng.IntN(4)
+		for x := kx; x < kx+kw; x++ {
+			for _, y := range []int{ky, ky + kh - 1} {
+				if !((door == 0 && y == ky || door == 1 && y == ky+kh-1) && abs(x-cx) <= 1) {
+					set(x, y, TRock)
+				}
+			}
+		}
+		for y := ky; y < ky+kh; y++ {
+			for _, x := range []int{kx, kx + kw - 1} {
+				if !((door == 2 && x == kx || door == 3 && x == kx+kw-1) && abs(y-cy) <= 1) {
+					set(x, y, TRock)
+				}
+			}
+		}
+		// Broken walls across the yard, cover for the guards and for whoever comes in.
+		for i := 0; i < 4; i++ {
+			x, y := fx+2+rng.IntN(fw-4), fy+2+rng.IntN(fh-4)
+			if x >= kx-2 && x < kx+kw+2 && y >= ky-2 && y < ky+kh+2 {
+				continue
+			}
+			n := 3 + rng.IntN(3)
+			for k := 0; k < n; k++ {
+				if i%2 == 0 {
+					set(x+k, y, TRock)
+				} else {
+					set(x, y+k, TRock)
+				}
+			}
+		}
+		forts = append(forts, ruin{x: fx, y: fy, w: fw, h: fh, outpost: true, cx: cx, cy: cy})
+	}
+	return append(forts, houses...)
 }

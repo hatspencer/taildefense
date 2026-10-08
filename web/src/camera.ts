@@ -81,6 +81,11 @@ export class CameraRig {
   setDist(d: number): void { void this.controls.dollyTo(Math.min(MAX_DIST, Math.max(MIN_DIST, d)), false); }
   rotate(rad: number): void { void this.controls.rotate(rad, 0, true); }
   setYaw(rad: number): void { void this.controls.rotateAzimuthTo(rad, false); }
+  // Turns the view north up by the shorter way round.
+  faceNorth(): void {
+    const y = this.controls.azimuthAngle;
+    void this.controls.rotateAzimuthTo(Math.round(y / (2 * Math.PI)) * 2 * Math.PI, true);
+  }
 
   // Pans along the ground by screen-relative amounts in tiles: dx right, dy up the screen.
   // truck() would move along the tilted view plane and lift the target off the ground.

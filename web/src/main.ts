@@ -183,7 +183,7 @@ async function main(): Promise<void> {
       }
     }
   };
-  (window as unknown as { td: unknown }).td = { game, ctl, rig, hud, world, get transport() { return transport; } };
+  (window as unknown as { td: unknown }).td = { game, ctl, rig, hud, world, heroes, get transport() { return transport; } };
 
   // The 8-bit view: #px=N or the saved choice sets the block size, 0 turns it off, F4 toggles.
   let pixelPref = 'auto';

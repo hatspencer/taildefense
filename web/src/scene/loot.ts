@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { color, positionWorld, sin, time } from 'three/tsl';
-import { type SiteDef, SiteKind, siteX, siteY } from '../protocol';
+import { propKind, type SiteDef, SiteKind, siteX, siteY, walled } from '../protocol';
 import type { Game } from '../state';
 import { box, cyl, lin, merge, octa, part, writeMatrix, type Part } from './util';
 
@@ -143,8 +143,8 @@ export class Loot {
     this.px = new Float32Array(n); this.pz = new Float32Array(n); this.yaw = new Float32Array(n);
     const counts = [0, 0, 0];
     sites.forEach((s, i) => {
-      counts[s.kind] = (counts[s.kind] ?? 0) + 1;
-      if (s.kind !== SiteKind.House) {
+      counts[propKind(s.kind)] = (counts[propKind(s.kind)] ?? 0) + 1;
+      if (!walled(s.kind)) {
         this.px[i] = siteX(s); this.pz[i] = siteY(s);
         this.yaw[i] = s.kind === SiteKind.Car ? hash(i, 1) * 6.28 : (Math.floor(hash(i, 1) * 4) + (hash(i, 2) - 0.5) * 0.4) * Math.PI / 2;
         return;
@@ -182,9 +182,10 @@ export class Loot {
     const c = new THREE.Color();
     for (let i = 0; i < this.sites.length; i++) {
       const s = this.sites[i];
-      if (s.kind < 0 || s.kind > 2) continue;
+      const pk = propKind(s.kind);
+      if (pk < 0 || pk > 2) continue;
       const open = f.siteSearched(i);
-      const k = s.kind * 2 + (open ? 1 : 0), m = this.meshes[k], j = fill[k]++;
+      const k = pk * 2 + (open ? 1 : 0), m = this.meshes[k], j = fill[k]++;
       writeMatrix(m.instanceMatrix.array as Float32Array, j * 16, this.px[i], 0, this.pz[i], this.yaw[i], 1);
       if (s.kind === SiteKind.Car) c.copy(lin(PAINT[Math.floor(hash(i, 3) * PAINT.length)])).multiplyScalar(1 / lin(CAR_BODY).r);
       else c.setRGB(1, 1, 1);
@@ -210,7 +211,7 @@ export class Loot {
     let n = 0;
     for (let i = 0; i < this.sites.length; i++) {
       if (f.siteSearched(i)) continue;
-      const k = this.sites[i].kind, ph = hash(i, 5) * 6.28;
+      const k = propKind(this.sites[i].kind), ph = hash(i, 5) * 6.28;
       const s = 1 + 0.18 * Math.sin(t * 3.2 + ph);
       writeMatrix(a, n++ * 16, this.px[i], (GLINT_Y[k] ?? 1.2) + Math.sin(t * 1.8 + ph) * 0.08, this.pz[i], t * 1.5 + ph, s, s * 1.6);
     }

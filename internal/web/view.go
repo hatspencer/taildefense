@@ -60,6 +60,7 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 	e.u16(uint16(r.Best))
 	e.u8(uint8(r.Weather))
 	e.u8(uint8(min(max(r.WeatherAmt, 0), 1) * 255))
+	e.u8(uint8(r.PausedBy + 1))
 
 	e.u8(uint8(len(r.Players)))
 	for i := range r.Players {
@@ -110,6 +111,16 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 		e.u8(p.Emote)
 		e.u8(deci8(p.EmoteLeft))
 		e.u16(deci16(p.TauntCool))
+		e.u8(uint8(min(max(p.Stamina, 0), 1) * 255))
+		var sp uint8
+		if p.Sprinting {
+			sp |= 1
+		}
+		if p.Winded {
+			sp |= 2
+		}
+		e.u8(sp)
+		e.u32(p.Look)
 		e.u8(p.Buff)
 		e.u8(deci8(p.BuffLeft))
 		for _, a := range p.Abil {

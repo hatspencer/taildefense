@@ -305,6 +305,7 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 	b.u16(uint16(w.Best))
 	b.u8(uint8(w.Weather))
 	b.u8(uint8(w.WeatherAmt * 255))
+	b.u8(uint8(w.Paused + 1))
 	// Per loot site: searched in bit 7, living guards below; small enough to send whole.
 	b.uv(uint64(len(w.Sites)))
 	for i := range w.Sites {
@@ -364,6 +365,16 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 		b.u8(p.Emote)
 		b.u8(deci(p.EmoteLeft))
 		b.u16(uint16(min(math.Ceil(float64(p.TauntCool*10)), 65535)))
+		b.u8(uint8(min(max(p.Stamina, 0), 1) * 255))
+		sprint := uint8(0)
+		if p.Sprinting() && p.Moving {
+			sprint |= 1
+		}
+		if p.Winded {
+			sprint |= 2
+		}
+		b.u8(sprint)
+		b.u32(p.Look)
 		b.u8(uint8(p.Cur))
 		b.u16(uint16(max(ws.Ammo, 0)))
 		st := game.WeaponStats(p.Cur, ws.Lv)
