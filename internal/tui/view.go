@@ -253,7 +253,7 @@ func (m *Model) joinView(elapsed time.Duration, room int) []string {
 	}
 	out = append(out, rows...)
 	if incompatible {
-		out = append(out, "", gutter+ui.StyleYellow.Render("✗ another game protocol: whoever runs the older td updates (u here)"))
+		out = append(out, "", gutter+ui.StyleYellow.Render("✗ another td: host and players must run the same one; td update on both (u here)"))
 	}
 	if m.notice != "" {
 		out = append(out, "", gutter+m.noticeText())

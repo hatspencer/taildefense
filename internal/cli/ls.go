@@ -12,6 +12,7 @@ import (
 	"taildefense/internal/netplay"
 	"taildefense/internal/tailnet"
 	"taildefense/internal/ui"
+	"taildefense/internal/version"
 )
 
 // discover is netplay.Discover, a variable so tests list games without probing anything.
@@ -96,7 +97,7 @@ func GameOf(f netplay.Found) LsGame {
 	return LsGame{
 		Addr: f.Addr, Peer: f.Peer, Host: f.Host, Owner: f.Owner, Players: players, Max: f.Max,
 		Wave: f.Wave, Phase: f.Phase, Version: f.Version, Proto: f.Proto,
-		Compatible: f.Proto == netplay.Proto, PingMs: f.RTT.Milliseconds(), Started: f.Started,
+		Compatible: f.Proto == netplay.Proto && netplay.SameVersion(f.Version, version.Current()), PingMs: f.RTT.Milliseconds(), Started: f.Started,
 	}
 }
 
@@ -155,7 +156,7 @@ func Ls(w io.Writer, o LsOptions) int {
 	}
 	p.Raw(ui.Table(rows, "  "))
 	if incompatible {
-		p.Warn("✗ runs another protocol: whoever is older runs td update")
+		p.Warn("✗ runs another td: host and players must run the same one; run td update on both machines")
 	}
 	return 0
 }
