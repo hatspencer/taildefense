@@ -227,7 +227,9 @@ export class DemoHost implements Transport {
         const d = Math.hypot(x - cx, (y - cy) * 1.3);
         if (d < minD || this.tiles[y * W + x] !== tile || !free(x, y)) continue;
         const tr = tier(x, y);
-        sites.push({ kind, x, y, w: 1, h: 1, sx: x + 0.5, sy: y + 0.5, tier: tr, guard: r() < 0.3 ? 0 : Math.min(2, tr) });
+        // Wrecks come in kinds: the plain car most, the army truck only far out.
+        const k = kind !== SiteKind.Car ? kind : [SiteKind.Car, SiteKind.Car, SiteKind.Pickup, SiteKind.Police, SiteKind.Ambulance, SiteKind.Bus, tr === 2 ? SiteKind.Army : SiteKind.Car][Math.floor(r() * 7)];
+        sites.push({ kind: k, x, y, w: 1, h: 1, sx: x + 0.5, sy: y + 0.5, tier: tr, guard: r() < 0.3 ? 0 : Math.min(2, tr) });
         n++;
       }
     };

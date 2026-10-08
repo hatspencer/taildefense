@@ -12,11 +12,25 @@ import (
 type SiteKind uint8
 
 const (
-	SiteHouse   SiteKind = iota // a ruined house; searched from inside
-	SiteCar                     // a car wreck on a track
-	SiteCrate                   // a supply crate in the open
-	SiteOutpost                 // an overrun outpost: a big walled compound, searched in its keep
+	SiteHouse     SiteKind = iota // a ruined house; searched from inside
+	SiteCar                       // a car wreck on a track
+	SiteCrate                     // a supply crate in the open
+	SiteOutpost                   // an overrun outpost: a big walled compound, searched in its keep
+	SitePickup                    // a pickup truck, its bed full of tools
+	SitePolice                    // a police cruiser, the shotgun rack still locked
+	SiteAmbulance                 // an ambulance; its kit patches up the searcher
+	SiteBus                       // a school bus: slow to search, two finds, often a nest inside
+	SiteArmy                      // an army truck far out, always guarded
 	NumSiteKinds
+)
+
+// Favor is what kind of find a site leans towards.
+type Favor uint8
+
+const (
+	FavorNone Favor = iota
+	FavorWeapons
+	FavorGear
 )
 
 // SiteDef is a kind of loot site.
@@ -25,14 +39,37 @@ type SiteDef struct {
 	Search float32 // seconds a search takes
 	Luck   float64 // added to the searcher's luck
 	Trap   float32 // chance a search wakes a nest
+	Favor  Favor   // the kind of find it leans towards
+	Finds  int     // finds a search turns up, 1 when 0
+	Heal   bool    // the search patches the searcher up to full health
+	Guard  uint8   // the least guard level it is ever placed with
 }
 
 // SiteDefs is indexed by SiteKind.
 var SiteDefs = [NumSiteKinds]SiteDef{
-	SiteHouse:   {Name: "Ruined house", Search: 3, Luck: .5, Trap: .1},
-	SiteCar:     {Name: "Car wreck", Search: 2},
-	SiteCrate:   {Name: "Supply crate", Search: 1.5, Luck: .25},
-	SiteOutpost: {Name: "Overrun outpost", Search: 6, Luck: 2},
+	SiteHouse:     {Name: "Ruined house", Search: 3, Luck: .5, Trap: .1},
+	SiteCar:       {Name: "Car wreck", Search: 2},
+	SiteCrate:     {Name: "Supply crate", Search: 1.5, Luck: .25},
+	SiteOutpost:   {Name: "Overrun outpost", Search: 6, Luck: 2},
+	SitePickup:    {Name: "Pickup truck", Search: 2.5, Luck: .25, Favor: FavorGear},
+	SitePolice:    {Name: "Police cruiser", Search: 2.5, Luck: .5, Favor: FavorWeapons},
+	SiteAmbulance: {Name: "Ambulance", Search: 3, Luck: .25, Favor: FavorGear, Heal: true},
+	SiteBus:       {Name: "School bus", Search: 4, Luck: .25, Trap: .3, Finds: 2},
+	SiteArmy:      {Name: "Army truck", Search: 3.5, Luck: 1.25, Favor: FavorWeapons, Guard: 2},
+}
+
+// Wreck reports whether a site is a vehicle on a road.
+func (k SiteKind) Wreck() bool { return k == SiteCar || k >= SitePickup }
+
+// wreckOdds is how often each kind of wreck turns up on the roads, by tier: plain cars and
+// pickups everywhere, the bus nearer town, the police and the army further out.
+var wreckOdds = [3][]struct {
+	Kind SiteKind
+	Odds int
+}{
+	{{SiteCar, 50}, {SitePickup, 22}, {SiteBus, 16}, {SiteAmbulance, 12}},
+	{{SiteCar, 30}, {SitePickup, 20}, {SitePolice, 20}, {SiteAmbulance, 14}, {SiteBus, 10}, {SiteArmy, 6}},
+	{{SiteCar, 22}, {SitePickup, 14}, {SitePolice, 20}, {SiteAmbulance, 12}, {SiteBus, 8}, {SiteArmy, 24}},
 }
 
 // Walled reports whether a site is a building searched from inside, rather than a thing in
@@ -140,8 +177,18 @@ func (w *World) search(p *Player, si int) {
 		w.searchOutpost(p, s)
 		return
 	}
-	r := w.ceil(s, RollRarity(w.rng.Float64(), w.Luck(p, s)))
-	what := w.grant(p, r)
+	r := Junk
+	var got []string
+	for i := 0; i < max(d.Finds, 1); i++ {
+		ri := w.ceil(s, RollRarity(w.rng.Float64(), w.Luck(p, s)))
+		r = max(r, ri)
+		got = append(got, w.grant(p, ri, d.Favor))
+	}
+	what := strings.Join(got, " and ")
+	if d.Heal && p.HP < p.MaxHP {
+		p.HP = p.MaxHP
+		what += ", and patched up with its kit"
+	}
 	switch {
 	case r == Junk:
 		p.Dry = min(p.Dry+1, 6)
@@ -191,7 +238,7 @@ func (w *World) searchOutpost(p *Player, s *Site) {
 		}
 		r := max(RollRarity(w.rng.Float64(), w.Luck(p, s)), floor)
 		best = max(best, r)
-		got = append(got, w.grant(p, r))
+		got = append(got, w.grant(p, r, FavorNone))
 	}
 	p.Dry = 0
 	w.Blasts = append(w.Blasts, Blast{s.SX, s.SY, 1.5, 5})
@@ -248,9 +295,24 @@ func (w *World) lootGold(lo, hi int) int32 {
 	return int32(float32(lo+w.rng.IntN(hi-lo+1)) * (1 + .08*float32(w.Wave)) * w.diff().Gold)
 }
 
-// grant gives p a find of rarity r and says what it was. Whatever cannot be given (a weapon
+// pick is one of n kinds of find, the favoured one (if any) more often than the others.
+func (w *World) pick(n, favored int) int {
+	if favored >= 0 && w.rng.IntN(10) < 6 {
+		return favored
+	}
+	return w.rng.IntN(n)
+}
+
+// grant gives p a find of rarity r, leaning towards what f favours, and says what it was. Whatever cannot be given (a weapon
 // already owned, an upgrade already maxed) becomes gold instead.
-func (w *World) grant(p *Player, r Rarity) string {
+func (w *World) grant(p *Player, r Rarity, f Favor) string {
+	good, rare := -1, -1
+	switch f {
+	case FavorWeapons:
+		good, rare = 0, 1
+	case FavorGear:
+		good, rare = 1, 2
+	}
 	gold := func(g int32) string {
 		p.Gold += g
 		return fmt.Sprintf("%d gold", g)
@@ -266,7 +328,7 @@ func (w *World) grant(p *Player, r Rarity) string {
 		}
 		return gold(w.lootGold(30, 120))
 	case Good:
-		switch w.rng.IntN(3) {
+		switch w.pick(3, good) {
 		case 0:
 			if s, ok := w.giveWeapon(p, w.unowned(p, Weapons[WRifle].Price), 0); ok {
 				return s
@@ -278,7 +340,7 @@ func (w *World) grant(p *Player, r Rarity) string {
 		}
 		return gold(w.lootGold(150, 300))
 	case Rare:
-		switch w.rng.IntN(3) {
+		switch w.pick(3, rare) {
 		case 0:
 			if s, ok := w.giveAbility(p); ok {
 				return s
@@ -413,6 +475,34 @@ const (
 	tierFar = 120
 )
 
+// tierAt is the tier of a place dx, dy from the generator.
+func tierAt(dx, dy float32) uint8 {
+	switch d := sqrt32(dx*dx + dy*dy); {
+	case d >= tierFar:
+		return 2
+	case d >= tierMid:
+		return 1
+	}
+	return 0
+}
+
+// wreckKind picks what a wreck on the road is, by its tier.
+func wreckKind(rng *rand.Rand, tier uint8) SiteKind {
+	odds := wreckOdds[tier]
+	total := 0
+	for _, o := range odds {
+		total += o.Odds
+	}
+	r := rng.IntN(total)
+	for _, o := range odds {
+		if r < o.Odds {
+			return o.Kind
+		}
+		r -= o.Odds
+	}
+	return SiteCar
+}
+
 // placeSites turns the ruined houses into loot sites and scatters car wrecks and crates,
 // keeping only those a survivor can reach. It draws on its own generator, so the terrain
 // of a seed is the same with or without them.
@@ -432,14 +522,7 @@ func (w *World) placeSites(ruins []ruin) []Site {
 		return false
 	}
 	add := func(k SiteKind, x, y, sw, sh int, sx, sy float32) {
-		dx, dy := sx-w.CoreX, sy-w.CoreY
-		d := sqrt32(dx*dx + dy*dy)
-		tier := uint8(0)
-		if d >= tierFar {
-			tier = 2
-		} else if d >= tierMid {
-			tier = 1
-		}
+		tier := tierAt(sx-w.CoreX, sy-w.CoreY)
 		// Further out is guarded harder; a crate in the open less often than a house.
 		wt := guardOdds[tier]
 		if k == SiteCrate {
@@ -453,6 +536,7 @@ func (w *World) placeSites(ruins []ruin) []Site {
 		if k == SiteOutpost {
 			g = 4
 		}
+		g = max(g, SiteDefs[k].Guard)
 		sites = append(sites, Site{Kind: k, X: int16(x), Y: int16(y), W: uint8(sw), H: uint8(sh), SX: sx, SY: sy, Tier: tier, Guard: g})
 	}
 	for _, h := range ruins {
@@ -472,7 +556,7 @@ func (w *World) placeSites(ruins []ruin) []Site {
 		}
 		add(SiteHouse, x, y, hw, hh, sx, sy)
 	}
-	want := [NumSiteKinds]int{SiteCar: 22, SiteCrate: 22}
+	want := [NumSiteKinds]int{SiteCar: 30, SiteCrate: 22}
 	for try := 0; try < 4000 && (want[SiteCar] > 0 || want[SiteCrate] > 0); try++ {
 		x, y := 3+rng.IntN(w.W-6), 3+rng.IntN(w.H-6)
 		sx, sy := float32(x)+.5, float32(y)+.5
@@ -491,6 +575,9 @@ func (w *World) placeSites(ruins []ruin) []Site {
 			continue
 		}
 		want[k]--
+		if k == SiteCar {
+			k = wreckKind(rng, tierAt(sx-w.CoreX, sy-w.CoreY))
+		}
 		add(k, x, y, 1, 1, sx, sy)
 	}
 	return sites

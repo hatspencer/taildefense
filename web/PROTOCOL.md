@@ -89,13 +89,19 @@ everything it knows, a terrain message follows).
   "siteKinds": [               // index = site kind
     {"name": "Ruined house", "search": 3},   // search: seconds it takes
     {"name": "Car wreck", "search": 2},
-    {"name": "Supply crate", "search": 1.5}
+    {"name": "Supply crate", "search": 1.5},
+    {"name": "Overrun outpost", "search": 6},
+    {"name": "Pickup truck", "search": 2.5},
+    {"name": "Police cruiser", "search": 2.5},
+    {"name": "Ambulance", "search": 3},
+    {"name": "School bus", "search": 4},
+    {"name": "Army truck", "search": 3.5}
   ],
   "sites": [                   // index = site id, used in the loot command
     {"kind": 0, "x": 40, "y": 30, "w": 8, "h": 6,  // tiles covered: the house with its walls
      "sx": 43.5, "sy": 32.5,                        // the spot a survivor searches from
      "tier": 2,                                     // 0 near the base .. 2 far out: better loot
-     "guard": 2}                                    // 0 unguarded .. 3 a lair: how hard its guards are
+     "guard": 2}                                    // 0 unguarded .. 3 a lair, 4 a garrison: how hard its guards are
   ]
 }
 ```
@@ -116,15 +122,22 @@ health and wave size, the gold creeps drop, the build time between waves, the st
 loot guards and how long a downed survivor can be revived.
 
 Loot sites are fixed for a map. A house is a ruin of rock tiles with a doorway; the
-searcher stands inside at `sx, sy`. A car wreck or a crate covers one tile and is not solid.
+searcher stands inside at `sx, sy`; an outpost is a walled fort searched in its keep. A wreck
+(kinds 1 and 4..8: car, pickup, police cruiser, ambulance, school bus, army truck) or a crate
+covers one tile and is not solid; the client draws the vehicle round it. Pickups and
+ambulances lean towards gear, cruisers and army trucks towards weapons; an ambulance's kit
+heals the searcher, a bus gives two finds and often hides a nest, and an army truck is always
+guarded.
 Each site can be searched once; whether it has been is in every frame. Every fifth wave
 some searched sites are restocked, and their guards come back.
 
 Most sites are guarded, like small dungeons: creeps (flag 4) sleep around them from the
 start of the game, stronger the higher the site's `guard`. Guards do not take part in waves
 and a wave ends without them. They wake when a survivor comes close or shoots one, chase,
-and go back home when led too far away. A site cannot be searched while any of its guards
-lives; the frame carries how many are left per site. Better guarded sites find better loot.
+and go back home when led too far away. A site can be searched with its guards still alive,
+if you dare; the frame carries how many are left per site. Better guarded sites find better
+loot, and the guard level caps it: unguarded sites never give more than a common find, bar
+now and then.
 
 The signature ability (slot 0, Q) depends on the equipped weapon: its name, cooldown and range
 are in `weapons[cur].sig`. It is always available at level 1. Slots 1–3 start at level 0

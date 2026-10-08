@@ -15,11 +15,13 @@ export const enum Order { Idle = 0, Move, AMove, Attack, Hold, Build, Repair, Lo
 export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake }
 export const enum Weather { Clear = 0, Fog, Rain, Storm, Snow }
 export const enum Emote { None = 0, Taunt }
-export const enum SiteKind { House = 0, Car, Crate, Outpost }
+export const enum SiteKind { House = 0, Car, Crate, Outpost, Pickup, Police, Ambulance, Bus, Army }
 // A building searched from inside, rather than a thing in the open.
 export function walled(k: number): boolean { return k === SiteKind.House || k === SiteKind.Outpost; }
 // Which prop a site shows: an outpost's stash looks like a house's.
-export function propKind(k: number): number { return k === SiteKind.Outpost ? SiteKind.House : k; }
+export function propKind(k: number): number { return k === SiteKind.Outpost ? SiteKind.House : k > SiteKind.Outpost ? k - 1 : k; }
+// A vehicle on the road: a car, pickup, cruiser, ambulance, bus or army truck.
+export function wreck(k: number): boolean { return k === SiteKind.Car || k >= SiteKind.Pickup; }
 export const enum EffectKind { Grenade = 1, Napalm = 2, AirTarget = 3 }
 
 export interface CreepDef { name: string; hp: number; speed: number; radius: number; size: number; ranged: boolean; bounty: number }
