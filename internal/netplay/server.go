@@ -213,6 +213,10 @@ func (s *Server) handshake(c net.Conn) {
 			Proto, s.cfg.Version, h.Proto, h.Version)
 		return
 	}
+	if !SameVersion(s.cfg.Version, h.Version) {
+		reject("%s", versionRefusal(s.cfg.Version, h.Version))
+		return
+	}
 	var id tailnet.Identity
 	switch {
 	case isLoopback(c.RemoteAddr()):

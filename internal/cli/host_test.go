@@ -16,6 +16,7 @@ import (
 	"taildefense/internal/config"
 	"taildefense/internal/netplay"
 	"taildefense/internal/tailnet"
+	"taildefense/internal/version"
 )
 
 func upTailnet(context.Context) (tailnet.Self, []tailnet.Peer, error) {
@@ -116,10 +117,12 @@ func TestLsJSONShape(t *testing.T) {
 			t.Errorf("discover asked port %d with %d peers", port, len(peers))
 		}
 		return []netplay.Found{
-			{Info: netplay.Info{Proto: netplay.Proto, Version: "abc1234", Host: "pal", Owner: "bob@x", Players: []string{"bob"}, Max: 4, Wave: 3, Phase: "fight"},
+			{Info: netplay.Info{Proto: netplay.Proto, Version: version.Current(), Host: "pal", Owner: "bob@x", Players: []string{"bob"}, Max: 4, Wave: 3, Phase: "fight"},
 				Addr: "100.64.0.9:7787", Peer: "pal", RTT: 12 * time.Millisecond},
 			{Info: netplay.Info{Proto: netplay.Proto + 1, Version: "fff0000", Host: "box", Max: 4},
 				Addr: "127.0.0.1:7787", Peer: "box (this machine)"},
+			{Info: netplay.Info{Proto: netplay.Proto, Version: "fff0000", Host: "attic", Max: 4},
+				Addr: "100.64.0.7:7787", Peer: "attic"},
 		}
 	}
 	t.Cleanup(func() { tailnetStatus, discover = tailnet.Status, netplay.Discover })
@@ -144,7 +147,7 @@ func TestLsJSONShape(t *testing.T) {
 		t.Errorf("top level keys %v", got)
 	}
 	games := doc["games"].([]any)
-	if len(games) != 2 {
+	if len(games) != 3 {
 		t.Fatalf("games %v", games)
 	}
 	g0 := games[0].(map[string]any)
@@ -158,6 +161,9 @@ func TestLsJSONShape(t *testing.T) {
 	g1 := games[1].(map[string]any)
 	if g1["compatible"] != false {
 		t.Errorf("another protocol must be incompatible: %v", g1)
+	}
+	if g2 := games[2].(map[string]any); g2["compatible"] != false {
+		t.Errorf("another td on the same protocol must be incompatible: %v", g2)
 	}
 	if p, ok := g1["players"].([]any); !ok || len(p) != 0 {
 		t.Errorf("no players must be [], not null: %v", g1["players"])

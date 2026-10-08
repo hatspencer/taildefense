@@ -79,6 +79,22 @@ type RejectError struct{ Reason string }
 
 func (e *RejectError) Error() string { return e.Reason }
 
+// SameVersion is the rule for who plays together: a host and its players run the same td.
+// Builds that agree on the protocol can still differ in the simulation, so the commit decides.
+func SameVersion(host, player string) bool {
+	return strings.EqualFold(strings.TrimSpace(host), strings.TrimSpace(player))
+}
+
+// versionRefusal is the refusal for a player whose td is not the host's.
+func versionRefusal(host, player string) string {
+	return fmt.Sprintf("host and players must run the same td: the host runs %s and you run %s; run td update on both machines, then join again", host, player)
+}
+
+// IsVersionMismatch reports whether err is a refusal because the two td versions differ.
+func IsVersionMismatch(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "must run the same td")
+}
+
 // WithPort adds the default port to an address that has none.
 func WithPort(addr string) string {
 	if _, _, err := net.SplitHostPort(addr); err == nil {
@@ -142,6 +158,11 @@ func Dial(ctx context.Context, addr string, h Hello) (*Client, Welcome, error) {
 	if err != nil {
 		c.Close()
 		return nil, Welcome{}, err
+	}
+	// A host from before the rule lets anyone in; refuse it here instead.
+	if !SameVersion(wel.Version, h.Version) {
+		c.Close()
+		return nil, Welcome{}, &RejectError{versionRefusal(wel.Version, h.Version)}
 	}
 	_ = c.SetReadDeadline(time.Time{})
 	cl := &Client{conn: c, bw: bw, msgs: make(chan Msg, 256), done: make(chan struct{})}

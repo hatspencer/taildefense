@@ -4,6 +4,7 @@ import (
 	"compress/flate"
 	"context"
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -180,6 +181,11 @@ func TestHostOnLoopback(t *testing.T) {
 	var rej *RejectError
 	if err == nil || !asReject(err, &rej) {
 		t.Fatalf("protocol mismatch not refused: %v", err)
+	}
+	// So is another td on the same protocol, with how to fix it.
+	_, _, err = Dial(ctx, addr, Hello{Version: "abc1234", Name: "x"})
+	if !IsVersionMismatch(err) || !asReject(err, &rej) || !strings.Contains(err.Error(), "td update") || !strings.Contains(err.Error(), "abc1234") {
+		t.Fatalf("version mismatch not refused: %v", err)
 	}
 }
 

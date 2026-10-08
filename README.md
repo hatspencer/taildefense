@@ -68,8 +68,9 @@ Updates: the version is the git commit. With `AUTOUPDATE` on (the default), the 
 the repo's main at most once an hour and updates in the background, then offers a restart.
 `td host`, `td join` and `td serve` say when td is out of date and how to update, in the
 terminal and in the game page.
-When a host and a player run different game protocols, the refusal tells the older one to run
-`td update`.
+A host and its players must run the same td: a host refuses a player whose version differs from
+its own, and the refusal names both versions and says to run `td update` on both machines. The
+launcher's join list and `td ls` mark such games with ✗.
 
 ## Playing
 

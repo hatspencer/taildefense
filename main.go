@@ -360,7 +360,9 @@ func report(p *ui.Printer, res web.Result, err error, addr string) int {
 			ui.Errorf("%v", err)
 		}
 		var rej *netplay.RejectError
-		if cli.NeedsUpdate(err) {
+		if netplay.IsVersionMismatch(err) {
+			ui.Hint("td version shows which td a machine runs")
+		} else if cli.NeedsUpdate(err) {
 			ui.Hint("update with: td update")
 		} else if !errors.As(err, &rej) && addr != "" {
 			ui.Hint("is a game hosted there? td ls lists the games on your tailnet")
