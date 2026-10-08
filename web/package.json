@@ -1,0 +1,17 @@
+{
+  "name": "taildefense-web",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Browser client of taildefense",
+  "scripts": {
+    "build": "node build.mjs",
+    "check": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@types/three": "0.186.0",
+    "camera-controls": "3.1.2",
+    "esbuild": "0.24.0",
+    "three": "0.186.1",
+    "typescript": "5.6.3"
+  }
+}
