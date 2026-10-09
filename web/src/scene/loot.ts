@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { color, positionWorld, sin, time } from 'three/tsl';
 import { propKind, type SiteDef, SiteKind, siteX, siteY, walled, wreck } from '../protocol';
 import type { Game } from '../state';
-import { box, cyl, instanceCap, lin, merge, octa, part, writeMatrix, type Part } from './util';
+import { box, cyl, lin, merge, octa, part, writeMatrix, type Part } from './util';
 
 function hash(i: number, s: number): number {
   let h = Math.imul(i * 374761393 + s * 668265263, 1274126177);
@@ -463,7 +463,7 @@ export class Loot {
       this.yaw[i] = a + Math.PI;
     });
     for (let k = 0; k < PROPS.length * 2; k++) {
-      const cap = instanceCap(counts[k >> 1] ?? 0);
+      const cap = Math.max(1, counts[k >> 1] ?? 0);
       const m = new THREE.InstancedMesh(this.geos[k], this.mat, cap);
       m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; m.count = 0;
       m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3);
@@ -473,7 +473,7 @@ export class Loot {
     if (this.glints.instanceMatrix.count < n) {
       this.group.remove(this.glints);
       this.glints.dispose();
-      this.glints = new THREE.InstancedMesh(this.glints.geometry, this.glintMat, instanceCap(n));
+      this.glints = new THREE.InstancedMesh(this.glints.geometry, this.glintMat, Math.max(1, n));
       this.glints.frustumCulled = false; this.glints.renderOrder = 3; this.glints.count = 0;
       this.group.add(this.glints);
     }
