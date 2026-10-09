@@ -315,6 +315,12 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 		}
 		b.u8(m)
 	}
+	b.uv(uint64(len(w.Crates)))
+	for _, c := range w.Crates {
+		b.u16(qpos(c.X))
+		b.u16(qpos(c.Y))
+		b.u8(uint8(min(c.Open/game.CrateOpenTime(), 1) * 255))
+	}
 	b.u8(uint8(len(w.Players)))
 	for _, p := range w.Players {
 		var f uint8
@@ -414,6 +420,15 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 			b.u8(a.Lv)
 			b.u16(uint16(min(math.Ceil(float64(a.Cool*10)), 65535)))
 		}
+		b.u8(p.Medkits)
+		b.u8(deci(p.Heal))
+		var reloading uint8
+		for k := range p.Weapons {
+			if p.Weapons[k].Reload > 0 {
+				reloading |= 1 << k
+			}
+		}
+		b.u8(reloading)
 	}
 }
 

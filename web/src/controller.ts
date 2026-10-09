@@ -4,7 +4,7 @@ import { walled, type Command, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_READY, Phas
 import type { Effects } from './scene/effects';
 import type { Game } from './state';
 
-export type Mode = { k: 'none' } | { k: 'amove' } | { k: 'ping' } | { k: 'ability'; slot: number } | { k: 'build'; kind: number };
+export type Mode = { k: 'none' } | { k: 'ping' } | { k: 'ability'; slot: number } | { k: 'build'; kind: number };
 export type Pick = { t: 'creep' | 'struct' | 'hero' | 'site'; id: number } | null;
 
 export interface AbilityInfo { name: string; desc: string; key: string; range: number; radius: number; cool: number; target: string; level: number; maxLevel: number; left: number; nextCost: number }
@@ -15,7 +15,13 @@ const RADIUS: Record<string, number> = {
   grenade: 3, napalm: 2.5, airstrike: 7, 'fan the hammer': 2.5, concussion: 4, firewall: 2.5, barrage: 4, railshot: 0.6, 'piercing shot': 0.6,
 };
 
-export const KEYS = ['Q', 'W', 'E', 'D'];
+// Ability slots: the weapon's signature on the right mouse button, Overwatch style, then the
+// bought abilities; WASD walks.
+export const KEYS = ['RMB', 'Shift', 'E', 'Q'];
+
+// How far F reaches for something to use when nothing is under the cursor, in tiles.
+const USE_REACH = 4;
+const CRATE_REACH = 14; // tiles within which F walks to a supply crate
 
 // What the player is doing with the mouse, what is selected and hovered, and every action
 // the input handlers and the HUD buttons can trigger.
@@ -41,7 +47,6 @@ export class Controller {
 
   setMode(m: Mode): void {
     this.mode = m;
-    document.body.classList.toggle('cur-attack', m.k === 'amove');
     document.body.classList.toggle('cur-target', m.k === 'ability');
     document.body.classList.toggle('cur-ping', m.k === 'ping');
     document.body.classList.toggle('cur-build', m.k === 'build');
@@ -142,7 +147,7 @@ export class Controller {
     return `${name} · ${f.siteSearched(i) ? 'searched' : f.siteGuards(i) > 0 ? 'search, if you dare' : 'search'}`;
   }
 
-  // The downed teammate under the cursor that a right-click would revive, or -1. For the
+  // The downed teammate under the cursor that F would revive, or -1. For the
   // cursor and the HUD; only while alive myself and not in a targeting mode.
   reviveTarget(): number {
     const h = this.hover, me = this.me();
@@ -167,11 +172,6 @@ export class Controller {
       return;
     }
     switch (this.mode.k) {
-      case 'amove':
-        this.send({ op: 'amove', x, y });
-        this.fx.ping(x, y, 0xff4a3a);
-        if (!this.shift) this.setMode({ k: 'none' });
-        return;
       case 'ability':
         this.castAt(this.mode.slot, x, y);
         return;
@@ -183,43 +183,112 @@ export class Controller {
     if (this.sel?.t === 'struct' && this.game.cur.sKind[this.sel.id] === 2) this.openArmory(true);
   }
 
+  // Right-click: on a creep, focus fire on it; anywhere else, the weapon's signature, at the
+  // cursor for a targeted one. It also backs out of a targeting mode.
   rightClick(): void {
     if (this.cancel()) return;
-    if (!this.groundOk) return;
+    const info = this.ability(0), me = this.me();
+    if (!info || !me) return;
+    if (!(me.flags & PF_ALIVE)) return;
+    if (this.hover?.t === 'creep' && this.useAt(this.hover)) return;
+    if (info.left > 0) { this.onToast(`${info.name} is not ready (${info.left.toFixed(1)}s)`, 2); return; }
+    if (info.target !== 'point') { this.send({ op: 'ability', slot: 0, x: me.x, y: me.y }); return; }
+    if (this.groundOk) this.castAt(0, this.ground.x, this.ground.z);
+  }
+
+  // F: use what is under the cursor (walking there first), or else the selected structure,
+  // or else whatever usable is nearest: a downed teammate, a loot site, a damaged structure,
+  // the armory, a supply crate. On a creep it focuses fire on it.
+  interact(): void {
     const me = this.me();
-    const g = this.game, f = g.cur;
-    const h = this.hover;
-    const rv = this.reviveTarget();
-    if (rv >= 0) {
+    if (!me || !(me.flags & PF_ALIVE)) return;
+    if (this.mouseIn && this.groundOk && this.useAt(this.hover)) return;
+    if (this.sel?.t === 'struct' && this.useAt(this.sel)) return;
+    if (this.useAt(this.nearestUsable(me.x, me.y))) return;
+    // A supply crate nearby: walk up to it; standing by it opens it.
+    let crate: { x: number; y: number } | null = null, cd = CRATE_REACH;
+    for (const k of this.game.cur.crates) {
+      const d = Math.hypot(k.x - me.x, k.y - me.y);
+      if (d < cd) { cd = d; crate = k; }
+    }
+    if (crate) {
       this.toArmory = false;
-      this.send({ op: 'revive', p: rv });
-      this.fx.ping(g.prx[rv], g.pry[rv], 0x50ff80);
+      if (cd > 1) this.moveTo(crate.x, crate.y);
       return;
     }
-    if (h?.t === 'creep') {
+    this.onToast('nothing to use here', 1);
+  }
+
+  private nearestUsable(x: number, y: number): Pick {
+    const g = this.game, f = g.cur, wd = g.welcome, me = this.me();
+    if (!wd || !me) return null;
+    let best: Pick = null, bd = USE_REACH;
+    const take = (p: Pick, px: number, py: number, slack = 0) => {
+      const d = Math.hypot(px - x, py - y) - slack;
+      if (d < bd) { bd = d; best = p; }
+    };
+    for (let i = 0; i < f.nPlayers; i++) {
+      const p = f.players[i];
+      if (p.id !== me.id && !(p.flags & PF_ALIVE) && p.flags & PF_CONNECTED) take({ t: 'hero', id: p.id }, g.prx[p.id], g.pry[p.id]);
+    }
+    for (let i = 0; i < wd.sites.length; i++) {
+      if (f.siteSearched(i) || f.siteGuards(i) > 0) continue;
+      const s = wd.sites[i];
+      take({ t: 'site', id: i }, siteX(s), siteY(s));
+    }
+    for (let s = 0; s < f.nStructs; s++) {
+      if (!f.sAlive[s]) continue;
+      const cx = f.sX[s] + f.sW[s] / 2, cy = f.sY[s] + f.sH[s] / 2, slack = Math.max(f.sW[s], f.sH[s]) / 2;
+      const mine = f.sOwner[s] === me.id || f.sOwner[s] === -1;
+      if (f.sKind[s] === 2 || (mine && f.sHp[s] < f.sMaxHp[s])) take({ t: 'struct', id: s }, cx, cy, slack);
+    }
+    return best;
+  }
+
+  // Carries out F on one thing; false when there is nothing to do with it.
+  private useAt(h: Pick): boolean {
+    const me = this.me();
+    const g = this.game, f = g.cur;
+    if (!h || !me) return false;
+    if (h.t === 'hero') {
+      const p = f.player(h.id);
+      if (!p || p.flags & PF_ALIVE || h.id === me.id) return false;
+      this.toArmory = false;
+      this.send({ op: 'revive', p: h.id });
+      this.fx.ping(g.prx[h.id], g.pry[h.id], 0x50ff80);
+      return true;
+    }
+    if (h.t === 'creep') {
       this.send({ op: 'attack', id: h.id });
       const i = g.indexById[h.id];
       if (i >= 0) this.fx.ping(g.rx[i], g.ry[i], 0xff4a3a);
-      return;
+      return true;
     }
-    if (h?.t === 'struct') {
+    if (h.t === 'struct') {
       const s = h.id, kind = f.sKind[s];
-      if (kind === 2 && me) { this.walkToArmory(); return; }
-      const mine = me && (f.sOwner[s] === me.id || f.sOwner[s] === -1);
-      if (mine && f.sHp[s] < f.sMaxHp[s]) {
-        this.send({ op: 'repair', s });
-        this.fx.ping(f.sX[s] + f.sW[s] / 2, f.sY[s] + f.sH[s] / 2, 0x40c0ff);
-        return;
+      if (kind === 2) {
+        if (me.flags & PF_ARMORY) this.openArmory(!this.armoryOpen); else this.walkToArmory();
+        return true;
       }
+      const mine = f.sOwner[s] === me.id || f.sOwner[s] === -1;
+      if (!mine || f.sHp[s] >= f.sMaxHp[s]) return false;
+      this.send({ op: 'repair', s });
+      this.fx.ping(f.sX[s] + f.sW[s] / 2, f.sY[s] + f.sH[s] / 2, 0x40c0ff);
+      return true;
     }
-    if (h?.t === 'site' && !f.siteSearched(h.id)) {
+    if (h.t === 'site' && !f.siteSearched(h.id)) {
       const s = g.welcome!.sites[h.id];
       this.toArmory = false;
       this.send({ op: 'loot', site: h.id });
       this.fx.ping(siteX(s), siteY(s), 0xffd040);
-      return;
+      return true;
     }
-    this.moveTo(this.ground.x, this.ground.z);
+    return false;
+  }
+
+  medkit(): void {
+    const me = this.me();
+    if (me && me.flags & PF_ALIVE) this.send({ op: 'medkit' });
   }
 
   // Marks a spot for the whole team. Its meaning comes from what is under the cursor: a creep

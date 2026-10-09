@@ -1,5 +1,5 @@
 import type { Controller } from '../controller';
-import { PF_ALIVE, PF_CONNECTED, PingKind, siteX, siteY } from '../protocol';
+import { EffectKind, PF_ALIVE, PF_CONNECTED, PingKind, siteX, siteY } from '../protocol';
 import { PING_LIFE } from '../state';
 import { cssHex, playerColor } from '../scene/util';
 import { el, esc, show } from './dom';
@@ -175,6 +175,21 @@ export class Minimap {
           c.fillStyle = '#d0503a'; c.fillRect(px, py, pw, pw);
         }
       }
+    }
+    // Supply crates: a blinking green box; a Huey on its way: a green cross where it is.
+    const cb = Math.floor(now / 500) % 2 === 0, cr = 3 * dpr;
+    for (const k of f.crates) {
+      const x = Math.round(k.x * sx), y = Math.round(k.y * sy);
+      c.fillStyle = '#000'; c.fillRect(x - cr - dpr, y - cr - dpr, 2 * cr + 2 * dpr, 2 * cr + 2 * dpr);
+      c.fillStyle = cb ? '#6ee05a' : '#3d8a32'; c.fillRect(x - cr, y - cr, 2 * cr, 2 * cr);
+    }
+    for (let i = 0; i < f.nEffects; i++) {
+      if (f.eKind[i] !== EffectKind.Drop) continue;
+      const left = f.eLeft[i] / 10, total = Math.max(4, f.eTotal[i] / 10);
+      const k0 = Math.min(1, Math.max(0, (total - left) / (total - 3))), k = 1 - (1 - k0) * (1 - k0);
+      const x = Math.round((f.eX0[i] + (f.eX[i] - f.eX0[i]) * k) * sx), y = Math.round((f.eY0[i] + (f.eY[i] - f.eY0[i]) * k) * sy);
+      c.fillStyle = '#000'; c.fillRect(x - 4 * dpr, y - 2 * dpr, 8 * dpr, 4 * dpr); c.fillRect(x - 2 * dpr, y - 4 * dpr, 4 * dpr, 8 * dpr);
+      c.fillStyle = '#6ee05a'; c.fillRect(x - 3 * dpr, y - dpr, 6 * dpr, 2 * dpr); c.fillRect(x - dpr, y - 3 * dpr, 2 * dpr, 6 * dpr);
     }
     c.fillStyle = '#d04a34';
     const d = Math.max(1.5, sx * 1.1);

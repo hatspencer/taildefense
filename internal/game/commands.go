@@ -82,6 +82,7 @@ func (w *World) resetPlayer(p *Player) {
 	p.Weapons[WPistol] = WeaponState{Owned: true, Ammo: Weapons[WPistol].Mag}
 	p.Cur = WPistol
 	p.Gear = [NumGear]uint8{}
+	p.Medkits, p.Heal = 1, 0
 	p.MaxHP = 100
 	p.Kills, p.Damage = 0, 0
 	p.Ready = false
@@ -198,6 +199,52 @@ func (w *World) BuyGear(p *Player, g Gear) error {
 		p.MaxHP += 25
 		p.HP += 25
 	}
+	return nil
+}
+
+// Medkits: bought at the armory, found in places with a first-aid kit, and used one at a
+// time; a medkit heals medkitHeal of max HP over medkitTime seconds unless a hit cuts it short.
+const (
+	medkitHeal = .4
+	medkitTime = 3
+	medkitMax  = 3
+	medkitCost = 60
+)
+
+// MedkitInfo is the medkit's numbers, for the client.
+func MedkitInfo() (heal, time float32, max uint8, cost int32) {
+	return medkitHeal, medkitTime, medkitMax, medkitCost
+}
+
+// BuyMedkit sells the player one medkit.
+func (w *World) BuyMedkit(p *Player) error {
+	if !w.atArmory(p) {
+		return errNotAtArmory
+	}
+	if p.Medkits >= medkitMax {
+		return fmt.Errorf("you carry %d medkits already, as many as fit", medkitMax)
+	}
+	if err := w.pay(p, medkitCost); err != nil {
+		return err
+	}
+	p.Medkits++
+	return nil
+}
+
+// UseMedkit starts healing with one of the player's medkits.
+func (w *World) UseMedkit(p *Player) error {
+	switch {
+	case !p.Alive:
+		return errors.New("you are down")
+	case p.Medkits == 0:
+		return errors.New("no medkits; buy them at the armory")
+	case p.Heal > 0:
+		return errors.New("already patching up")
+	case p.HP >= p.MaxHP:
+		return errors.New("you are not hurt")
+	}
+	p.Medkits--
+	p.Heal = medkitTime
 	return nil
 }
 

@@ -7,6 +7,11 @@ import (
 	"taildefense/internal/game"
 )
 
+// CrateView is a supply crate on the ground; Open is how far opening it is, 0..1.
+type CrateView struct {
+	X, Y, Open float32
+}
+
 // PlayerView is a player as a client sees them.
 type PlayerView struct {
 	ID                                         uint8
@@ -22,6 +27,9 @@ type PlayerView struct {
 	Emote                                      uint8
 	EmoteLeft, TauntCool                       float32 // seconds
 	Stamina                                    float32 // 0..1
+	Medkits                                    uint8
+	Heal                                       float32 // seconds of a medkit's healing left
+	ReloadMask                                 uint8   // a bit per weapon reloading, in hand or not
 	Look                                       uint32  // see game.dealLook
 	Sprinting, Winded                          bool
 	Cur                                        game.WeaponKind
@@ -100,6 +108,7 @@ type Replica struct {
 	Players    []PlayerView
 	Searched   []bool  // per loot site, from the welcome's list
 	Guards     []uint8 // per loot site, its living guards
+	Crates     []CrateView
 
 	Alive  bitset
 	CX, CY [game.MaxCreeps]float32 // current position
@@ -365,6 +374,15 @@ func (r *Replica) header(d *dec) {
 		m := d.u8()
 		r.Searched[i], r.Guards[i] = m&128 != 0, m&127
 	}
+	nc := int(d.uv())
+	if nc > 64 {
+		d.err = fmt.Errorf("%d supply crates", nc)
+		return
+	}
+	r.Crates = r.Crates[:0]
+	for i := 0; i < nc; i++ {
+		r.Crates = append(r.Crates, CrateView{X: unq(d.u16()), Y: unq(d.u16()), Open: float32(d.u8()) / 255})
+	}
 	n := int(d.u8())
 	old := r.Players
 	r.Players = make([]PlayerView, 0, n)
@@ -418,6 +436,9 @@ func (r *Replica) header(d *dec) {
 			p.Abil[a].Lv = d.u8()
 			p.Abil[a].Cool = float32(d.u16()) / 10
 		}
+		p.Medkits = d.u8()
+		p.Heal = float32(d.u8()) / 10
+		p.ReloadMask = d.u8()
 		r.Players = append(r.Players, p)
 	}
 }

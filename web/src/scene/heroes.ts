@@ -8,7 +8,7 @@ import { box, merge, part, type Part, playerColor, sphere } from './util';
 
 interface Hero {
   group: THREE.Group; body: THREE.Group; legL: THREE.Object3D; legR: THREE.Object3D;
-  armL: THREE.Object3D; armR: THREE.Object3D; gun: THREE.Object3D; flash: THREE.Object3D;
+  armL: THREE.Object3D; armR: THREE.Object3D; gun: THREE.Object3D; flash: THREE.Object3D; finger: THREE.Object3D;
   shout: THREE.Object3D; marker: THREE.Object3D; cross: THREE.Object3D; progress: THREE.Object3D;
   look: number; wd: number; ht: number;
   phase: number; seen: number; down: boolean; pop: number; recoil: number; crouch: number; downAmt: number; taunt: number;
@@ -82,6 +82,11 @@ export class Heroes {
     const legL = limb(0.58, 0.12, legGeo), legR = limb(0.58, -0.12, legGeo);
     const sh = 0.3 * (L.body === Body.Fem ? 0.93 : 1);
     const armL = limb(1.0, sh, armGeo), armR = limb(1.0, -sh, armGeo);
+    // The taunt's middle finger: a fist on the gun hand with one chunky finger up out of it,
+    // oversized so it still reads at pixel scale.
+    const finger = new THREE.Mesh(merge([part(box(0.15, 0.13, 0.15), L.skin, 0, -0.47, 0), part(box(0.07, 0.3, 0.07), L.skin, 0, -0.66, 0)]), this.mat);
+    finger.visible = false;
+    armR.add(finger);
     const gun = new THREE.Group();
     gun.position.set(0.1, 0.95, -0.18);
     const gm = new THREE.Mesh(merge([
@@ -109,7 +114,7 @@ export class Heroes {
     g.add(marker, progress, cross);
     g.scale.setScalar(1.15);
     this.group.add(g);
-    return { group: g, body, legL, legR, armL, armR, gun, flash, shout, marker, cross, progress, look, wd: L.width, ht: L.height,
+    return { group: g, body, legL, legR, armL, armR, gun, flash, finger, shout, marker, cross, progress, look, wd: L.width, ht: L.height,
       phase: 0, seen: 0, down: false, pop: 0, recoil: 0, crouch: 0, downAmt: 0, taunt: 0 };
   }
 
@@ -135,7 +140,15 @@ export class Heroes {
       h.down = !alive;
       h.group.visible = (p.flags & 1) !== 0 || alive;
       h.group.position.set(game.prx[p.id], 0, game.pry[p.id]);
-      h.body.rotation.y = -game.paim[p.id];
+      // Facing the aim; a taunt turns to the camera so the finger is aimed at the player too.
+      let yaw = -game.paim[p.id];
+      if (h.taunt > 0.01 && cam) {
+        const toCam = -Math.atan2(cam.position.z - game.pry[p.id], cam.position.x - game.prx[p.id]);
+        let d = toCam - yaw;
+        d = Math.atan2(Math.sin(d), Math.cos(d));
+        yaw += d * h.taunt;
+      }
+      h.body.rotation.y = yaw;
       h.downAmt = ease(h.downAmt, alive ? 0 : 1, alive ? 14 : 7, dt);
       const moving = alive && (p.flags & PF_MOVING) !== 0;
       const channel = alive && (p.order === Order.Loot || p.order === Order.Revive) && p.channel > 0;
@@ -152,25 +165,27 @@ export class Heroes {
       const sw = Math.sin(h.phase) * (moving ? 0.6 : 0);
       const cr = h.crouch, tn = h.taunt;
       h.legL.rotation.z = sw * (1 - cr) + cr * 1.25; h.legR.rotation.z = -sw * (1 - cr) + cr * 0.9;
-      // The gun arm points forward, the other swings; both reach down to rummage, or go up
-      // and pump for a taunt.
-      const pump = Math.sin(t * 16) * 0.35;
+      // The gun arm points forward, the other swings; both reach down to rummage. The taunt
+      // throws the gun hand up and out to the side, middle finger raised, jabbing it; the other
+      // fist stays clenched low and the body leans into each shout.
       const rummage = Math.sin(t * 13) * 0.25;
+      const jab = Math.max(0, Math.sin(t * 7)) * 0.18;
       const fwd = Math.PI / 2 - 0.15;
-      h.armR.rotation.z = (fwd - h.recoil * 0.25) * (1 - cr) * (1 - tn) + cr * (0.9 + rummage) + tn * (Math.PI - 0.3 + pump);
-      h.armL.rotation.z = (-sw * 0.6 + 0.6) * (1 - cr) * (1 - tn) + cr * (0.9 - rummage) + tn * (Math.PI - 0.3 - pump);
-      h.armL.rotation.x = tn * 0.35; h.armR.rotation.x = -tn * 0.35;
+      h.armR.rotation.z = (fwd - h.recoil * 0.25) * (1 - cr) * (1 - tn) + cr * (0.9 + rummage) + tn * (0.15 + jab * 0.6);
+      h.armL.rotation.z = (-sw * 0.6 + 0.6) * (1 - cr) * (1 - tn) + cr * (0.9 - rummage) + tn * 0.35;
+      h.armL.rotation.x = tn * 0.25; h.armR.rotation.x = tn * (2.95 - jab * 0.5);
       h.gun.visible = cr < 0.5 && tn < 0.5;
-      // The taunt hops; crouching sinks; the pop springs up with a squash.
-      const hop = tn * Math.abs(Math.sin(t * 9)) * 0.28;
+      h.finger.visible = tn >= 0.5;
+      // Crouching sinks; the pop springs up with a squash.
+      const shoutLean = tn * (0.1 + jab * 0.5);
       const bob = moving ? Math.abs(Math.cos(h.phase)) * 0.05 : 0;
       const popY = h.pop > 0 ? Math.sin((1 - h.pop) * Math.PI) * 0.35 : 0;
-      h.body.position.y = bob + hop + popY - cr * 0.3 + h.downAmt * 0.24;
-      h.body.rotation.z = -cr * 0.25 + h.downAmt * (Math.PI / 2) + h.recoil * 0.06;
+      h.body.position.y = bob + popY - cr * 0.3 + h.downAmt * 0.24;
+      h.body.rotation.z = -cr * 0.25 - shoutLean + h.downAmt * (Math.PI / 2) + h.recoil * 0.06;
       const sq = h.pop > 0 ? 1 + Math.sin(h.pop * Math.PI * 2) * 0.12 * h.pop : 1;
       const thick = 1 + (h.wd - 1) * 0.6;
       h.body.scale.set(thick / Math.sqrt(sq), sq * h.ht, h.wd / Math.sqrt(sq));
-      if (!alive) { h.legL.rotation.z = 0.15; h.legR.rotation.z = -0.1; h.armL.rotation.z = 2.4; h.armR.rotation.z = 0.5; h.gun.visible = false; }
+      if (!alive) { h.legL.rotation.z = 0.15; h.legR.rotation.z = -0.1; h.armL.rotation.z = 2.4; h.armR.rotation.z = 0.5; h.gun.visible = false; h.finger.visible = false; }
 
       h.flash.visible = firing && Math.floor(now / 45) % 2 === 0;
       h.gun.position.x = 0.1 - h.recoil * 0.07;
@@ -178,9 +193,9 @@ export class Heroes {
       // The shout bubble faces the camera.
       h.shout.visible = tn > 0.05;
       if (h.shout.visible) {
-        h.shout.position.set(0, 1.95 + hop + Math.sin(t * 6) * 0.04, 0);
+        h.shout.position.set(0, 1.95 + Math.sin(t * 6) * 0.04, 0);
         h.shout.quaternion.copy(this.q);
-        h.shout.scale.setScalar(0.6 + tn * 0.5 + Math.abs(Math.sin(t * 9)) * 0.08);
+        h.shout.scale.setScalar(0.6 + tn * 0.5 + jab * 0.5);
       }
       // Downed: just a small flat ring on the ground; the HUD label draws the cross, countdown
       // and revive progress above them, so nothing 3D floats up into it.

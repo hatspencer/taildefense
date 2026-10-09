@@ -11,9 +11,9 @@ export const PF_CONNECTED = 1, PF_ALIVE = 2, PF_FIRING = 4, PF_READY = 8, PF_REL
   PF_HURT = 32, PF_ARMORY = 64, PF_MOVING = 128;
 export const CF_BURNING = 1, CF_SLOWED = 2, CF_GUARD = 4, CF_HUNTING = 8, CF_SIEGE = 16, CF_ASLEEP = 32;
 
-export const enum Order { Idle = 0, Move, AMove, Attack, Hold, Build, Repair, Loot, Revive }
+export const enum Order { Idle = 0, Move, AMove, Attack, Hold, Build, Repair, Loot, Revive, Steer }
 export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake }
-export const enum Weather { Clear = 0, Fog, Rain, Storm, Snow, Drizzle, Thunder }
+export const enum Weather { Clear = 0, Fog, Rain, Storm, Snow, Drizzle, Thunder, HeavySnow }
 export const enum Emote { None = 0, Taunt }
 // What a ping means: picked from what is under the cursor when it is placed.
 export const enum PingKind { Here = 0, Danger, Loot, Defend }
@@ -24,7 +24,10 @@ export function walled(k: number): boolean { return k === SiteKind.House || k ==
 export function propKind(k: number): number { return k === SiteKind.Outpost ? SiteKind.House : k > SiteKind.Outpost ? k - 1 : k; }
 // A vehicle on the road: a car, pickup, cruiser, ambulance, bus or army truck.
 export function wreck(k: number): boolean { return k === SiteKind.Car || k >= SiteKind.Pickup; }
-export const enum EffectKind { Grenade = 1, Napalm = 2, AirTarget = 3 }
+// Drop: a Huey flying in from (x0, y0); its crate lands on (x, y) when left runs out.
+export const enum EffectKind { Grenade = 1, Napalm = 2, AirTarget = 3, Drop = 4 }
+// The door gunner's shots, from the Huey in the air.
+export const TRACER_HELI = 34;
 
 export interface CreepDef { name: string; hp: number; speed: number; radius: number; size: number; ranged: boolean; bounty: number }
 export interface SigDef { name: string; desc: string; cool: number; range: number; radius?: number; cone?: number; target: string }
@@ -59,6 +62,8 @@ export interface Welcome {
   difficulty: { id: number; name: string }; difficulties: string[]; weathers: WeatherDef[];
   taunt: { cool: number; radius: number; time: number };
   revive: { reach: number; time: number; hp: number };
+  // heal: the share of max HP one medkit gives back over time seconds; max carried; cost each.
+  medkit?: { heal: number; time: number; max: number; cost: number };
 }
 // turretRange is a turret's reach at a level (1-based), from the per-level table when the
 // host sends one.
@@ -93,7 +98,10 @@ export type Command =
   | { op: 'buyAbility'; slot: number }
   | { op: 'ready'; on: boolean }
   | { op: 'chat'; text: string }
-  | { op: 'ping'; x: number; y: number; kind: number };
+  | { op: 'ping'; x: number; y: number; kind: number }
+  // x: the walking direction in radians, in map coordinates; on false lets go.
+  | { op: 'steer'; x: number; on: boolean }
+  | { op: 'medkit' } | { op: 'buyMedkit' };
 
 export class Player {
   id = 0; flags = 0; x = 0; y = 0; aim = 0; hp = 0; maxHp = 1; cur = 0; ammo = 0; mag = 0;
@@ -103,6 +111,10 @@ export class Player {
   // revived: for a downed survivor, how far someone's revive of them is, 0..1.
   order = 0; channel = 0; revived = 0; emote = 0; emoteLeft = 0; tauntCool = 0; stamina = 1; sprinting = false; winded = false; look = 0; buff = 0; buffLeft = 0;
   abLevel = new Uint8Array(4); abCool = new Float32Array(4);
+  // Medkits carried, and seconds of a medkit's healing left.
+  medkits = 0; heal = 0;
+  // A bit per weapon with a reload running, the one in hand or not.
+  reloading = 0;
   name = '';
   private nameBytes = new Uint8Array(0);
 
@@ -123,7 +135,7 @@ export class Player {
     this.damage = o.damage; this.owned = o.owned; this.levels.set(o.levels); this.gear.set(o.gear);
     this.order = o.order; this.channel = o.channel; this.revived = o.revived; this.emote = o.emote;
     this.emoteLeft = o.emoteLeft; this.tauntCool = o.tauntCool; this.stamina = o.stamina; this.sprinting = o.sprinting; this.winded = o.winded; this.look = o.look; this.buff = o.buff; this.buffLeft = o.buffLeft;
-    this.abLevel.set(o.abLevel); this.abCool.set(o.abCool); this.name = o.name;
+    this.abLevel.set(o.abLevel); this.abCool.set(o.abCool); this.medkits = o.medkits; this.heal = o.heal; this.reloading = o.reloading; this.name = o.name;
   }
 }
 
@@ -181,6 +193,8 @@ export class Frame {
   eLeft = new Uint8Array(32); eTotal = new Uint8Array(32);
 
   notes: { level: number; text: string }[] = [];
+  // Supply crates down and not yet opened; open is how far opening one is, 0..1.
+  crates: { x: number; y: number; open: number }[] = [];
   pings: { player: number; x: number; y: number; kind: number }[] = [];
 
   constructor() {
@@ -242,6 +256,7 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
     for (let a = 0; a < 4; a++) {
       p.abLevel[a] = d.getUint8(o); p.abCool[a] = d.getUint16(o + 1, true) / 10; o += 3;
     }
+    p.medkits = d.getUint8(o); p.heal = d.getUint8(o + 1) / 10; p.reloading = d.getUint8(o + 2); o += 3;
     const nl = d.getUint8(o); o += 1;
     p.setName(bytes.subarray(o, o + nl)); o += nl;
   }
@@ -250,6 +265,9 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
   f.sites = grow(f.sites, nsite);
   f.sites.set(bytes.subarray(o, o + nsite)); o += nsite;
   f.nSites = nsite;
+  const ncr = bytes[o]; o += 1;
+  f.crates.length = 0;
+  for (let i = 0; i < ncr; i++, o += 5) f.crates.push({ x: d.getUint16(o, true) * Q, y: d.getUint16(o + 2, true) * Q, open: bytes[o + 4] / 255 });
 
   const ns = d.getUint16(o, true); o += 2;
   if (f.sAlive.length < ns) {

@@ -15,10 +15,18 @@ function fullScreen(): boolean {
 // Pan speed in tiles per second per tile of camera distance.
 const PAN_SPEED = 1.2;
 
+// WASD by physical key, so it sits under the left hand on any layout: screen right and up.
+const STEER: Record<string, [number, number]> = { KeyW: [0, 1], KeyS: [0, -1], KeyA: [-1, 0], KeyD: [1, 0] };
+// How often a held direction is sent again; the host drops a steer it stops hearing about.
+const STEER_EVERY = 120;
+
 // Keyboard and mouse. Left and right clicks go to the controller; the camera library owns the
 // middle button and the wheel (see camera.ts).
 export class Input {
   private keys = new Set<string>();
+  private steer = new Set<string>(); // WASD held, by code
+  private steerAng = NaN; // the direction last sent, NaN when not steering
+  private steerAt = 0;
   private lastSpace = 0;
   private spaceAt = 0; // when Space went down, 0 while it is up
   private moved = false;
@@ -51,10 +59,11 @@ export class Input {
       if (fullScreen() && atEdge) { this.ex = x; this.ey = y; return; }
       this.inWin = false;
     });
-    window.addEventListener('blur', () => { this.keys.clear(); this.spaceUp(false); });
+    window.addEventListener('blur', () => { this.keys.clear(); this.steer.clear(); this.spaceUp(false); });
     window.addEventListener('keydown', (e) => this.down(e));
     window.addEventListener('keyup', (e) => {
       this.keys.delete(e.key);
+      this.steer.delete(e.code);
       if (e.key === ' ') this.spaceUp(true);
       ctl.shift = e.shiftKey;
       if (e.key === 'Tab') this.hud.showScore(false);
@@ -94,9 +103,15 @@ export class Input {
       hud.toggleMenu();
       return;
     }
-    if (k === 'Enter') { e.preventDefault(); hud.openChat(); return; }
+    if (k === 'Enter') { e.preventDefault(); this.steer.clear(); hud.openChat(); return; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (k.startsWith('Arrow')) { e.preventDefault(); this.keys.add(k); return; }
+    if (STEER[e.code]) { e.preventDefault(); this.steer.add(e.code); return; }
+    // Shift on its own is an ability, except while placing or pinging, where it keeps the mode.
+    if (k === 'Shift') {
+      if (!e.repeat && ctl.mode.k !== 'build' && ctl.mode.k !== 'ping' && !hud.buildCard) ctl.startAbility(1);
+      return;
+    }
     // Space: held, sprint; tapped, back to the hero (twice quickly locks the camera to it).
     if (k === ' ') {
       e.preventDefault();
@@ -113,13 +128,12 @@ export class Input {
     }
     const slot = KEYS.indexOf(up);
     if (slot >= 0) { ctl.startAbility(slot); return; }
+    if (k === '8') { ctl.medkit(); return; }
     if (k >= '1' && k <= '7') { const w = Number(k) - 1; const me = ctl.me(); if (me && me.owned & (1 << w)) ctl.send({ op: 'select', w }); return; }
     switch (up) {
-      case 'A': ctl.setMode({ k: 'amove' }); return;
       case 'Z': ctl.setMode({ k: ctl.mode.k === 'ping' ? 'none' : 'ping' }); return;
-      case 'S': ctl.cancel(); ctl.send({ op: 'stop' }); return;
       case 'H': ctl.cancel(); ctl.send({ op: 'hold' }); return;
-      case 'T': e.preventDefault(); hud.openChat(); return;
+      case 'T': e.preventDefault(); this.steer.clear(); hud.openChat(); return;
       case 'R': ctl.send({ op: 'reload' }); return;
       case 'B': hud.buildCard = !hud.buildCard; if (!hud.buildCard) ctl.cancel(); return;
       case 'G': ctl.openArmory(!ctl.armoryOpen); return;
@@ -128,13 +142,14 @@ export class Input {
       case 'M': hud.minimap.toggle(); return;
       case 'U': ctl.upgradeSel(); return;
       case 'X': ctl.sellSel(); return;
-      case 'F': ctl.repairSel(); return;
+      case 'F': ctl.interact(); return;
       case 'V': ctl.taunt(); return;
     }
   }
 
-  // Per frame: arrow keys and screen-edge panning.
+  // Per frame: WASD walking, arrow keys and screen-edge panning.
   update(dt: number, w: number, h: number): void {
+    if (this.steerKeys()) return;
     let dx = 0, dy = 0;
     if (this.keys.has('ArrowLeft')) dx -= 1;
     if (this.keys.has('ArrowRight')) dx += 1;
@@ -151,5 +166,25 @@ export class Input {
       const s = PAN_SPEED * this.rig.dist * dt;
       this.rig.pan(dx * s, dy * s);
     }
+  }
+
+  // Walks the hero the way WASD points on screen, turned onto the map by the camera's yaw, and
+  // keeps the camera on them meanwhile. True while walking, which holds off panning.
+  private steerKeys(): boolean {
+    let dx = 0, dy = 0;
+    for (const c of this.steer) { dx += STEER[c][0]; dy += STEER[c][1]; }
+    if (!dx && !dy) {
+      if (!Number.isNaN(this.steerAng)) { this.steerAng = NaN; this.ctl.send({ op: 'steer', x: 0, on: false }); }
+      return false;
+    }
+    const s = Math.sin(this.rig.yaw), c = Math.cos(this.rig.yaw);
+    const ang = Math.atan2(-dx * s - dy * c, dx * c - dy * s);
+    const now = performance.now();
+    if (ang !== this.steerAng || now - this.steerAt > STEER_EVERY) {
+      this.steerAng = ang; this.steerAt = now;
+      this.ctl.send({ op: 'steer', x: ang, on: true });
+    }
+    this.rig.follow = true;
+    return true;
   }
 }

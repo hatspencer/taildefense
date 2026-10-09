@@ -208,11 +208,12 @@ func parseFrame(t *testing.T, p []byte) frameSummary {
 		if k == 0 {
 			f.x, f.y = float32(x)/8, float32(y)/8
 		}
-		skip(2 + 4 + 1 + 4 + 1 + 1 + 12 + 1 + 28 + 4 + 1 + 1 + 1 + 1 + 1 + 2 + 2 + 1 + 1 + 4 + 4*3)
+		skip(2 + 4 + 1 + 4 + 1 + 1 + 12 + 1 + 28 + 4 + 1 + 1 + 1 + 1 + 1 + 2 + 2 + 1 + 1 + 4 + 4*3 + 3)
 		skip(u8())
 	}
 	f.sites = u16()
 	skip(f.sites)
+	skip(u8() * 5)
 	f.structs = u16()
 	skip(f.structs * 14)
 	skip(u16() * 10)

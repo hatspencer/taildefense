@@ -212,6 +212,14 @@ export class Labels {
       }
     }
 
+    // Supply crates: a tag, and a ring while someone opens one.
+    for (const k of f.crates) {
+      if (!this.project(cam, k.x, 1.3, k.y)) continue;
+      c.font = `500 ${fs}px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'bottom';
+      if (k.open > 0) this.ring(this.v.x, this.v.y - 16, k.open, MOSS, 'opening…');
+      else this.text('supply crate', this.v.x, this.v.y, MOSS);
+    }
+
     // Airstrike countdowns.
     c.textAlign = 'center'; c.textBaseline = 'bottom';
     c.font = `26px ${CRT}`;

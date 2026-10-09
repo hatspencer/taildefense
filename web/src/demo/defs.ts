@@ -54,10 +54,10 @@ function weaponDefs(): WeaponDef[] {
 }
 
 export const ABILITIES: AbilityDef[] = [
-  { name: 'Signature', key: 'Q', desc: "the equipped weapon's own ability", target: 'point', range: 0, cool: [0, 0, 0], costs: [0, 0, 0], always: true },
-  { name: 'Grenade', key: 'W', desc: 'Lob a frag grenade that explodes after a short flight.', target: 'point', range: 11, cool: [9, 8, 7], costs: [200, 450, 800], always: false },
+  { name: 'Signature', key: 'RMB', desc: "the equipped weapon's own ability", target: 'point', range: 0, cool: [0, 0, 0], costs: [0, 0, 0], always: true },
+  { name: 'Grenade', key: 'Shift', desc: 'Lob a frag grenade that explodes after a short flight.', target: 'point', range: 11, cool: [9, 8, 7], costs: [200, 450, 800], always: false },
   { name: 'Dash', key: 'E', desc: 'A short burst of speed towards the target point.', target: 'point', range: 5, cool: [10, 8, 6], costs: [300, 600, 1000], always: false },
-  { name: 'Airstrike', key: 'D', desc: 'Call in a bombing run on the target after 3 seconds.', target: 'point', range: 40, cool: [60, 50, 40], costs: [600, 1100, 1800], always: false },
+  { name: 'Airstrike', key: 'Q', desc: 'Call in a bombing run on the target after 3 seconds.', target: 'point', range: 40, cool: [60, 50, 40], costs: [600, 1100, 1800], always: false },
 ];
 
 // Blast radii of the abilities, for the area preview: grenade, napalm, airstrike.
@@ -69,7 +69,7 @@ export const STRUCTS: StructDef[] = [
   { name: 'none', price: 0, hp: 0, w: 1, h: 1, range: 0, turret: false, key: '', desc: '', upgrade: [] },
   { name: 'Generator', price: 0, hp: 2500, w: 5, h: 5, range: 0, turret: false, key: '', desc: 'Powers the base. If it falls, the game is over.', upgrade: [] },
   { name: 'Armory', price: 0, hp: 1200, w: 3, h: 3, range: 0, turret: false, key: '', desc: 'Buy and upgrade weapons, gear and abilities here.', upgrade: [] },
-  { name: 'Wall', price: 20, hp: 320, w: 1, h: 1, range: 0, turret: false, key: 'W', desc: 'Blocks creeps; they have to break through.', upgrade: [] },
+  { name: 'Wall', price: 20, hp: 320, w: 1, h: 1, range: 0, turret: false, key: 'X', desc: 'Blocks creeps; they have to break through.', upgrade: [] },
   { name: 'Gate', price: 45, hp: 320, w: 1, h: 1, range: 0, turret: false, key: 'G', desc: 'Players walk through, creeps break it down.', upgrade: [] },
   { name: 'Gun turret', price: 120, hp: 220, w: 1, h: 1, range: 9, turret: true, key: 'T', desc: 'Fast, cheap single-target fire.', upgrade: up(120) },
   { name: 'Cannon', price: 240, hp: 280, w: 1, h: 1, range: 11, turret: true, key: 'C', desc: 'Slow shells that explode in an area.', upgrade: up(240) },
@@ -82,9 +82,10 @@ export const WEATHERS = [
   { name: 'Fog', info: 'everyone sees and shoots 25% less far; creeps notice you later' },
   { name: 'Heavy rain', info: 'fire burns half as hot; creeps 8% slower' },
   { name: 'Storm', info: 'heavy rain, and lightning strikes creeps out in the open' },
-  { name: 'Snow', info: 'creeps 15% slower, survivors 8% slower' },
+  { name: 'Snow', info: 'creeps 6% slower, survivors 3% slower' },
   { name: 'Drizzle', info: 'fire burns a little cooler' },
   { name: 'Thunder shower', info: 'light rain; now and then lightning strikes a creep in the open' },
+  { name: 'Heavy snow', info: 'creeps 15% slower, survivors 8% slower' },
 ];
 
 export function demoWelcome(w: number, h: number): Welcome {
@@ -97,7 +98,7 @@ export function demoWelcome(w: number, h: number): Welcome {
     gear: [
       { name: 'Armor', info: '+25 max HP', costs: [90, 153, 260, 442, 752] },
       { name: 'Boots', info: '+8% speed', costs: [110, 187, 318, 540, 918] },
-      { name: 'Medkit', info: '+1.5 HP/s regen', costs: [130, 221, 376, 639, 1086] },
+      { name: 'Vitamins', info: '+1.5 HP/s regen', costs: [130, 221, 376, 639, 1086] },
       { name: 'Scavenger', info: '+luck when searching', costs: [100, 170, 289, 491, 835] },
     ],
     abilities: ABILITIES, structs: STRUCTS, buildable: [3, 4, 5, 6, 7, 8],
@@ -107,6 +108,7 @@ export function demoWelcome(w: number, h: number): Welcome {
     difficulty: { id: 1, name: 'Normal' }, difficulties: ['Easy', 'Normal', 'Hard', 'Brutal'],
     weathers: WEATHERS,
     taunt: { cool: 12, radius: 12, time: 5 },
+    medkit: { heal: 0.4, time: 3, max: 3, cost: 60 },
     revive: { reach: 1.6, time: 2.5, hp: 0.4 },
   };
 }

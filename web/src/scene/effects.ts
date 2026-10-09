@@ -1,14 +1,19 @@
 import * as THREE from 'three/webgpu';
 import {
   cameraPosition, clamp, cross, float, instancedDynamicBufferAttribute, length, mix, normalize, positionGeometry,
-  abs, normalView, pow, sin, smoothstep, step, time, uniform, uv, vec3,
+  abs, exp, mrt, normalView, output, vec4, pow, sin, smoothstep, step, time, uniform, uv, vec3,
 } from 'three/tsl';
-import { BlastKind, EffectKind } from '../protocol';
+import { BlastKind, EffectKind, TRACER_HELI, Tile } from '../protocol';
 import type { Game } from '../state';
 import { K_ARMORY, K_CORE, K_TESLA } from './structs';
 import { linInto, writeMatrix } from './util';
 
 const STRIDE = 16;
+// Rotor wash colours by the ground under it.
+const WASH_DIRT = [0xa08a64, 0x8f7a58, 0xb59f78, 0x7d6a4c];
+const WASH_SAND = [0xd2bc8a, 0xc4ac78, 0xe0cc9c, 0xb89c6a];
+const WASH_GRASS = [0x948a66, 0x857c58, 0xa69a74, 0x707a4c];
+const WASH_SPRAY = [0xdfe8ec, 0xc8d6dc, 0xeef4f6];
 type Mode = 'billboard' | 'streak' | 'mesh';
 // Pooled muzzle lights: few, always in the scene so a shot never changes the light count.
 const LIGHTS = 4;
@@ -26,7 +31,7 @@ class FxPool {
   private lo = Infinity; private hi = -1;
 
   constructor(parent: THREE.Object3D, geo: THREE.BufferGeometry, private cap: number, mode: Mode, now: THREE.UniformNode<'float', number>,
-    right: THREE.UniformNode<'vec3', THREE.Vector3>, up: THREE.UniformNode<'vec3', THREE.Vector3>, additive: boolean, soft: boolean, rim = false, star = false) {
+    right: THREE.UniformNode<'vec3', THREE.Vector3>, up: THREE.UniformNode<'vec3', THREE.Vector3>, additive: boolean, soft: boolean, rim = false, star = false, drag = 0) {
     this.data = new Float32Array(cap * STRIDE);
     // Unused slots must not render: born far in the future.
     for (let i = 0; i < cap; i++) { this.data[i * STRIDE + 3] = 1e9; this.data[i * STRIDE + 7] = 1; }
@@ -43,7 +48,9 @@ class FxPool {
     const mat = new THREE.MeshBasicNodeMaterial();
     let fade = pow(float(1).sub(t), 1.6);
     if (mode === 'billboard') {
-      const center = a.xyz.add(b.xyz.mul(age)).add(vec3(0, d.y.mul(age).mul(age).mul(-0.5), 0));
+      // With drag, a particle bursts out and slows to a stop, distance v / drag at most.
+      const travel = drag > 0 ? float(1).sub(exp(age.mul(-drag))).div(drag) : age;
+      const center = a.xyz.add(b.xyz.mul(travel)).add(vec3(0, d.y.mul(age).mul(age).mul(-0.5), 0));
       const size = mix(c.w, d.x, t).mul(alive);
       mat.positionNode = center.add(right.mul(g.x).add(up.mul(g.y)).mul(size));
     } else if (mode === 'streak') {
@@ -81,6 +88,9 @@ class FxPool {
     mat.fog = !additive;
     if (additive) mat.blending = THREE.AdditiveBlending;
     mat.side = THREE.DoubleSide;
+    // Leave the normals the outline pass reads alone (a zero with zero alpha blends to nothing);
+    // otherwise every camera-facing quad reads as a crease and gets a dark box drawn round it.
+    mat.mrtNode = mrt({ output, normal: vec4(0, 0, 0, 0) });
     this.mesh = new THREE.InstancedMesh(geo, mat, cap);
     this.mesh.frustumCulled = false;
     this.mesh.count = cap;
@@ -124,7 +134,7 @@ export class Effects {
   private uRight = uniform(new THREE.Vector3(1, 0, 0));
   private uUp = uniform(new THREE.Vector3(0, 1, 0));
   private glow: FxPool; private smoke: FxPool; private streaks: FxPool;
-  private spheres: FxPool; private rings: FxPool; private decals: FxPool; private stars: FxPool;
+  private spheres: FxPool; private rings: FxPool; private decals: FxPool; private stars: FxPool; private dust: FxPool;
   // How dark it is (dusk, heavy weather), 0..1: muzzle flashes grow with it.
   dark = 0;
   private lights: THREE.PointLight[] = [];
@@ -137,6 +147,7 @@ export class Effects {
   private t0 = performance.now();
   private sec = 0;
   private lastNapalm = 0;
+  private lastWash = 0;
 
   constructor(scene: THREE.Scene) {
     scene.add(this.group);
@@ -152,6 +163,7 @@ export class Effects {
     this.decals = new FxPool(this.group, disc, 2048, 'mesh', n, r, u, false, false);
     this.decals.mesh.renderOrder = 1;
     this.stars = new FxPool(this.group, quad, 1024, 'billboard', n, r, u, true, false, false, true);
+    this.dust = new FxPool(this.group, quad, 4096, 'billboard', n, r, u, false, true, false, false, 1.6);
     for (let i = 0; i < LIGHTS; i++) {
       const l = new THREE.PointLight(0xffb060, 0, 7, 1.6);
       l.castShadow = false;
@@ -188,6 +200,12 @@ export class Effects {
       const k = f.tKind[i];
       const x0 = f.tX0[i], y0 = f.tY0[i], x1 = f.tX1[i], y1 = f.tY1[i];
       const dist = Math.hypot(x1 - x0, y1 - y0);
+      if (k === TRACER_HELI) {
+        // The Huey's door gunner, firing down from the hover.
+        this.streaks.add(t, x0, 6.2, y0, x1, 0.55, y1, 0.12 + dist * 0.006, 0xffd27a, 0.08, 0, 0, 0.4, 1, 1.4);
+        if (i % 3 === 0) this.glow.add(t + 0.1, x1, 0.55, y1, (Math.random() - 0.5) * 3, 2, (Math.random() - 0.5) * 3, 0.18, 0xffd27a, 0.18, 0.05, 9);
+        continue;
+      }
       if (k >= 32) {
         this.streaks.add(t, x0, 0.8, y0, x1, 0.9, y1, 0.35, 0x8cff3a, 0.2, 0, 0, 0.25, 1, 1.2);
         this.glow.add(t + 0.3, x1, 0.9, y1, 0, 0.5, 0, 0.25, 0x8cff3a, 0.6, 0.2);
@@ -468,7 +486,7 @@ export class Effects {
     }
     const done = (m: THREE.InstancedMesh, n: number) => { m.count = n; if (n) m.instanceMatrix.needsUpdate = true; };
     done(this.lasting, nr); done(this.lastingFire, nf); done(this.grenades, ng);
-    for (const p of [this.glow, this.smoke, this.streaks, this.spheres, this.rings, this.decals, this.stars]) p.flush();
+    for (const p of [this.glow, this.smoke, this.streaks, this.spheres, this.rings, this.decals, this.stars, this.dust]) p.flush();
   }
 
   // A team ping: three rings rippling out wide, brighter than a command ping, so it reads
@@ -476,6 +494,51 @@ export class Effects {
   teamPing(x: number, y: number, hex: number): void {
     const t = this.sec;
     for (let k = 0; k < 3; k++) this.rings.add(t + k * 0.22, x, 0.12, y, 0, 0, 0, 0.8, hex, 0.4, 2.6, 0, 1, 1, 1.6);
+  }
+
+  // Green marker smoke rising off a supply crate.
+  crateSmoke(x: number, y: number): void {
+    const t = this.sec;
+    this.smoke.add(t, x + 0.3, 0.8, y + 0.3, 0.25 + Math.random() * 0.2, 1.4 + Math.random() * 0.5, (Math.random() - 0.5) * 0.3, 3.2, 0x58c84a, 0.35, 1.8, 0, 1, 0.55);
+  }
+
+  // Rotor wash under a helicopter, strength 0..1 (by how low it hangs): a ring of dust bursting
+  // out along the ground and rolling up at its edge as it slows, grit and torn grass flung out,
+  // and the ground darkening where the air pushes down. Over water it is spray. Call it every
+  // render frame; it spawns by dt so the cloud stays even at any frame rate.
+  rotorWash(game: Game, x: number, y: number, strength: number, dt: number): void {
+    if (strength <= 0.02) return;
+    const t = this.sec, tile = game.tile(Math.floor(x), Math.floor(y));
+    const wet = tile === Tile.Water;
+    const cols = wet ? WASH_SPRAY : tile === Tile.Sand ? WASH_SAND : tile === Tile.Grass ? WASH_GRASS : WASH_DIRT;
+    const pick = () => cols[(Math.random() * cols.length) | 0];
+    const n = (k: number) => { const v = k * dt * strength; return Math.floor(v) + (Math.random() < v % 1 ? 1 : 0); };
+    // The ground sheet: low, fast and swirling with the rotor, slowing as it spreads.
+    for (let j = n(260); j > 0; j--) {
+      const a = Math.random() * 6.283, r0 = 0.6 + Math.random() * 1.6;
+      const c = Math.cos(a), s = Math.sin(a), v = 7 + Math.random() * 6, swirl = 2.2;
+      this.dust.add(t, x + c * r0, 0.15 + Math.random() * 0.25, y + s * r0, c * v - s * swirl, 0.3 + Math.random() * 0.6, s * v + c * swirl,
+        1.4 + Math.random() * 1.1, pick(), 0.6 + Math.random() * 0.4, 2.8 + Math.random() * 2.4, 0.25, 1, (wet ? 0.32 : 0.45) * (0.6 + 0.4 * strength));
+    }
+    // The rolling wall: puffs that start out near the edge and lift as the sheet stalls.
+    for (let j = n(45); j > 0; j--) {
+      const a = Math.random() * 6.283, r0 = 3 + Math.random() * 2.5;
+      const c = Math.cos(a), s = Math.sin(a), v = 3 + Math.random() * 2;
+      this.dust.add(t, x + c * r0, 0.4, y + s * r0, c * v, 0.4 + Math.random() * 0.5, s * v,
+        2.6 + Math.random() * 1.4, pick(), 1.2, 3.8 + Math.random() * 2.2, -0.35, 1, (wet ? 0.28 : 0.4) * strength);
+    }
+    // Grit, leaves and torn grass, flung out and falling back.
+    if (!wet) for (let j = n(40); j > 0; j--) {
+      const a = Math.random() * 6.283, r0 = 0.5 + Math.random() * 2, c = Math.cos(a), s = Math.sin(a), v = 9 + Math.random() * 8;
+      this.dust.add(t, x + c * r0, 0.1, y + s * r0, c * v, 2 + Math.random() * 3, s * v,
+        0.6 + Math.random() * 0.5, tile === Tile.Grass && Math.random() < 0.6 ? 0x4f6a2a : 0x3e3426, 0.1, 0.07, 9, 1, 1);
+    }
+    // The ground under the rotor: pressure rings rippling out over grass or water.
+    if (t - this.lastWash > 0.22 && strength > 0.3) {
+      this.lastWash = t;
+      this.decals.add(t, x, 0.04, y, 0, 0, 0, 0.9, wet ? 0xbcd2dc : 0x2a2a1e, 1.5, 6.5, 0, 1, 0.16 * strength);
+      if (wet) this.rings.add(t, x, 0.06, y, 0, 0, 0, 1.1, 0x9ab4c0, 1.2, 6, 0, 1, 0.5, 0.6);
+    }
   }
 
   // A one-off ground ping at a commanded point.

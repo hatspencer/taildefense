@@ -5,3 +5,4 @@
 /internal/web/dist/*
 !/internal/web/dist/.keep
 /web/node_modules/
+/screenshots/

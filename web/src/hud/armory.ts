@@ -4,7 +4,7 @@ import { el, esc, fmtGold, show } from './dom';
 
 type Tab = 'weapons' | 'gear' | 'abilities';
 
-// The armory window: weapons and their upgrade tracks, gear, and abilities W E R.
+// The armory window: weapons and their upgrade tracks, gear and medkits, and abilities.
 export class Armory {
   private root: HTMLElement;
   private body: HTMLElement;
@@ -37,7 +37,7 @@ export class Armory {
     show(this.root, open);
     if (!open || !me || !wd) return;
     const at = (me.flags & PF_ARMORY) !== 0;
-    const key = [this.tab, at, Math.floor(me.gold), me.owned, me.cur, me.levels.join(','), me.gear.join(','), me.abLevel.join(',')].join('|');
+    const key = [this.tab, at, Math.floor(me.gold), me.owned, me.cur, me.levels.join(','), me.gear.join(','), me.abLevel.join(','), me.medkits].join('|');
     if (key === this.key) return;
     this.key = key;
     for (const [t, b] of this.tabs) b.classList.toggle('on', t === this.tab);
@@ -68,7 +68,7 @@ export class Armory {
         const owned = (me.owned & (1 << wi)) !== 0;
         const tr = el('tr', '', t);
         const n = el('td', '', tr);
-        n.innerHTML = `<span class="wname">${esc(w.name)}</span> <kbd>${wi + 1}</kbd><br><span class="muted" style="font-size:11px">${esc(w.fire)} · range ${w.range} · Q: ${esc(w.sig.name)}</span>`;
+        n.innerHTML = `<span class="wname">${esc(w.name)}</span> <kbd>${wi + 1}</kbd><br><span class="muted" style="font-size:11px">${esc(w.fire)} · range ${w.range} · right-click: ${esc(w.sig.name)}</span>`;
         const act = el('td', '', tr);
         if (!owned) btn(act, `Buy <span class="gold">${fmtGold(w.price)}g</span>`, w.price, true, () => ctl.send({ op: 'buyWeapon', w: wi }), 'primary');
         else if (me.cur === wi) el('span', 'muted', act, 'equipped');
@@ -97,6 +97,14 @@ export class Armory {
         el('td', '', tr).innerHTML = `${lvl}/${wd.maxLevel} ${pips(lvl, wd.maxLevel)}`;
         btn(el('td', '', tr), max ? 'max' : `Buy <span class="gold">${fmtGold(cost)}g</span>`, cost, !max, () => ctl.send({ op: 'gear', g: gi }), 'primary');
       });
+      const m = wd.medkit;
+      if (m) {
+        const tr = el('tr', '', t), full = me.medkits >= m.max;
+        el('td', 'wname', tr).innerHTML = 'Medkit <kbd>8</kbd>';
+        el('td', '', tr, `+${Math.round(m.heal * 100)}% HP over ${m.time}s; a hit cuts it short`);
+        el('td', '', tr).innerHTML = `${me.medkits}/${m.max} ${pips(me.medkits, m.max)}`;
+        btn(el('td', '', tr), full ? 'full' : `Buy <span class="gold">${fmtGold(m.cost)}g</span>`, m.cost, !full, () => ctl.send({ op: 'buyMedkit' }), 'primary');
+      }
     } else {
       const t = el('table', '', b);
       t.innerHTML = '<tr><th>Key</th><th>Ability</th><th>Level</th><th></th></tr>';

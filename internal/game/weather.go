@@ -11,6 +11,7 @@ const (
 	WSnow
 	WDrizzle
 	WThunder
+	WHeavySnow
 	NumWeathers
 )
 
@@ -21,20 +22,24 @@ type WeatherDef struct {
 	Weight int // how often it comes up between waves
 }
 
-// Weathers is indexed by WeatherKind. Heavy rain and storms are rare; drizzle and a passing
-// thunder shower are their everyday, lighter forms.
+// Weathers is indexed by WeatherKind. Heavy rain, storms and heavy snow are rare; drizzle, a
+// passing thunder shower and a light snowfall are their everyday, lighter forms.
 var Weathers = [NumWeathers]WeatherDef{
-	WClear:   {Name: "Clear", Weight: 40},
-	WFog:     {Name: "Fog", Info: "you and your turrets reach 25% less far; creeps notice you later", Weight: 18},
-	WRain:    {Name: "Heavy rain", Info: "fire burns half as hot; creeps 8% slower", Weight: 5},
-	WStorm:   {Name: "Storm", Info: "heavy rain, and lightning strikes creeps out in the open", Weight: 3},
-	WSnow:    {Name: "Snow", Info: "creeps 15% slower, survivors 8% slower", Weight: 12},
-	WDrizzle: {Name: "Drizzle", Info: "fire burns a little cooler", Weight: 16},
-	WThunder: {Name: "Thunder shower", Info: "light rain; now and then lightning strikes a creep in the open", Weight: 8},
+	WClear:     {Name: "Clear", Weight: 40},
+	WFog:       {Name: "Fog", Info: "you and your turrets reach 25% less far; creeps notice you later", Weight: 18},
+	WRain:      {Name: "Heavy rain", Info: "fire burns half as hot; creeps 8% slower", Weight: 5},
+	WStorm:     {Name: "Storm", Info: "heavy rain, and lightning strikes creeps out in the open", Weight: 3},
+	WSnow:      {Name: "Snow", Info: "creeps 6% slower, survivors 3% slower", Weight: 9},
+	WDrizzle:   {Name: "Drizzle", Info: "fire burns a little cooler", Weight: 16},
+	WThunder:   {Name: "Thunder shower", Info: "light rain; now and then lightning strikes a creep in the open", Weight: 8},
+	WHeavySnow: {Name: "Heavy snow", Info: "creeps 15% slower, survivors 8% slower", Weight: 4},
 }
 
 // wetness is how much each weather counts as rain, for fire, speed and noise.
 var wetness = [NumWeathers]float32{WRain: 1, WStorm: 1, WDrizzle: .3, WThunder: .5}
+
+// snowfall is how much each weather counts as heavy snow, for speed.
+var snowfall = [NumWeathers]float32{WSnow: .4, WHeavySnow: 1}
 
 // weatherFade is how many seconds a weather takes to come in or clear.
 const weatherFade = 6
@@ -112,11 +117,14 @@ func (w *World) rangeMul() float32 { return 1 - .25*w.amt(WFog) }
 // aggroMul scales how far creeps notice survivors: fog hides them.
 func (w *World) aggroMul() float32 { return 1 - .4*w.amt(WFog) }
 
+// snowy is how snowy it is right now, 0..1: heavy snow counts fully, a light fall a little.
+func (w *World) snowy() float32 { return snowfall[w.Weather] * w.WeatherAmt }
+
 // creepSpeedMul is rain and snow slowing creeps.
-func (w *World) creepSpeedMul() float32 { return 1 - .08*w.wet() - .15*w.amt(WSnow) }
+func (w *World) creepSpeedMul() float32 { return 1 - .08*w.wet() - .15*w.snowy() }
 
 // playerSpeedMul is snow slowing survivors.
-func (w *World) playerSpeedMul() float32 { return 1 - .08*w.amt(WSnow) }
+func (w *World) playerSpeedMul() float32 { return 1 - .08*w.snowy() }
 
 // burnMul is rain putting fires out.
 func (w *World) burnMul() float32 { return 1 - .5*w.wet() }

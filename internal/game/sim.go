@@ -70,6 +70,7 @@ func (w *World) Step() {
 	w.stepTurrets()
 	w.stepRockets()
 	w.stepEffects()
+	w.stepCrates()
 	w.stepCreeps()
 	w.reap()
 	w.countGuards()
@@ -185,6 +186,9 @@ func (w *World) endWave(left int) {
 	}
 	if w.longBreak() {
 		w.note(1, "long break: %.0fs to explore and loot before wave %d", w.PhaseLeft, w.Wave+1)
+	}
+	if w.Wave%dropEvery == 0 {
+		w.callDrop()
 	}
 	if w.Wave%5 == 0 {
 		if n := w.restock(); n > 0 {
@@ -513,6 +517,10 @@ func (w *World) attackStruct(c *Creep, d *CreepDef, si int) {
 func (w *World) hurtPlayer(p *Player, dmg float32) {
 	p.HP -= dmg
 	p.Hurt = .25
+	if p.Heal > 0 {
+		p.Heal = 0
+		w.toast(p, 2, "a hit cut the medkit short")
+	}
 	if p.HP <= 0 {
 		p.HP = 0
 		p.Alive = false
@@ -546,7 +554,7 @@ func (w *World) respawn(p *Player) {
 // repair heals a structure for one tick, paid for as it goes; false when the gold ran out.
 func (w *World) repair(p *Player, si int) bool {
 	s := &w.Structs[si]
-	hp := min(80*Dt*float32(1+p.Gear[GearMedkit]/2), s.MaxHP-s.HP)
+	hp := min(80*Dt*float32(1+p.Gear[GearVitamins]/2), s.MaxHP-s.HP)
 	cost := int32(math.Ceil(float64(hp * RepairCostPerHP)))
 	if p.Gold < cost {
 		return false

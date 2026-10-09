@@ -37,8 +37,10 @@ export class Retro {
       // A neighbour well behind this pixel: this pixel is the near side of a silhouette.
       edge = edge.add(step(d0.mul(0.035).add(0.06), dd));
       // A face turning away at about the same depth: a crease.
-      crease = crease.add(float(1).sub(dot(n0, nrm(dx, dy))).mul(step(dd, d0.mul(0.02))));
+      crease = crease.add(float(1).sub(dot(n0, nrm(dx, dy))).mul(step(dd, d0.mul(0.02))).mul(step(0.5, length(nrm(dx, dy)))));
     }
+    // No normal here (smoke, dust, snow write none): no crease either.
+    crease = crease.mul(step(0.5, length(n0)));
 
     let c = renderOutput(colT.sample(at(0, 0))).rgb.mul(1.2);
     c = mix(c, c.mul(0.82), step(0.5, crease));

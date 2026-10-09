@@ -66,7 +66,6 @@ canvas.labels { position: absolute; inset: 0; width: 100%; height: 100%; pointer
 b { font-weight: 700; }
 
 /* Cursors for targeting modes. */
-body.cur-attack canvas.view { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Cg fill='none' stroke='%23ff4030' stroke-width='2.5'%3E%3Ccircle cx='16' cy='16' r='9'/%3E%3Cpath d='M16 2v8M16 22v8M2 16h8M22 16h8'/%3E%3C/g%3E%3C/svg%3E") 16 16, crosshair; }
 body.cur-target canvas.view { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Cg fill='none' stroke='%23ffd040' stroke-width='2.5'%3E%3Ccircle cx='16' cy='16' r='10'/%3E%3Ccircle cx='16' cy='16' r='2' fill='%23ffd040'/%3E%3C/g%3E%3C/svg%3E") 16 16, crosshair; }
 body.cur-build canvas.view { cursor: cell; }
 body.cur-ping canvas.view, body.cur-ping .minimap canvas { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' shape-rendering='crispEdges'%3E%3Cpath d='M6 2h4v28H6z' fill='%23000'/%3E%3Cpath d='M7 3h2v26H7z' fill='%23d9d1b3'/%3E%3Cpath d='M9 3h17l-4 6 4 6H9z' fill='%23000'/%3E%3Cpath d='M9 4h15l-3 5 3 5H9z' fill='%23e0a63a'/%3E%3C/svg%3E") 8 29, crosshair; }
@@ -293,6 +292,11 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .wslot:hover { box-shadow: 0 0 0 2px var(--tape); }
 .wslot .key { position: absolute; top: 1px; left: 4px; font-size: 15px; color: var(--khaki); }
 .wslot.cur .key { color: #5c4210; }
+.wslot.reloading::after { content: ""; position: absolute; left: 3px; right: 3px; bottom: 2px; height: 3px; background: repeating-linear-gradient(90deg, var(--tape) 0 4px, transparent 4px 7px); animation: wreload .5s steps(3) infinite; }
+@keyframes wreload { to { background-position: 7px 0; } }
+.wslot.med { margin-left: 6px; }
+.wslot.med.owned { color: #ffd8d0; background: #6a2a22; }
+.wslot.med.cur { color: var(--screen); background: #e05a40; box-shadow: 0 0 0 2px #e05a40, 0 0 0 4px var(--black); }
 
 .card { width: var(--card-w); flex: none; padding: 16px 12px 10px; display: flex; flex-direction: column; gap: 6px; overflow: visible; position: relative; min-width: 0; }
 .card h3 { margin: 0; position: absolute; top: -11px; left: 10px; right: 10px; display: flex; align-items: center; gap: 8px; font-weight: 400; pointer-events: none; }
@@ -434,5 +438,5 @@ canvas, .hud img, .hud svg { image-rendering: pixelated; }
   .abilities { gap: 5px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .over .stamp, .cover .spin, .top .chip.base.low { animation: none; }
+  .over .stamp, .cover .spin, .top .chip.base.low, .wslot.reloading::after { animation: none; }
 }
