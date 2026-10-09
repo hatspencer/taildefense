@@ -57,8 +57,10 @@ const T = {
   sweep0: 1.45, sweep1: 2.0, // the searchlight's pass
   type0: 1.05, type1: 1.9, // the tagline types in
   done: 2.45, // the splash starts to fade
-  fade: 0.4,
+  fade: 0.25,
 };
+// The whole timeline plays this much faster than the seconds above.
+const SPEED = 1.6;
 
 function rnd(seed: number): () => number {
   let s = seed >>> 0;
@@ -177,7 +179,7 @@ export class Splash {
     const dt = this.last < 0 ? 0 : Math.min(1 / 30, (now - this.last) / 1000);
     this.last = now;
     if (this.freeze < 0) {
-      this.t += dt;
+      this.t += dt * SPEED;
       if (this.out >= 0) this.out += dt;
       else if (this.t >= T.done + this.hold) this.out = 0;
     }
