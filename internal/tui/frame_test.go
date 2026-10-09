@@ -27,7 +27,7 @@ func isolate(t *testing.T) {
 
 func TestEveryScreenFitsTheWindow(t *testing.T) {
 	isolate(t)
-	for _, view := range []string{FrameMenu, FrameJoin, FrameSettings, FrameHelp} {
+	for _, view := range []string{FrameMenu, FrameJoin, FrameSettings, FrameHelp, FrameSplash} {
 		for _, size := range [][2]int{{80, 24}, {160, 48}, {80, 12}, {40, 20}} {
 			out := Frame(Options{}, size[0], size[1], view)
 			lines := strings.Split(out, "\n")

@@ -99,6 +99,10 @@ type Options struct {
 	Prefs   *config.Prefs
 	Session *Session
 	Last    *Outcome
+	// NoSplash skips the boot splash, which otherwise plays on the first launcher only.
+	NoSplash bool
+	// SplashAt is the moment of the splash Frame draws for FrameSplash.
+	SplashAt time.Duration
 }
 
 type screen int
@@ -161,6 +165,7 @@ type Model struct {
 	field   lineInput
 
 	ticking bool
+	splash  bool // the boot splash is playing
 }
 
 // internal messages
@@ -185,6 +190,7 @@ func newModel(o Options) *Model {
 	}
 	now := time.Now()
 	m := &Model{o: o, sess: o.Session, prefs: o.Prefs, width: 80, height: 24, started: now, now: now}
+	m.splash = !o.NoSplash && o.Last == nil && ui.Motion()
 	m.addr.max = 255
 	m.field.max = 64
 	return m
@@ -267,7 +273,7 @@ func (m *Model) scan() tea.Cmd {
 // animating is whether anything on screen moves: a spinner while looking for games or while
 // an update runs. An idle launcher sends no frames.
 func (m *Model) animating() bool {
-	return m.scanning || m.sess.Update().State == cli.UpdateUpdating
+	return m.splash || m.scanning || m.sess.Update().State == cli.UpdateUpdating
 }
 
 func (m *Model) ensureTick() tea.Cmd {
@@ -275,7 +281,11 @@ func (m *Model) ensureTick() tea.Cmd {
 		return nil
 	}
 	m.ticking = true
-	return tea.Tick(ui.TickInterval(), func(t time.Time) tea.Msg { return tickMsg(t) })
+	every := ui.TickInterval()
+	if m.splash {
+		every = splashTick
+	}
+	return tea.Tick(every, func(t time.Time) tea.Msg { return tickMsg(t) })
 }
 
 func (m *Model) menu() []menuItem {
@@ -307,10 +317,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		if !splashFits(m.width, m.height) {
+			m.splash = false // too small to play; straight to the menu
+		}
 		return m, nil
 	case tickMsg:
 		m.now = time.Time(msg)
 		m.ticking = false
+		if m.splash && m.now.Sub(m.started) >= SplashFor {
+			m.splash = false
+		}
 		return m, m.ensureTick()
 	case tailnetMsg, selfMsg:
 		return m, m.ensureTick()
@@ -357,6 +373,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *Model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if k.Type == tea.KeyCtrlC {
 		return m.quit(Action{Kind: ActionQuit})
+	}
+	// Any key skips the splash, and does nothing else.
+	if m.splash {
+		m.splash = false
+		return m, nil
 	}
 	if m.typing {
 		return m.typeAddr(k)

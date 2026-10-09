@@ -21,6 +21,9 @@ import (
 func (m *Model) View() string {
 	w, h := max(m.width, 20), max(m.height, 6)
 	elapsed := m.now.Sub(m.started)
+	if m.splash && elapsed < SplashFor && splashFits(w, h) {
+		return splashView(w, h, elapsed.Seconds())
+	}
 
 	head := m.header(w, h)
 	var body []string
@@ -359,6 +362,7 @@ const (
 	FrameJoin     = "join"
 	FrameSettings = "settings"
 	FrameHelp     = "help"
+	FrameSplash   = "splash"
 )
 
 // Frame renders one launcher frame without a terminal, from synthetic data: a tailnet, two
@@ -393,6 +397,12 @@ func Frame(o Options, width, height int, view string) string {
 		m.screen = screenSettings
 	case FrameHelp:
 		m.help = true
+	case FrameSplash:
+		at := o.SplashAt
+		if at <= 0 {
+			at = 1200 * time.Millisecond
+		}
+		m.splash, m.now = true, m.started.Add(at)
 	}
 	return m.View()
 }
