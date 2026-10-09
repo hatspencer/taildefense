@@ -143,6 +143,43 @@ export class World {
     f.near = dist * 1.1 * (1 - 0.6 * wf); f.far = dist * 2.6 * (1 - 0.45 * wf);
   }
 
+  // Builds the shaders ahead of the game, behind the splash. The first frame would otherwise
+  // build every one at once, and the page would freeze for that long as the game starts.
+  // Instead one object of each kind is drawn on its own, a few at a time with a breath
+  // between, so the splash keeps moving: drawing builds the shadow passes too, which three's
+  // compileAsync cannot, and it does not wait on each shader in turn as compileAsync does.
+  // What is hidden or out of view now is drawn too, so it is ready when it shows.
+  // onProgress hears how far it is, 0..1.
+  async warm(onProgress?: (f: number) => void): Promise<void> {
+    const scene = this.scene;
+    // One object for each material and kind of geometry: the rest share its shaders. A small
+    // instanced mesh writes its instance count into its shader, so that counts too.
+    const reps: THREE.Object3D[] = [], seen = new Set<string>();
+    const drawn: [THREE.Object3D, boolean, boolean][] = [];
+    scene.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.material || !m.geometry) return;
+      drawn.push([o, o.visible, o.frustumCulled]);
+      const mats = Array.isArray(m.material) ? m.material : [m.material];
+      const g = m.geometry, inst = o as THREE.InstancedMesh;
+      const key = [o.type, mats.map((x) => x.uuid).join(','), Object.keys(g.attributes).sort().join(','), g.index ? 'i' : '',
+        inst.isInstancedMesh ? `${inst.instanceMatrix.count}${inst.instanceColor ? 'c' : ''}` : '', o.castShadow, o.receiveShadow].join('|');
+      if (!seen.has(key)) { seen.add(key); reps.push(o); }
+    });
+    const BATCH = 12;
+    try {
+      for (let i = 0; i < reps.length; i += BATCH) {
+        for (const [o] of drawn) { o.visible = false; o.frustumCulled = false; }
+        for (const o of reps.slice(i, i + BATCH)) o.visible = true;
+        this.render();
+        onProgress?.(Math.min(1, (i + BATCH) / reps.length));
+        await new Promise((ok) => setTimeout(ok, 0));
+      }
+    } finally {
+      for (const [o, v, f] of drawn) { o.visible = v; o.frustumCulled = f; }
+    }
+  }
+
   render(): void {
     if (this.retro && this.pixel > 0) this.retro.render();
     else this.renderer.render(this.scene, this.camera);

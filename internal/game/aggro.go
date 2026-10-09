@@ -124,6 +124,7 @@ func (w *World) actRevive(p *Player, o *Order) bool {
 	m.Order = Order{}
 	m.walk.reset()
 	w.Blasts = append(w.Blasts, Blast{m.X, m.Y, 1, 9})
+	p.Tally.Revives++
 	w.note(1, "%s got %s back on their feet", p.Name, m.Name)
 	return false
 }

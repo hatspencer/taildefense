@@ -122,6 +122,9 @@ export class Player {
   medkits = 0; heal = 0;
   // A bit per weapon with a reload running, the one in hand or not.
   reloading = 0;
+  // The game so far: times down, teammates revived, structures built, sites searched, bosses
+  // finished, damage taken, damage their turrets dealt (part of damage).
+  downs = 0; revives = 0; built = 0; searched = 0; bosses = 0; taken = 0; turret = 0;
   name = '';
   private nameBytes = new Uint8Array(0);
 
@@ -143,6 +146,7 @@ export class Player {
     this.order = o.order; this.channel = o.channel; this.revived = o.revived; this.emote = o.emote;
     this.emoteLeft = o.emoteLeft; this.tauntCool = o.tauntCool; this.stamina = o.stamina; this.sprinting = o.sprinting; this.winded = o.winded; this.look = o.look; this.buff = o.buff; this.buffLeft = o.buffLeft;
     this.abLevel.set(o.abLevel); this.abCool.set(o.abCool); this.medkits = o.medkits; this.heal = o.heal; this.reloading = o.reloading; this.name = o.name;
+    this.downs = o.downs; this.revives = o.revives; this.built = o.built; this.searched = o.searched; this.bosses = o.bosses; this.taken = o.taken; this.turret = o.turret;
   }
 }
 
@@ -264,6 +268,9 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
       p.abLevel[a] = d.getUint8(o); p.abCool[a] = d.getUint16(o + 1, true) / 10; o += 3;
     }
     p.medkits = d.getUint8(o); p.heal = d.getUint8(o + 1) / 10; p.reloading = d.getUint8(o + 2); o += 3;
+    p.downs = d.getUint16(o, true); p.revives = d.getUint16(o + 2, true); p.built = d.getUint16(o + 4, true);
+    p.searched = d.getUint16(o + 6, true); p.bosses = d.getUint16(o + 8, true);
+    p.taken = d.getUint32(o + 10, true); p.turret = d.getUint32(o + 14, true); o += 18;
     const nl = d.getUint8(o); o += 1;
     p.setName(bytes.subarray(o, o + nl)); o += nl;
   }

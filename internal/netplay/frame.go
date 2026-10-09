@@ -442,6 +442,12 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 			}
 		}
 		b.u8(reloading)
+		t := &p.Tally
+		for _, v := range [...]uint32{t.Downs, t.Revives, t.Built, t.Searched, t.Bosses} {
+			b.uv(uint64(v))
+		}
+		b.uv(uint64(t.Taken))
+		b.uv(uint64(t.Turret))
 	}
 }
 

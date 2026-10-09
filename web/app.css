@@ -360,16 +360,27 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .armory .away span { flex: 1; }
 .armory .wallet { margin-left: 4px; font-size: 22px; line-height: 1; padding: 1px 8px 2px; }
 
-.score { width: min(580px, calc(100% - 32px)); }
-.scoretable { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-.scoretable td, .scoretable th { padding: 5px 8px; text-align: right; border-bottom: 2px dotted rgba(147, 138, 102, 0.25); }
-.scoretable td { font: 20px/1 var(--crt); }
-.scoretable td:first-child { font: 500 14px var(--font); }
-.scoretable th { font-weight: 400; color: var(--khaki); font-family: var(--small); font-size: 12px; }
-.scoretable td:first-child, .scoretable th:first-child { text-align: left; }
-.scoretable .dot { display: inline-block; width: 8px; height: 12px; border: 2px solid var(--black); margin-right: 8px; vertical-align: -1px; }
-.scoretable .st { font-family: var(--small); font-size: 12px; margin-left: 6px; }
-.scoretable .st.down { color: var(--rust); }
+.score { width: min(720px, calc(100% - 32px)); }
+.scorecards { display: flex; flex-direction: column; gap: 8px; }
+.scorecards .pcard { padding: 8px 10px 9px; background: rgba(7, 8, 10, 0.35); border: 2px solid var(--line); }
+.scorecards .pcard.away { opacity: 0.55; }
+.scorecards .who { display: flex; align-items: baseline; gap: 6px; font: 500 15px var(--font); margin-bottom: 6px; }
+.scorecards .who .muted { font-size: 13px; }
+.scorecards .who .gold { margin-left: auto; font: 22px/1 var(--crt); }
+.scorecards .dot { display: inline-block; flex: none; width: 8px; height: 12px; border: 2px solid var(--black); align-self: center; }
+.scorecards .st { font-family: var(--small); font-size: 12px; }
+.scorecards .st.down { color: var(--rust); }
+.scorecards .nums { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 2px; padding: 4px 6px 3px; background: var(--scan), var(--screen); border: 2px solid var(--black); }
+.scorecards .n { text-align: center; min-width: 0; }
+.scorecards .n b { display: block; font: 400 22px/1 var(--crt); color: #f4c25c; font-variant-numeric: tabular-nums; }
+.scorecards .n.bad b { color: #d98a62; }
+.scorecards .n span { display: block; font: 11px/1.2 var(--small); color: #9c7a34; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scorecards .kit { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.scorecards .pchip { font: 12px/1 var(--small); padding: 3px 6px; color: var(--bone); background: var(--drab); border: 1px solid var(--line); white-space: nowrap; }
+.scorecards .pchip b { font-weight: 600; color: var(--amber); margin-left: 4px; }
+.scorecards .pchip.held { border-color: var(--amber); box-shadow: inset 0 0 0 1px rgba(224, 166, 58, 0.35); }
+.scorecards .pchip.ab { color: var(--steel); }
+@media (max-width: 560px) { .scorecards .nums { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
 
 .help { width: min(660px, calc(100% - 32px)); }
 .help table { border-collapse: collapse; }
@@ -382,7 +393,7 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 
 .over { position: absolute; inset: 0; z-index: var(--z-over); display: flex; align-items: center; justify-content: center; padding: 16px;
   background: radial-gradient(ellipse at 50% 45%, rgba(30, 10, 6, 0.55), rgba(5, 5, 3, 0.88) 70%), var(--scan); }
-.over .sheet { position: relative; width: min(640px, 100%); max-height: calc(100% - 16px); overflow: auto; padding: 30px 26px 20px; }
+.over .sheet { position: relative; width: min(760px, 100%); max-height: calc(100% - 16px); overflow: auto; padding: 30px 26px 20px; }
 .over .sheet > .tape { position: absolute; top: -2px; left: 20px; font-size: 13px; }
 .over h1 { margin: 6px 0 4px; font: 700 34px/1.05 var(--font); color: var(--bone); text-shadow: 3px 3px 0 var(--black); max-width: 15ch; }
 .over .stamp { position: absolute; top: 26px; right: 22px; padding: 4px 12px 2px; font: 700 28px/1 var(--font); letter-spacing: 0.08em; color: var(--rust);

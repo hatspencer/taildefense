@@ -23,7 +23,7 @@ import { playerColor } from './scene/util';
 import { World } from './scene/world';
 import { Game } from './state';
 
-// #demo&drop&fog&weather=3&down&corehp=0.3&creeps=5000&phase=build&cam=x,y,yawDeg,dist&build=5&armory&help&score&f3&sel=struct:12&mouse=x,y&webgl
+// #demo&drop&fog&weather=3&down&corehp=0.3&creeps=5000&phase=build&cam=x,y,yawDeg,dist&build=5&armory&help&score&shot&f3&sel=struct:12&mouse=x,y&webgl
 function params(): Map<string, string> {
   const m = new Map<string, string>();
   for (const part of location.hash.slice(1).split('&')) {
@@ -61,14 +61,16 @@ async function main(): Promise<void> {
   const app = document.getElementById('app')!;
   const P = params();
   // The boot splash covers loading; #nosplash skips it, #splash=1.4 holds it at 1.4 s in.
-  if (!P.has('nosplash')) new Splash(document.body, P.has('splash') ? Number(P.get('splash')) || 0 : -1);
+  const splash = P.has('nosplash') ? null : new Splash(document.body, P.has('splash') ? Number(P.get('splash')) || 0 : -1);
   // #lab poses every creep and survivor animation side by side on the demo's world.
   const labMode = P.has('lab');
   let lab: Lab | null = null;
   const demo = P.has('demo') || labMode;
   let lostBefore = false;
   try { lostBefore = sessionStorage.getItem('td.webgl') === '1'; } catch { /* storage blocked */ }
+  splash?.progress(0.05);
   const world = await makeWorld(app, P.has('webgl') || lostBefore);
+  splash?.progress(0.15);
   const canvas = world.renderer.domElement;
   const game = new Game();
   const terrain = new Terrain(world.scene);
@@ -104,6 +106,7 @@ async function main(): Promise<void> {
 
   let centredOnHero = false;
   let hooksApplied = false;
+  let warm = 0; // 0 not started, 1 building the shaders, 2 done
   const turretHeight = (x: number, y: number) => {
     const s = game.structAtTile(Math.floor(x), Math.floor(y));
     const k = s >= 0 ? game.cur.sKind[s] : 0;
@@ -112,6 +115,7 @@ async function main(): Promise<void> {
 
   const handlers: Handlers = {
     onWelcome(w: Welcome) {
+      splash?.progress(0.25);
       game.reset(w);
       creeps.setup(w.creeps);
       structs.setup(w.structs);
@@ -127,6 +131,7 @@ async function main(): Promise<void> {
     onTerrain(t) {
       game.setTerrain(t);
       terrain.build(game.tiles, game.w, game.h);
+      splash?.progress(0.35);
     },
     onFrame(buf) {
       if (!game.welcome) return;
@@ -160,11 +165,18 @@ async function main(): Promise<void> {
       fog: P.has('fog'),
     };
     transport = new DemoHost(handlers, opt);
+    // #demo&shot: the report's picture is kept on the page, for a look at it.
+    if (P.has('shot')) hud.keepShot = async (png) => { (window as unknown as { shot: string }).shot = URL.createObjectURL(png); return 'the page'; };
   } else {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
     // The token is the hash's first part; testing flags may follow it after '&'.
     const token = location.hash.slice(1).split('&')[0];
     transport = new WsTransport(`${proto}://${location.host}/ws?token=${encodeURIComponent(token)}`, handlers);
+    hud.keepShot = async (png, wave) => {
+      const r = await fetch(`/shot?token=${encodeURIComponent(token)}&wave=${wave}`, { method: 'POST', body: png, headers: { 'Content-Type': 'image/png' } });
+      if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
+      return ((await r.json()) as { path: string }).path;
+    };
   }
 
   // Screenshot and testing hooks, applied once the first frame is in.
@@ -285,7 +297,21 @@ async function main(): Promise<void> {
       helis.update(game, now, dt);
       fow.update(game, dt);
     }
-    world.render();
+    // The shaders are built behind the splash once the first frame has filled the scene, and
+    // nothing is drawn until they are: drawing would build what is left all at once.
+    if (wd && game.frames > 1 && warm === 0) {
+      warm = 1;
+      splash?.progress(0.4);
+      // Then one real frame behind the splash, for the shadow passes, which three cannot
+      // build ahead: whatever that costs is spent on the finished splash, not the game.
+      const p = world.warm((f) => splash?.progress(0.4 + 0.5 * f))
+        .then(() => new Promise<void>((ok) => requestAnimationFrame(() => { world.render(); splash?.progress(1); ok(); })))
+        .catch((e) => console.warn('taildefense: shader warm-up failed', e));
+      // Should it hang, the game shows anyway, shaders or not.
+      void Promise.race([p, new Promise((ok) => setTimeout(ok, 20000))]).then(() => { warm = 2; });
+      splash?.holdFor(p);
+    }
+    if (warm === 2 || !wd) world.render();
     if (wd) {
       const sel = ctl.sel;
       labels.draw(game, world.camera, {
@@ -295,7 +321,8 @@ async function main(): Promise<void> {
         hoverSite: ctl.hover?.t === 'site' ? ctl.hover.id : -1, siteHint: ctl.hover?.t === 'site' ? ctl.siteHint(ctl.hover.id) : '',
       }, now, rig.dist);
       hud.minimap.draw(now, W, H);
-      portraits.update(game, now, dt, rig.yaw);
+      // The portraits share the renderer, which the shader warm-up has to itself.
+      if (warm === 2) portraits.update(game, now, dt, rig.yaw);
       hud.update(now);
     }
     const ms = performance.now() - now;

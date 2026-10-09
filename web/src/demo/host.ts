@@ -42,6 +42,8 @@ interface DPlayer {
   ready: boolean; fireCd: number; shot: number; hurt: number; harm: number; moving: boolean; wander: number;
   site: number; searchT: number; revTarget: number; channel: number; emoteLeft: number; tauntCool: number; downT: number; look: number;
   medkits: number; heal: number; steerX: number; steerY: number; steerLeft: number;
+  // The scoreboard's tally: downs, revives, built, searched, bosses, damage taken.
+  st: number[];
 }
 interface DStruct { alive: boolean; kind: number; x: number; y: number; w: number; h: number; hp: number; maxHp: number; level: number; owner: number; cd: number }
 interface DEffect { kind: number; x0: number; y0: number; x: number; y: number; r: number; left: number; total: number; owner: number; dmg: number }
@@ -229,7 +231,7 @@ export class DemoHost implements Transport {
       gold: 400 + id * 150, kills: 40 + id * 17, damage: 9000 + id * 2100, owned: 1 | (1 << cur),
       levels: new Uint8Array(28), gear: new Uint8Array(4), order: Order.Idle, tx: x, ty: y, target: -1, buildKind: 0,
       repairId: -1, buff: 0, buffLeft: 0, abLevel: [1, 0, 0, 0], abCool: [0, 0, 0, 0], ready: bot, fireCd: 0, shot: 0, hurt: 0, harm: 0,
-      moving: false, wander: 2 + id, site: -1, searchT: 0, revTarget: -1, channel: 0, emoteLeft: 0, tauntCool: 0, downT: 0, medkits: 1, heal: 0, steerX: 0, steerY: 0, steerLeft: 0,
+      moving: false, wander: 2 + id, site: -1, searchT: 0, revTarget: -1, channel: 0, emoteLeft: 0, tauntCool: 0, downT: 0, medkits: 1, heal: 0, steerX: 0, steerY: 0, steerLeft: 0, st: [0, 0, 0, 0, 0, 0],
       // A random survivor, a different outfit for each.
       look: ((Math.floor(this.rnd() * 0x10000000) << 4) | (id * 3 % 10)) >>> 0,
     };
@@ -342,7 +344,7 @@ export class DemoHost implements Transport {
     if (p.hurt > 0.2 && p.searchT > 0) { this.toast('search interrupted'); p.searchT = 0; return false; }
     p.searchT += DT;
     if (p.searchT < kind.search) return true;
-    this.searched[p.site] = 1;
+    this.searched[p.site] = 1; p.st[3]++;
     const x = s.x + s.w / 2, y = s.y + s.h / 2, name = kind.name.toLowerCase();
     if (s.kind === SiteKind.House && this.rnd() < 0.2) {
       this.bl.push(x, y, 2, 6);
@@ -483,7 +485,7 @@ export class DemoHost implements Transport {
     this.de.push(this.cX[id], this.cY[id], this.cKind[id]);
     if (bounty) {
       this.totalKills++;
-      if (by) { by.kills++; by.gold += CREEPS[this.cKind[id]].bounty; }
+      if (by) { by.kills++; by.gold += CREEPS[this.cKind[id]].bounty; if (this.cKind[id] === 5) by.st[4]++; }
     }
     this.cRespawn[id] = this.pending > 0 && this.cSite[id] < 0 ? 0.5 + this.rnd() * 3 : -1;
   }
@@ -687,9 +689,9 @@ export class DemoHost implements Transport {
   private hit(p: DPlayer, dmg: number): void {
     const cap = p.bot ? 24 : 6;
     dmg = Math.min(dmg, Math.max(0, cap - p.harm)); p.harm += dmg;
-    p.hp -= dmg; p.hurt = 0.3;
+    p.st[5] += Math.min(dmg, p.hp); p.hp -= dmg; p.hurt = 0.3;
     if (p.heal > 0) { p.heal = 0; if (!p.bot) this.toast('a hit cut the medkit short'); }
-    if (p.hp <= 0) { p.hp = 0; p.respawn = 20; p.downT = 0; p.order = Order.Idle; this.notes.push({ level: 2, text: `${p.name} is down` }); }
+    if (p.hp <= 0) { p.hp = 0; p.respawn = 20; p.downT = 0; p.order = Order.Idle; p.st[0]++; this.notes.push({ level: 2, text: `${p.name} is down` }); }
   }
 
   // --- players ---
@@ -849,7 +851,7 @@ export class DemoHost implements Transport {
         if (!this.walk(p, o.x, o.y, this.welcome.revive.reach * 0.8)) { p.channel = 0; break; }
         p.channel += DT / this.welcome.revive.time;
         if (p.channel >= 1) {
-          o.hp = Math.round(o.maxHp * this.welcome.revive.hp); o.respawn = 0; o.downT = 0; o.hurt = 0;
+          o.hp = Math.round(o.maxHp * this.welcome.revive.hp); o.respawn = 0; o.downT = 0; o.hurt = 0; p.st[1]++;
           this.bl.push(o.x, o.y, 1, BlastKind.Revived);
           this.notes.push({ level: 1, text: `${p.name} got ${o.name} back up` });
           p.order = Order.Idle; p.channel = 0;
@@ -1164,6 +1166,8 @@ export class DemoHost implements Transport {
       for (let a = 0; a < 4; a++) { w.u8(p.abLevel[a]); w.u16(p.abCool[a] * 10); }
       w.u8(p.medkits); w.u8(Math.ceil(p.heal * 10));
       w.u8(p.reloadLeft > 0 ? 1 << p.cur : 0);
+      for (let k = 0; k < 5; k++) w.u16(p.st[k]);
+      w.u32(p.st[5]); w.u32(0);
       w.str8(p.name);
     }
     w.u16(this.sites.length);

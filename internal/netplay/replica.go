@@ -37,6 +37,7 @@ type PlayerView struct {
 	ReloadFrac                                 float32 // 1 just started, 0 done
 	Respawn                                    uint8
 	Gold, Kills, Damage                        uint64
+	Stats                                      StatsView
 	Owned                                      [game.NumWeapons]bool
 	Lv                                         [game.NumWeapons][game.NumTracks]uint8
 	Gear                                       [game.NumGear]uint8
@@ -49,6 +50,12 @@ type PlayerView struct {
 type AbilityView struct {
 	Lv   uint8
 	Cool float32 // seconds left
+}
+
+// StatsView is a survivor's game so far; see game.Tally.
+type StatsView struct {
+	Downs, Revives, Built, Searched, Bosses uint64
+	Taken, Turret                           uint64
 }
 
 // Effect is a lasting effect, as of the last frame.
@@ -439,6 +446,9 @@ func (r *Replica) header(d *dec) {
 		p.Medkits = d.u8()
 		p.Heal = float32(d.u8()) / 10
 		p.ReloadMask = d.u8()
+		s := &p.Stats
+		s.Downs, s.Revives, s.Built, s.Searched, s.Bosses = d.uv(), d.uv(), d.uv(), d.uv(), d.uv()
+		s.Taken, s.Turret = d.uv(), d.uv()
 		r.Players = append(r.Players, p)
 	}
 }

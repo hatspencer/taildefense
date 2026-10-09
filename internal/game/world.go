@@ -92,6 +92,7 @@ type Player struct {
 	Order     Order
 	Kills     uint32
 	Damage    float64
+	Tally     Tally
 	Ready     bool
 	Connected bool
 	Firing    bool
@@ -115,6 +116,18 @@ type Player struct {
 	Look      uint32  // what the survivor looks like, dealt on joining; see Look
 
 	walk walker
+}
+
+// Tally is a survivor's game so far, beyond kills and damage, for the scoreboard and the field
+// report.
+type Tally struct {
+	Downs    uint32  // times knocked down
+	Revives  uint32  // teammates got back on their feet
+	Built    uint32  // structures put up
+	Searched uint32  // loot sites searched
+	Bosses   uint32  // warlords and wave bosses finished off
+	Taken    float64 // damage taken
+	Turret   float64 // damage their turrets dealt, part of Damage
 }
 
 // Speed is the player's move speed in tiles per second.
@@ -225,17 +238,18 @@ type World struct {
 	// FogOfWar hides what no survivor or structure can see. The sim ignores it; clients draw it.
 	FogOfWar bool
 
-	Creeps    []Creep
-	Structs   []Structure
-	Players   []*Player
-	Rockets   []Projectile
-	Effects   []Effect
-	Crates    []Crate // supply crates down and not yet opened
-	Sites     []Site
-	wrecks    []int16 // wreckGrid's tiles
-	wrecksFor int     // len(Sites) when wrecks was built
-	pumpIdx   []int   // the fuel pumps' site indices
-	pumpsFor  int     // len(Sites) when pumpIdx was built
+	Creeps     []Creep
+	Structs    []Structure
+	Players    []*Player
+	Rockets    []Projectile
+	Effects    []Effect
+	Crates     []Crate // supply crates down and not yet opened
+	Sites      []Site
+	wrecks     []int16 // wreckGrid's tiles
+	wrecksFor  int     // len(Sites) when wrecks was built
+	pumpIdx    []int   // the fuel pumps' site indices
+	pumpsFor   int     // len(Sites) when pumpIdx was built
+	turretFire bool    // while turrets fire, so their damage is counted as theirs
 
 	// Per tick outputs, cleared at the start of Step.
 	Tracers []Tracer

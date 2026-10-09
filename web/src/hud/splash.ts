@@ -89,6 +89,8 @@ export class Splash {
   private last = -1;
   private out = -1; // seconds into the fade out, -1 before it
   private hold = 0;
+  private waiting = 0; // things still loading, which hold the fade out
+  private loaded = -1; // how far loading is, 0..1, or -1 while nothing has said
   private raf = 0;
   private tag: HTMLElement; private tape: HTMLElement; private bar: HTMLElement; private fill: HTMLElement; private hint: HTMLElement;
   private still: boolean;
@@ -122,6 +124,21 @@ export class Splash {
     if (this.still) { this.t = T.done; this.hold = 0.8; }
     if (freeze >= 0) this.t = freeze;
     this.raf = requestAnimationFrame(this.frame);
+  }
+
+  // How far the game is loaded, 0..1. The bar only moves forward.
+  progress(f: number): void {
+    if (this.freeze >= 0) return;
+    this.loaded = Math.max(this.loaded, Math.min(1, f));
+  }
+
+  // Holds the splash up, once its animation is done, until p settles or 20 s have passed.
+  holdFor(p: Promise<unknown>): void {
+    this.waiting++;
+    let left = true;
+    const go = () => { if (left) { left = false; this.waiting--; } };
+    void p.finally(go);
+    setTimeout(go, 20000);
   }
 
   private onResize = () => { this.layout(); };
@@ -181,7 +198,7 @@ export class Splash {
     if (this.freeze < 0) {
       this.t += dt * SPEED;
       if (this.out >= 0) this.out += dt;
-      else if (this.t >= T.done + this.hold) this.out = 0;
+      else if (this.t >= T.done + this.hold && this.waiting === 0) this.out = 0;
     }
     const t = Math.min(this.t, T.done);
     this.draw(t);
@@ -328,7 +345,9 @@ export class Splash {
     this.tape.classList.toggle('on', t > T.lay1);
     this.hint.classList.toggle('on', t > 0.6);
     // The bar fills in 12px segments, like a wave filling up.
-    const frac = Math.min(1, Math.max(0, (t - 0.1) / (T.done - 0.25)));
+    // The bar is the real load (see progress); the animation alone fills it only when
+    // nothing reports, such as a still splash held for a screenshot.
+    const frac = this.loaded >= 0 ? this.loaded : Math.min(1, Math.max(0, (t - 0.1) / (T.done - 0.25)));
     this.fill.style.width = `${Math.floor(frac * 100 / 5) * 5}%`;
   }
 }

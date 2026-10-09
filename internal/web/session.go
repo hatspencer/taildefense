@@ -455,6 +455,7 @@ func handler(token string, port int, conns chan<- *browser, in chan<- inbound, d
 		"http://127.0.0.1:" + strconv.Itoa(port): true,
 		"http://localhost:" + strconv.Itoa(port): true,
 	}
+	mux.HandleFunc("POST /shot", saveShot(token, origins))
 	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		got := r.URL.Query().Get("token")
 		if subtle.ConstantTimeCompare([]byte(got), []byte(token)) != 1 {

@@ -87,7 +87,7 @@ func (w *World) resetPlayer(p *Player) {
 	p.Gear = [NumGear]uint8{}
 	p.Medkits, p.Heal = 1, 0
 	p.MaxHP = 100
-	p.Kills, p.Damage = 0, 0
+	p.Kills, p.Damage, p.Tally = 0, 0, Tally{}
 	p.Ready = false
 	p.Abil = [NumAbilities]AbilityState{}
 	for i, a := range Abilities {
@@ -324,6 +324,7 @@ func (w *World) Build(p *Player, k StructKind, x, y int) error {
 	}
 	p.Gold -= Structs[k].Price
 	w.place(k, x, y, int8(p.ID))
+	p.Tally.Built++
 	return nil
 }
 
