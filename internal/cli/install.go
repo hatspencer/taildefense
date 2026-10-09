@@ -137,6 +137,11 @@ func PrintVersion(w io.Writer, o VersionOptions) int {
 		Installed: install.IsInstalled(),
 		Branch:    install.DefaultBranch,
 	}
+	// The wordmark goes out before the remote is asked, so the wait is behind it.
+	p := ui.New(w)
+	if !o.JSON {
+		p.Banner("")
+	}
 	if paths, err := install.Resolve(); err == nil {
 		res.Prefix = paths.Prefix
 		if b := paths.Branch(); b != "" {
@@ -167,7 +172,6 @@ func PrintVersion(w io.Writer, o VersionOptions) int {
 		}
 		return 0
 	}
-	p := ui.New(w)
 	p.Step("taildefense")
 	rows := [][2]string{{"version", res.Version}}
 	if res.Stamped != res.Version {
