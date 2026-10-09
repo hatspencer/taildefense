@@ -144,14 +144,43 @@ modcache() {
 # Per-tree compiler cache; overridable because Go locks it and parallel builds serialise.
 GOCACHE_DIR="${TAILDEFENSE_GOCACHE:-$PWD/.gocache}"
 
+# Every build container is named and labelled after this tool, so none is left behind. --rm
+# removes one when it exits; the trap removes the running one when this script is interrupted
+# (ctrl+c, a killed background update), before its client can; and each run first removes any
+# stopped one a hard kill left. The images are kept: they are the shared build cache.
+BUILD_LABEL="dev.taildefense.build=$BINARY"
+CONTAINER=
+BUILD_SEQ=0
+
+remove_container() {
+  if [ -n "$CONTAINER" ]; then
+    "$ENGINE" rm -f "$CONTAINER" >/dev/null 2>&1 || true
+    CONTAINER=
+  fi
+}
+
+sweep_containers() {
+  # shellcheck disable=SC2046
+  set -- $("$ENGINE" ps -aq --filter "label=$BUILD_LABEL" --filter status=exited \
+    --filter status=created 2>/dev/null || true)
+  if [ $# -gt 0 ]; then
+    "$ENGINE" rm -f "$@" >/dev/null 2>&1 || true
+  fi
+}
+
 # run executes a command in the golang image as the calling user. HOME is a mounted
 # directory, not /tmp, so tests that shorten $HOME to ~ see a realistic home.
 run() {
   mkdir -p "$GOCACHE_DIR/build" "$GOCACHE_DIR/home"
   need_engine
   z=$(engine_mount_suffix)
+  sweep_containers
+  BUILD_SEQ=$((BUILD_SEQ + 1))
+  CONTAINER="$BINARY-build-$$-$BUILD_SEQ"
+  trap 'remove_container; exit 130' INT TERM HUP
+  status=0
   # shellcheck disable=SC2086
-  "$ENGINE" run --rm \
+  "$ENGINE" run --rm --name "$CONTAINER" --label "$BUILD_LABEL" \
     $(engine_id_flags) \
     -e HOME=/gohome \
     -e CGO_ENABLED=0 \
@@ -164,7 +193,10 @@ run() {
     -v "$(modcache):/gomodcache$z" \
     -w /src \
     ${TTY_FLAGS:-} \
-    "$@"
+    "$@" || status=$?
+  trap - INT TERM HUP
+  remove_container
+  return "$status"
 }
 
 build_one() {

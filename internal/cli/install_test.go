@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"taildefense/internal/install"
 )
@@ -150,5 +152,36 @@ func TestVersionOfflineJSONNamesTheBranchAndAsksNothing(t *testing.T) {
 	}
 	if res.UpToDate != nil || res.Remote != "" || res.Error != "" {
 		t.Errorf("--offline must not ask the remote: %+v", res)
+	}
+}
+
+func TestSweepScratchRemovesOnlyDeadRunsClones(t *testing.T) {
+	base := t.TempDir()
+	mine := filepath.Join(base, scratchPrefix+strconv.Itoa(os.Getpid())+"-1")
+	dead := filepath.Join(base, scratchPrefix+"999999999-2")
+	oldStyleFresh := filepath.Join(base, scratchPrefix+"12345")
+	oldStyleStale := filepath.Join(base, scratchPrefix+"67890")
+	other := filepath.Join(base, "something-else")
+	for _, d := range []string{mine, dead, oldStyleFresh, oldStyleStale, other} {
+		if err := os.MkdirAll(filepath.Join(d, "sub"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Read-only, the way Go writes its caches, so the sweep has to restore permission.
+	if err := os.Chmod(filepath.Join(dead, "sub"), 0o555); err != nil {
+		t.Fatal(err)
+	}
+	past := time.Now().Add(-2 * scratchMaxAge)
+	if err := os.Chtimes(oldStyleStale, past, past); err != nil {
+		t.Fatal(err)
+	}
+
+	sweepScratch(base)
+
+	for d, want := range map[string]bool{mine: true, dead: false, oldStyleFresh: true, oldStyleStale: false, other: true} {
+		_, err := os.Stat(d)
+		if got := err == nil; got != want {
+			t.Errorf("%s: exists = %v, want %v", filepath.Base(d), got, want)
+		}
 	}
 }

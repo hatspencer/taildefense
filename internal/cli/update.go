@@ -5,8 +5,13 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
+	"syscall"
+	"time"
 
 	"taildefense/internal/install"
 	"taildefense/internal/platform"
@@ -122,12 +127,22 @@ func Update(w io.Writer, o UpdateOptions) int {
 		p.Fail("%v", err)
 		return 1
 	}
-	tmp, err := os.MkdirTemp(base, "taildefense-update-*")
+	sweepScratch(base)
+	tmp, err := os.MkdirTemp(base, scratchPrefix+strconv.Itoa(os.Getpid())+"-*")
 	if err != nil {
 		p.Fail("%v", err)
 		return 1
 	}
 	defer removeScratch(tmp)
+	intr := catchInterrupts()
+	defer intr.stop()
+	interrupted := func() bool {
+		if !intr.caught() {
+			return false
+		}
+		p.Fail("interrupted; the previous version is still in place")
+		return true
+	}
 
 	prog := ui.StartProgress("fetching " + repo)
 	cloneArgs := []string{"clone", "--quiet", "--depth", "1"}
@@ -138,8 +153,11 @@ func Update(w io.Writer, o UpdateOptions) int {
 	clone.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
 	var cloneErr strings.Builder
 	clone.Stderr = &cloneErr
-	err = clone.Run()
+	err = intr.run(group(clone))
 	prog.Stop()
+	if interrupted() {
+		return 130
+	}
 	if err != nil {
 		p.Fail("could not fetch %s from %s: %v", source, repo, err)
 		if d := strings.TrimSpace(cloneErr.String()); d != "" {
@@ -172,8 +190,11 @@ func Update(w io.Writer, o UpdateOptions) int {
 	build.Env = append(os.Environ(), platform.EnvContainerEngine+"="+engine)
 	var buildOut strings.Builder
 	build.Stdout, build.Stderr = &buildOut, &buildOut
-	err = build.Run()
+	err = intr.run(group(build))
 	prog.Stop()
+	if interrupted() {
+		return 130
+	}
 	built := filepath.Join(tmp, install.Binary)
 	if err != nil {
 		p.Fail("the %s build failed; the previous version is still in place", engine)
@@ -193,7 +214,10 @@ func Update(w io.Writer, o UpdateOptions) int {
 		install.EnvInstallVersion+"="+remote,
 		install.EnvInstallBranch+"="+branch,
 		ui.EnvNoBanner+"=1")
-	if err := inst.Run(); err != nil {
+	if err := intr.run(inst); err != nil {
+		if interrupted() {
+			return 130
+		}
 		p.Fail("the installer failed; the previous version is still in place: %v", err)
 		return 1
 	}
@@ -202,6 +226,121 @@ func Update(w io.Writer, o UpdateOptions) int {
 		p.Note("following %s: a plain td update stays on it, td update -f returns to main", branch)
 	}
 	return 0
+}
+
+// interrupts turns a ctrl+c or a kill into an update that stops the way a failure does, so the
+// deferred cleanup still runs: the signal goes on to the step running at the time (build.sh
+// removes its container on it), that step fails, and Update returns through its defers. A
+// background update has its own process group, so a signal sent to it reaches only td and
+// would otherwise leave the build running and the clone behind.
+type interrupts struct {
+	mu  sync.Mutex
+	sig chan os.Signal
+	cur *exec.Cmd
+	got os.Signal
+}
+
+func catchInterrupts() *interrupts {
+	i := &interrupts{sig: make(chan os.Signal, 1)}
+	signal.Notify(i.sig, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+	go func() {
+		for s := range i.sig {
+			i.mu.Lock()
+			i.got = s
+			if i.cur != nil && i.cur.Process != nil {
+				if a := i.cur.SysProcAttr; a != nil && a.Setpgid {
+					_ = syscall.Kill(-i.cur.Process.Pid, s.(syscall.Signal))
+				} else {
+					_ = i.cur.Process.Signal(s)
+				}
+			}
+			i.mu.Unlock()
+		}
+	}()
+	return i
+}
+
+// group runs cmd in a process group of its own, so a signal passed on reaches all of it: sh
+// waits for the engine client before it runs its trap, and only the client tells the
+// container to stop. A step with no stdin to read loses nothing by leaving the terminal's
+// group, and a ctrl+c then arrives once, through td, rather than twice.
+func group(cmd *exec.Cmd) *exec.Cmd {
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	return cmd
+}
+
+// run is cmd.Run with cmd as the step a signal is passed on to. A signal that came before
+// the step started stops it from starting.
+func (i *interrupts) run(cmd *exec.Cmd) error {
+	i.mu.Lock()
+	if i.got != nil {
+		i.mu.Unlock()
+		return fmt.Errorf("interrupted")
+	}
+	if err := cmd.Start(); err != nil {
+		i.mu.Unlock()
+		return err
+	}
+	i.cur = cmd
+	i.mu.Unlock()
+	err := cmd.Wait()
+	i.mu.Lock()
+	i.cur = nil
+	i.mu.Unlock()
+	return err
+}
+
+func (i *interrupts) caught() bool {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return i.got != nil
+}
+
+func (i *interrupts) stop() {
+	signal.Stop(i.sig)
+	close(i.sig)
+}
+
+// scratchPrefix names an update's clone under ~/.cache. The pid after it says whose clone it
+// is, so the next update can tell a dead run's leftover from a running one's tree.
+const scratchPrefix = "taildefense-update-"
+
+// scratchMaxAge is when a clone named the old way, with no pid to ask, counts as left over.
+// A build takes minutes.
+const scratchMaxAge = time.Hour
+
+// sweepScratch removes the clones of updates that are no longer running: one that was
+// killed with SIGKILL, or the machine went down mid-build, never ran its cleanup.
+func sweepScratch(base string) {
+	entries, err := os.ReadDir(base)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if !e.IsDir() || !strings.HasPrefix(e.Name(), scratchPrefix) {
+			continue
+		}
+		if scratchIsStale(e, time.Now()) {
+			removeScratch(filepath.Join(base, e.Name()))
+		}
+	}
+}
+
+func scratchIsStale(e os.DirEntry, now time.Time) bool {
+	rest := strings.TrimPrefix(e.Name(), scratchPrefix)
+	if pid, _, ok := strings.Cut(rest, "-"); ok {
+		if n, err := strconv.Atoi(pid); err == nil && n > 0 {
+			return !processAlive(n)
+		}
+	}
+	info, err := e.Info()
+	return err == nil && now.Sub(info.ModTime()) > scratchMaxAge
+}
+
+// processAlive reports whether pid is a running process; EPERM means it is, under another user.
+func processAlive(pid int) bool {
+	err := syscall.Kill(pid, 0)
+	return err == nil || err == syscall.EPERM
 }
 
 // removeScratch deletes a build tree after restoring write permission, because the in-tree
