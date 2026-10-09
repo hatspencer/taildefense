@@ -29,6 +29,8 @@
   --font: "Pixelify Sans", "Lucida Console", "Courier New", monospace;
   --crt: "VT323", "Lucida Console", "Courier New", monospace;
   --mono: var(--crt);
+  /* Pixelify smears below 14px, so small print is set in a narrow, crisp sans instead. */
+  --small: "IBM Plex Sans Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
 
   --bevel: inset 0 2px 0 rgba(236, 228, 190, 0.07), inset 0 -2px 0 rgba(0, 0, 0, 0.4);
   --drop: 0 0 0 2px var(--black), 4px 4px 0 2px rgba(0, 0, 0, 0.45);
@@ -55,7 +57,7 @@
   --slot: 56px;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; overflow: hidden; background: #0e100b; color: var(--text); font: 14px/1.35 var(--font); user-select: none; -webkit-user-select: none; -webkit-font-smoothing: none; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #0e100b; color: var(--text); font: 14px/1.35 var(--font); user-select: none; -webkit-user-select: none; }
 #app { position: fixed; inset: 0; }
 canvas.view { position: absolute; inset: 0; width: 100%; height: 100%; display: block; outline: none; }
 canvas.view.pixelated { image-rendering: pixelated; image-rendering: crisp-edges; }
@@ -101,6 +103,7 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
   background: #c8bf9f; color: #1c1a12; vertical-align: 1px; }
 .gold { color: var(--amber); font-variant-numeric: tabular-nums; }
 .muted { color: var(--khaki); }
+.small { font: 12px/1.3 var(--small); }
 .hot { color: var(--rust); }
 
 /* ---------- top bar: the radio strip ---------- */
@@ -115,10 +118,10 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .top .chip .pips i { width: 4px; height: 10px; background: #3c3f30; }
 .top .chip .pips i.on { background: var(--rust); }
 .top .chip.weather svg { display: block; }
-.top .chip.weather .info { color: var(--khaki); font-size: 12px; max-width: 360px; overflow: hidden; text-overflow: ellipsis; }
+.top .chip.weather .info { color: var(--khaki); font-family: var(--small); font-size: 12px; max-width: 360px; overflow: hidden; text-overflow: ellipsis; }
 .top .chip.base { gap: 7px; cursor: pointer; }
 .top .chip.base svg { display: block; }
-.top .chip.base .lbl { font: 700 11px/1 var(--font); color: var(--khaki); text-transform: uppercase; letter-spacing: 0.06em; }
+.top .chip.base .lbl { font: 700 12px/1 var(--small); color: var(--khaki); text-transform: uppercase; letter-spacing: 0.06em; }
 .top .chip.base .bbar { position: relative; width: 96px; height: 10px; background: #2a1712; box-shadow: 0 0 0 2px var(--black); }
 .top .chip.base .bbar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--moss); box-shadow: inset 0 1px 0 rgba(255, 255, 230, 0.25); transition: width 0.25s steps(4); }
 /* Segments, like every other bar in the kit. */
@@ -151,7 +154,7 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .compass .mark.main { font-size: 22px; top: 1px; color: var(--bone); }
 .compass .mark.main.n { color: #f4c25c; }
 .compass .pin { position: absolute; left: 50%; top: -2px; margin-left: -4px; border: 4px solid transparent; border-top: 5px solid #f4c25c; }
-.status { position: absolute; top: 44px; left: 12px; font-size: 12px; color: var(--khaki); text-shadow: var(--hard); pointer-events: none; }
+.status { position: absolute; top: 44px; left: 12px; font-family: var(--small); font-size: 12px; color: var(--khaki); text-shadow: var(--hard); pointer-events: none; }
 
 /* ---------- the team down the left; one who is down calls for help ---------- */
 
@@ -165,10 +168,10 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .mate .av .resp { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 22px/1 var(--crt); color: #ff8c6a; text-shadow: var(--hard); background: rgba(40, 10, 6, 0.35); }
 .mate .av .resp:empty { display: none; }
 .mate .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.mate .nm { font: 700 12px/1.1 var(--font); color: var(--pc); text-shadow: var(--hard); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mate .nm { font: 700 12px/1.1 var(--small); color: var(--pc); text-shadow: var(--hard); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mate .mbar { position: relative; height: 6px; background: #1b110e; box-shadow: 0 0 0 1px var(--black); }
 .mate .mbar i { position: absolute; inset: 0; transform-origin: left; background: var(--moss); transition: transform 0.15s steps(3); }
-.mate .what { font-size: 11px; line-height: 1.1; color: var(--khaki); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mate .what { font-family: var(--small); font-size: 12px; line-height: 1.1; color: var(--khaki); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mate.low .mbar i { background: var(--rust); }
 .mate.low .av { box-shadow: 0 0 0 2px var(--rust); }
 .mate.dead { background: var(--grain), rgba(52, 26, 20, 0.9); box-shadow: inset 3px 0 0 var(--rust), 3px 3px 0 rgba(0, 0, 0, 0.4); animation: matedown 1.2s steps(2) infinite; }
@@ -222,7 +225,7 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .chat input { pointer-events: auto; width: 100%; margin-top: 4px; font: 14px var(--font); color: var(--bone); background: var(--scan), var(--screen); border: 2px solid var(--black); box-shadow: 0 0 0 2px var(--tape-dk); border-radius: 0; padding: 5px 8px; outline: none; }
 .chat input::placeholder { color: #6d6a52; }
 
-.mode { position: absolute; bottom: calc(var(--bottom-h) + 10px); left: 50%; transform: translateX(-50%); padding: 3px 12px 4px; font-size: 13px; color: #f4c25c; pointer-events: none; white-space: nowrap; }
+.mode { position: absolute; bottom: calc(var(--bottom-h) + 10px); left: 50%; transform: translateX(-50%); padding: 3px 12px 4px; font-family: var(--small); font-size: 13px; color: #f4c25c; pointer-events: none; white-space: nowrap; }
 
 /* ---------- bottom console ---------- */
 
@@ -233,11 +236,11 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 
 .minimap { position: relative; padding: 6px; flex: none; display: flex; align-items: center; }
 .minimap canvas { display: block; width: var(--mm-w) !important; height: auto !important; cursor: pointer; image-rendering: pixelated; border: 2px solid var(--black); box-shadow: 0 0 0 1px var(--line); }
-.minimap .mmtip { position: absolute; left: 8px; right: 8px; bottom: calc(100% + 6px); padding: 3px 8px 4px; font-size: 12px; pointer-events: none; text-align: left; }
+.minimap .mmtip { position: absolute; left: 8px; right: 8px; bottom: calc(100% + 6px); padding: 3px 8px 4px; font-family: var(--small); font-size: 12px; pointer-events: none; text-align: left; }
 .minimap .mmcap { display: none; }
 /* M: the map floats big over the middle of the view; the console keeps its slot. */
 .minimap.big canvas { position: fixed; left: 50%; top: var(--mm-top); transform: translateX(-50%); z-index: 40; width: var(--mm-big) !important; box-shadow: 0 0 0 1px var(--line), 0 0 0 100vmax rgba(7,8,10,0.45); }
-.minimap.big .mmcap { display: block; position: fixed; left: 50%; top: calc(var(--mm-top) - 24px); transform: translateX(-50%); z-index: 41; font-size: 13px; color: var(--bone); text-shadow: 2px 2px 0 #000; pointer-events: none; }
+.minimap.big .mmcap { display: block; position: fixed; left: 50%; top: calc(var(--mm-top) - 24px); transform: translateX(-50%); z-index: 41; font-family: var(--small); font-size: 13px; color: var(--bone); text-shadow: 2px 2px 0 #000; pointer-events: none; }
 .minimap.big .mmtip { position: fixed; left: 50%; right: auto; bottom: 24px; transform: translateX(-50%); z-index: 41; }
 .minimap .mmtip .skulls { color: var(--rust); letter-spacing: 1px; }
 
@@ -274,10 +277,10 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .hero .gun .wname { flex: 1; min-width: 0; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hero .gun .ammo { font-size: 21px; line-height: 1; padding: 0 6px; height: 22px; display: flex; align-items: center; }
 .hero .gun .ammo i { font-style: normal; color: #9c7a34; }
-.hero .gun button.reload { height: 22px; padding: 0 6px; font-size: 12px; display: flex; align-items: center; gap: 5px; }
+.hero .gun button.reload { height: 22px; padding: 0 6px; font-family: var(--small); font-size: 12px; display: flex; align-items: center; gap: 5px; }
 .hero .gun button.reload.busy { color: var(--steel); }
-.hero .order { font-size: 13px; color: var(--khaki); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hero .buff { font-size: 12px; color: #f4c25c; }
+.hero .order { font-family: var(--small); font-size: 13px; color: var(--khaki); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hero .buff { font-family: var(--small); font-size: 12px; color: #f4c25c; }
 
 .actions { flex: 1; display: flex; flex-direction: column; gap: 9px; min-width: 0; }
 .abilities { display: flex; gap: 6px; align-items: flex-end; }
@@ -299,7 +302,7 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .slot .cool { position: absolute; inset: 0; background: conic-gradient(rgba(6, 8, 4, 0.78) var(--a, 0deg), transparent 0); pointer-events: none; }
 .slot .cooltxt { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 26px/1 var(--crt); color: #fff; text-shadow: var(--hard); }
 .slot.taunt { background: var(--scan), #2e1f18; }
-.slot.taunt .cap { position: absolute; left: 0; right: 0; bottom: 3px; text-align: center; font-size: 10px; color: #d8b8a4; }
+.slot.taunt .cap { position: absolute; left: 0; right: 0; bottom: 3px; text-align: center; font-family: var(--small); font-size: 12px; color: #d8b8a4; }
 .slot.taunt.on { box-shadow: 0 0 0 2px var(--rust), 0 0 0 4px var(--black); }
 
 .weapons { display: flex; gap: 5px; flex-wrap: wrap; }
@@ -319,16 +322,16 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .card { width: var(--card-w); flex: none; padding: 16px 12px 10px; display: flex; flex-direction: column; gap: 6px; overflow: visible; position: relative; min-width: 0; }
 .card h3 { margin: 0; position: absolute; top: -11px; left: 10px; right: 10px; display: flex; align-items: center; gap: 8px; font-weight: 400; pointer-events: none; }
 .card h3 .tape { pointer-events: auto; }
-.card h3 .muted { font-size: 11px; text-shadow: var(--hard); margin-left: auto; }
-.card .sub { color: #b9b090; font-size: 13px; overflow: hidden; }
+.card h3 .muted { font-family: var(--small); font-size: 12px; text-shadow: var(--hard); margin-left: auto; }
+.card .sub { color: #b9b090; font-family: var(--small); font-size: 13px; overflow: hidden; }
 .card .btns { display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; }
 .card .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
-.card .grid button { padding: 4px 18px 4px 6px; text-align: left; font-size: 13px; position: relative; white-space: nowrap; overflow: hidden; min-width: 0; }
+.card .grid button { padding: 4px 18px 4px 6px; text-align: left; font-family: var(--small); font-size: 13px; position: relative; white-space: nowrap; overflow: hidden; min-width: 0; }
 .card .grid button .n { display: block; overflow: hidden; text-overflow: ellipsis; }
 .card .grid button .k { position: absolute; top: 3px; right: 4px; font: 16px/1 var(--crt); color: var(--tape); }
 .card .grid button .p { display: block; color: var(--amber); font: 17px/1 var(--crt); }
 .card .grid button.sel { background: #3a4a24; box-shadow: 0 0 0 2px var(--moss), inset 0 2px 0 #4d6030; }
-.card .hint { font-size: 11px; color: var(--khaki); }
+.card .hint { font-family: var(--small); font-size: 12px; color: var(--khaki); }
 
 /* ---------- windows ---------- */
 
@@ -345,9 +348,9 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .armory table { width: 100%; border-collapse: collapse; }
 .armory td, .armory th { padding: 6px 6px; border-bottom: 2px dotted rgba(147, 138, 102, 0.25); vertical-align: middle; text-align: left; }
 .armory tr:hover td { background: rgba(217, 209, 179, 0.03); }
-.armory th { color: var(--khaki); font-weight: 400; font-size: 12px; }
+.armory th { color: var(--khaki); font-weight: 400; font-family: var(--small); font-size: 12px; }
 .armory .wname { font-weight: 700; }
-.armory .up { min-width: 120px; width: 100%; font-size: 12px; line-height: 1.25; padding: 4px 6px; text-align: left; }
+.armory .up { min-width: 120px; width: 100%; font-family: var(--small); font-size: 12px; line-height: 1.25; padding: 4px 6px; text-align: left; }
 .armory .up .v { display: block; color: var(--bone); }
 .armory .up .c { color: var(--amber); font: 17px/1 var(--crt); }
 .armory .pips { display: inline-flex; gap: 2px; margin-left: 4px; vertical-align: 1px; }
@@ -362,10 +365,10 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .scoretable td, .scoretable th { padding: 5px 8px; text-align: right; border-bottom: 2px dotted rgba(147, 138, 102, 0.25); }
 .scoretable td { font: 20px/1 var(--crt); }
 .scoretable td:first-child { font: 500 14px var(--font); }
-.scoretable th { font-weight: 400; color: var(--khaki); font-size: 12px; }
+.scoretable th { font-weight: 400; color: var(--khaki); font-family: var(--small); font-size: 12px; }
 .scoretable td:first-child, .scoretable th:first-child { text-align: left; }
 .scoretable .dot { display: inline-block; width: 8px; height: 12px; border: 2px solid var(--black); margin-right: 8px; vertical-align: -1px; }
-.scoretable .st { font-size: 12px; margin-left: 6px; }
+.scoretable .st { font-family: var(--small); font-size: 12px; margin-left: 6px; }
 .scoretable .st.down { color: var(--rust); }
 
 .help { width: min(660px, calc(100% - 32px)); }
@@ -393,7 +396,7 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .over .tally .crt span { font-size: 18px; color: #9c7a34; }
 .over .row { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
 .over .row button { padding: 8px 18px 9px; font-size: 15px; }
-.over .note { margin-top: 8px; font-size: 12px; color: var(--khaki); }
+.over .note { margin-top: 8px; font-family: var(--small); font-size: 12px; color: var(--khaki); }
 
 /* ---------- boot splash ---------- */
 
@@ -422,7 +425,7 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 @keyframes scanbar { from { background-position: -12px 0, 0 0; } to { background-position: 64px 0, 0 0; } }
 
 .stats { position: absolute; top: 46px; right: 10px; padding: 6px 10px; font: 16px/1.15 var(--crt); white-space: pre; pointer-events: none; color: #c3dc86; text-shadow: 0 0 4px rgba(134, 162, 76, 0.5); }
-.tip { position: absolute; z-index: var(--z-tip); max-width: 320px; padding: 7px 10px 8px; pointer-events: none; font-size: 13px; line-height: 1.4; }
+.tip { position: absolute; z-index: var(--z-tip); max-width: 320px; padding: 7px 10px 8px; pointer-events: none; font-family: var(--small); font-size: 13px; line-height: 1.4; }
 .tip b { color: #f4dc9c; font-size: 14px; }
 .tip .c { color: var(--amber); }
 .tip kbd { margin-left: 4px; }

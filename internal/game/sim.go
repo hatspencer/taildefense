@@ -366,7 +366,8 @@ func (w *World) stepCreeps() {
 			c.Chase = int8(tp.ID)
 			dx, dy := tp.X-c.X, tp.Y-c.Y
 			dist := sqrt32(dx*dx + dy*dy)
-			if dist <= d.Radius+d.Reach {
+			// A spitter needs a clear line, the same one a survivor's shot needs back.
+			if dist <= d.Radius+d.Reach && (!d.Ranged || w.clearShot(c.X, c.Y, tp.X, tp.Y)) {
 				if c.swing(d, tp.X, tp.Y) {
 					w.hurtPlayer(tp, d.Damage)
 					if d.Ranged {
@@ -575,8 +576,18 @@ func (w *World) toast(p *Player, level uint8, format string, a ...any) {
 	w.Toasts = append(w.Toasts, Toast{Player: p.ID, Level: level, Text: fmt.Sprintf(format, a...)})
 }
 
+// blocksShot reports whether bullets and spit stop at tile x, y: trees and ruin walls do,
+// but a lone rock, drawn as a low junk heap, is shot over.
+func (w *World) blocksShot(x, y int) bool {
+	t := w.At(x, y)
+	if t != TRock {
+		return t.BlocksShots()
+	}
+	return w.At(x-1, y) == TRock || w.At(x+1, y) == TRock || w.At(x, y-1) == TRock || w.At(x, y+1) == TRock
+}
+
 // clearShot reports whether a shot from x0, y0 reaches x1, y1, walked the way hitscan walks
-// it: ruin walls and rocks stop it.
+// it: ruin walls and trees stop it.
 func (w *World) clearShot(x0, y0, x1, y1 float32) bool {
 	dx, dy := x1-x0, y1-y0
 	d := sqrt32(dx*dx + dy*dy)
@@ -585,7 +596,7 @@ func (w *World) clearShot(x0, y0, x1, y1 float32) bool {
 	}
 	dx, dy = dx/d, dy/d
 	for t := float32(.5); t < d; t += .5 {
-		if w.At(int(x0+dx*t), int(y0+dy*t)).BlocksShots() {
+		if w.blocksShot(int(x0+dx*t), int(y0+dy*t)) {
 			return false
 		}
 	}
@@ -663,7 +674,7 @@ func (w *World) hitscan(owner int8, x, y, ang, rng, dmg float32, pierce int, bur
 	dx, dy := float32(math.Cos(float64(ang))), float32(math.Sin(float64(ang)))
 	maxT := rng
 	for t := float32(.5); t < rng; t += .5 {
-		if w.At(int(x+dx*t), int(y+dy*t)).BlocksShots() {
+		if w.blocksShot(int(x+dx*t), int(y+dy*t)) {
 			maxT = t
 			break
 		}
@@ -861,18 +872,19 @@ func (w *World) stepTurrets() {
 			})
 			w.Blasts = append(w.Blasts, Blast{x, y, rng, 1})
 		case STurretTesla:
-			w.chain(s, t, dmg, Structs[s.Kind].Chains+int(s.Level)-1)
+			w.chain(s, t, dmg, Structs[s.Kind].Chains+2*(int(s.Level)-1))
 		}
 	}
 }
 
 // chain arcs from a tesla coil to its target and on to the nearest creep not yet struck,
-// losing some damage at every jump.
+// losing some damage at every jump. Higher levels jump further.
 func (w *World) chain(s *Structure, first int32, dmg float32, jumps int) {
 	var struck [16]uint16
 	n := 0
 	x, y := s.CX(), s.CY()
 	cur := first
+	hop := 3.5 + .5*float32(s.Level-1)
 	for j := 0; j <= jumps && cur >= 0 && n < len(struck); j++ {
 		c := &w.Creeps[cur]
 		w.tracer(x, y, c.X, c.Y, TracerTurret+uint8(STurretTesla))
@@ -881,8 +893,8 @@ func (w *World) chain(s *Structure, first int32, dmg float32, jumps int) {
 		n++
 		x, y = c.X, c.Y
 		dmg *= .85
-		best, next := float32(3.5*3.5), int32(-1)
-		w.grid.each(x, y, 3.5, func(i int32) bool {
+		best, next := hop*hop, int32(-1)
+		w.grid.each(x, y, hop, func(i int32) bool {
 			o := &w.Creeps[i]
 			if o.HP <= 0 {
 				return true
@@ -909,7 +921,7 @@ func (w *World) stepRockets() {
 		r.X += r.VX * Dt
 		r.Y += r.VY * Dt
 		r.TTL -= Dt
-		boom := r.TTL <= 0 || w.At(int(r.X), int(r.Y)).BlocksShots()
+		boom := r.TTL <= 0 || w.blocksShot(int(r.X), int(r.Y))
 		if !boom {
 			if t := w.nearestCreep(r.X, r.Y, .9); t >= 0 {
 				boom = true

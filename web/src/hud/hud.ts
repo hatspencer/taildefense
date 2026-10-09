@@ -5,6 +5,7 @@ import { cssHex, playerColor } from '../scene/util';
 import { Armory } from './armory';
 import { archetypeName, readLook } from '../scene/look';
 import { CELL, type Portraits } from '../scene/portraits';
+import { K_TESLA } from '../scene/structs';
 import { el, esc, fmtGold, setClass, setText, show } from './dom';
 import { iconFor, weatherIcon } from './icons';
 import { Compass, where } from './compass';
@@ -832,7 +833,7 @@ export class Hud {
       const id = s.id, d = wd.structs[f.sKind[id]];
       const owner = f.sOwner[id] < 0 ? 'base' : f.player(f.sOwner[id])?.name ?? `player ${f.sOwner[id]}`;
       head(esc(d?.name ?? '?'), esc(owner));
-      el('div', 'sub', c, `HP ${f.sHp[id]} / ${f.sMaxHp[id]}${d?.turret ? ` · level ${f.sLevel[id]}/${wd.maxStructLevel} · range ${turretRange(d, f.sLevel[id]).toFixed(1).replace(/\.0$/, '')}` : ''}`);
+      el('div', 'sub', c, `HP ${f.sHp[id]} / ${f.sMaxHp[id]}${d?.turret ? ` · level ${f.sLevel[id]}/${wd.maxStructLevel} · range ${turretRange(d, f.sLevel[id]).toFixed(1).replace(/\.0$/, '')}${f.sKind[id] === K_TESLA ? ` · strikes ${2 * f.sLevel[id]}` : ''}` : ''}`);
       if (d?.desc) el('div', 'sub', c, d.desc);
       const btns = el('div', 'btns', c);
       if (d?.turret) {

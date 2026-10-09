@@ -934,9 +934,10 @@ export class DemoHost implements Transport {
       else if (s.kind === 8) {
         let px = this.cX[t], py = this.cY[t], cur = t;
         this.bl.push(px, py, 0.8, 2);
-        for (let c = 0; c < 4; c++) {
-          this.hurt(cur, dmg, null);
-          cur = this.nearestExcept(px, py, 4, cur);
+        // Two creeps at level 1, two more every level, and longer jumps.
+        for (let c = 0, d = dmg; c < 2 + 2 * lv; c++, d *= 0.85) {
+          this.hurt(cur, d, null);
+          cur = this.nearestExcept(px, py, 3.5 + 0.5 * lv, cur);
           if (cur < 0) break;
           this.tracer(px, py, this.cX[cur], this.cY[cur], 16 + 8);
           px = this.cX[cur]; py = this.cY[cur];

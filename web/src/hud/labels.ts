@@ -6,7 +6,8 @@ import { cssHex, playerColor } from '../scene/util';
 export interface LabelFocus { hoverStruct: number; selStruct: number; hoverCreep: number; selCreep: number; showAllBars: boolean; hoverSite: number; siteHint: string }
 
 // The HUD's palette and faces, for the canvas (see app.css).
-const FONT = '"Pixelify Sans", "Lucida Console", monospace';
+// Labels are small print, so they use the crisp face, not Pixelify (see --small).
+const FONT = '"IBM Plex Sans Condensed", "Arial Narrow", sans-serif';
 const CRT = '"VT323", "Lucida Console", monospace';
 const INK = '#07080a', AMBER = '#e0a63a', MOSS = '#86a24c', RUST = '#b5472f', BONE = '#d9d1b3', KHAKI = '#938a66', TAPE = '#bfab72';
 
@@ -92,7 +93,7 @@ export class Labels {
     }
     if (!caption) return;
     c.save();
-    c.font = `500 12px ${FONT}`; c.textAlign = 'left'; c.textBaseline = 'middle';
+    c.font = `600 12px ${FONT}`; c.textAlign = 'left'; c.textBaseline = 'middle';
     this.text(caption, x + r + 7, y, col);
     c.restore();
   }
@@ -116,10 +117,10 @@ export class Labels {
     const fs = Math.round(13 * Math.max(0.9, zoom));
     c.save();
     c.textAlign = 'left'; c.textBaseline = 'middle';
-    c.font = `500 ${fs}px ${FONT}`;
+    c.font = `600 ${fs}px ${FONT}`;
     const line2 = searched ? (level > 0 ? 'picked clean' : '') : level === 0 ? 'unguarded' : guards > 0 ? `${guards} ${guards === 1 ? 'guard' : 'guards'} left · search if you dare` : 'guards cleared';
     const w1 = c.measureText(hint).width;
-    c.font = `500 ${fs - 1}px ${FONT}`;
+    c.font = `600 ${fs - 1}px ${FONT}`;
     const skullW = level > 0 ? level * 13 + 4 : 0;
     const w2 = line2 ? c.measureText(line2).width + skullW : 0;
     const w = Math.round(Math.max(w1, w2) + 16), lh = fs + 5;
@@ -129,13 +130,13 @@ export class Labels {
     c.fillStyle = INK; c.fillRect(bx - 2, by - 2, w + 4, h + 4);
     c.fillStyle = 'rgba(28,30,22,0.94)'; c.fillRect(bx, by, w, h);
     c.fillStyle = searched ? KHAKI : guards > 0 ? RUST : TAPE; c.fillRect(bx, by, 3, h);
-    c.font = `500 ${fs}px ${FONT}`;
+    c.font = `600 ${fs}px ${FONT}`;
     this.text(hint, bx + 9, by + 3 + lh / 2, searched ? KHAKI : '#f4c25c');
     if (line2) {
       const ly = by + 3 + lh + lh / 2;
       let tx = bx + 9;
       if (level > 0) { this.skulls(tx, Math.round(ly - 4), level, guards > 0 && !searched ? RUST : KHAKI); tx += skullW; }
-      c.font = `500 ${fs - 1}px ${FONT}`;
+      c.font = `600 ${fs - 1}px ${FONT}`;
       this.text(line2, tx, ly, guards > 0 && !searched ? '#e8846a' : searched ? KHAKI : BONE);
     }
     c.restore();
@@ -183,7 +184,7 @@ export class Labels {
       const col = cssHex(playerColor(p.id));
       if (!this.project(cam, game.prx[p.id], alive ? 2.25 : 0.5, game.pry[p.id])) continue;
       const x = this.v.x, y = this.v.y;
-      c.font = `500 ${fs}px ${FONT}`;
+      c.font = `600 ${fs}px ${FONT}`;
       if (alive) {
         this.text(p.name, x, y - 3, col);
         if (hide) continue;
@@ -215,7 +216,7 @@ export class Labels {
     // Supply crates: a tag, and a ring while someone opens one.
     for (const k of f.crates) {
       if (!this.project(cam, k.x, 1.3, k.y)) continue;
-      c.font = `500 ${fs}px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'bottom';
+      c.font = `600 ${fs}px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'bottom';
       if (k.open > 0) this.ring(this.v.x, this.v.y - 16, k.open, MOSS, 'opening…');
       else this.text('supply crate', this.v.x, this.v.y, MOSS);
     }
@@ -258,7 +259,7 @@ export class Labels {
         c.fillStyle = col;
         for (let yy = top + 28; yy < gy - 2; yy += 6) c.fillRect(gx - 1, yy, 2, 3);
         this.glyph(gx, top, p.kind, col, age);
-        c.font = `12px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'bottom';
+        c.font = `600 12px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'bottom';
         this.text(name ? `${name} · ${PING_WORD[p.kind] ?? ''}` : PING_WORD[p.kind] ?? '', gx, top - 14, col);
       } else {
         // The edge arrow: on the line from the screen centre towards the spot.
@@ -274,7 +275,7 @@ export class Labels {
         c.fillStyle = INK; c.beginPath(); c.moveTo(14 + pulse, 0); c.lineTo(-8, -11); c.lineTo(-8, 11); c.closePath(); c.fill();
         c.fillStyle = col; c.beginPath(); c.moveTo(10 + pulse, 0); c.lineTo(-5, -7); c.lineTo(-5, 7); c.closePath(); c.fill();
         c.restore();
-        c.font = `12px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'middle';
+        c.font = `600 12px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'middle';
         const tx = Math.min(this.w - 40, Math.max(40, ex - Math.cos(ang) * 30)), ty = Math.min(this.h - 20, Math.max(20, ey - Math.sin(ang) * 22));
         this.text(name || PING_WORD[p.kind], tx, ty, col);
       }

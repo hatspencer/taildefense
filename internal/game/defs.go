@@ -40,7 +40,8 @@ const (
 // Solid reports whether nothing can stand on the tile.
 func (t Tile) Solid() bool { return t >= TWater }
 
-// BlocksShots reports whether bullets stop at the tile.
+// BlocksShots reports whether bullets can stop at the tile; World.blocksShot lets them over
+// a lone rock.
 func (t Tile) BlocksShots() bool { return t == TTree || t == TRock }
 
 // CreepKind identifies a creep type.
@@ -259,7 +260,7 @@ type StructDef struct {
 	Damage float32
 	Rate   float32 // shots per second
 	Blast  float32
-	Chains int
+	Chains int     // jumps past the first creep at level 1; every level adds two
 	Slow   float32 // seconds of slow per pulse
 	Turret bool
 	Key    byte // build card hotkey
@@ -275,7 +276,7 @@ var Structs = [NumStructKinds]StructDef{
 	STurretGun:    {Name: "Gun turret", Price: 120, HP: 220, W: 1, H: 1, Range: 9, Damage: 11, Rate: 4, Turret: true, Key: 'T', Desc: "Fast single shots; pierces from level 3."},
 	STurretCannon: {Name: "Cannon", Price: 240, HP: 280, W: 1, H: 1, Range: 11, Damage: 60, Rate: .7, Blast: 2.2, Turret: true, Key: 'C', Desc: "Slow shells that burst on a crowd."},
 	STurretFrost:  {Name: "Frost tower", Price: 180, HP: 220, W: 1, H: 1, Range: 6, Damage: 3, Rate: 1, Slow: 1.6, Turret: true, Key: 'F', Desc: "Pulses cold, slowing everything around it."},
-	STurretTesla:  {Name: "Tesla coil", Price: 320, HP: 220, W: 1, H: 1, Range: 8, Damage: 32, Rate: 1.2, Chains: 4, Turret: true, Key: 'L', Desc: "Lightning that jumps from creep to creep."},
+	STurretTesla:  {Name: "Tesla coil", Price: 320, HP: 220, W: 1, H: 1, Range: 8, Damage: 32, Rate: 1.2, Chains: 1, Turret: true, Key: 'L', Desc: "Lightning that jumps from creep to creep, reaching two more every level."},
 }
 
 // Buildable lists what the build menu offers, in menu order.

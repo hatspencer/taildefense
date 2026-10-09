@@ -244,9 +244,9 @@ export class Terrain {
       this.group.add(m);
     };
     make(wallGeo, walls, (a, o, x, y) => {
-      // Ruins are broken: each block has its own height, a few are rubble.
-      const r = hash(x, y, 12);
-      const hgt = r < 0.15 ? 0.35 : 0.7 + hash(x, y, 13) * 0.9;
+      // Ruins are broken: each block has its own height, but never low enough to look like
+      // something a shot would clear, since every wall tile stops bullets.
+      const hgt = 0.8 + hash(x, y, 13) * 0.8;
       writeMatrix(a, o, x + 0.5, 0, y + 0.5, Math.floor(hash(x, y, 14) * 4) * Math.PI / 2, 1, hgt);
     });
     make(boulderGeo, boulders, (a, o, x, y) => {

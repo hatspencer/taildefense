@@ -68,7 +68,7 @@ export class Armory {
         const owned = (me.owned & (1 << wi)) !== 0;
         const tr = el('tr', '', t);
         const n = el('td', '', tr);
-        n.innerHTML = `<span class="wname">${esc(w.name)}</span> <kbd>${wi + 1}</kbd><br><span class="muted" style="font-size:11px">${esc(w.fire)} · range ${w.range} · right-click: ${esc(w.sig.name)}</span>`;
+        n.innerHTML = `<span class="wname">${esc(w.name)}</span> <kbd>${wi + 1}</kbd><br><span class="muted small">${esc(w.fire)} · range ${w.range} · right-click: ${esc(w.sig.name)}</span>`;
         const act = el('td', '', tr);
         if (!owned) btn(act, `Buy <span class="gold">${fmtGold(w.price)}g</span>`, w.price, true, () => ctl.send({ op: 'buyWeapon', w: wi }), 'primary');
         else if (me.cur === wi) el('span', 'muted', act, 'equipped');
