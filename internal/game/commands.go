@@ -400,6 +400,7 @@ func (w *World) Sell(p *Player, si int) (int32, error) {
 // Restart begins a new game on a new map with the same players, everything reset.
 func (w *World) Restart(seed uint64) *World {
 	nw := NewGame(seed, w.Diff)
+	nw.FogOfWar = w.FogOfWar
 	for _, p := range w.Players {
 		np := &Player{ID: p.ID, Name: p.Name, Login: p.Login, Connected: p.Connected}
 		nw.resetPlayer(np)

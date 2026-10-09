@@ -110,8 +110,8 @@ export class Minimap {
     const s = wd.sites[i], f = g.cur;
     const name = wd.siteKinds[s.kind]?.name ?? 'Loot site';
     const lvl = Math.max(0, Math.min(4, s.guard ?? 0));
-    const left = f.siteGuards(i);
-    const state = f.siteSearched(i) ? 'searched' : lvl === 0 ? 'unguarded' : left > 0 ? `${left} left · search if you dare` : 'guards cleared';
+    const left = g.guardsLeft(i);
+    const state = f.siteSearched(i) ? 'searched' : left < 0 ? 'dark inside' : lvl === 0 ? 'unguarded' : left > 0 ? `${left} left · search if you dare` : 'guards cleared';
     const html = `<b>${esc(name)}</b> ${lvl > 0 ? `<span class="skulls">${'☠'.repeat(lvl)}</span> ${GUARD[lvl]}` : ''} <span class="muted">· ${esc(state)}</span>`;
     if (this.tip.innerHTML !== html) this.tip.innerHTML = html;
     show(this.tip, true);
@@ -133,6 +133,33 @@ export class Minimap {
     this.terrain = c;
     this.size();
   }
+
+  // Fog of war: unseen ground goes dark, ground seen before stays dim. Crates, creeps and the
+  // team are drawn over it; creeps out of sight are not in the frame at all.
+  private drawFog(): void {
+    const v = this.ctl.game.vision;
+    if (!v) return;
+    if (!this.fog || this.fog.width !== v.w || this.fog.height !== v.h) {
+      this.fog = document.createElement('canvas');
+      this.fog.width = v.w; this.fog.height = v.h;
+      this.fogImg = this.fog.getContext('2d')!.createImageData(v.w, v.h);
+      this.fogVersion = -1;
+    }
+    if (v.version !== this.fogVersion) {
+      this.fogVersion = v.version;
+      const d = this.fogImg!.data;
+      for (let i = 0; i < v.now.length; i++) {
+        d[i * 4 + 3] = v.now[i] ? 0 : v.seen[i] ? 130 : 235;
+      }
+      this.fog.getContext('2d')!.putImageData(this.fogImg!, 0, 0);
+    }
+    this.ctx.imageSmoothingEnabled = true;
+    this.ctx.drawImage(this.fog, 0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.imageSmoothingEnabled = false;
+  }
+  private fog: HTMLCanvasElement | null = null;
+  private fogImg: ImageData | null = null;
+  private fogVersion = -1;
 
   draw(now: number, viewW: number, viewH: number): void {
     const g = this.ctl.game;
@@ -162,7 +189,8 @@ export class Minimap {
     for (let i = 0; i < wd.sites.length; i++) {
       const s = wd.sites[i];
       const x = Math.round(siteX(s) * sx), y = Math.round(siteY(s) * sy);
-      const done = f.siteSearched(i), guards = f.siteGuards(i), lvl = Math.max(0, Math.min(4, s.guard ?? 0));
+      // Unknown under fog of war counts as guarded: it may well be.
+      const lvl = Math.max(0, Math.min(4, s.guard ?? 0)), done = f.siteSearched(i), guards = g.guardsLeft(i) < 0 ? lvl : f.siteGuards(i);
       const hot = i === this.hoverSite;
       const d = hot ? sd + 2 * dpr : sd;
       c.fillStyle = hot ? '#fff' : '#000'; c.fillRect(x - d / 2 - pip, y - d / 2 - pip, d + 2 * pip, d + 2 * pip);
@@ -176,6 +204,7 @@ export class Minimap {
         }
       }
     }
+    this.drawFog();
     // Supply crates: a blinking green box; a Huey on its way: a green cross where it is.
     const cb = Math.floor(now / 500) % 2 === 0, cr = 3 * dpr;
     for (const k of f.crates) {

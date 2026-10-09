@@ -139,7 +139,7 @@ func TestSetWritesAndKeepsOtherKeys(t *testing.T) {
 	if _, err := Set("browser", "a\nb"); err == nil {
 		t.Error("a two-line browser accepted")
 	}
-	if _, err := Set("colour", "red"); err == nil || !strings.Contains(err.Error(), "name, port, difficulty, browser, autoupdate") {
+	if _, err := Set("colour", "red"); err == nil || !strings.Contains(err.Error(), "name, port, difficulty, fog, browser, autoupdate") {
 		t.Errorf("unknown key: %v", err)
 	}
 	if v, err := Set("difficulty", "HARD"); err != nil || v != "hard" {

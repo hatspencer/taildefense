@@ -112,13 +112,14 @@ export class Labels {
   private siteTag(game: Game, i: number, hint: string, x: number, y: number, zoom: number): void {
     const c = this.ctx, wd = game.welcome!, f = game.cur, s = wd.sites[i];
     const searched = f.siteSearched(i);
-    const guards = f.siteGuards(i);
+    // -1: fog of war, and nobody has been inside to count them.
+    const guards = game.guardsLeft(i);
     const level = Math.max(0, Math.min(4, s.guard ?? 0));
     const fs = Math.round(13 * Math.max(0.9, zoom));
     c.save();
     c.textAlign = 'left'; c.textBaseline = 'middle';
     c.font = `600 ${fs}px ${FONT}`;
-    const line2 = searched ? (level > 0 ? 'picked clean' : '') : level === 0 ? 'unguarded' : guards > 0 ? `${guards} ${guards === 1 ? 'guard' : 'guards'} left · search if you dare` : 'guards cleared';
+    const line2 = searched ? (level > 0 ? 'picked clean' : '') : guards < 0 ? 'dark inside · go in to see' : level === 0 ? 'unguarded' : guards > 0 ? `${guards} ${guards === 1 ? 'guard' : 'guards'} left · search if you dare` : 'guards cleared';
     const w1 = c.measureText(hint).width;
     c.font = `600 ${fs - 1}px ${FONT}`;
     const skullW = level > 0 ? level * 13 + 4 : 0;
@@ -129,15 +130,15 @@ export class Labels {
     // Plate: black edge, drab fill, tape strip down the left.
     c.fillStyle = INK; c.fillRect(bx - 2, by - 2, w + 4, h + 4);
     c.fillStyle = 'rgba(28,30,22,0.94)'; c.fillRect(bx, by, w, h);
-    c.fillStyle = searched ? KHAKI : guards > 0 ? RUST : TAPE; c.fillRect(bx, by, 3, h);
+    c.fillStyle = searched ? KHAKI : guards !== 0 ? RUST : TAPE; c.fillRect(bx, by, 3, h);
     c.font = `600 ${fs}px ${FONT}`;
     this.text(hint, bx + 9, by + 3 + lh / 2, searched ? KHAKI : '#f4c25c');
     if (line2) {
       const ly = by + 3 + lh + lh / 2;
       let tx = bx + 9;
-      if (level > 0) { this.skulls(tx, Math.round(ly - 4), level, guards > 0 && !searched ? RUST : KHAKI); tx += skullW; }
+      if (level > 0) { this.skulls(tx, Math.round(ly - 4), level, guards !== 0 && !searched ? RUST : KHAKI); tx += skullW; }
       c.font = `600 ${fs - 1}px ${FONT}`;
-      this.text(line2, tx, ly, guards > 0 && !searched ? '#e8846a' : searched ? KHAKI : BONE);
+      this.text(line2, tx, ly, guards !== 0 && !searched ? '#e8846a' : searched ? KHAKI : BONE);
     }
     c.restore();
   }

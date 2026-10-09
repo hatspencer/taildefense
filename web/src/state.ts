@@ -1,4 +1,5 @@
 import { Frame, MAX_CREEPS, PF_ALIVE, type Player, type Welcome, Weather, decodeFrame } from './protocol';
+import { Vision } from './vision';
 
 // Everything the client knows about the world: the last two frames and the interpolation
 // state derived from them. Renderers read the r* arrays, indexed like the current frame.
@@ -44,12 +45,21 @@ export class Game {
 
   private structSig = '';
 
+  // Fog of war, when the host plays with it: creeps out of the team's sight are dropped from
+  // each frame as it arrives, so nothing downstream shows them. hiddenAt[id] is the frame
+  // serial a creep was last dropped on, which tells a creep walking into the dark from one
+  // that died.
+  vision: Vision | null = null;
+  hiddenAt = new Uint32Array(MAX_CREEPS);
+
   reset(w: Welcome): void {
     w.siteKinds ??= []; w.sites ??= []; w.weathers ??= [{ name: 'Clear', info: '' }];
     w.difficulties ??= ['Normal']; w.difficulty ??= { id: 0, name: 'Normal' };
     w.taunt ??= { cool: 12, radius: 12, time: 5 }; w.revive ??= { reach: 1.6, time: 2.5, hp: 0.4 };
     this.welcome = w;
     this.w = w.w; this.h = w.h;
+    this.vision = w.fogOfWar ? new Vision(w.w, w.h, w) : null;
+    this.hiddenAt.fill(0);
     this.frames++;
     this.seen.fill(0);
     this.indexById.fill(-1);
@@ -89,6 +99,7 @@ export class Game {
     if (this.frameAt > 0) this.interval = Math.min(120, Math.max(30, this.interval * 0.9 + (now - this.frameAt) * 0.1));
     this.frameAt = now;
     const contiguous = f.tick === prevTick + 1 || f.tick === prevTick;
+    if (this.vision && this.welcome) this.hideUnseen(f, serial);
 
     const prevIndex = this.indexById;
     for (let i = 0; i < this.back.nCreeps; i++) prevIndex[this.back.cId[i]] = -1;
@@ -124,6 +135,33 @@ export class Game {
 
     this.updateStructGrid();
     return f;
+  }
+
+  // How many guards site i has left, or -1 while fog of war keeps that from the team.
+  guardsLeft(i: number): number {
+    return this.vision && !this.vision.knows(i) ? -1 : this.cur.siteGuards(i);
+  }
+
+  private hideUnseen(f: Frame, serial: number): void {
+    const v = this.vision!;
+    v.update(f, this.welcome!);
+    let n = 0;
+    for (let i = 0; i < f.nCreeps; i++) {
+      if (!v.sees(f.cX[i], f.cY[i])) { this.hiddenAt[f.cId[i]] = serial; continue; }
+      if (n !== i) {
+        f.cId[n] = f.cId[i]; f.cX[n] = f.cX[i]; f.cY[n] = f.cY[i]; f.cKind[n] = f.cKind[i];
+        f.cHp[n] = f.cHp[i]; f.cFlags[n] = f.cFlags[i]; f.cTarget[n] = f.cTarget[i];
+      }
+      n++;
+    }
+    f.nCreeps = n;
+    n = 0;
+    for (let i = 0; i < f.nDeaths; i++) {
+      if (!v.sees(f.dX[i], f.dY[i])) continue;
+      f.dX[n] = f.dX[i]; f.dY[n] = f.dY[i]; f.dKind[n] = f.dKind[i];
+      n++;
+    }
+    f.nDeaths = n;
   }
 
   private updateStructGrid(): void {

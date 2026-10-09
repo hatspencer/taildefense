@@ -170,6 +170,9 @@ func (m *Model) menuView(w int) []string {
 		label := itemLabels[it]
 		if it == itemHost {
 			label += "  ‹ " + m.prefs.Difficulty().String() + " ›"
+			if m.prefs.Fog() {
+				label += "  fog of war"
+			}
 		}
 		desc := m.itemHint(it)
 		if i == m.cursor {
@@ -193,9 +196,9 @@ func (m *Model) itemHint(it menuItem) string {
 			if host == "" {
 				host = self.Host
 			}
-			return "←/→ difficulty · friends join with: " + cli.JoinCommand(host, m.prefs.Port())
+			return "←/→ difficulty · f fog of war · friends join with: " + cli.JoinCommand(host, m.prefs.Port())
 		}
-		return fmt.Sprintf("←/→ difficulty · on port %d, this machine only until tailscale is up", m.prefs.Port())
+		return fmt.Sprintf("←/→ difficulty · f fog of war · on port %d, this machine only until tailscale is up", m.prefs.Port())
 	case itemJoin:
 		return "find games on your tailnet, or type an address"
 	case itemSettings:

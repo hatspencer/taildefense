@@ -16,13 +16,14 @@ import { Portraits } from './scene/portraits';
 import { Loot } from './scene/loot';
 import { Overlays } from './scene/overlays';
 import { K_CANNON, K_FROST, K_GUN, K_TESLA, Structs } from './scene/structs';
+import { FogOfWar } from './scene/fow';
 import { Terrain } from './scene/terrain';
 import { Weather } from './scene/weather';
 import { playerColor } from './scene/util';
 import { World } from './scene/world';
 import { Game } from './state';
 
-// #demo&drop&weather=3&down&corehp=0.3&creeps=5000&phase=build&cam=x,y,yawDeg,dist&build=5&armory&help&score&f3&sel=struct:12&mouse=x,y&webgl
+// #demo&drop&fog&weather=3&down&corehp=0.3&creeps=5000&phase=build&cam=x,y,yawDeg,dist&build=5&armory&help&score&f3&sel=struct:12&mouse=x,y&webgl
 function params(): Map<string, string> {
   const m = new Map<string, string>();
   for (const part of location.hash.slice(1).split('&')) {
@@ -77,6 +78,7 @@ async function main(): Promise<void> {
   const loot = new Loot(world.scene);
   const effects = new Effects(world.scene);
   const helis = new Helis(world.scene, effects);
+  const fow = new FogOfWar(world.scene);
   creeps.onBlow = (x, y, k, h, r) => effects.blow(x, y, k, h, r);
   creeps.onGib = (x, y) => effects.gib(x, y);
   const weather = new Weather(world.scene);
@@ -155,6 +157,7 @@ async function main(): Promise<void> {
       down: P.has('down'),
       coreHp: P.has('corehp') ? Number(P.get('corehp')) : 1,
       drop: P.has('drop'),
+      fog: P.has('fog'),
     };
     transport = new DemoHost(handlers, opt);
   } else {
@@ -280,6 +283,7 @@ async function main(): Promise<void> {
       loot.update(game, now);
       effects.update(game, world.camera, dt);
       helis.update(game, now, dt);
+      fow.update(game, dt);
     }
     world.render();
     if (wd) {

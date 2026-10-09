@@ -41,6 +41,7 @@ const (
 	KeyBrowser    = "BROWSER"
 	KeyAutoUpdate = "AUTOUPDATE"
 	KeyDifficulty = "DIFFICULTY"
+	KeyFog        = "FOG"
 )
 
 // DefaultPort is netplay.DefaultPort, repeated here so the prefs do not import the network
@@ -90,6 +91,8 @@ var Keys = []Key{
 		Parse: parsePort, Default: func() string { return strconv.Itoa(DefaultPort) }},
 	{Name: KeyDifficulty, Env: "TAILDEFENSE_DIFFICULTY", Help: "how hard the games you host are: easy, normal, hard or brutal",
 		Parse: parseDifficulty, Default: func() string { return strings.ToLower(game.DefaultDifficulty.String()) }},
+	{Name: KeyFog, Env: "TAILDEFENSE_FOG", Help: "fog of war in the games you host: only what the team can see is shown",
+		Parse: parseOnOff, Default: func() string { return "off" }, Bool: true},
 	{Name: KeyBrowser, Env: "TAILDEFENSE_BROWSER", Help: "what opens the game: auto (best browser, full screen), default, chrome, firefox…, none or a command",
 		Parse: parseBrowser, Default: func() string { return BrowserAuto }},
 	{Name: KeyAutoUpdate, Env: "TAILDEFENSE_NO_AUTOUPDATE", Help: "update td in the background when main moves on",
@@ -268,6 +271,9 @@ func (p *Prefs) Difficulty() game.Difficulty {
 	d, _ := game.ParseDifficulty(p.Get(KeyDifficulty).Value)
 	return d
 }
+
+// Fog is whether games are hosted with fog of war.
+func (p *Prefs) Fog() bool { return ParseOnOff(p.Get(KeyFog).Value, false) }
 
 // AutoUpdate is whether td may update itself in the background.
 func (p *Prefs) AutoUpdate() bool { return ParseOnOff(p.Get(KeyAutoUpdate).Value, true) }

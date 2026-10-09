@@ -220,6 +220,8 @@ type World struct {
 	Terrain []Tile
 	Seed    uint64
 	Diff    Difficulty
+	// FogOfWar hides what no survivor or structure can see. The sim ignores it; clients draw it.
+	FogOfWar bool
 
 	Creeps    []Creep
 	Structs   []Structure
