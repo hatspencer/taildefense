@@ -24,6 +24,40 @@ function texelNoise(perTile: number, seed: number) {
 
 export const WATER_Y = -0.24;
 
+// One prop's instances over the whole map, built in blocks of it so those out of view, or out
+// of the sun's shadow frustum, are skipped rather than drawn.
+const BLOCK = 32;
+class Scatter {
+  private mats: number[] = []; private cols: number[] = []; private keys: number[] = [];
+  private m = new Float32Array(16);
+
+  add(x: number, z: number, heading: number, s: number, sy = s, col?: number[]): void {
+    writeMatrix(this.m, 0, x, 0, z, heading, s, sy);
+    for (let i = 0; i < 16; i++) this.mats.push(this.m[i]);
+    if (col) this.cols.push(col[0], col[1], col[2]);
+    this.keys.push(Math.floor(x / BLOCK) * 1024 + Math.floor(z / BLOCK));
+  }
+
+  build(group: THREE.Group, geo: THREE.BufferGeometry, mat: THREE.Material, shadow: boolean): void {
+    const blocks = new Map<number, number[]>();
+    this.keys.forEach((k, i) => { let l = blocks.get(k); if (!l) blocks.set(k, l = []); l.push(i); });
+    const tinted = this.cols.length > 0;
+    for (const list of blocks.values()) {
+      const m = new THREE.InstancedMesh(geo, mat, list.length);
+      m.castShadow = shadow; m.receiveShadow = true;
+      const a = m.instanceMatrix.array as Float32Array;
+      const c = tinted ? new Float32Array(list.length * 3) : null;
+      list.forEach((i, j) => {
+        for (let e = 0; e < 16; e++) a[j * 16 + e] = this.mats[i * 16 + e];
+        if (c) for (let e = 0; e < 3; e++) c[j * 3 + e] = this.cols[i * 3 + e];
+      });
+      if (c) m.instanceColor = new THREE.InstancedBufferAttribute(c, 3);
+      m.computeBoundingSphere();
+      group.add(m);
+    }
+  }
+}
+
 // Weather on a colour: wet darkens it, snow settles white on whatever faces up.
 function weathered(c: THREE.Node<'vec3'>, up: THREE.Node<'float'>): THREE.Node<'vec3'> {
   const n = texelNoise(3, 41);
@@ -173,32 +207,21 @@ export class Terrain {
     ]);
     const mat = propMaterial();
     const kinds = [geoPine, geoRound];
-    const counts = [0, 0];
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (tiles[y * w + x] === Tile.Tree) counts[hash(x >> 2, y >> 2, 5) < 0.6 ? 0 : 1]++;
-    const meshes = kinds.map((g, k) => {
-      const m = new THREE.InstancedMesh(g, mat, Math.max(1, counts[k]));
-      m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false;
-      m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, counts[k]) * 3), 3);
-      m.count = counts[k];
-      return m;
-    });
-    const fill = [0, 0];
+    const scatters = [new Scatter(), new Scatter()];
     const tint = new THREE.Color();
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       if (tiles[y * w + x] !== Tile.Tree) continue;
       const k = hash(x >> 2, y >> 2, 5) < 0.6 ? 0 : 1;
-      const m = meshes[k], i = fill[k]++;
       const s = 0.8 + hash(x, y, 1) * 0.5;
-      writeMatrix(m.instanceMatrix.array as Float32Array, i * 16,
-        x + 0.5 + (hash(x, y, 2) - 0.5) * 0.3, 0, y + 0.5 + (hash(x, y, 3) - 0.5) * 0.3, hash(x, y, 4) * 6.28, s, s * (0.85 + hash(x, y, 6) * 0.35));
       // A few crowns are turning: autumn rust among the greens.
       const autumn = hash(x >> 1, y >> 1, 19) < 0.07;
       tint.setHSL(autumn ? 0.14 : 0.27 + (hash(x, y, 7) - 0.5) * 0.08, 0.5, 0.5);
       const b = 0.8 + hash(x, y, 8) * 0.35;
       const a = autumn ? [1.9, 1.05, 0.55] : [0.9 + (tint.r - 0.5) * 0.4, 1, 0.9 + (tint.b - 0.5) * 0.4];
-      (m.instanceColor!.array as Float32Array).set([b * a[0], b * a[1], b * a[2]], i * 3);
+      scatters[k].add(x + 0.5 + (hash(x, y, 2) - 0.5) * 0.3, y + 0.5 + (hash(x, y, 3) - 0.5) * 0.3, hash(x, y, 4) * 6.28,
+        s, s * (0.85 + hash(x, y, 6) * 0.35), [b * a[0], b * a[1], b * a[2]]);
     }
-    for (const m of meshes) { m.instanceMatrix.needsUpdate = true; this.group.add(m); }
+    kinds.forEach((g, k) => scatters[k].build(this.group, g, mat, true));
     this.disposables.push(geoPine, geoRound, mat);
   }
 
@@ -227,31 +250,23 @@ export class Terrain {
       part(box(0.7, 0.05, 0.12), 0x7a5a36, 0.05, 0.3, 0.25, 0, 0.9, 0.25),
     ]);
     const mat = propMaterial();
-    const make = (geo: THREE.BufferGeometry, list: number[], f: (m: Float32Array, o: number, x: number, y: number) => void) => {
-      const cnt = list.length / 2;
-      if (!cnt) return;
-      const m = new THREE.InstancedMesh(geo, mat, cnt);
-      m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false;
-      m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cnt * 3), 3);
-      const ic = m.instanceColor.array as Float32Array;
-      for (let i = 0; i < cnt; i++) {
-        const x = list[i * 2], y = list[i * 2 + 1];
-        f(m.instanceMatrix.array as Float32Array, i * 16, x, y);
-        const b = 0.82 + hash(x, y, 11) * 0.3;
-        ic[i * 3] = b; ic[i * 3 + 1] = b * 0.98; ic[i * 3 + 2] = b * 0.94;
+    const make = (geo: THREE.BufferGeometry, list: number[], place: (sc: Scatter, x: number, y: number, col: number[]) => void) => {
+      const sc = new Scatter();
+      for (let i = 0; i < list.length; i += 2) {
+        const x = list[i], y = list[i + 1], b = 0.82 + hash(x, y, 11) * 0.3;
+        place(sc, x, y, [b, b * 0.98, b * 0.94]);
       }
-      m.instanceMatrix.needsUpdate = true;
-      this.group.add(m);
+      sc.build(this.group, geo, mat, true);
     };
-    make(wallGeo, walls, (a, o, x, y) => {
+    make(wallGeo, walls, (sc, x, y, col) => {
       // Ruins are broken: each block has its own height, but never low enough to look like
       // something a shot would clear, since every wall tile stops bullets.
       const hgt = 0.8 + hash(x, y, 13) * 0.8;
-      writeMatrix(a, o, x + 0.5, 0, y + 0.5, Math.floor(hash(x, y, 14) * 4) * Math.PI / 2, 1, hgt);
+      sc.add(x + 0.5, y + 0.5, Math.floor(hash(x, y, 14) * 4) * Math.PI / 2, 1, hgt, col);
     });
-    make(boulderGeo, boulders, (a, o, x, y) => {
+    make(boulderGeo, boulders, (sc, x, y, col) => {
       const s = 0.9 + hash(x, y, 15) * 0.5;
-      writeMatrix(a, o, x + 0.5, 0, y + 0.5, hash(x, y, 16) * 6.28, s, s * (0.8 + hash(x, y, 17) * 0.6));
+      sc.add(x + 0.5, y + 0.5, hash(x, y, 16) * 6.28, s, s * (0.8 + hash(x, y, 17) * 0.6), col);
     });
     this.disposables.push(wallGeo, boulderGeo, mat);
   }
@@ -277,19 +292,15 @@ export class Terrain {
       part(box(0.05, 0.05, 0.05), 0xc8b860, 0.12, 0.28, 0.06),
     ]);
     const mat = propMaterial();
+    // Knee high at most: their shadows are not worth drawing them twice.
     [bush, weeds].forEach((geo, k) => {
-      const list: number[] = [];
-      for (let i = 0; i < spots.length; i += 3) if (spots[i + 2] === k) list.push(spots[i], spots[i + 1]);
-      const cnt = list.length / 2;
-      if (!cnt) return;
-      const m = new THREE.InstancedMesh(geo, mat, cnt);
-      m.castShadow = k === 0; m.receiveShadow = true; m.frustumCulled = false;
-      for (let i = 0; i < cnt; i++) {
-        const x = list[i * 2], y = list[i * 2 + 1], s = 0.8 + hash(x, y, 32) * 0.6;
-        writeMatrix(m.instanceMatrix.array as Float32Array, i * 16, x + 0.2 + hash(x, y, 33) * 0.6, 0, y + 0.2 + hash(x, y, 34) * 0.6, hash(x, y, 35) * 6.28, s);
+      const sc = new Scatter();
+      for (let i = 0; i < spots.length; i += 3) {
+        if (spots[i + 2] !== k) continue;
+        const x = spots[i], y = spots[i + 1], s = 0.8 + hash(x, y, 32) * 0.6;
+        sc.add(x + 0.2 + hash(x, y, 33) * 0.6, y + 0.2 + hash(x, y, 34) * 0.6, hash(x, y, 35) * 6.28, s);
       }
-      m.instanceMatrix.needsUpdate = true;
-      this.group.add(m);
+      sc.build(this.group, geo, mat, false);
     });
     this.disposables.push(bush, weeds, mat);
   }

@@ -197,6 +197,9 @@ export class Creeps {
   private cT = new Float32Array(CORPSES); private cDir = new Float32Array(CORPSES); private cThrown = new Float32Array(CORPSES);
   private cArm = new Uint8Array(CORPSES); private cBurn = new Uint8Array(CORPSES);
   private nCorpse = 0; private headCorpse = 0;
+  private view = new THREE.Frustum();
+  private viewM = new THREE.Matrix4();
+  private ball = new THREE.Sphere();
 
   constructor(scene: THREE.Scene) {
     scene.add(this.group);
@@ -259,6 +262,18 @@ export class Creeps {
     const za = this.zs.instanceMatrix.array as Float32Array, ba = this.bangs.instanceMatrix.array as Float32Array;
     let nz = 0, nb = 0;
     const newFrame = game.frames !== this.lastFrames;
+    // Only those in view, or near enough to throw a shadow into it, are drawn.
+    if (cam) {
+      cam.updateMatrixWorld();
+      this.viewM.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
+      this.view.setFromProjectionMatrix(this.viewM, cam.coordinateSystem);
+    }
+    const seen = (km: KindMesh, x: number, y: number) => {
+      if (!cam) return true;
+      this.ball.center.set(x, km.top * 0.5, y);
+      this.ball.radius = km.top + 1.5;
+      return this.view.intersectsSphere(this.ball);
+    };
     for (let i = 0; i < f.nCreeps; i++) {
       const kind = f.cKind[i];
       const km = kinds[kind];
@@ -324,6 +339,7 @@ export class Creeps {
         if (p && p.flags & PF_ALIVE) goal = Math.atan2(game.pry[tg] - y, game.prx[tg] - x);
       } else if (tg >= 128 && tg < 255) goal = (tg - 128) / 127 * Math.PI * 2;
       this.yaw[id] = turnTowards(this.yaw[id], goal, dt * r.turn);
+      if (!seen(km, x, y)) continue;
 
       const j = km.n++;
       const fx = km.fx, o = j * STRIDE;
@@ -388,7 +404,7 @@ export class Creeps {
       if (age > LIE + SINK) continue;
       live++;
       const km = kinds[this.cK[s]];
-      if (!km) continue;
+      if (!km || !seen(km, this.cX[s], this.cY[s])) continue;
       const id = this.cId[s];
       const j = km.n++;
       const fx = km.fx, o = j * STRIDE;
