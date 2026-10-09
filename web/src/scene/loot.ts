@@ -13,7 +13,7 @@ function hash(i: number, s: number): number {
 // Car paint, faded: tints over a light grey body.
 const PAINT = [0x7d8c99, 0x8f5a48, 0x6d7a58, 0xb2a88c, 0x9a9890, 0x5e6a78];
 const CAR_BODY = 0xc8c8c8;
-const GLINT_Y = [1.65, 1.35, 1.05, 1.35, 1.45, 1.8, 1.85, 1.85];
+const GLINT_Y = [1.65, 1.35, 1.05, 1.35, 1.45, 1.8, 1.85, 1.85, 1.75, 0];
 
 // Props face +x and stand on y = 0. Each kind comes closed (still worth a search) and opened.
 function houseProp(open: boolean): Part[] {
@@ -277,8 +277,120 @@ function armyProp(open: boolean): Part[] {
   return p;
 }
 
+// The gas station's counter: a till on a long counter, the gun rack on the wall behind.
+function counterProp(open: boolean): Part[] {
+  const wood = 0x6a4a30, rack = 0x4a3a2a, gun = 0x26282a;
+  const p: Part[] = [
+    part(box(0.5, 0.9, 1.5), 0x8a8478, 0, 0.45, 0),
+    part(box(0.56, 0.05, 1.56), wood, 0, 0.92, 0),
+    part(box(0.3, 0.2, 0.34), 0x3a3c3e, 0.02, 1.05, -0.4),
+    part(box(0.04, 0.12, 0.26), 0x4a8a5a, 0.18, 1.14, -0.4, 0, 0, 0.3),
+    part(box(0.06, 1.1, 1.3), rack, -0.62, 1.15, 0),
+    part(box(0.12, 0.04, 1.3), rack, -0.56, 0.75, 0),
+    part(box(0.12, 0.04, 1.3), rack, -0.56, 1.55, 0),
+    // Shelves of oil and snacks along the counter's front.
+    part(box(0.04, 0.5, 1.3), 0x2a5a8a, 0.27, 0.45, 0),
+    part(box(0.05, 0.06, 1.3), 0xc8a030, 0.28, 0.3, 0),
+  ];
+  if (open) p.push(
+    // Bare pegs; the till's drawer hangs out empty; a box of shells spilled.
+    ...[-0.4, 0, 0.4].map((z) => part(box(0.1, 0.05, 0.05), 0x8a8478, -0.53, 1.3, z)),
+    part(box(0.26, 0.06, 0.3), 0x3a3c3e, 0.22, 0.92, -0.4),
+    part(box(0.2, 0.08, 0.14), 0xb83a2a, 0.5, 0.04, 0.3, 0, 0.7, 0),
+  );
+  else p.push(
+    // Long guns racked on the wall, a red box of shells on the counter.
+    ...[-0.4, 0, 0.4].map((z, i) => part(box(0.07, 0.95 - i * 0.1, 0.08), gun, -0.54, 1.12, z, 0.06 * (i - 1), 0, 0)),
+    ...[-0.4, 0, 0.4].map((z) => part(box(0.08, 0.26, 0.1), wood, -0.54, 0.8, z)),
+    part(box(0.18, 0.1, 0.12), 0xb83a2a, 0.02, 1.0, 0.35),
+  );
+  return p;
+}
+
+// A fuel pump on its slab: faces +x, towards the road. Blown: a scorched stump.
+function pumpProp(open: boolean): Part[] {
+  const slab = 0x9a968a, bollard = 0xd8b020;
+  const p: Part[] = [
+    part(box(1.7, 0.14, 0.8), slab, 0, 0.07, 0),
+    part(cyl(0.07, 0.07, 0.6, 6), bollard, 0.78, 0.3, 0.26),
+    part(cyl(0.07, 0.07, 0.6, 6), bollard, -0.78, 0.3, -0.26),
+  ];
+  if (open) p.push(
+    part(box(0.44, 0.4, 0.62), 0x1e1c1a, 0, 0.34, 0, 0, 0, 0.25),
+    part(box(0.3, 0.3, 0.5), 0x2a2420, 0.05, 0.6, 0.05, 0.3, 0.5, 0.4),
+    part(box(0.5, 0.03, 0.4), 0x5a2a22, 0.6, 0.16, -0.45, 0.2, 0.8, 0.1),
+    part(box(0.34, 0.03, 0.3), 0x8a8478, -0.55, 0.15, 0.5, 0.15, -0.5, 0),
+    part(cyl(0.02, 0.02, 0.9, 4), 0x141414, 0.3, 0.16, 0.42, 0, 0.6, Math.PI / 2),
+  );
+  else p.push(
+    part(box(0.42, 1.3, 0.62), 0xd8d4c8, 0, 0.79, 0),
+    part(box(0.44, 0.24, 0.64), 0xb8302a, 0, 1.36, 0),
+    part(box(0.46, 0.05, 0.66), 0x2a2a2a, 0, 1.5, 0),
+    part(box(0.3, 0.22, 0.02), 0x1a2a22, 0, 1.05, 0.315),
+    part(box(0.3, 0.22, 0.02), 0x1a2a22, 0, 1.05, -0.315),
+    part(box(0.2, 0.04, 0.02), 0x8aff9a, 0, 1.1, 0.33),
+    part(box(0.2, 0.04, 0.02), 0x8aff9a, 0, 1.1, -0.33),
+    part(box(0.1, 0.18, 0.08), 0x2a2a2a, 0.12, 0.7, 0.35),
+    part(box(0.1, 0.18, 0.08), 0x2a2a2a, 0.12, 0.7, -0.35),
+    part(cyl(0.025, 0.025, 0.7, 4), 0x141414, 0.2, 0.5, 0.38, 0.3, 0, 0),
+  );
+  return p;
+}
+
+// The gas station's canopy over its pumps, rusted through: posts on the islands, the fascia
+// round the edge, cross beams, and what is left of the roof; and the price sign by the road.
+function canopy(sites: SiteDef[]): THREE.BufferGeometry | null {
+  const pumps = sites.filter((s) => s.kind === SiteKind.Pump), shop = sites.find((s) => s.kind === SiteKind.Station);
+  if (!pumps.length || !shop) return null;
+  let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity, fx = 0, fz = 0;
+  for (const p of pumps) {
+    x0 = Math.min(x0, p.sx); x1 = Math.max(x1, p.sx); z0 = Math.min(z0, p.sy); z1 = Math.max(z1, p.sy);
+    fx += p.sx / pumps.length; fz += p.sy / pumps.length;
+  }
+  x0 -= 1.9; x1 += 1.9; z0 -= 1.9; z1 += 1.9;
+  const top = 3.3, w = x1 - x0, d = z1 - z0, mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+  const white = 0xd8d4c6, red = 0xb02a24, steel = 0x6a6a64, rust = 0x7a4a2a;
+  const p: Part[] = [];
+  // A post between the two pumps of each island.
+  for (let i = 0; i < pumps.length; i++) for (let j = i + 1; j < pumps.length; j++) {
+    const a = pumps[i], b = pumps[j];
+    if (Math.abs(Math.hypot(a.sx - b.sx, a.sy - b.sy) - 2) < 0.1) p.push(part(box(0.22, top, 0.22), 0xc0bcb0, (a.sx + b.sx) / 2, top / 2, (a.sy + b.sy) / 2));
+  }
+  // The fascia: white with a red band, a gap torn out of one side.
+  for (const z of [z0, z1]) {
+    p.push(part(box(w, 0.42, 0.12), white, mx, top + 0.1, z), part(box(w + 0.02, 0.12, 0.14), red, mx, top + 0.04, z));
+  }
+  for (const x of [x0, x1]) {
+    p.push(part(box(0.12, 0.42, d * 0.55), white, x, top + 0.1, z0 + d * 0.275), part(box(0.14, 0.12, d * 0.55 + 0.02), red, x, top + 0.04, z0 + d * 0.275));
+    p.push(part(box(0.12, 0.42, d * 0.3), white, x, top - 0.25, z1 - d * 0.15, 0.35, 0, 0));
+  }
+  // Beams across, and the roof panels still up, a few hanging.
+  for (let z = z0 + 1; z < z1; z += 1.6) p.push(part(box(w, 0.1, 0.1), steel, mx, top + 0.18, z));
+  let k = 0;
+  for (let x = x0 + 0.8; x < x1 - 0.4; x += 1.6) for (let z = z0 + 0.8; z < z1 - 0.4; z += 1.6) {
+    const h = hash(k++, 41);
+    // Never over a pump: the pumps are what a survivor has to see from up here.
+    if (pumps.some((q) => Math.abs(q.sx - x) < 0.9 && Math.abs(q.sy - z) < 0.9)) continue;
+    if (h < 0.4) p.push(part(box(1.55, 0.05, 1.55), h < 0.1 ? rust : 0xb0aca0, x, top + 0.26, z));
+    else if (h < 0.5) p.push(part(box(1.5, 0.04, 1.5), rust, x, top - 0.35, z, h * 6, 0, 0.5));
+  }
+  // The price sign on its pole at the kerb, facing the road.
+  const dx = fx - (shop.x + shop.w / 2), dz = fz - (shop.y + shop.h / 2), along = Math.abs(dx) > Math.abs(dz);
+  const ux = along ? Math.sign(dx) : 0, uz = along ? 0 : Math.sign(dz);
+  const sx = mx + ux * (along ? w / 2 + 1.6 : 0) + (along ? 0 : w / 2 + 1.2), sz = mz + uz * (along ? 0 : d / 2 + 1.6) + (along ? d / 2 + 1.2 : 0);
+  const thin = (a: number, b: number) => (along ? [a, b] : [b, a]);
+  const [bw, bd] = thin(0.18, 1.3), [lw, ld] = thin(0.2, 1.32);
+  p.push(
+    part(cyl(0.09, 0.11, 4.6, 6), steel, sx, 2.3, sz),
+    part(box(bw, 0.7, bd), red, sx, 4.6, sz),
+    part(box(lw, 1.0, ld), white, sx, 3.75, sz),
+    ...[3.95, 3.6].map((y) => part(box(lw + 0.02, 0.1, ld * 0.7), 0x2a2a2a, sx, y, sz)),
+  );
+  return merge(p);
+}
+
 // Indexed by propKind.
-const PROPS = [houseProp, carProp, crateProp, pickupProp, policeProp, ambulanceProp, busProp, armyProp];
+const PROPS = [houseProp, carProp, crateProp, pickupProp, policeProp, ambulanceProp, busProp, armyProp, counterProp, pumpProp];
 // Wrecks that take a coat of faded paint.
 const PAINTED = new Set<number>([SiteKind.Car, SiteKind.Pickup]);
 
@@ -296,6 +408,7 @@ export class Loot {
   // Per site: where the prop stands and which way it faces.
   private px = new Float32Array(0); private pz = new Float32Array(0); private yaw = new Float32Array(0);
   private sig = '';
+  private roof: THREE.Mesh | null = null;
 
   constructor(scene: THREE.Scene) {
     scene.add(this.group);
@@ -313,6 +426,15 @@ export class Loot {
   setup(sites: SiteDef[]): void {
     for (const m of this.meshes) { this.group.remove(m); m.dispose(); }
     this.meshes = [];
+    if (this.roof) { this.group.remove(this.roof); this.roof.geometry.dispose(); this.roof = null; }
+    const roof = canopy(sites);
+    if (roof) {
+      this.roof = new THREE.Mesh(roof, this.mat);
+      this.roof.castShadow = true; this.roof.receiveShadow = true;
+      this.group.add(this.roof);
+    }
+    // The pumps face the road: away from the shop.
+    const shop = sites.find((s) => s.kind === SiteKind.Station);
     this.sites = sites;
     this.sig = '';
     const n = sites.length;
@@ -320,6 +442,12 @@ export class Loot {
     const counts = PROPS.map(() => 0);
     sites.forEach((s, i) => {
       counts[propKind(s.kind)] = (counts[propKind(s.kind)] ?? 0) + 1;
+      if (s.kind === SiteKind.Pump) {
+        this.px[i] = s.sx; this.pz[i] = s.sy;
+        const dx = shop ? s.sx - (shop.x + shop.w / 2) : 1, dz = shop ? s.sy - (shop.y + shop.h / 2) : 0;
+        this.yaw[i] = Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 0 : Math.PI) : (dz > 0 ? Math.PI / 2 : -Math.PI / 2);
+        return;
+      }
       if (!walled(s.kind)) {
         this.px[i] = siteX(s); this.pz[i] = siteY(s);
         this.yaw[i] = wreck(s.kind) ? s.yaw ?? hash(i, 1) * 6.28 : (Math.floor(hash(i, 1) * 4) + (hash(i, 2) - 0.5) * 0.4) * Math.PI / 2;
@@ -386,7 +514,7 @@ export class Loot {
     const t = now / 1000, a = this.glints.instanceMatrix.array as Float32Array;
     let n = 0;
     for (let i = 0; i < this.sites.length; i++) {
-      if (f.siteSearched(i)) continue;
+      if (f.siteSearched(i) || this.sites[i].kind === SiteKind.Pump) continue;
       const k = propKind(this.sites[i].kind), ph = hash(i, 5) * 6.28;
       const s = 1 + 0.18 * Math.sin(t * 3.2 + ph);
       writeMatrix(a, n++ * 16, this.px[i], (GLINT_Y[k] ?? 1.2) + Math.sin(t * 1.8 + ph) * 0.08, this.pz[i], t * 1.5 + ph, s, s * 1.6);

@@ -263,6 +263,11 @@ export class DemoHost implements Transport {
         n++;
       }
     };
+    if (m.station) {
+      const st = m.station;
+      sites.push({ kind: SiteKind.Station, x: st.x, y: st.y, w: st.w, h: st.h, sx: st.x + st.w / 2, sy: st.y + st.h / 2, tier: 2, guard: 4 });
+      for (const [x, y] of st.pumps) sites.push({ kind: SiteKind.Pump, x, y, w: 1, h: 1, sx: x + 0.5, sy: y + 0.5, tier: 2, guard: 0 });
+    }
     scatter(SiteKind.Car, 4, Tile.Dirt, 20);
     scatter(SiteKind.Car, 10, Tile.Dirt, 34);
     scatter(SiteKind.Crate, 4, Tile.Grass, 20);
@@ -276,7 +281,7 @@ export class DemoHost implements Transport {
     let id = GUARD_ID0;
     const r = rng(5);
     for (let i = 0; i < this.sites.length && id < MAX_CREEPS; i++) {
-      const s = this.sites[i], n = [0, 2, 4, 7][s.guard] ?? 0;
+      const s = this.sites[i], n = [0, 2, 4, 7, 9][s.guard] ?? 0;
       const cx = s.x + s.w / 2, cy = s.y + s.h / 2;
       for (let k = 0; k < n && id < MAX_CREEPS; k++) {
         let x = cx, y = cy;

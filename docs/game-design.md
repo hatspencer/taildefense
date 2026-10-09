@@ -83,7 +83,14 @@ each wave, but Normal is the reference for timing.
   or shoot one, and give up and walk home if you lead them too far. You may search with the
   guards still about, if you dare. A hit stops the search.
 - **Outposts.** Three overrun forts far out, held by a garrison and its warlord. They give three
-  finds, the first one rare at least. They're hard early on, and a goal for later.
+  finds, the first one rare at least. They're hard early on, and a goal for later. The warlord
+  slams the ground every few seconds once it is fighting: a red ring marks its reach for a
+  second first, and whoever is still inside is hurt and thrown clear. Step out, or eat it.
+- **The gas station.** One per map, beside a road out near the edge. Its shop always gives a
+  gun you don't have yet, so it is heavily held: a garrison round the pumps, and more hiding in
+  the shop that burst out when you step onto the lot. The pumps blow up when shot, hurting
+  everyone close, creeps and survivors alike, and setting off the pumps beside them. Blow them
+  from range to thin the guards, or get caught in it.
 - **Ambushes and nests.** The hardest sites spring creeps as you walk in or search, and a house
   can hide a nest. Danger is never fully known in advance.
 - **Restock.** Every fifth wave, some searched sites refill, so the map stays worth exploring

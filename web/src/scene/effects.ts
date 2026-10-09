@@ -513,6 +513,15 @@ export class Effects {
         const pulse = 1 + 0.06 * Math.sin(t * 12);
         writeMatrix(ra, nr++ * 16, f.eX[i], 0.12, f.eY[i], 0, r * pulse);
         writeMatrix(ra, nr++ * 16, f.eX[i], 0.12, f.eY[i], 0, r * (left / total) * 0.95 + 0.2);
+      } else if (k === EffectKind.Slam) {
+        // A warlord's slam coming: its reach marked, and a ring swelling out to meet it when
+        // the fists land. Grit lifts off the ground inside.
+        writeMatrix(ra, nr++ * 16, f.eX[i], 0.12, f.eY[i], 0, r);
+        writeMatrix(ra, nr++ * 16, f.eX[i], 0.12, f.eY[i], 0, r * (1 - left / total) + 0.15);
+        if (spawnFire) for (let j = 0; j < 2; j++) {
+          const a = Math.random() * 6.28, d = Math.sqrt(Math.random()) * r;
+          this.dust.add(t, f.eX[i] + Math.cos(a) * d, 0.1, f.eY[i] + Math.sin(a) * d, 0, 0.8 + Math.random(), 0, 0.5, 0x6a5e48, 0.12, 0.05, 2, 1, 0.8);
+        }
       }
     }
     const done = (m: THREE.InstancedMesh, n: number) => { m.count = n; if (n) m.instanceMatrix.needsUpdate = true; };

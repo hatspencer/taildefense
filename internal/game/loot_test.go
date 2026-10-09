@@ -12,7 +12,11 @@ func TestSitesAreReachableAndFixedBySeed(t *testing.T) {
 		var n [NumSiteKinds]int
 		for i, s := range w.Sites {
 			n[s.Kind]++
-			if s.Kind.Wreck() {
+			if s.Kind == SitePump {
+				if CanStand(w, s.SX, s.SY) {
+					t.Errorf("seed %d: fuel pump %d can be walked through", seed, i)
+				}
+			} else if s.Kind.Wreck() {
 				if !besideWreck(w, &s) {
 					t.Errorf("seed %d: site %d (%s) has nowhere to search it from", seed, i, SiteDefs[s.Kind].Name)
 				}
@@ -29,6 +33,9 @@ func TestSitesAreReachableAndFixedBySeed(t *testing.T) {
 				wrecks += n[k]
 				kinds++
 			}
+		}
+		if n[SiteStation] != 1 || n[SitePump] != len(pumpSpots) {
+			t.Errorf("seed %d: %d gas stations, %d pumps", seed, n[SiteStation], n[SitePump])
 		}
 		if n[SiteHouse] < 25 || wrecks < 15 || kinds < 4 || n[SiteCrate] < 10 {
 			t.Errorf("seed %d: sites %v", seed, n)
