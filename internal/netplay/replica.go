@@ -116,7 +116,7 @@ type Replica struct {
 	Kind   [game.MaxCreeps]uint8
 	HP     [game.MaxCreeps]uint8
 	Flags  [game.MaxCreeps]uint8
-	Target [game.MaxCreeps]uint8 // the chased player's id, 255 none
+	Target [game.MaxCreeps]uint8 // the chased player's id, 128+ an attack's angle, 255 none
 	Flash  [game.MaxCreeps]uint8 // frames since the creep was last hurt, saturating
 	qx, qy [game.MaxCreeps]uint16
 	Count  int

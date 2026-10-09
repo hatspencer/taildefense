@@ -259,6 +259,37 @@ export class Effects {
     }
   }
 
+  // A creep's blow landing in front of it: chips and grit off whatever it hit, and for the
+  // big ones a ring of dust where the fists come down.
+  blow(x: number, y: number, kind: number, heading: number, radius: number): void {
+    if (kind === 4) return; // the spitter's blow is its spit, drawn as a tracer
+    const t = this.now();
+    const c = Math.cos(heading), s = Math.sin(heading);
+    const ix = x + c * radius * 1.15, iy = y + s * radius * 1.15;
+    const big = kind === 3 || radius > 1.2;
+    if (big) {
+      this.rings.add(t, ix, 0.1, iy, 0, 0, 0, 0.45, 0xa89a7a, 0.2, radius * 1.7, 0, 1, 0.8, 1);
+      for (let k = 0; k < 8; k++) {
+        const a = (k / 8) * Math.PI * 2 + Math.random() * 0.5, v = 1.5 + Math.random() * 1.5;
+        this.dust.add(t, ix, 0.15, iy, Math.cos(a) * v, 0.4 + Math.random() * 0.6, Math.sin(a) * v, 0.6 + Math.random() * 0.3, 0x9a8c70, 0.25, 0.6, 0, 1, 0.7);
+      }
+    }
+    for (let k = 0; k < (big ? 6 : 3); k++) {
+      const a = heading + Math.PI + (Math.random() - 0.5) * 2.4, v = 1 + Math.random() * 2;
+      this.dust.add(t, ix, 0.5 + Math.random() * 0.4, iy, Math.cos(a) * v, 1.5 + Math.random() * 2, Math.sin(a) * v, 0.35, 0x6a6458, 0.06, 0.04, 9, 1, 0.9);
+    }
+  }
+
+  // An arm torn off: a spray of blood and a splash on the ground.
+  gib(x: number, y: number): void {
+    const t = this.now();
+    for (let k = 0; k < 6; k++) {
+      const a = Math.random() * Math.PI * 2, v = 1 + Math.random() * 2;
+      this.smoke.add(t, x, 0.9, y, Math.cos(a) * v, 1.5 + Math.random() * 2, Math.sin(a) * v, 0.45, 0x4a0c0a, 0.1, 0.05, 12, 1, 0.9);
+    }
+    this.decals.add(t, x + (Math.random() - 0.5) * 0.6, 0.07, y + (Math.random() - 0.5) * 0.6, 0, 0, 0, 30, 0x4a0c0a, 0.3, 0.4, 0, 1, 0.7);
+  }
+
   // A muzzle flash in the dark: a star at the barrel, a short cone of fire forward, a puff of
   // smoke and a warm light pulse from the pool. Subtle by day, bright at dusk and in storms.
   private muzzle(t: number, x: number, y: number, z: number, dx: number, dz: number, size: number, i: number): void {

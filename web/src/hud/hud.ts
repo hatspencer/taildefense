@@ -3,7 +3,8 @@ import { Emote, Order, PF_ALIVE, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, ty
 import { type Controller, KEYS } from '../controller';
 import { cssHex, playerColor } from '../scene/util';
 import { Armory } from './armory';
-import { archetypeName, drawPortrait, readLook } from '../scene/look';
+import { archetypeName, readLook } from '../scene/look';
+import { CELL, type Portraits } from '../scene/portraits';
 import { el, esc, fmtGold, setClass, setText, show } from './dom';
 import { iconFor, weatherIcon } from './icons';
 import { Compass, where } from './compass';
@@ -14,6 +15,9 @@ const ORDER = ['idle', 'moving', 'attack-moving', 'attacking', 'holding', 'build
 
 // One digit after the point below ten seconds, whole seconds above.
 const secs = (s: number) => (s < 10 ? s.toFixed(1) : String(Math.ceil(s)));
+
+// A teammate's frame: their portrait, name, health and what they are doing.
+interface Mate { root: HTMLElement; face: CanvasRenderingContext2D; resp: HTMLElement; fill: HTMLElement; what: HTMLElement }
 
 interface Slot { root: HTMLElement; icon: HTMLElement; key: HTMLElement; lvl: HTMLElement; cool: HTMLElement; coolTxt: HTMLElement; name: string; pipsFor: number; wasCooling: boolean }
 
@@ -32,11 +36,14 @@ export class Hud {
   private base: { root: HTMLElement; fill: HTMLElement; num: HTMLElement; hp: number; hitUntil: number };
   private top: { wave: HTMLElement; diff: HTMLElement; weather: HTMLElement; kills: HTMLElement; ready: HTMLButtonElement; readies: HTMLElement };
   private statusEl: HTMLElement;
-  private alertsEl: HTMLElement;
-  private alertsKey = '';
   private pauseBtn!: HTMLElement;
   private face!: CanvasRenderingContext2D;
   private faceKey = '';
+  private portraits: Portraits | null = null;
+  private faceVer = -1;
+  private teamEl: HTMLElement;
+  private teamKey = '';
+  private mates = new Map<number, Mate>();
   private paused!: { root: HTMLElement; sub: HTMLElement };
   private downed: { root: HTMLElement; sub: HTMLElement; bar: HTMLElement; fill: HTMLElement };
   private announceEl: HTMLElement;
@@ -112,7 +119,8 @@ export class Hud {
     this.top = { wave, diff, weather, kills, ready, readies };
     this.statusEl = el('div', 'status', root);
     this.compass = new Compass(root, ctl.rig);
-    this.alertsEl = el('div', 'alerts', root);
+    // Down the left: the team.
+    this.teamEl = el('div', 'team', root);
 
     // You are down.
     const dn = el('div', 'downed hidden', root);
@@ -165,14 +173,13 @@ export class Hud {
     const r1 = el('div', 'row', hero);
     const portrait = el('div', 'portrait', r1);
     const face = el('canvas', '', portrait) as HTMLCanvasElement;
-    face.width = 16; face.height = 16;
+    face.width = CELL; face.height = CELL;
     this.face = face.getContext('2d')!;
     const resp = el('div', 'resp', portrait);
-    const nameCol = el('div', '', r1);
-    nameCol.style.minWidth = '0';
+    const nameCol = el('div', 'namecol', r1);
     const name = el('div', 'name', nameCol);
     const gold = el('div', 'goldline gold', nameCol);
-    const hpBar = el('div', 'bar', hero);
+    const hpBar = el('div', 'bar', nameCol);
     const hp = el('div', 'fill', hpBar);
     const hpTxt = el('div', 'txt', hpBar);
     // Stamina runs along the foot of the health bar: hold Space to sprint.
@@ -486,8 +493,9 @@ export class Hud {
     if (!wd) return;
     this.compass.update();
     this.updateTop(wd, now);
+    this.updateTeam(wd);
     if (me) this.updateHero(me, wd, now);
-    this.updateDown(me, wd);
+    this.updateDown(me);
     this.updatePause();
     this.updateCountdown(now);
     this.updateCard();
@@ -498,6 +506,68 @@ export class Hud {
     if (tick) this.lastBoard = now;
     if (tick && !this.score.classList.contains('hidden')) this.renderScore();
     this.updateOver(tick);
+  }
+
+  setPortraits(p: Portraits): void { this.portraits = p; }
+
+  // The teammates' frames, rebuilt when who is in the game changes. One who is down says
+  // where, and the bar fills as someone revives them.
+  private updateTeam(wd: Welcome): void {
+    const ctl = this.ctl, f = ctl.game.cur, me = ctl.me();
+    const over = f.phase === Phase.Over;
+    const reviving = !!me && me.order === Order.Revive;
+    const fog = ctl.game.fogged();
+    const at = (p: Player) => fog ? 'somewhere in the fog' : where(p.x, p.y, wd.core.x, wd.core.y);
+    const list: Player[] = [];
+    for (let i = 0; i < f.nPlayers; i++) if (f.players[i].id !== wd.you) list.push(f.players[i]);
+    const key = list.map((p) => `${p.id}:${p.look}:${p.name}`).join('|');
+    if (key !== this.teamKey) {
+      this.teamKey = key;
+      this.teamEl.innerHTML = '';
+      this.mates.clear();
+      this.faceVer = -1;
+      for (const p of list) {
+        const root = el('div', 'mate', this.teamEl);
+        root.style.setProperty('--pc', cssHex(playerColor(p.id)));
+        const av = el('div', 'av', root);
+        const cv = el('canvas', '', av) as HTMLCanvasElement;
+        cv.width = CELL; cv.height = CELL;
+        const resp = el('div', 'resp', av);
+        const info = el('div', 'info', root);
+        el('div', 'nm', info, p.name);
+        const bar = el('div', 'mbar', info);
+        const fill = el('i', '', bar);
+        const what = el('div', 'what', info);
+        const id = p.id;
+        root.onclick = () => {
+          const q = ctl.game.cur.players.slice(0, ctl.game.cur.nPlayers).find((o) => o.id === id);
+          if (!q) return;
+          if (q.flags & PF_CONNECTED && !(q.flags & PF_ALIVE)) ctl.send({ op: 'revive', p: id });
+          else { ctl.rig.follow = false; ctl.rig.center(q.x, q.y, false); }
+        };
+        this.mates.set(id, { root, face: cv.getContext('2d')!, resp, fill, what });
+      }
+    }
+    for (const p of list) {
+      const m = this.mates.get(p.id)!;
+      const here = (p.flags & PF_CONNECTED) !== 0, alive = (p.flags & PF_ALIVE) !== 0;
+      const frac = Math.max(0, Math.min(1, p.hp / Math.max(1, p.maxHp)));
+      const down = here && !alive && !over;
+      m.fill.style.transform = `scaleX(${alive ? frac.toFixed(3) : down ? p.revived.toFixed(3) : 0})`;
+      setClass(m.root, 'away', !here);
+      setClass(m.root, 'dead', down);
+      setClass(m.root, 'low', alive && frac < 0.3);
+      setText(m.resp, here && !alive ? `${p.respawn}` : '');
+      const w = wd.weapons[p.cur]?.name ?? '';
+      const what = !here ? 'away'
+        : !alive ? (over ? 'down' : p.revived > 0 ? `being revived${reviving ? ' · stay close' : ''}` : `down ${at(p)}`)
+        : p.order === Order.Revive && p.channel > 0 ? 'reviving'
+        : p.order === Order.Loot && p.channel > 0 ? 'searching'
+        : p.emote === Emote.Taunt && p.emoteLeft > 0 ? 'taunting'
+        : p.flags & PF_RELOADING ? `${w} · reloading` : w;
+      setText(m.what, what);
+      m.root.title = !here ? `${p.name} is away` : down ? `${p.name} is down ${at(p)}: walk over and revive them (E on them), or click here` : `${p.name}, ${archetypeName(p.look)}: click to look at them`;
+    }
   }
 
   private updateTop(wd: Welcome, now: number): void {
@@ -584,8 +654,8 @@ export class Hud {
     if (this.paused.sub.innerHTML !== sub) this.paused.sub.innerHTML = sub;
   }
 
-  // Your own downed banner, and a radio call for each teammate who is down.
-  private updateDown(me: Player | null, wd: Welcome): void {
+  // Your own downed banner. A teammate who is down shows in their frame.
+  private updateDown(me: Player | null): void {
     const ctl = this.ctl, f = ctl.game.cur;
     const over = f.phase === Phase.Over;
     const down = !!me && !(me.flags & PF_ALIVE) && !over;
@@ -602,36 +672,6 @@ export class Hud {
       if (this.downed.sub.innerHTML !== sub) this.downed.sub.innerHTML = sub;
       show(this.downed.bar, me!.revived > 0);
       this.downed.fill.style.transform = `scaleX(${me!.revived.toFixed(3)})`;
-    }
-
-    // Teammates down.
-    const rows: Player[] = [];
-    if (!over) for (let i = 0; i < f.nPlayers; i++) {
-      const p = f.players[i];
-      if (p.id !== wd.you && p.flags & PF_CONNECTED && !(p.flags & PF_ALIVE)) rows.push(p);
-    }
-    const reviving = !!me && me.order === Order.Revive;
-    const fog = this.ctl.game.fogged();
-    const at = (p: Player) => fog ? 'somewhere in the fog' : where(p.x, p.y, wd.core.x, wd.core.y);
-    const key = rows.map((p) => `${p.id}:${p.name}:${p.respawn}:${Math.round(p.revived * 40)}:${at(p)}`).join('|') + `:${reviving}`;
-    if (key === this.alertsKey) return;
-    this.alertsKey = key;
-    const root = this.alertsEl;
-    root.innerHTML = '';
-    for (const p of rows) {
-      const d = el('div', 'down', root);
-      d.title = `Walk over and revive ${p.name}`;
-      el('span', 'who', d).style.background = cssHex(playerColor(p.id));
-      const t = el('span', 't', d);
-      t.innerHTML = p.revived > 0
-        ? `<b>${esc(p.name)}</b> is being revived${reviving ? ' · stay close' : ''}`
-        : `<b>${esc(p.name)}</b> is down ${esc(at(p))} · E on them to revive`;
-      el('span', 'n', d, `${p.respawn}s`);
-      if (p.revived > 0) {
-        const bar = el('div', 'bar revive', d);
-        el('div', 'fill', bar).style.transform = `scaleX(${p.revived.toFixed(3)})`;
-      }
-      d.onclick = () => ctl.send({ op: 'revive', p: p.id });
     }
   }
 
@@ -675,9 +715,15 @@ export class Hud {
     const fk = `${me.id}:${me.look}`;
     if (fk !== this.faceKey) {
       this.faceKey = fk;
-      drawPortrait(this.face, readLook(me.look), playerColor(me.id));
       h.portrait.title = `You are ${archetypeName(me.look)}`;
     }
+    const pt = this.portraits;
+    if (pt && pt.version !== this.faceVer) {
+      this.faceVer = pt.version;
+      pt.draw(this.face, me.id);
+      for (const [id, m] of this.mates) pt.draw(m.face, id);
+    }
+    setClass(h.portrait, 'low', alive && me.hp / Math.max(1, me.maxHp) < 0.3);
     setClass(h.portrait, 'dead', !alive);
     setText(h.resp, alive ? '' : `${me.respawn}`);
     setText(h.name, me.name);

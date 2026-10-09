@@ -5,12 +5,14 @@ import { Hud } from './hud/hud';
 import { Labels } from './hud/labels';
 import { Splash } from './hud/splash';
 import { Input } from './input';
+import { Lab } from './lab';
 import { type Handlers, type Transport, WsTransport } from './net';
 import { PF_ALIVE, PF_ARMORY, Phase, PingKind, SiteKind, siteX, siteY, turretRange, type Welcome, wreck } from './protocol';
 import { Creeps } from './scene/creeps';
 import { Effects } from './scene/effects';
 import { Helis } from './scene/heli';
 import { Heroes } from './scene/heroes';
+import { Portraits } from './scene/portraits';
 import { Loot } from './scene/loot';
 import { Overlays } from './scene/overlays';
 import { K_CANNON, K_FROST, K_GUN, K_TESLA, Structs } from './scene/structs';
@@ -59,7 +61,10 @@ async function main(): Promise<void> {
   const P = params();
   // The boot splash covers loading; #nosplash skips it, #splash=1.4 holds it at 1.4 s in.
   if (!P.has('nosplash')) new Splash(document.body, P.has('splash') ? Number(P.get('splash')) || 0 : -1);
-  const demo = P.has('demo');
+  // #lab poses every creep and survivor animation side by side on the demo's world.
+  const labMode = P.has('lab');
+  let lab: Lab | null = null;
+  const demo = P.has('demo') || labMode;
   let lostBefore = false;
   try { lostBefore = sessionStorage.getItem('td.webgl') === '1'; } catch { /* storage blocked */ }
   const world = await makeWorld(app, P.has('webgl') || lostBefore);
@@ -72,6 +77,8 @@ async function main(): Promise<void> {
   const loot = new Loot(world.scene);
   const effects = new Effects(world.scene);
   const helis = new Helis(world.scene, effects);
+  creeps.onBlow = (x, y, k, h, r) => effects.blow(x, y, k, h, r);
+  creeps.onGib = (x, y) => effects.gib(x, y);
   const weather = new Weather(world.scene);
   world.look = weather.look;
   const overlays = new Overlays(world.scene, structs);
@@ -81,6 +88,8 @@ async function main(): Promise<void> {
   const ctl = new Controller(game, send, rig, effects);
   const labels = new Labels(app);
   const hud = new Hud(app, ctl);
+  const portraits = new Portraits(world.renderer, world.backend === 'WebGL2');
+  hud.setPortraits(portraits);
   ctl.onToast = (t, l) => hud.toast(t, l);
   const input = new Input(canvas, ctl, rig, hud);
   // A lost WebGPU device reloads once on WebGL2 (kept for this tab's session) instead of looping.
@@ -138,8 +147,8 @@ async function main(): Promise<void> {
 
   if (demo) {
     const opt: DemoOptions = {
-      creeps: Math.max(0, Math.min(16000, Number(P.get('creeps') ?? 3000) || 0)),
-      phase: (P.get('phase') as DemoOptions['phase']) || 'wave',
+      creeps: labMode ? 0 : Math.max(0, Math.min(16000, Number(P.get('creeps') ?? 3000) || 0)),
+      phase: labMode ? 'build' : (P.get('phase') as DemoOptions['phase']) || 'wave',
       wave: Number(P.get('wave') ?? 7) || 7,
       gold: Number(P.get('gold') ?? 2400) || 0,
       weather: P.has('weather') ? Number(P.get('weather')) : -1,
@@ -222,14 +231,20 @@ async function main(): Promise<void> {
     const rawDt = Math.max(0.0005, (now - last) / 1000);
     const dt = Math.min(0.1, rawDt);
     last = now;
-    if (transport instanceof DemoHost) transport.pump();
+    if (transport instanceof DemoHost && !lab) transport.pump();
     const W = window.innerWidth, H = window.innerHeight;
     const wd = game.welcome;
     if (wd && game.frames > 1) {
       if (!hooksApplied && game.cur.nPlayers > 0) applyHooks();
-      game.interpolate(now);
+      if (labMode && !lab) {
+        lab = new Lab(game, wd.core.x, wd.core.y);
+        (transport as DemoHost).halt();
+        const [lx, ly] = lab.center(P.get('lab') ?? '');
+        rig.follow = false; rig.center(lx, ly); rig.setDist(Number(P.get('dist')) || 26);
+      }
+      if (lab) lab.step(now); else game.interpolate(now);
       const me = game.me();
-      if (me && (me.flags & PF_ALIVE)) rig.track(game.prx[me.id], game.pry[me.id]);
+      if (me && (me.flags & PF_ALIVE) && !lab) rig.track(game.prx[me.id], game.pry[me.id]);
     }
     input.update(dt, W, H);
     rig.update(dt);
@@ -276,6 +291,7 @@ async function main(): Promise<void> {
         hoverSite: ctl.hover?.t === 'site' ? ctl.hover.id : -1, siteHint: ctl.hover?.t === 'site' ? ctl.siteHint(ctl.hover.id) : '',
       }, now, rig.dist);
       hud.minimap.draw(now, W, H);
+      portraits.update(game, now, dt, rig.yaw);
       hud.update(now);
     }
     const ms = performance.now() - now;

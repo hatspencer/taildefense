@@ -153,17 +153,32 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .compass .pin { position: absolute; left: 50%; top: -2px; margin-left: -4px; border: 4px solid transparent; border-top: 5px solid #f4c25c; }
 .status { position: absolute; top: 44px; left: 12px; font-size: 12px; color: var(--khaki); text-shadow: var(--hard); pointer-events: none; }
 
-/* ---------- radio alerts: teammates down ---------- */
+/* ---------- the team down the left; one who is down calls for help ---------- */
 
-.alerts { position: absolute; top: 64px; left: 12px; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
-.alerts .down { pointer-events: auto; cursor: pointer; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 4px 8px; min-width: 250px; max-width: 340px;
-  padding: 5px 8px 6px 6px; background: var(--grain), #2a1a14; border: 2px solid var(--black); box-shadow: inset 4px 0 0 var(--rust), 3px 3px 0 rgba(0, 0, 0, 0.45); }
-.alerts .down:hover { background: var(--grain), #3a2218; }
-.alerts .down .who { width: 10px; height: 14px; border: 2px solid var(--black); margin-left: 4px; }
-.alerts .down .t { font-size: 12px; line-height: 1.25; }
-.alerts .down .t b { color: #f0c8b0; }
-.alerts .down .n { font: 22px/1 var(--crt); color: var(--rust); text-shadow: 0 0 5px rgba(181, 71, 47, 0.6); }
-.alerts .down .bar { grid-column: 2 / 4; height: 8px; }
+.team { position: absolute; top: 64px; left: 12px; display: flex; flex-direction: column; gap: 5px; pointer-events: none; }
+.team:empty { display: none; }
+.mate { pointer-events: auto; cursor: pointer; display: flex; align-items: center; gap: 7px; width: 200px; padding: 3px 6px 3px 3px;
+  background: var(--grain), rgba(30, 32, 24, 0.86); border: 2px solid var(--black); box-shadow: inset 3px 0 0 var(--pc), 3px 3px 0 rgba(0, 0, 0, 0.4); }
+.mate:hover { background: var(--grain), rgba(46, 48, 34, 0.92); }
+.mate .av { position: relative; width: 36px; height: 36px; flex: none; margin-left: 3px; box-shadow: 0 0 0 2px var(--black); }
+.mate .av canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+.mate .av .resp { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 22px/1 var(--crt); color: #ff8c6a; text-shadow: var(--hard); background: rgba(40, 10, 6, 0.35); }
+.mate .av .resp:empty { display: none; }
+.mate .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.mate .nm { font: 700 12px/1.1 var(--font); color: var(--pc); text-shadow: var(--hard); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mate .mbar { position: relative; height: 6px; background: #1b110e; box-shadow: 0 0 0 1px var(--black); }
+.mate .mbar i { position: absolute; inset: 0; transform-origin: left; background: var(--moss); transition: transform 0.15s steps(3); }
+.mate .what { font-size: 11px; line-height: 1.1; color: var(--khaki); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mate.low .mbar i { background: var(--rust); }
+.mate.low .av { box-shadow: 0 0 0 2px var(--rust); }
+.mate.dead { background: var(--grain), rgba(52, 26, 20, 0.9); box-shadow: inset 3px 0 0 var(--rust), 3px 3px 0 rgba(0, 0, 0, 0.4); animation: matedown 1.2s steps(2) infinite; }
+.mate.dead:hover { background: var(--grain), rgba(66, 34, 24, 0.94); }
+@keyframes matedown { 50% { box-shadow: inset 3px 0 0 #5a1c12, 3px 3px 0 rgba(0, 0, 0, 0.4); } }
+.mate.dead .av canvas { filter: grayscale(1) brightness(0.7) sepia(0.6) hue-rotate(-30deg); }
+.mate.dead .mbar i { background: #60d890; }
+.mate.dead .what { color: #f0c8b0; }
+.mate.away { opacity: 0.55; }
+.mate.away .av canvas { filter: grayscale(1) brightness(0.7); }
 
 /* ---------- you are down ---------- */
 
@@ -229,11 +244,14 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .console { flex: 1; display: flex; gap: 14px; padding: 10px 14px 10px 12px; min-width: 0; }
 .hero { width: var(--hero-w); flex: none; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .hero .row { display: flex; align-items: center; gap: 9px; }
-.portrait { width: 52px; height: 52px; border: 2px solid var(--black); box-shadow: 0 0 0 2px var(--line); flex: none; position: relative; overflow: hidden; image-rendering: pixelated;
+.hero .namecol { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.portrait { width: 72px; height: 72px; border: 2px solid var(--black); box-shadow: 0 0 0 2px var(--line); flex: none; position: relative; overflow: hidden; image-rendering: pixelated;
   background: #273021; }
 .portrait canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
 .portrait::after { content: ""; position: absolute; inset: 0; background: var(--scan); pointer-events: none; }
-.portrait.dead { filter: grayscale(1) brightness(0.55) sepia(0.6) hue-rotate(-30deg); }
+.portrait.dead { filter: grayscale(1) brightness(0.7) sepia(0.6) hue-rotate(-30deg); }
+.portrait.low { box-shadow: 0 0 0 2px var(--rust); animation: lowpulse 0.9s steps(2) infinite; }
+@keyframes lowpulse { 50% { box-shadow: 0 0 0 2px #5a1c12; } }
 .portrait .resp { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 30px/1 var(--crt); color: #ff8c6a; text-shadow: var(--hard); background: rgba(40, 10, 6, 0.35); }
 .portrait .resp:empty { display: none; }
 .hero .name { font: 700 15px/1.15 var(--font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

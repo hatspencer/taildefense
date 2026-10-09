@@ -4,12 +4,12 @@ import type { AbilityDef, CreepDef, StructDef, WeaponDef, Welcome } from '../pro
 // the rest (signatures, abilities) the way the host is expected to send them.
 
 export const CREEPS: CreepDef[] = [
-  { name: 'walker', hp: 40, speed: 1.7, radius: 0.45, size: 1, ranged: false, bounty: 3 },
-  { name: 'runner', hp: 24, speed: 3.6, radius: 0.4, size: 1, ranged: false, bounty: 3 },
-  { name: 'swarmer', hp: 9, speed: 2.7, radius: 0.3, size: 1, ranged: false, bounty: 1 },
-  { name: 'brute', hp: 280, speed: 1.15, radius: 0.9, size: 2, ranged: false, bounty: 15 },
-  { name: 'spitter', hp: 55, speed: 1.5, radius: 0.45, size: 1, ranged: true, bounty: 6 },
-  { name: 'abomination', hp: 3200, speed: 0.95, radius: 1.4, size: 3, ranged: false, bounty: 300 },
+  { name: 'walker', hp: 40, speed: 1.7, radius: 0.45, size: 1, ranged: false, bounty: 3, rate: 1, windup: 0.4 },
+  { name: 'runner', hp: 24, speed: 3.6, radius: 0.4, size: 1, ranged: false, bounty: 3, rate: 1.6, windup: 0.28 },
+  { name: 'swarmer', hp: 9, speed: 2.7, radius: 0.3, size: 1, ranged: false, bounty: 1, rate: 2, windup: 0.18 },
+  { name: 'brute', hp: 280, speed: 1.15, radius: 0.9, size: 2, ranged: false, bounty: 15, rate: 0.7, windup: 0.65 },
+  { name: 'spitter', hp: 55, speed: 1.5, radius: 0.45, size: 1, ranged: true, bounty: 6, rate: 0.5, windup: 0.5 },
+  { name: 'abomination', hp: 3200, speed: 0.95, radius: 1.4, size: 3, ranged: false, bounty: 300, rate: 0.6, windup: 0.7 },
 ];
 
 interface W0 { name: string; short: string; price: number; range: number; fire: string; special: string; dmg: number; rate: number; mag: number; reload: number; sig: WeaponDef['sig'] }
