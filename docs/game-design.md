@@ -133,8 +133,10 @@ the army trucks.
   abilities and building.
 - **The rest follows Overwatch.** The weapon's signature is secondary fire on the right mouse
   button, at the cursor. The abilities are Shift, E and Q, with the big one (airstrike) on Q.
-  E is "use": what is under the cursor, or else the nearest usable thing (a downed teammate, a
-  loot site, a damaged structure, the armory); on a creep it focuses fire. Attack-move and stop
+  E is "use": a downed teammate, loot site or supply crate right beside you comes first, so a
+  hero out looting searches the wreck at hand whatever is selected. Otherwise it uses what is
+  under the cursor, or else the nearest usable thing (a damaged structure, the armory); on a
+  creep it focuses fire. Attack-move and stop
   went away with click-to-move; H still holds position.
 - **The camera follows while you walk.** Arrows and the screen edge still look away, and the
   next step brings it back. The minimap's right-click still walks you there by path.
