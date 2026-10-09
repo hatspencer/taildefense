@@ -16,7 +16,7 @@ interface W0 { name: string; short: string; price: number; range: number; fire: 
 export const WEAPON_BASE: W0[] = [
   { name: 'Pistol', short: 'PST', price: 0, range: 14, fire: 'hitscan', special: '+1 pierce', dmg: 14, rate: 3, mag: 12, reload: 1.1,
     sig: { name: 'Fan the hammer', desc: 'Empty the magazine in a burst towards the target point.', cool: 8, range: 14, target: 'point' } },
-  { name: 'Shotgun', short: 'SHG', price: 250, range: 9, fire: 'cone', special: '+2 pellets', dmg: 9, rate: 1.3, mag: 6, reload: 1.8,
+  { name: 'Shotgun', short: 'SHG', price: 250, range: 9, fire: 'hitscan', special: '+2 pellets', dmg: 9, rate: 1.3, mag: 6, reload: 1.8,
     sig: { name: 'Concussion', desc: 'A point-blank blast that knocks creeps back and stuns them.', cool: 10, range: 7, target: 'point' } },
   { name: 'SMG', short: 'SMG', price: 400, range: 12, fire: 'hitscan', special: '+1 pierce', dmg: 8, rate: 11, mag: 40, reload: 1.6,
     sig: { name: 'Bullet hose', desc: 'Double fire rate for 5 seconds.', cool: 18, range: 0, target: 'self' } },

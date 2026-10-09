@@ -94,9 +94,11 @@ export class Lab {
           p.flags |= PF_MOVING | PF_FIRING; break;
         }
         case 'sprint': {
-          const span = 3, period = (2 * span) / 6.5, u = (t % period) / period;
-          y += (u < 0.5 ? u * 2 : 2 - u * 2) * span - 1.5;
-          aim = u < 0.5 ? Math.PI / 2 : -Math.PI / 2;
+          // The real sprint: base speed 6 m/s, times 1.6.
+          const span = 6, period = (2 * span) / 9.6, u = (t % period) / period;
+          // Out into the open space to the right of the bench, and back.
+          x += (u < 0.5 ? u * 2 : 2 - u * 2) * span;
+          aim = u < 0.5 ? 0 : Math.PI;
           p.sprinting = true; p.flags |= PF_MOVING; break;
         }
         case 'loot': p.order = Order.Loot; p.channel = 0.5; break;

@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { color, sin, time } from 'three/tsl';
+import { WEAPON_BASE } from '../demo/defs';
 import { Emote, Order, PF_ALIVE, PF_FIRING, PF_HURT, PF_RELOADING } from '../protocol';
 import type { Game } from '../state';
 import { litMaterial } from './structs';
@@ -14,7 +15,7 @@ interface Hero {
   gun: THREE.Group; gunMesh: THREE.Mesh | null; spin: THREE.Group | null; flash: THREE.Object3D; finger: THREE.Object3D; hand: THREE.Object3D; tank: THREE.Object3D;
   shout: THREE.Object3D; marker: THREE.Object3D; cross: THREE.Object3D; progress: THREE.Object3D;
   look: number; wd: number; ht: number; weapon: number; color: number;
-  phase: number; seen: number; down: boolean; pop: number; recoil: number; crouch: number; downAmt: number; taunt: number; reload: number;
+  phase: number; seen: number; down: boolean; pop: number; shotAt: number; crouch: number; downAmt: number; taunt: number; reload: number;
   sprint: number; leap: number; hurt: boolean;
   x: number; y: number; vx: number; vy: number; legYaw: number; dirSign: number; fresh: boolean;
   leanX: Spring; leanZ: Spring; aim: Spring; flinch: Spring; tailS: Spring; packS: Spring; kick: Spring;
@@ -222,7 +223,7 @@ export class Heroes {
     const h: Hero = {
       group: g, body, hips, torso, head, tail, pack, legL, legR, armL, armR, gun, gunMesh: null, spin: null, flash, finger, hand, tank,
       shout, marker, cross, progress, look, wd: L.width, ht: L.height, weapon: -1, color: c,
-      phase: 0, seen: 0, down: false, pop: 0, recoil: 0, crouch: 0, downAmt: 0, taunt: 0, reload: 0, sprint: 0, leap: 0, hurt: false,
+      phase: 0, seen: 0, down: false, pop: 0, shotAt: -1e9, crouch: 0, downAmt: 0, taunt: 0, reload: 0, sprint: 0, leap: 0, hurt: false,
       x: 0, y: 0, vx: 0, vy: 0, legYaw: 0, dirSign: 1, fresh: true,
       leanX: new Spring(2.2, 0.45, 0), leanZ: new Spring(2.2, 0.45, 0), aim: new Spring(4.5, 0.75, 1.6), flinch: new Spring(3, 0.3, 0),
       tailS: new Spring(1.8, 0.25, 0), packS: new Spring(3.5, 0.3, 0), kick: new Spring(9, 0.35, 0),
@@ -298,10 +299,12 @@ export class Heroes {
       h.taunt = ease(h.taunt, taunting ? 1 : 0, 12, dt);
       h.reload = ease(h.reload, reloading && !channel ? 1 : 0, 10, dt);
       h.sprint = ease(h.sprint, alive && p.sprinting && speed > 2 ? 1 : 0, 6, dt);
-      h.leap = ease(h.leap, alive && speed > 8 ? 1 : 0, speed > 8 ? 20 : 6, dt);
+      // A dash covers metres in a tick; a sprint, even in the best boots, stays well under this.
+      h.leap = ease(h.leap, alive && speed > 20 ? 1 : 0, speed > 20 ? 20 : 6, dt);
       h.pop = Math.max(0, h.pop - dt * 2.2);
-      if (firing && Math.floor(now / 45) % 2 === 0 && h.recoil < 0.5) { h.recoil = 1; h.kick.kick(h.weapon === 1 || h.weapon === 6 ? 9 : 3); }
-      h.recoil = Math.max(0, h.recoil - dt * 14);
+      // One kick and flash per shot, at the weapon's own rate: a shotgun booms, an SMG chatters.
+      if (!firing) h.shotAt = -1e9;
+      else if (now - h.shotAt >= 1000 / (WEAPON_BASE[h.weapon]?.rate ?? 3)) { h.shotAt = now; h.kick.kick(h.weapon === 1 || h.weapon === 6 ? 9 : 3); }
       const hurt = (p.flags & PF_HURT) !== 0;
       if (hurt && !h.hurt && alive) { h.flinch.kick(7); h.tailS.kick(4); }
       h.hurt = hurt;
@@ -319,7 +322,8 @@ export class Heroes {
         h.legYaw = turnTowards(h.legYaw, aim, dt * 7);
         h.phase += Math.abs(wrapAngle(h.legYaw - before)) * 1.4;
       }
-      const stepLen = Math.min(1.0, Math.max(0.36, 0.3 + 0.11 * speed));
+      const sk = h.sprint;
+      const stepLen = Math.min(1.0 + 0.3 * sk, Math.max(0.36, 0.3 + 0.11 * speed));
       h.phase += h.dirSign * dist / (2 * stepLen) * Math.PI * 2;
       if (speed < 0.2 && alive) {
         // Settle the feet: run the phase on to the nearest stance.
@@ -327,8 +331,9 @@ export class Heroes {
         h.phase = ease(h.phase, k, 8, dt);
       }
       const ph = h.phase;
-      const amp = (0.45 + 0.35 * run) * walk;
-      const bend = (0.7 + 0.8 * run) * walk;
+      // A sprint: a longer stride, the knees driven high and the heels kicked up behind.
+      const amp = (0.45 + 0.35 * run + 0.25 * sk) * walk;
+      const bend = (0.7 + 0.8 * run + 0.5 * sk) * walk;
       let thL = Math.sin(ph) * amp, thR = -thL;
       let shL = -Math.max(0, Math.cos(ph)) * bend - 0.1 * walk, shR = -Math.max(0, -Math.cos(ph)) * bend - 0.1 * walk;
       // Kneeling to search or revive: down on the right knee.
@@ -344,7 +349,7 @@ export class Heroes {
       h.legR.upper.rotation.z = thR; h.legR.lower.rotation.z = shR;
 
       // The body: a rise at each passing step, kneeling low, the pop on standing up.
-      const bob = walk * (0.025 + 0.05 * run) * (1 - Math.abs(Math.sin(ph)));
+      const bob = walk * (0.025 + 0.05 * run + 0.03 * sk) * (1 - Math.abs(Math.sin(ph)));
       const popY = h.pop > 0 ? Math.sin((1 - h.pop) * Math.PI) * 0.35 : 0;
       h.body.position.y = bob + popY - cr * 0.27 + lp * 0.12 + h.downAmt * 0.2;
       // Lean: into the run and into the turn (towards the acceleration), overshooting a
@@ -391,7 +396,7 @@ export class Heroes {
       h.gun.position.set(hold.at[0] - kick * 0.25 - sp * 0.06, hold.at[1] - sp * 0.1 - rl * 0.06, hold.at[2] + sp * 0.05);
       h.gun.rotation.set(rl * 0.7, sp * 0.35, kick * 0.6 - sp * 0.55 - rl * 0.3);
       h.gun.updateMatrix();
-      h.flash.visible = firing && Math.floor(now / 45) % 2 === 0;
+      h.flash.visible = now - h.shotAt < (h.weapon === 1 ? 70 : 45);
       if (h.spin) h.spin.rotation.x += dt * (firing ? 40 : 0);
 
       // Hands: on the gun, unless kneeling, taunting or down.

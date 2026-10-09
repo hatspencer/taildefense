@@ -696,15 +696,36 @@ export class DemoHost implements Transport {
     p.aim = Math.atan2(ty - p.y, tx - p.x);
     const mx = p.x + Math.cos(p.aim) * 0.6, my = p.y + Math.sin(p.aim) * 0.6;
     const dmg = w.dmg * (1 + 0.22 * p.levels[p.cur * 4]) * (p.buff === 5 ? 1.5 : 1);
-    if (w.fire === 'cone') {
-      const pellets = p.cur === 1 ? 7 : 2;
+    if (p.cur === 1) {
+      // Shotgun: a spread of pellets, each passing through the first creep into the next,
+      // as the host's hitscan does.
+      const pellets = 7 + 2 * p.levels[p.cur * 4 + 3];
+      const ids = this.q, n = this.query(p.x, p.y, w.range + 1.5, ids, 400);
       for (let i = 0; i < pellets; i++) {
-        const a = p.aim + (this.rnd() - 0.5) * (p.cur === 1 ? 0.6 : 0.7);
+        const a = p.aim + (this.rnd() * 2 - 1) * 0.4, dx = Math.cos(a), dy = Math.sin(a);
+        let t1 = Infinity, i1 = -1, t2 = Infinity, i2 = -1;
+        for (let j = 0; j < n; j++) {
+          const id = ids[j];
+          if (!this.cAlive[id]) continue;
+          const ox = this.cX[id] - p.x, oy = this.cY[id] - p.y, t = ox * dx + oy * dy;
+          if (t < 0 || t > w.range) continue;
+          const px = ox - dx * t, py = oy - dy * t, r = CREEPS[this.cKind[id]].radius + 0.2;
+          if (px * px + py * py > r * r) continue;
+          if (t < t1) { t2 = t1; i2 = i1; t1 = t; i1 = id; } else if (t < t2) { t2 = t; i2 = id; }
+        }
+        const end = i2 >= 0 ? t2 : w.range;
+        this.tracer(mx, my, p.x + dx * end, p.y + dy * end, p.cur);
+        if (i1 >= 0) this.hurt(i1, dmg, p);
+        if (i2 >= 0 && this.cAlive[i2]) this.hurt(i2, dmg, p);
+      }
+    } else if (w.fire === 'cone') {
+      for (let i = 0; i < 2; i++) {
+        const a = p.aim + (this.rnd() - 0.5) * 0.7;
         const r = w.range * (0.6 + this.rnd() * 0.4);
         this.tracer(mx, my, p.x + Math.cos(a) * r, p.y + Math.sin(a) * r, p.cur);
       }
-      const ids = this.q, n = this.query(tx, ty, p.cur === 1 ? 1.5 : 2, ids, 12);
-      for (let i = 0; i < n; i++) { if (p.cur === 4) this.cBurn[ids[i]] = 3; this.hurt(ids[i], dmg, p); }
+      const ids = this.q, n = this.query(tx, ty, 2, ids, 12);
+      for (let i = 0; i < n; i++) { this.cBurn[ids[i]] = 3; this.hurt(ids[i], dmg, p); }
     } else if (w.fire === 'rocket') {
       this.tracer(mx, my, tx, ty, p.cur);
       this.blast(tx, ty, 3, 0, dmg, p);

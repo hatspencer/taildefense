@@ -154,7 +154,7 @@ type WeaponDef struct {
 // Weapons is indexed by WeaponKind.
 var Weapons = [NumWeapons]WeaponDef{
 	WPistol:   {Name: "Pistol", Short: "PST", Price: 0, Damage: 14, Rate: 3, Range: 14, Mag: 12, Reload: 1.1, Pellets: 1, Spread: .03, Special: "+1 pierce"},
-	WShotgun:  {Name: "Shotgun", Short: "SHG", Price: 250, Damage: 9, Rate: 1.3, Range: 9, Mag: 6, Reload: 1.8, Pellets: 7, Spread: .32, Special: "+2 pellets"},
+	WShotgun:  {Name: "Shotgun", Short: "SHG", Price: 250, Damage: 9, Rate: 1.3, Range: 9, Mag: 6, Reload: 1.8, Pellets: 7, Spread: .4, Pierce: 1, Special: "+2 pellets"},
 	WSMG:      {Name: "SMG", Short: "SMG", Price: 400, Damage: 8, Rate: 11, Range: 12, Mag: 40, Reload: 1.6, Pellets: 1, Spread: .09, Special: "+1 pierce"},
 	WRifle:    {Name: "Rifle", Short: "RFL", Price: 650, Damage: 60, Rate: 1.4, Range: 28, Mag: 5, Reload: 2, Pellets: 1, Spread: .01, Pierce: 3, Special: "+2 pierce"},
 	WFlamer:   {Name: "Flamethrower", Short: "FLM", Price: 900, Damage: 6, Rate: 12, Range: 6.5, Mag: 80, Reload: 2.5, Pellets: 1, Spread: .38, Fire: FireCone, Burn: 6, Special: "+range, +burn"},
@@ -340,7 +340,7 @@ func TrackValue(w WeaponKind, t Track, level uint8) string {
 	}
 	switch w {
 	case WShotgun:
-		return fmt.Sprintf("%d pellets", st.Pellets)
+		return fmt.Sprintf("%d pellets, %d pierce", st.Pellets, st.Pierce)
 	case WFlamer:
 		return fmt.Sprintf("%.1f range, %.0f burn/s", st.Range, st.Burn)
 	case WMinigun:
