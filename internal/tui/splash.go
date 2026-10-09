@@ -222,6 +222,29 @@ func newSplashInk() splashInk {
 	return k
 }
 
+// brick is brick i's settled colour: "tail" in the text colour, "defense" in the accent, each
+// brick a shade off its neighbours.
+func (k splashInk) brick(i int) string {
+	if bricks[i].accent {
+		return ui.Mix(k.rest, k.bg, 0.2*hash01(uint64(i), 5))
+	}
+	return ui.Mix(k.text, k.dim, 0.15+0.25*hash01(uint64(i), 5))
+}
+
+// brickMarkRows is the settled brick wordmark as it ends the splash, for the launcher's
+// header: indent cells in, four rows, the word flush with the bottom of the last.
+func brickMarkRows(indent int) []string {
+	k := newSplashInk()
+	g := newPixels(indent+brickW, 8)
+	for i, b := range bricks {
+		g.set(indent+b.x, 1+b.y, k.brick(i), 0)
+	}
+	return g.rows()
+}
+
+// brickMarkFits reports whether the header has room for the brick wordmark.
+func brickMarkFits(w, h int) bool { return w >= brickW+4 && h >= 22 }
+
 // quant rounds a blend to eighths, so cooling bricks share a handful of colours.
 func quant(f float64) float64 { return math.Round(clamp01(f)*8) / 8 }
 
@@ -272,10 +295,7 @@ func splashView(w, h int, t float64) string {
 		if u <= 0 {
 			continue
 		}
-		rest := ui.Mix(k.text, k.dim, 0.15+0.25*hash01(uint64(i), 5))
-		if b.accent {
-			rest = ui.Mix(k.rest, k.bg, 0.2*hash01(uint64(i), 5))
-		}
+		rest := k.brick(i)
 		x, y := float64(mx+b.x), float64(my+b.y)
 		if u < 1 {
 			y -= 9 * (1 - u) * (1 - u)

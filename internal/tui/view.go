@@ -61,7 +61,12 @@ const gutter = "  "
 
 func (m *Model) header(w, h int) []string {
 	var out []string
-	if h >= 20 {
+	if brickMarkFits(w, h) {
+		// The splash's own wordmark, as it settles, when the window has room for it.
+		out = append(out, "")
+		out = append(out, brickMarkRows(len(gutter))...)
+		out = append(out, gutter+ui.StyleDim.Render("co-op wave defense over your tailnet"))
+	} else if h >= 20 {
 		rows := ui.WordmarkLarge()
 		if w < ui.WordmarkWidth(rows)+2 {
 			rows = ui.WordmarkSmall()
