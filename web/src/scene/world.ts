@@ -145,9 +145,10 @@ export class World {
 
   // Builds the shaders ahead of the game, behind the splash. The first frame would otherwise
   // build every one at once, and the page would freeze for that long as the game starts.
-  // Instead one object of each kind is drawn on its own, a few at a time with a breath
+  // Instead one object of each kind is drawn on its own, a few at a time with a frame
   // between, so the splash keeps moving: drawing builds the shadow passes too, which three's
   // compileAsync cannot, and it does not wait on each shader in turn as compileAsync does.
+  // The pipelines are made off the main thread (see asyncPipelines), and waited for.
   // What is hidden or out of view now is drawn too, so it is ready when it shows.
   // onProgress hears how far it is, 0..1.
   async warm(onProgress?: (f: number) => void): Promise<void> {
@@ -166,18 +167,60 @@ export class World {
         inst.isInstancedMesh ? inst.uuid : '', o.castShadow, o.receiveShadow].join('|');
       if (!seen.has(key)) { seen.add(key); reps.push(o); }
     });
-    const BATCH = 12;
+    const watchers = this.asyncPipelines();
+    let made = 0, ready = 0;
+    const track = (pr: Promise<void>) => { made++; const done = () => { ready++; }; void pr.then(done, done); };
+    watchers.add(track);
+    const report = (i: number) => onProgress?.(Math.min(1, 0.5 * (i / reps.length) + 0.5 * (made ? ready / made : i / reps.length)));
+    const frame = () => new Promise<void>((ok) => { requestAnimationFrame(() => ok()); setTimeout(ok, 100); });
+    // As many objects per frame as fit in about 10 ms of building.
+    let batch = 4;
     try {
-      for (let i = 0; i < reps.length; i += BATCH) {
+      for (let i = 0; i < reps.length;) {
+        // A few pipelines compiling at a time: a long queue of them holds up the GPU, and
+        // with it every frame of the splash.
+        while (made - ready > 4) await frame();
+        const t0 = performance.now();
         for (const [o] of drawn) { o.visible = false; o.frustumCulled = false; }
-        for (const o of reps.slice(i, i + BATCH)) o.visible = true;
+        for (const o of reps.slice(i, i + batch)) o.visible = true;
         this.render();
-        onProgress?.(Math.min(1, (i + BATCH) / reps.length));
-        await new Promise((ok) => setTimeout(ok, 0));
+        i += batch;
+        const dt = performance.now() - t0;
+        batch = dt > 14 ? Math.max(1, batch >> 1) : dt < 6 ? Math.min(32, batch * 2) : batch;
+        report(i);
+        await frame();
       }
     } finally {
       for (const [o, v, f] of drawn) { o.visible = v; o.frustumCulled = f; }
     }
+    // Then one real frame, for whatever drawing the objects together still lacks.
+    this.render();
+    // The pipelines still compiling finish off the main thread, while the splash plays on.
+    while (ready < made) { report(reps.length); await frame(); }
+    watchers.delete(track);
+    report(reps.length);
+  }
+
+  // From the shader warm-up on, every new pipeline is made the way compileAsync makes them,
+  // off the main thread (WebGPU's createRenderPipelineAsync, WebGL's
+  // KHR_parallel_shader_compile), and what uses it is drawn once it is ready: a frame or two
+  // late rather than with the page frozen while it builds. Drawn plainly, each WebGL program
+  // would be linked while the page waits, half a second for a dozen. Three's pipeline cache
+  // is reached past its private name (three is pinned). Returns the listeners that hear of
+  // each pipeline started.
+  private watchers: Set<(p: Promise<void>) => void> | null = null;
+  private asyncPipelines(): Set<(p: Promise<void>) => void> {
+    if (this.watchers) return this.watchers;
+    const watchers = this.watchers = new Set<(p: Promise<void>) => void>();
+    const pipes = (this.renderer as unknown as { _pipelines?: { getForRender(ro: unknown, p?: Promise<void>[] | null): unknown } })._pipelines;
+    const getForRender = pipes?.getForRender;
+    if (!pipes || !getForRender) return watchers;
+    pipes.getForRender = function (ro, p) {
+      const list = p ?? [], n = list.length, r = getForRender.call(this, ro, list);
+      for (let i = n; i < list.length; i++) for (const w of watchers) w(list[i]);
+      return r;
+    };
+    return watchers;
   }
 
   render(): void {
