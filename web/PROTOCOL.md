@@ -51,6 +51,7 @@ everything it knows, a terrain message follows).
   ],
   "taunt": {"cool": 12, "radius": 12, "time": 5},  // the taunt command: cooldown s, pull radius, s hunted
   "revive": {"reach": 1.6, "time": 2.5, "hp": 0.4}, // stand within reach for time seconds; up with hp*maxHp
+  "medkit": {"heal": 0.4, "time": 3, "max": 3, "cost": 60}, // one heals heal*maxHp over time s; carry max; cost gold
   "core": {"x": 160, "y": 100},// generator centre, tiles
   "buildRadius": 24,           // building only within this distance of core
   "shopRadius": 4.5,           // shop only within this distance of the armory centre
@@ -75,7 +76,7 @@ everything it knows, a terrain message follows).
   ],
   "gear": [ {"name": "Armor", "info": "+25 max HP", "costs": [90, 153, 260, 442, 752]} ],
                                // 0 Armor, 1 Boots, 2 Medkit, 3 Scavenger (luck when searching)
-  "abilities": [               // index = ability slot 0..3, keys Q W E D
+  "abilities": [               // index = ability slot 0..3; "key" is what the client binds it to (RMB Shift E Q)
     {"name": "Signature", "key": "Q", "desc": "the equipped weapon's own ability",
      "target": "point", "range": 0, "cool": [0, 0, 0], "costs": [0, 0, 0], "always": true},
     {"name": "Grenade", "key": "W", "desc": "...", "target": "point", "range": 11,
@@ -115,9 +116,10 @@ the next one in over a few seconds; its effects scale with `weatherAmt`:
 | 1    | Fog   | survivors and turrets reach 25% less far; creeps notice survivors at 60% of the distance |
 | 2    | Heavy rain | burning does half the damage; creeps 8% slower (rare) |
 | 3    | Storm | heavy rain, and lightning strikes creeps out in the open every few seconds (blast kind 8; rare) |
-| 4    | Snow  | creeps 15% slower, survivors 8% slower |
+| 4    | Snow  | light snow: creeps 6% slower, survivors 3% slower |
 | 5    | Drizzle | light rain: burning does 15% less damage, creeps 2.4% slower |
 | 6    | Thunder shower | light rain, and lightning now and then (every 7–15 s) |
+| 7    | Heavy snow | creeps 15% slower, survivors 8% slower (rare) |
 
 Difficulty is the host's choice, fixed for the game (a restart keeps it): it scales creep
 health and wave size, the gold creeps drop, the build time between waves, the strength of
@@ -174,7 +176,7 @@ u32  pending          creeps of this wave still to spawn
 u32  totalKills
 u16  best             waves survived, when over
 u8   weather          index into the welcome's weathers: 0 clear, 1 fog, 2 heavy rain, 3 storm, 4 snow,
-                      5 drizzle, 6 thunder shower
+                      5 drizzle, 6 thunder shower, 7 heavy snow
 u8   weatherAmt       how strong it is right now, 0..255; it eases in and out between waves
 u8   pausedBy         0 running, else 1 + the id of the player who paused the game
 
@@ -193,9 +195,9 @@ u8   nPlayers
   u32  gold, u32 kills, u32 damage
   u8   owned          bit k set: weapon k owned
   u8   levels[28]     weapon-major: levels[w*4 + track]
-  u8   gear[4]        Armor, Boots, Medkit, Scavenger
+  u8   gear[4]        Armor, Boots, Vitamins, Scavenger
   u8   order          0 idle, 1 move, 2 attack-move, 3 attack, 4 hold, 5 build, 6 repair,
-                      7 loot, 8 revive
+                      7 loot, 8 revive, 9 steer (walking with WASD)
   u8   channel        how far the current search (order 7) or revive (order 8) is, 0..255;
                       0 while walking there
   u8   revived        for a downed survivor: how far the best revive on them is, 0..255
@@ -212,11 +214,18 @@ u8   nPlayers
                         20-21 height, 22-23 glasses when both are 0
   u8   buff           0 none, else the weapon kind whose signature buff is running
   u8   buffLeft       deciseconds
-  4 × (u8 level, u16 cooldown deciseconds left)     ability slots Q W E D
+  4 × (u8 level, u16 cooldown deciseconds left)     ability slots 0..3
+  u8   medkits        carried
+  u8   heal           deciseconds of a medkit's healing left
+  u8   reloading      bit k set: weapon k is reloading, in hand or not
   u8   nameLen, name (utf-8)
 
 u16  nSites           same as the welcome's site list
   u8   site[nSites]   bit 7 set: searched; bits 0..6: guards of the site still alive
+
+u8   nCrates          supply crates down and not yet opened (at most 3)
+  u16  x, y q8
+  u8   open           how far opening it is, 0..255
 
 u16  nStructs         the whole list; the index is the struct id used in commands
   u8   alive          dead slots are kept (alive 0) so ids stay stable
@@ -241,7 +250,8 @@ u16  nCreeps
 u16  nTracers         shots fired this tick
   u16  x0, y0, x1, y1 q8
   u8   kind           0..6 player weapon kind, 16+structKind turret shot, 32 spitter spit,
-                      33 dash (the hero's leap, start to end)
+                      33 dash (the hero's leap, start to end), 34 the Huey's door gunner
+                      (x0,y0 is the Huey over the ground; it fires from the air)
 u16  nBlasts          explosions and pulses this tick
   u16  x, y q8
   u8   r              radius * 8
@@ -253,7 +263,9 @@ u16  nDeaths          creeps that died this tick
   u16  x, y q8
   u8   kind
 u16  nEffects         lasting effects, the full current list every frame
-  u8   kind           1 grenade in flight (x0,y0 -> x,y), 2 napalm pool, 3 airstrike target
+  u8   kind           1 grenade in flight (x0,y0 -> x,y), 2 napalm pool, 3 airstrike target,
+                      4 supply drop: a Huey flying in from x0,y0 to hover over x,y (eased in over
+                      all but the last 3 s); the crate lands at x,y when it ends
   u16  x0, y0, x, y q8
   u8   r              radius * 8
   u8   left           deciseconds left
@@ -283,6 +295,11 @@ integers. The host checks everything; a refusal comes back as a `toast` with lev
 ```jsonc
 {"op": "move",    "x": 160.5, "y": 103.2}   // walk there, ignoring creeps
 {"op": "amove",   "x": 140.0, "y": 100.0}   // attack-move: walk, stop to fight anything in range
+{"op": "steer",   "x": 1.57, "on": true}    // WASD: walk along the angle x (radians, map coordinates:
+                                            // 0 east, pi/2 south); repeat while held, it lapses
+                                            // after 0.4 s; on false stops
+{"op": "medkit"}                            // use a medkit
+{"op": "buyMedkit"}                         // buy one, at the armory
 {"op": "attack",  "id": 1234}               // chase and shoot one creep
 {"op": "stop"}                               // drop the order, fight what comes in range
 {"op": "hold"}                               // stand still, fight what comes in range

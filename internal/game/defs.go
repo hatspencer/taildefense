@@ -215,13 +215,13 @@ type Gear uint8
 const (
 	GearArmor     Gear = iota // max HP
 	GearBoots                 // move speed
-	GearMedkit                // regeneration
+	GearVitamins              // regeneration
 	GearScavenger             // luck when searching loot sites
 	NumGear
 )
 
 // GearNames label the gear rows.
-var GearNames = [NumGear]string{"Armor", "Boots", "Medkit", "Scavenger"}
+var GearNames = [NumGear]string{"Armor", "Boots", "Vitamins", "Scavenger"}
 
 // GearInfo describes one level of each gear row.
 var GearInfo = [NumGear]string{"+25 max HP", "+8% speed", "+1.5 HP/s regen", "+luck when searching"}
@@ -269,7 +269,7 @@ type StructDef struct {
 var Structs = [NumStructKinds]StructDef{
 	SCore:         {Name: "Generator", HP: 3200, W: 5, H: 5, Desc: "Powers the base. When it falls, the game is over."},
 	SArmory:       {Name: "Armory", HP: 1200, W: 3, H: 3, Desc: "Buy and upgrade weapons, gear and abilities here. Creeps ignore it."},
-	SWall:         {Name: "Wall", Price: 20, HP: 320, W: 1, H: 1, Key: 'W', Desc: "Blocks creeps; they path round it or break through."},
+	SWall:         {Name: "Wall", Price: 20, HP: 320, W: 1, H: 1, Key: 'X', Desc: "Blocks creeps; they path round it or break through."},
 	SGate:         {Name: "Gate", Price: 45, HP: 320, W: 1, H: 1, Key: 'G', Desc: "A wall survivors can walk through."},
 	STurretGun:    {Name: "Gun turret", Price: 120, HP: 220, W: 1, H: 1, Range: 9, Damage: 11, Rate: 4, Turret: true, Key: 'T', Desc: "Fast single shots; pierces from level 3."},
 	STurretCannon: {Name: "Cannon", Price: 240, HP: 280, W: 1, H: 1, Range: 11, Damage: 60, Rate: .7, Blast: 2.2, Turret: true, Key: 'C', Desc: "Slow shells that burst on a crowd."},

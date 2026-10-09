@@ -189,6 +189,10 @@ func (w *World) search(p *Player, si int) {
 		p.HP = p.MaxHP
 		what += ", and patched up with its kit"
 	}
+	if d.Heal && p.Medkits < medkitMax {
+		p.Medkits++
+		what += ", and a medkit"
+	}
 	switch {
 	case r == Junk:
 		p.Dry = min(p.Dry+1, 6)

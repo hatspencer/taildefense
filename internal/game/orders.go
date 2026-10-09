@@ -19,6 +19,7 @@ const (
 	OrderRepair                      // walk to a structure and repair it
 	OrderLoot                        // walk to a loot site and search it
 	OrderRevive                      // walk to a downed teammate and revive them
+	OrderSteer                       // walk along X, Y (a unit vector) while the client holds a key
 )
 
 // Order is a survivor's current order.
@@ -55,6 +56,26 @@ func (w *World) AttackCreep(p *Player, id uint16) error {
 	}
 	w.order(p, Order{Kind: OrderAttack, Target: id})
 	return nil
+}
+
+// steerLapse is how long a steer lasts without a repeat; the client repeats it several times a
+// second while a key is held, so a lost release cannot leave a survivor walking off the map.
+const steerLapse = .4
+
+// Steer walks the player along the angle ang (radians) for WASD, or stops when on is false.
+func (w *World) Steer(p *Player, ang float32, on bool) {
+	if !on {
+		if p.Order.Kind == OrderSteer {
+			w.order(p, Order{})
+		}
+		return
+	}
+	if p.Order.Kind != OrderSteer {
+		w.order(p, Order{Kind: OrderSteer})
+	}
+	s, c := math.Sincos(float64(ang))
+	p.Order.X, p.Order.Y = float32(c), float32(s)
+	p.steerLeft = steerLapse
 }
 
 // Stop drops the order; Hold also keeps the player from moving.
@@ -152,13 +173,19 @@ func (w *World) route(p *Player, x, y float32) {
 	k.cx, k.cy = p.X, p.Y
 }
 
-// step walks the player one tick along the path; false when there is nowhere left to go.
-func (w *World) step(p *Player) bool {
-	k := &p.walk
+// stride is how far the player walks this tick.
+func (w *World) stride(p *Player) float32 {
 	speed := p.Speed() * w.playerSpeedMul() * Dt
 	if p.Sprinting() {
 		speed *= sprintMul
 	}
+	return speed
+}
+
+// step walks the player one tick along the path; false when there is nowhere left to go.
+func (w *World) step(p *Player) bool {
+	k := &p.walk
+	speed := w.stride(p)
 	for speed > 0 && !k.done() {
 		t := k.pts[k.i]
 		dx, dy := t[0]-p.X, t[1]-p.Y
@@ -229,9 +256,13 @@ func (w *World) stepPlayers() {
 		if p.Hurt > 0 {
 			p.Hurt -= Dt
 		}
-		regen := 1.5 * float32(p.Gear[GearMedkit])
+		regen := 1.5 * float32(p.Gear[GearVitamins])
 		if w.Phase == PhaseBuild {
 			regen += 8
+		}
+		if p.Heal > 0 {
+			regen += p.MaxHP * medkitHeal / medkitTime
+			p.Heal = max(p.Heal-Dt, 0)
 		}
 		p.HP = min(p.MaxHP, p.HP+regen*Dt)
 		for i := range p.Abil {
@@ -243,15 +274,19 @@ func (w *World) stepPlayers() {
 			p.BuffLeft = max(p.BuffLeft-Dt, 0)
 		}
 
-		ws := &p.Weapons[p.Cur]
-		st := w.playerStats(p)
-		if ws.Reload > 0 {
-			ws.Reload -= Dt
-			if ws.Reload <= 0 {
-				ws.Reload = 0
-				ws.Ammo = st.Mag
+		// Every weapon reloads, not only the one in hand: run one dry, switch, and it comes
+		// back full in the background.
+		for k := range p.Weapons {
+			o := &p.Weapons[k]
+			if o.Reload > 0 {
+				if o.Reload -= Dt; o.Reload <= 0 {
+					o.Reload = 0
+					o.Ammo = WeaponStats(WeaponKind(k), o.Lv).Mag
+				}
 			}
 		}
+		ws := &p.Weapons[p.Cur]
+		st := w.playerStats(p)
 		ws.Cool -= Dt
 
 		target := w.act(p, st)
@@ -299,6 +334,17 @@ func (w *World) act(p *Player, st Stats) int32 {
 	}
 	switch o.Kind {
 	case OrderIdle, OrderHold:
+		return w.nearestVisible(p.X, p.Y, st.Range)
+	case OrderSteer:
+		if p.steerLeft -= Dt; p.steerLeft <= 0 {
+			o.Kind = OrderIdle
+		} else {
+			s := w.stride(p)
+			nx, ny := Move(w, p.X, p.Y, o.X*s, o.Y*s)
+			p.Moving = nx != p.X || ny != p.Y
+			p.X, p.Y = nx, ny
+			p.Aim = float32(math.Atan2(float64(o.Y), float64(o.X)))
+		}
 		return w.nearestVisible(p.X, p.Y, st.Range)
 	case OrderMove:
 		if !walk() {

@@ -1,6 +1,9 @@
 package game
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func run(w *World, ticks int, until func() bool) bool {
 	for i := 0; i < ticks; i++ {
@@ -230,5 +233,109 @@ func TestPingsGoOutOnceAndAreMetered(t *testing.T) {
 	}
 	if err := w.Ping(p, -1, 12, PingHere); err == nil {
 		t.Fatal("a ping off the map was taken")
+	}
+}
+
+func TestSteeringWalksWhileRepeatedAndLapses(t *testing.T) {
+	w := newBare(3)
+	p, _ := w.Join("ana", "ana@example")
+	x0 := p.X
+	for i := 0; i < TickRate; i++ {
+		if i%4 == 0 {
+			w.Steer(p, 0, true) // east
+		}
+		w.Step()
+	}
+	if p.X-x0 < 3 {
+		t.Fatalf("walked %.1f east in a second of steering", p.X-x0)
+	}
+	x1 := p.X
+	run(w, TickRate, func() bool { return false })
+	if p.Order.Kind != OrderIdle || p.X-x1 > 3 {
+		t.Fatalf("still steering without repeats: order %d, %.1f further", p.Order.Kind, p.X-x1)
+	}
+	w.Steer(p, 0, true)
+	w.Steer(p, 0, false)
+	if p.Order.Kind != OrderIdle {
+		t.Fatal("letting go did not stop")
+	}
+}
+
+func TestMedkitsHealUnlessAHitCutsThemShort(t *testing.T) {
+	w := newBare(3)
+	p, _ := w.Join("ana", "ana@example")
+	w.Phase = PhaseWave // no break-time regen
+	w.Queue = []Spawn{{At: 1e9}}
+	if err := w.UseMedkit(p); err == nil {
+		t.Fatal("used a medkit at full health")
+	}
+	p.HP = 20
+	if err := w.UseMedkit(p); err != nil || p.Medkits != 0 {
+		t.Fatalf("use: %v, %d left", err, p.Medkits)
+	}
+	run(w, TickRate*medkitTime+2, func() bool { return false })
+	if p.HP < 20+p.MaxHP*medkitHeal-1 {
+		t.Fatalf("healed to %.0f", p.HP)
+	}
+	p.HP, p.Medkits = 20, 1
+	w.UseMedkit(p)
+	w.Step()
+	w.hurtPlayer(p, 1)
+	run(w, TickRate*medkitTime, func() bool { return false })
+	if p.HP > 25 {
+		t.Fatalf("a hit did not stop the healing: %.0f", p.HP)
+	}
+	if err := w.UseMedkit(p); err == nil {
+		t.Fatal("used a medkit with none left")
+	}
+}
+
+func TestAWeaponRunDryReloadsWhileAnotherIsInHand(t *testing.T) {
+	w := newBare(3)
+	p, _ := w.Join("ana", "ana@example")
+	p.Weapons[WSMG] = WeaponState{Owned: true, Ammo: Weapons[WSMG].Mag}
+	p.Weapons[WPistol].Ammo = 0
+	p.Weapons[WPistol].Reload = WeaponStats(WPistol, p.Weapons[WPistol].Lv).Reload
+	if err := w.Select(p, WSMG); err != nil {
+		t.Fatal(err)
+	}
+	run(w, int(p.Weapons[WPistol].Reload*TickRate)+2, func() bool { return false })
+	if ws := p.Weapons[WPistol]; ws.Reload != 0 || ws.Ammo != WeaponStats(WPistol, ws.Lv).Mag {
+		t.Fatalf("the pistol in the holster: reload %.2f, ammo %d", ws.Reload, ws.Ammo)
+	}
+}
+
+func TestEveryTenthWaveFliesInACrateThatOpensForEveryone(t *testing.T) {
+	w := newBare(5)
+	a, _ := w.Join("ana", "ana@example")
+	b, _ := w.Join("bo", "bo@example")
+	w.Wave = 10
+	w.endWave(0)
+	if len(w.Effects) != 1 || w.Effects[0].Kind != EffDrop {
+		t.Fatalf("no drop called after wave 10: %+v", w.Effects)
+	}
+	e := w.Effects[0]
+	if d := math.Hypot(float64(e.X-w.CoreX), float64(e.Y-w.CoreY)); d < BuildRadius {
+		t.Fatalf("the crate comes down inside the walls, %.0f from the generator", d)
+	}
+	if !run(w, TickRate*(dropFlight+1), func() bool { return len(w.Crates) == 1 }) {
+		t.Fatal("the crate never landed")
+	}
+	b.Medkits = 0
+	gold := b.Gold
+	a.X, a.Y = w.Crates[0].X+.5, w.Crates[0].Y
+	a.Order = Order{Kind: OrderHold}
+	if !run(w, TickRate*(crateOpen+1), func() bool { return len(w.Crates) == 0 }) {
+		t.Fatal("standing by the crate did not open it")
+	}
+	if b.Gold <= gold || b.Medkits != medkitMax {
+		t.Fatalf("the teammate got nothing: gold %d → %d, medkits %d", gold, b.Gold, b.Medkits)
+	}
+	w.Wave = 11
+	w.endWave(0)
+	for _, e := range w.Effects {
+		if e.Kind == EffDrop {
+			t.Fatal("a drop after wave 11")
+		}
 	}
 }

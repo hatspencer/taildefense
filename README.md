@@ -79,20 +79,23 @@ biker, farmer, ex-soldier or office worker, each with their own face, skin, body
 A team gets as many different outfits as it can, all worn in the player's colour, and you keep
 yours if you drop out and come back.
 
-Your hero fights by itself: standing idle or holding, it shoots the nearest creep it can see in
-range, and doesn't waste shots on walls.
+You walk with WASD and your hero fights by itself: walking, standing or holding, it shoots the
+nearest creep it can see in range, and doesn't waste shots on walls. WASD goes the way the view
+faces, however the camera is turned, and the camera follows while you walk.
 
 | input | |
 |---|---|
-| right-click | move; on a creep, attack it; on a damaged building, repair it; on the armory, walk there and shop; on a loot site, search it; on a downed teammate, revive them |
-| A, then left-click | attack-move: walk there, stopping to fight anything on the way |
-| S / H | stop / hold position |
-| Q W E D | abilities: Q is the equipped weapon's signature, W grenade, E dash, D airstrike |
+| W A S D | walk |
+| F | use what is under the cursor, or else the nearest thing: revive a downed teammate, search a loot site, repair a damaged building, shop at the armory (walking there first); on a creep, focus fire on it |
+| right-click | on a creep, focus fire on it; anywhere else, the equipped weapon's signature, at the cursor |
+| Shift / E / Q | abilities: grenade, dash, airstrike; aim with the cursor and left-click |
+| H | hold position |
 | 1-7, R | equip a weapon, reload (or the reload button) |
-| V | taunt: every creep around you comes for you for 5 s, sleeping guards too |
-| B | build: W wall, G gate, T gun turret, C cannon, F frost tower, L tesla coil; shift keeps placing |
+| 8 | use a medkit |
+| V | taunt: flip them off and shout; every creep around you comes for you for 5 s, sleeping guards too |
+| B | build: X wall, G gate, T gun turret, C cannon, F frost tower, L tesla coil; shift keeps placing |
 | left-click | select a building, creep or player |
-| U / X / F | upgrade / sell / repair the selected building |
+| U / X | upgrade / sell the selected building |
 | G | armory: weapons, upgrade tracks, gear, abilities (you have to be standing by it) |
 | N | ready for the next wave |
 | P | pause or resume the game, for everyone; anyone can do either |
@@ -101,14 +104,27 @@ range, and doesn't waste shots on walls.
 | hold Space | sprint, until you run out of stamina |
 | middle-drag, Alt+wheel | rotate the camera |
 | wheel | zoom |
-| arrows, screen edges | pan; tapping Space recenters on your hero, a double tap locks the camera to it |
+| arrows, screen edges | look around; walking brings the camera back, tapping Space recenters on your hero, a double tap locks the camera to it |
 | T or Enter | chat with the team; in the chat, Tab adds where you are ("NE of the base, 40 m") |
 | Tab, F1, F3, Esc | scoreboard, help, stats, cancel / menu |
 
 The top bar always shows the base's health, the generator's, next to the wave. Click it to look at
 the base.
 
-On the minimap, left-drag moves the view, right-click gives a move order and Alt+click pings.
+On the minimap, left-drag moves the view, right-click walks you there and Alt+click pings.
+
+A weapon run dry reloads in the background: switch to another and keep shooting, and the empty
+one comes back full a moment later. Its slot shows a moving strip while it reloads.
+
+Medkits (8) heal 40% of your health over 3 s, unless a hit cuts it short. You start with one and
+carry up to three. Buy them at the armory for 60 gold, or find them in places with a first-aid
+kit, like an ambulance. The gear row that raises regeneration is Vitamins.
+
+After every tenth wave a Huey gunship (surfboards strapped to its side) flies a supply crate out
+beyond the walls, its door gunner working over the zone on the way in. The crate comes down under
+a chute and marks itself with green smoke. Stand by it for a few seconds, unhurt, to open it:
+gold and full medkits for everyone, and a rare find for the one who opened it. F walks you to a
+crate nearby.
 
 A ping shows for 5 s: rings on the ground and a beacon with your name over the spot, a pulse on
 everyone's minimap, and an arrow at the edge of the screen for anyone looking elsewhere. Pings
@@ -123,7 +139,7 @@ Outside the walls are ruined houses, wrecks and supply crates worth looting. The
 roads differ: a pickup's bed holds tools and gear, a police cruiser or an army truck guns (the
 army trucks are far out, and always guarded), an ambulance's kit patches you up, and a school
 bus is slow to search but gives two finds, if nothing is nesting in it. A glint marks
-the ones nobody has searched yet. Right-click one to walk over and search it, which takes a few
+the ones nobody has searched yet. Press F on one to walk over and search it, which takes a few
 seconds and stops if you get hit. The further from the base, the better the loot, and searching
 during a wave is luckier. Scavenger gear from the armory raises your luck too. Sometimes a house
 hides a nest, and every fifth wave some of the searched sites are restocked.
@@ -146,19 +162,19 @@ Creeps can be pulled. Shooting one may make it come for you instead of the gener
 taunt (V) pulls everything around you. Creeps also take against things by themselves now and
 then: a turret or wall they pass, or a survivor further off than they'd normally notice.
 
-When you go down you can be revived where you fell: a teammate right-clicks you and stays
+When you go down you can be revived where you fell: a teammate presses F on you and stays
 next to you for a few seconds, and a hit starts it over. If nobody does, you're back at the base
 when the countdown runs out.
 
 The weather changes between waves and is the same for everyone. Fog shortens everyone's range
 and hides teammates from the map and their health bars, rain dampens fire and slows creeps a
 little, a storm throws lightning at creeps out in the open, and snow slows everything down.
-Wet weather is mostly light, a drizzle or a passing thunder shower. Heavy rain and full storms
-are rare.
+Wet weather is mostly light, a drizzle or a passing thunder shower, and snow mostly a thin
+fall. Heavy rain, full storms and heavy snow are rare.
 
-Each weapon has its own signature ability on Q, stronger with its special upgrades:
+Each weapon has its own signature ability on the right mouse button, stronger with its special upgrades:
 
-| weapon | Q |
+| weapon | signature (right-click) |
 |---|---|
 | Pistol | fan the hammer: six quick shots |
 | Shotgun | concussion: a blast in front that throws back and slows |

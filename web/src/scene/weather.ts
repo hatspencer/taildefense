@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import {
-  float, fract, instancedBufferAttribute, normalize, positionGeometry, sin, cos, smoothstep, time, uniform, vec3,
+  float, fract, instancedBufferAttribute, mrt, normalize, output, vec4, positionGeometry, sin, cos, smoothstep, time, uniform, vec3,
 } from 'three/tsl';
 import { BlastKind, Weather as W } from '../protocol';
 import type { Game } from '../state';
@@ -13,25 +13,28 @@ export const uSnow = uniform(0);
 const RAIN = 9000, SNOW = 7000;
 
 // How much fog, rain, storm and snow each weather kind shows at full strength.
-const LOOKS: Record<number, { fog: number; rain: number; storm: number; snow: number }> = {
+const LOOKS: Record<number, { fog: number; rain: number; storm: number; snow: number; flakes?: number; gust?: number }> = {
   [W.Clear]: { fog: 0, rain: 0, storm: 0, snow: 0 },
   [W.Fog]: { fog: 1, rain: 0, storm: 0, snow: 0 },
   [W.Rain]: { fog: 0.2, rain: 1, storm: 0, snow: 0 },
   [W.Storm]: { fog: 0.35, rain: 1, storm: 1, snow: 0 },
-  [W.Snow]: { fog: 0.3, rain: 0, storm: 0, snow: 1 },
+  [W.Snow]: { fog: 0.12, rain: 0, storm: 0, snow: 0.55, flakes: 0.25 },
   [W.Drizzle]: { fog: 0.1, rain: 0.3, storm: 0, snow: 0 },
   [W.Thunder]: { fog: 0.15, rain: 0.5, storm: 0.2, snow: 0 },
+  [W.HeavySnow]: { fog: 0.4, rain: 0, storm: 0, snow: 1, flakes: 1, gust: 1 },
 };
 
 // How the weather looks right now, eased: World reads it for fog, light and tint.
-export interface WeatherLook { fog: number; rain: number; storm: number; snow: number; flash: number; dark: number }
+// snow is how white the ground and sky go; flakes how thick the snowfall is; gust how hard the
+// wind drives it.
+export interface WeatherLook { fog: number; rain: number; storm: number; snow: number; flakes: number; gust: number; flash: number; dark: number }
 
 // Rain, storm and snow particles. Every drop has a fixed random spot in a box; the shader moves
 // it with the clock and wraps it into the box around the view target, so the CPU does nothing
 // per drop and the particles stay anchored in the world while the camera pans.
 export class Weather {
   group = new THREE.Group();
-  look: WeatherLook = { fog: 0, rain: 0, storm: 0, snow: 0, flash: 0, dark: 0 };
+  look: WeatherLook = { fog: 0, rain: 0, storm: 0, snow: 0, flakes: 0, gust: 0, flash: 0, dark: 0 };
   private uCorner = uniform(new THREE.Vector3());
   private uSize = uniform(new THREE.Vector3(60, 30, 60));
   private uRight = uniform(new THREE.Vector3(1, 0, 0));
@@ -79,6 +82,8 @@ export class Weather {
       mat.colorNode = vec3(0.95, 0.97, 1.0);
       mat.opacityNode = this.uSnowAlpha.mul(float(1).sub(smoothstep(0.8, 1, p.y.div(size.y))));
     }
+    // Keep the outline pass's normals: a flake is not a crease.
+    mat.mrtNode = mrt({ output, normal: vec4(0, 0, 0, 0) });
     const m = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), mat, cap);
     m.frustumCulled = false;
     m.count = 0;
@@ -93,13 +98,15 @@ export class Weather {
     const k = f.weather, amt = game.welcome ? f.weatherAmt : 0;
     const e = Math.min(1, dt * 1.5);
     const to = (v: number, goal: number) => v + (goal - v) * e;
-    // Heavy rain and storms are the full effect; a drizzle and a thunder shower are a fraction
-    // of it, so the everyday wet weather stays easy on the eyes.
+    // Heavy rain, storms and heavy snow are the full effect; a drizzle, a thunder shower and a
+    // light snowfall are a fraction of it, so the everyday weather stays easy on the eyes.
     const g = LOOKS[k] ?? LOOKS[W.Clear];
     l.fog = to(l.fog, g.fog * amt);
     l.rain = to(l.rain, g.rain * amt);
     l.storm = to(l.storm, g.storm * amt);
     l.snow = to(l.snow, g.snow * amt);
+    l.flakes = to(l.flakes, (g.flakes ?? 0) * amt);
+    l.gust = to(l.gust, (g.gust ?? 0) * amt);
     l.dark = Math.max(l.storm * 0.6, l.rain * 0.35, l.fog * 0.3);
 
     // Lightning: a strike flashes twice, quickly.
@@ -125,10 +132,10 @@ export class Weather {
     this.rain.count = Math.floor(RAIN * Math.min(1, l.rain * (0.45 + 0.55 * l.storm)) * zoomFill);
     this.uFall.value = 22 + 10 * l.storm;
     this.uLen.value = 0.7 + 0.4 * l.storm;
-    this.uWind.value.set(1.5 + 5 * l.storm, 0.8 + 2 * l.storm);
+    this.uWind.value.set(1.5 + 5 * l.storm + 9 * l.gust, 0.8 + 2 * l.storm + 3 * l.gust);
     this.uAlpha.value = 0.22 + 0.1 * l.storm;
     this.rain.visible = this.rain.count > 0;
-    this.snow.count = Math.floor(SNOW * l.snow * zoomFill);
+    this.snow.count = Math.floor(SNOW * l.flakes * zoomFill);
     this.snow.visible = this.snow.count > 0;
   }
 }

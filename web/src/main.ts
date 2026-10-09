@@ -9,6 +9,7 @@ import { type Handlers, type Transport, WsTransport } from './net';
 import { PF_ALIVE, PF_ARMORY, Phase, PingKind, SiteKind, siteX, siteY, turretRange, type Welcome, wreck } from './protocol';
 import { Creeps } from './scene/creeps';
 import { Effects } from './scene/effects';
+import { Helis } from './scene/heli';
 import { Heroes } from './scene/heroes';
 import { Loot } from './scene/loot';
 import { Overlays } from './scene/overlays';
@@ -19,7 +20,7 @@ import { playerColor } from './scene/util';
 import { World } from './scene/world';
 import { Game } from './state';
 
-// #demo&weather=3&down&corehp=0.3&creeps=5000&phase=build&cam=x,y,yawDeg,dist&build=5&armory&help&score&f3&sel=struct:12&mouse=x,y&webgl
+// #demo&drop&weather=3&down&corehp=0.3&creeps=5000&phase=build&cam=x,y,yawDeg,dist&build=5&armory&help&score&f3&sel=struct:12&mouse=x,y&webgl
 function params(): Map<string, string> {
   const m = new Map<string, string>();
   for (const part of location.hash.slice(1).split('&')) {
@@ -70,6 +71,7 @@ async function main(): Promise<void> {
   const heroes = new Heroes(world.scene);
   const loot = new Loot(world.scene);
   const effects = new Effects(world.scene);
+  const helis = new Helis(world.scene, effects);
   const weather = new Weather(world.scene);
   world.look = weather.look;
   const overlays = new Overlays(world.scene, structs);
@@ -143,6 +145,7 @@ async function main(): Promise<void> {
       weather: P.has('weather') ? Number(P.get('weather')) : -1,
       down: P.has('down'),
       coreHp: P.has('corehp') ? Number(P.get('corehp')) : 1,
+      drop: P.has('drop'),
     };
     transport = new DemoHost(handlers, opt);
   } else {
@@ -172,7 +175,6 @@ async function main(): Promise<void> {
     }
     if (P.has('build')) { hud.buildCard = true; const k = Number(P.get('build')); if (k) ctl.startBuild(k); }
     if (P.has('ability')) ctl.startAbility(Number(P.get('ability')) || 1);
-    if (P.has('amove')) ctl.setMode({ k: 'amove' });
     if (P.has('armory')) ctl.openArmory(true);
     if (P.has('help')) hud.toggleHelp();
     if (P.has('score')) hud.showScore(true);
@@ -188,7 +190,7 @@ async function main(): Promise<void> {
       }
     }
   };
-  (window as unknown as { td: unknown }).td = { game, ctl, rig, hud, world, heroes, get transport() { return transport; } };
+  (window as unknown as { td: unknown }).td = { game, ctl, rig, hud, world, heroes, helis, get transport() { return transport; } };
 
   // The 8-bit view: #px=N or the saved choice sets the block size, 0 turns it off, F4 toggles.
   let pixelPref = 'auto';
@@ -262,6 +264,7 @@ async function main(): Promise<void> {
       heroes.update(game, now, dt, world.camera);
       loot.update(game, now);
       effects.update(game, world.camera, dt);
+      helis.update(game, now, dt);
     }
     world.render();
     if (wd) {

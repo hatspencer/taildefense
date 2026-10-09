@@ -91,6 +91,11 @@ each wave, but Normal is the reference for timing.
   can hide a nest. Danger is never fully known in advance.
 - **Restock.** Every fifth wave, some searched sites refill, so the map stays worth exploring
   in a long game.
+- **Supply drops.** After every tenth wave a Huey gunship flies a crate 36–50 tiles out from the
+  base, onto open ground a survivor can walk to. It's the long break's lure: worth the walk, out
+  where the creeps are. The door gunner thins them on the way in. Opening it takes 2.5 s of
+  standing by it unhurt, and it pays the whole team (gold, full medkits) plus a rare find for the
+  opener. Up to three wait unopened. The surfboards on the Huey's side are for Kilgore.
 
 ### Wrecks
 
@@ -118,6 +123,33 @@ the army trucks.
 - Creeps sometimes take against a turret, wall or far-off survivor by themselves, so the waves
   aren't perfectly predictable.
 
+## Controls
+
+- **WASD walks, like Project Zomboid or a twin-stick game.** The camera-free click-to-move of
+  an RTS felt remote for a survival game: kiting a crowd by right-clicking behind you is
+  clumsy. WASD goes the way the view faces, whatever the camera's yaw, so W is always up the
+  screen. The client sends the direction several times a second while a key is held, and the
+  host walks it straight with no pathfinding; a steer the host stops hearing about lapses
+  after 0.4 s, so a lost key-up can't send a survivor off the map.
+- **Aiming stays automatic.** The hero shoots the nearest creep in range while walking. This is
+  co-op tower defense with thousands of creeps, not an aim game; your hands are for walking,
+  abilities and building.
+- **The rest follows Overwatch.** The weapon's signature is secondary fire on the right mouse
+  button, at the cursor. The abilities are Shift, E and Q, with the big one (airstrike) on Q.
+  F is "use": what is under the cursor, or else the nearest usable thing (a downed teammate, a
+  loot site, a damaged structure, the armory); on a creep it focuses fire. Attack-move and stop
+  went away with click-to-move; H still holds position.
+- **The camera follows while you walk.** Arrows and the screen edge still look away, and the
+  next step brings it back. The minimap's right-click still walks you there by path.
+- **Numbers are the inventory.** 1–7 are the weapons, 8 the medkit. A weapon run dry reloads in
+  the background, so switching to a loaded one is the fast way out of an empty magazine and
+  carrying two guns pays.
+- **Medkits are a decision, not a regen stat.** One heals 40% over 3 s, and a hit cuts it
+  short, so you heal after you get clear, not in the crowd. You carry up to three, start with
+  one, buy them for 60 gold or find them in ambulances. The old regen gear row is Vitamins.
+- **The taunt is rude.** The survivor turns to the camera, flips the horde off and shouts. It's
+  the funniest thing in the game to do to a brute, and it reads at a glance.
+
 ## Downed and revive
 
 When you go down you stay where you fell, and a teammate can revive you by standing next to
@@ -130,17 +162,18 @@ The weather changes between waves and is the same for everyone. Fog shortens eve
 and creeps notice you later. Rain dampens fire and slows creeps a little, storms throw
 lightning at creeps in the open, and snow slows everything.
 
-**Heavy weather is rare.** Heavy rain and storms are dramatic but tiring to look at and play
-through wave after wave. Their everyday forms are a **drizzle** (a little rain, fire burns
-slightly cooler) and a **thunder shower** (light rain, a bolt every 7–15 s instead of every few
-seconds). Odds per wave, roughly:
+**Heavy weather is rare.** Heavy rain, storms and heavy snow are dramatic but tiring to look at
+and play through wave after wave. Their everyday forms are a **drizzle** (a little rain, fire
+burns slightly cooler), a **thunder shower** (light rain, a bolt every 7–15 s instead of every
+few seconds) and **snow** (a thin fall of flakes and a dusting on the ground; heavy snow is a
+thick, wind-driven fall that turns the ground white). Odds per wave, roughly:
 
-| clear | fog | drizzle | snow | thunder shower | heavy rain | storm |
-|---|---|---|---|---|---|---|
-| 39% | 17% | 16% | 12% | 8% | 5% | 3% |
+| clear | fog | drizzle | snow | thunder shower | heavy rain | heavy snow | storm |
+|---|---|---|---|---|---|---|---|
+| 39% | 17% | 16% | 9% | 8% | 5% | 4% | 3% |
 
-Light rain counts as a fraction of heavy rain for every effect (drizzle 0.3, thunder shower
-0.5), on screen and in the sim alike.
+Light weather counts as a fraction of its heavy form for every effect (drizzle 0.3, thunder
+shower 0.5, snow 0.4), on screen and in the sim alike.
 
 **Fog hides teammates.** In thick fog (strength above 0.4), other players vanish from the
 minimap. Their figures and names stay visible in the world, but their health bars, search and

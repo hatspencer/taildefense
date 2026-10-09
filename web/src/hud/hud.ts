@@ -10,7 +10,7 @@ import { Compass, where } from './compass';
 import { Minimap } from './minimap';
 import { wordmarkURL } from './splash';
 
-const ORDER = ['idle', 'moving', 'attack-moving', 'attacking', 'holding', 'building', 'repairing', 'searching', 'reviving'];
+const ORDER = ['idle', 'moving', 'attack-moving', 'attacking', 'holding', 'building', 'repairing', 'searching', 'reviving', 'walking'];
 
 // One digit after the point below ten seconds, whole seconds above.
 const secs = (s: number) => (s < 10 ? s.toFixed(1) : String(Math.ceil(s)));
@@ -50,6 +50,7 @@ export class Hud {
   };
   private slots: Slot[] = [];
   private taunt: Slot & { cap: HTMLElement };
+  private med!: HTMLElement;
   private wslots: HTMLElement[] = [];
   private card: HTMLElement;
   private cardKey = '';
@@ -225,6 +226,13 @@ export class Hud {
       this.tipOn(w, () => this.weaponTip(i));
       this.wslots.push(w);
     }
+    // The medkit sits after the weapons on 8.
+    const med = el('div', 'wslot med', ws);
+    el('span', 'key', med, '8');
+    el('span', 'nm', med);
+    med.onclick = () => { const me = ctl.me(); if (me && me.medkits > 0) ctl.medkit(); else ctl.openArmory(true); };
+    this.tipOn(med, () => this.medkitTip());
+    this.med = med;
     this.card = el('div', 'card panel', bottom);
 
     this.armory = new Armory(root, ctl);
@@ -275,13 +283,20 @@ export class Hud {
     return `<b>Taunt</b><kbd>V</kbd><br>Shout: every creep within ${t.radius} tiles comes for you for ${t.time}s. Pull them off a teammate or into your turrets.<br><span class="muted">cooldown ${t.cool}s</span>`;
   }
 
+  private medkitTip(): string {
+    const m = this.ctl.game.welcome?.medkit, me = this.ctl.me();
+    if (!m || !me) return '';
+    return `<b>Medkit</b><kbd>8</kbd><br>Heals ${Math.round(m.heal * 100)}% of your health over ${m.time}s. A hit cuts it short.<br><span class="muted">${me.medkits}/${m.max} carried · ${m.cost}g each at the armory · first-aid kits in the wild hold more</span>`;
+  }
+
   private weaponTip(i: number): string {
     const wd = this.ctl.game.welcome, me = this.ctl.me();
     const w = wd?.weapons[i];
     if (!w || !me) return '';
     const owned = (me.owned & (1 << i)) !== 0;
+    const reloading = (me.reloading & (1 << i)) !== 0;
     const lv = [0, 1, 2, 3].map((t) => `${wd!.tracks[t]} ${me.levels[i * 4 + t]}`).join(' · ');
-    return `<b>${esc(w.name)}</b><kbd>${i + 1}</kbd><br><span class="muted">${w.fire} · range ${w.range} · special ${esc(w.special)}</span><br>${owned ? lv : `not owned · <span class="c">${w.price}g</span> at the armory`}<br><span class="muted">signature: ${esc(w.sig.name)}</span>`;
+    return `<b>${esc(w.name)}</b><kbd>${i + 1}</kbd><br><span class="muted">${w.fire} · range ${w.range} · special ${esc(w.special)}</span><br>${owned ? lv : `not owned · <span class="c">${w.price}g</span> at the armory`}<br><span class="muted">signature: ${esc(w.sig.name)}${reloading ? ' · reloading' : ''}</span>`;
   }
 
   private diffTip(): string {
@@ -397,23 +412,24 @@ export class Hud {
 
   private buildHelp(): void {
     const rows: [string, string][] = [
-      ['Right-click', 'move · on a creep: attack · on a damaged structure: repair · on the armory: walk there · on a loot site: search it'],
-      ['Right-click a downed teammate', 'walk over and revive them: stay close until the bar fills'],
-      ['<kbd>A</kbd> + left-click', 'attack-move (Shift keeps the mode)'],
+      ['<kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>', 'walk, the way the view faces; the camera follows while you walk. Your hero shoots the nearest creep on its own'],
+      ['<kbd>F</kbd>', 'use: on what is under the cursor, or else the nearest thing. A downed teammate: revive them (stay close until the bar fills) · a loot site: search it · a damaged structure: repair · the armory: shop · a creep: focus your fire on it'],
+      ['Right-click', "on a creep: focus fire on it; elsewhere: the weapon's signature, at the cursor"],
+      ['<kbd>Shift</kbd> <kbd>E</kbd> <kbd>Q</kbd>', 'abilities: grenade, dash, airstrike; aim with the cursor, then left-click to cast, right-click or Esc cancels'],
       ['<kbd>Alt</kbd> + left-click, or <kbd>Z</kbd> then click', 'ping the spot for the whole team, in the world or on the map: on a creep it warns, on a loot site it marks loot, on a structure it calls to defend it'],
-      ['<kbd>S</kbd> / <kbd>H</kbd>', 'stop / hold position'],
-      ['<kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>D</kbd>', 'abilities; point abilities then left-click to cast, right-click or Esc cancels'],
-      ['<kbd>V</kbd>', 'taunt: pull every creep nearby onto you, then a cooldown'],
+      ['<kbd>H</kbd>', 'hold position'],
+      ['<kbd>V</kbd>', 'taunt: flip them off and shout, pulling every creep nearby onto you, then a cooldown'],
       ['<kbd>1</kbd>–<kbd>7</kbd>', 'equip an owned weapon'],
+      ['<kbd>8</kbd>', 'use a medkit: heals over a few seconds unless a hit cuts it short; buy more at the armory'],
       ['<kbd>R</kbd> or Reload', 'reload now (the button sits next to your ammo)'],
       ['<kbd>B</kbd>', 'build card; its hotkeys pick a structure, left-click places, Shift keeps placing'],
       ['Left-click', 'select a structure, creep or hero'],
-      ['<kbd>U</kbd> / <kbd>X</kbd> / <kbd>F</kbd>', 'upgrade / sell / repair the selected structure'],
+      ['<kbd>U</kbd> / <kbd>X</kbd>', 'upgrade / sell the selected structure'],
       ['<kbd>G</kbd>', 'armory window (opens by itself when you arrive)'],
       ['<kbd>N</kbd>', 'ready for the next wave'],
       ['Wheel', 'zoom · Alt+wheel or middle-drag: rotate'],
       ['<kbd>Space</kbd>', 'hold: sprint, until your stamina (the strip under your health) runs out · tap: back to your hero · double tap: lock the camera to it'],
-      ['Arrows / screen edge', 'pan'],
+      ['Arrows / screen edge', 'look around; walking brings the camera back'],
       ['Minimap', 'left-click/drag: look there · right-click: move there'],
       ['<kbd>P</kbd>', 'pause or resume the game, for everyone'],
       ['<kbd>M</kbd>', 'big map, and back; click it to look, right-click to walk there'],
@@ -609,7 +625,7 @@ export class Hud {
       const t = el('span', 't', d);
       t.innerHTML = p.revived > 0
         ? `<b>${esc(p.name)}</b> is being revived${reviving ? ' · stay close' : ''}`
-        : `<b>${esc(p.name)}</b> is down ${esc(at(p))} · right-click them to revive`;
+        : `<b>${esc(p.name)}</b> is down ${esc(at(p))} · F on them to revive`;
       el('span', 'n', d, `${p.respawn}s`);
       if (p.revived > 0) {
         const bar = el('div', 'bar revive', d);
@@ -725,8 +741,12 @@ export class Hud {
       if (!w2) continue;
       setClass(e, 'owned', (me.owned & (1 << i)) !== 0);
       setClass(e, 'cur', me.cur === i);
+      setClass(e, 'reloading', (me.reloading & (1 << i)) !== 0);
       setText(e.children[1] as HTMLElement, w2.short);
     }
+    setClass(this.med, 'owned', me.medkits > 0);
+    setClass(this.med, 'cur', me.heal > 0);
+    setText(this.med.children[1] as HTMLElement, me.heal > 0 ? `heal ${me.heal.toFixed(1)}` : `med ×${me.medkits}`);
   }
 
   // The right-hand command card: the build grid, or whatever is selected.
@@ -818,7 +838,7 @@ export class Hud {
       if (down && p.id !== wd.you) {
         const btns = el('div', 'btns', c);
         const rv = el('button', 'primary', btns, 'Revive');
-        rv.title = 'Or right-click them';
+        rv.title = 'Or F on them';
         rv.onclick = () => ctl.send({ op: 'revive', p: p.id });
       }
       return;
@@ -827,16 +847,15 @@ export class Hud {
     const btns = el('div', 'btns', c);
     const b1 = el('button', '', btns); b1.innerHTML = 'Build <kbd>B</kbd>'; b1.onclick = () => { this.buildCard = true; };
     const b2 = el('button', '', btns); b2.innerHTML = 'Armory <kbd>G</kbd>'; b2.onclick = () => ctl.openArmory(true);
-    const b3 = el('button', '', btns); b3.innerHTML = 'Stop <kbd>S</kbd>'; b3.onclick = () => ctl.send({ op: 'stop' });
+    const b3 = el('button', '', btns); b3.innerHTML = 'Stop'; b3.onclick = () => ctl.send({ op: 'stop' });
     const b4 = el('button', '', btns); b4.innerHTML = 'Hold <kbd>H</kbd>'; b4.onclick = () => ctl.send({ op: 'hold' });
-    el('div', 'hint', c, 'Right-click to move or attack · A attack-move · F1 for all controls');
+    el('div', 'hint', c, 'WASD to walk · F to use · right-click: signature · F1 for all controls');
   }
 
   private updateMode(): void {
     const m = this.ctl.mode;
     let s = '';
-    if (m.k === 'amove') s = 'Attack-move: left-click a point · Esc cancels';
-    else if (m.k === 'ability') { const a = this.ctl.ability(m.slot); s = `${a?.name ?? 'Ability'}: left-click a target · right-click or Esc cancels`; }
+    if (m.k === 'ability') { const a = this.ctl.ability(m.slot); s = `${a?.name ?? 'Ability'}: left-click a target · right-click or Esc cancels`; }
     else if (m.k === 'build') { const d = this.ctl.game.welcome?.structs[m.kind]; s = `Place ${d?.name ?? ''} (${d?.price ?? 0}g): left-click · Shift keeps placing · Esc cancels`; }
     show(this.modeEl, s !== '');
     setText(this.modeEl, s);

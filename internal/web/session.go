@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"html"
 	"io/fs"
+	"math"
 	"net"
 	"net/http"
 	"strconv"
@@ -380,6 +381,20 @@ func (s *session) command(p []byte) bool {
 		if c.On {
 			nc.A = 1
 		}
+	case "steer":
+		// X is the angle in radians; On false lets go.
+		a := math.Mod(float64(c.X), 2*math.Pi)
+		if a < 0 {
+			a += 2 * math.Pi
+		}
+		nc = netplay.Cmd{Op: netplay.OpSteer, A: uint8(int(math.Round(a/(2*math.Pi)*256)) & 255)}
+		if c.On {
+			nc.B = 1
+		}
+	case "medkit":
+		nc = netplay.Cmd{Op: netplay.OpMedkit}
+	case "buyMedkit":
+		nc = netplay.Cmd{Op: netplay.OpBuyMedkit}
 	case "revive":
 		nc = netplay.Cmd{Op: netplay.OpRevive, T: u16(c.P)}
 	case "ready":

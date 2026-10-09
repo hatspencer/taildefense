@@ -5,17 +5,18 @@ import { dispatch, type Handlers, type Transport } from '../net';
 import {
   type Command, MAX_CREEPS, Tile, Phase, Order, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_FIRING,
   PF_HURT, PF_MOVING, PF_READY, PF_RELOADING, CF_BURNING, CF_SLOWED, CF_GUARD, CF_HUNTING, CF_SIEGE, CF_ASLEEP,
-  BlastKind, Emote, type SiteDef, SiteKind, Weather, type Welcome,
+  BlastKind, EffectKind, Emote, type SiteDef, SiteKind, TRACER_HELI, Weather, type Welcome,
 } from '../protocol';
 import { ABILITY_RADIUS, CREEPS, STRUCTS, WEAPON_BASE, WEATHERS, demoWelcome } from './defs';
 import { Writer } from './encode';
 import { type DemoMap, generateMap, rng } from './map';
 
 // weather: a fixed kind, or -1 to cycle. down: a teammate starts downed. coreHp: the generator's share of hp.
-export interface DemoOptions { creeps: number; phase: 'wave' | 'build' | 'over'; wave: number; gold: number; weather?: number; down?: boolean; coreHp?: number }
+export interface DemoOptions { creeps: number; phase: 'wave' | 'build' | 'over'; wave: number; gold: number; weather?: number; down?: boolean; coreHp?: number; drop?: boolean }
 
 // How much each weather counts as rain, as the host's wetness.
-const WET = [0, 0, 1, 1, 0, 0.3, 0.5];
+const WET = [0, 0, 1, 1, 0, 0.3, 0.5, 0];
+const SNOWY = [0, 0, 0, 0, 0.4, 0, 0, 1];
 // Guard creeps take the top ids, clear of the wave's.
 const GUARD_ID0 = 16000;
 // Guard states.
@@ -30,6 +31,7 @@ interface DPlayer {
   buildKind: number; repairId: number; buff: number; buffLeft: number; abLevel: number[]; abCool: number[];
   ready: boolean; fireCd: number; shot: number; hurt: number; moving: boolean; wander: number;
   site: number; searchT: number; revTarget: number; channel: number; emoteLeft: number; tauntCool: number; downT: number; look: number;
+  medkits: number; heal: number; steerX: number; steerY: number; steerLeft: number;
 }
 interface DStruct { alive: boolean; kind: number; x: number; y: number; w: number; h: number; hp: number; maxHp: number; level: number; owner: number; cd: number }
 interface DEffect { kind: number; x0: number; y0: number; x: number; y: number; r: number; left: number; total: number; owner: number; dmg: number }
@@ -55,6 +57,7 @@ export class DemoHost implements Transport {
   private players: DPlayer[] = [];
   private structs: DStruct[] = [];
   private effects: DEffect[] = [];
+  private crates: { x: number; y: number; open: number }[] = [];
   private notes: { level: number; text: string }[] = [];
   private pings: { player: number; x: number; y: number; kind: number }[] = [];
   private sites: SiteDef[] = [];
@@ -140,7 +143,7 @@ export class DemoHost implements Transport {
     const cx = W / 2, cy = H / 2, r = this.ring;
     this.structs = [];
     this.addStruct(1, cx - 2, cy - 2, -1);
-    this.addStruct(2, cx + 4, cy - 1, -1);
+    this.addStruct(2, cx + 6, cy - 1, -1);
     const gate = (x: number, y: number) =>
       ((y === r.y0 || y === r.y1) && Math.abs(x - cx) <= 1) || ((x === r.x0 || x === r.x1) && Math.abs(y - cy) <= 1);
     for (let x = r.x0; x <= r.x1; x++) for (const y of [r.y0, r.y1]) this.addStruct(gate(x, y) ? 4 : 3, x, y, -1);
@@ -175,6 +178,8 @@ export class DemoHost implements Transport {
     this.weather = this.opt.weather !== undefined && this.opt.weather >= 0 ? this.opt.weather : 0;
     this.weatherAmt = this.weather ? 1 : 0; this.nextWeather = this.weather; this.weatherT = 30;
     this.effects = [];
+    this.crates = [];
+    if (this.opt.drop) this.callDrop();
     this.wave = this.opt.wave;
     this.totalKills = 1234;
     this.bosses = 0;
@@ -202,7 +207,7 @@ export class DemoHost implements Transport {
       gold: 400 + id * 150, kills: 40 + id * 17, damage: 9000 + id * 2100, owned: 1 | (1 << cur),
       levels: new Uint8Array(28), gear: new Uint8Array(4), order: Order.Idle, tx: x, ty: y, target: -1, buildKind: 0,
       repairId: -1, buff: 0, buffLeft: 0, abLevel: [1, 0, 0, 0], abCool: [0, 0, 0, 0], ready: bot, fireCd: 0, shot: 0, hurt: 0,
-      moving: false, wander: 2 + id, site: -1, searchT: 0, revTarget: -1, channel: 0, emoteLeft: 0, tauntCool: 0, downT: 0,
+      moving: false, wander: 2 + id, site: -1, searchT: 0, revTarget: -1, channel: 0, emoteLeft: 0, tauntCool: 0, downT: 0, medkits: 1, heal: 0, steerX: 0, steerY: 0, steerLeft: 0,
       // A random survivor, a different outfit for each.
       look: ((Math.floor(this.rnd() * 0x10000000) << 4) | (id * 3 % 10)) >>> 0,
     };
@@ -555,7 +560,7 @@ export class DemoHost implements Transport {
   private moveCreeps(): void {
     const core = this.structs[0];
     const ccx = core.x + core.w / 2, ccy = core.y + core.h / 2;
-    const slowW = this.weather === Weather.Snow ? 1 - 0.15 * this.weatherAmt : 1 - 0.08 * this.weatherAmt * WET[this.weather];
+    const slowW = 1 - 0.15 * this.weatherAmt * SNOWY[this.weather] - 0.08 * this.weatherAmt * WET[this.weather];
     for (let id = 0; id < MAX_CREEPS; id++) {
       if (!this.cAlive[id]) {
         if (this.cRespawn[id] > 0) {
@@ -646,7 +651,7 @@ export class DemoHost implements Transport {
   private walk(p: DPlayer, tx: number, ty: number, stopAt: number): boolean {
     const dx = tx - p.x, dy = ty - p.y, d = Math.hypot(dx, dy);
     if (d <= stopAt) { p.moving = false; return true; }
-    const snow = this.weather === Weather.Snow ? 1 - 0.08 * this.weatherAmt : 1;
+    const snow = 1 - 0.08 * this.weatherAmt * SNOWY[this.weather];
     const sp = Math.min(d, 4.2 * (1 + 0.08 * p.gear[1]) * snow * DT);
     const nx = p.x + (dx / d) * sp, ny = p.y + (dy / d) * sp;
     const ok = (x: number, y: number) => {
@@ -675,6 +680,7 @@ export class DemoHost implements Transport {
     for (let i = 0; i < 4; i++) p.abCool[i] = Math.max(0, p.abCool[i] - DT);
     if (p.buffLeft > 0) { p.buffLeft -= DT; if (p.buffLeft <= 0) p.buff = 0; }
     p.hp = Math.min(p.maxHp, p.hp + (0.3 + 1.5 * p.gear[2]) * DT);
+    if (p.heal > 0) { p.heal = Math.max(0, p.heal - DT); p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.4 / 3 * DT); }
     if (p.bot) {
       // Bots pick a downed teammate up once they have been down a while, and taunt now and then.
       const down = this.players.find((o) => o.hp <= 0 && o.downT > 8 && o.respawn > 2);
@@ -696,6 +702,11 @@ export class DemoHost implements Transport {
     switch (p.order) {
       case Order.Move:
         if (this.walk(p, p.tx, p.ty, 0.15)) p.order = Order.Idle;
+        break;
+      case Order.Steer:
+        // A steer lapses unless the client repeats it, as on the host.
+        if ((p.steerLeft -= DT) <= 0) { p.order = Order.Idle; break; }
+        this.walk(p, p.x + p.steerX * 2, p.y + p.steerY * 2, 0);
         break;
       case Order.Attack:
         if (!this.cAlive[p.target]) { p.order = Order.Idle; break; }
@@ -756,7 +767,10 @@ export class DemoHost implements Transport {
     // Creeps bite whoever stands among them.
     const ids = this.q, n = this.query(p.x, p.y, 0.9, ids, 8);
     // The demo's own hero is tougher so a screenshot does not open on a death screen.
-    if (n > 0) { p.hp -= n * (p.bot ? 6 : 1.5) * DT; p.hurt = 0.3; }
+    if (n > 0) {
+      p.hp -= n * (p.bot ? 6 : 1.5) * DT; p.hurt = 0.3;
+      if (p.heal > 0) { p.heal = 0; if (!p.bot) this.toast('a hit cut the medkit short'); }
+    }
     else if (p.hurt <= 0) p.hp = Math.min(p.maxHp, p.hp + 2 * DT);
     if (p.hp <= 0) { p.hp = 0; p.respawn = 20; p.downT = 0; p.order = Order.Idle; this.notes.push({ level: 2, text: `${p.name} is down` }); }
   }
@@ -880,10 +894,45 @@ export class DemoHost implements Transport {
       }
     }
   }
+  // A Huey with a supply crate, as the host sends one after every tenth wave: here out past the
+  // east wall of the first player, on open ground.
+  // of the first player, so it is in view.
+  callDrop(): void {
+    const me = this.players[0];
+    const x = Math.floor(me.x + 20) + 0.5, y = Math.floor(me.y - 6) + 0.5;
+    const dx = x - me.x, dy = y - me.y, d = Math.hypot(dx, dy) || 1;
+    this.effects.push({ kind: EffectKind.Drop, x0: x + dx / d * 50, y0: y + dy / d * 50, x, y, r: 0, left: 140, total: 140, owner: -1, dmg: 0 });
+    this.notes.push({ level: 1, text: 'supply drop inbound: a Huey is bringing a crate in' });
+  }
+
+  private stepCrates(): void {
+    for (let i = 0; i < this.crates.length; i++) {
+      const c = this.crates[i];
+      const p = this.players.find((o) => o.hp > 0 && o.hurt <= 0 && Math.hypot(o.x - c.x, o.y - c.y) <= 1.8);
+      if (!p) { c.open = 0; continue; }
+      if ((c.open += DT) < 2.5) continue;
+      for (const o of this.players) { o.gold += 400; o.medkits = 3; }
+      this.notes.push({ level: 1, text: `${p.name} opened the supply crate: +400 gold and full medkits for everyone` });
+      this.crates.splice(i--, 1);
+    }
+  }
 
   private stepEffects(): void {
     const keep: DEffect[] = [];
     for (const e of this.effects) {
+      if (e.kind === EffectKind.Drop) {
+        // The door gunner, from where the Huey is, once it is near.
+        const tl = (e.total - e.left) / 10, k0 = Math.min(1, tl / (e.total / 10 - 3)), k = 1 - (1 - k0) * (1 - k0);
+        const hx = e.x0 + (e.x - e.x0) * k, hy = e.y0 + (e.y - e.y0) * k;
+        if (tl > 2 && this.tick % 2 === 0) {
+          const t = this.nearest(hx, hy, 11);
+          if (t >= 0) { this.tracer(hx, hy, this.cX[t], this.cY[t], TRACER_HELI); this.hurt(t, 60, null); }
+        }
+        if (this.tick % 2 === 0) e.left--;
+        if (e.left > 0) keep.push(e);
+        else { this.crates.push({ x: e.x, y: e.y, open: 0 }); this.blast(e.x, e.y, 1.5, 5, 0, null); }
+        continue;
+      }
       const by = this.players[e.owner] ?? null;
       if (e.kind === 2 && this.tick % 4 === 0) {
         const ids = this.q, n = this.query(e.x, e.y, e.r, ids, 500);
@@ -967,6 +1016,7 @@ export class DemoHost implements Transport {
       for (const p of this.players) this.stepPlayer(p);
       this.stepStructs();
       this.stepEffects();
+      this.stepCrates();
     }
     dispatch(this.h, this.encode());
     this.notes.length = 0; this.pings.length = 0;
@@ -1011,10 +1061,14 @@ export class DemoHost implements Transport {
       w.u8(255); w.u8(0); w.u32(p.look);
       w.u8(p.buff); w.u8(Math.max(0, p.buffLeft * 10));
       for (let a = 0; a < 4; a++) { w.u8(p.abLevel[a]); w.u16(p.abCool[a] * 10); }
+      w.u8(p.medkits); w.u8(Math.ceil(p.heal * 10));
+      w.u8(p.reloadLeft > 0 ? 1 << p.cur : 0);
       w.str8(p.name);
     }
     w.u16(this.sites.length);
     for (let i = 0; i < this.sites.length; i++) w.u8((this.searched[i] ? 0x80 : 0) | Math.min(127, this.guardsLeft(i)));
+    w.u8(this.crates.length);
+    for (const c of this.crates) { w.q8(c.x); w.q8(c.y); w.u8(Math.min(255, c.open / 2.5 * 255)); }
     w.u16(this.structs.length);
     for (const s of this.structs) {
       w.u8(s.alive ? 1 : 0); w.u8(s.kind); w.u16(s.x); w.u16(s.y); w.u8(s.w); w.u8(s.h);
@@ -1067,6 +1121,24 @@ export class DemoHost implements Transport {
       case 'amove': p.order = Order.AMove; p.tx = cmd.x; p.ty = cmd.y; break;
       case 'attack': if (this.cAlive[cmd.id]) { p.order = Order.Attack; p.target = cmd.id; } break;
       case 'stop': p.order = Order.Idle; break;
+      case 'steer':
+        if (!cmd.on) { if (p.order === Order.Steer) p.order = Order.Idle; break; }
+        if (p.hp <= 0) break;
+        p.order = Order.Steer; p.steerX = Math.cos(cmd.x); p.steerY = Math.sin(cmd.x); p.steerLeft = 0.4;
+        break;
+      case 'medkit':
+        if (p.hp <= 0) this.toast('you are down');
+        else if (p.medkits <= 0) this.toast('no medkits; buy them at the armory');
+        else if (p.heal > 0) this.toast('already patching up');
+        else if (p.hp >= p.maxHp) this.toast('you are not hurt');
+        else { p.medkits--; p.heal = 3; }
+        break;
+      case 'buyMedkit':
+        if (!this.atArmory(p)) this.toast('walk to the armory first');
+        else if (p.medkits >= 3) this.toast('you carry 3 medkits already, as many as fit');
+        else if (p.gold < 60) this.toast(`not enough gold: need 60, have ${p.gold}`);
+        else { p.gold -= 60; p.medkits++; }
+        break;
       case 'hold': p.order = Order.Hold; break;
       case 'reload': if (p.ammo < this.mag(p) && p.reloadLeft <= 0) p.reloadLeft = WEAPON_BASE[p.cur].reload; break;
       case 'ability': this.cast(p, cmd.slot, cmd.x, cmd.y); break;

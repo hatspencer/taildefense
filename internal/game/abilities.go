@@ -22,7 +22,7 @@ const MaxAbilityLevel = 3
 // Costs[l] to go from l to l+1.
 type AbilityDef struct {
 	Name   string
-	Key    byte
+	Key    string // what the client binds it to
 	Desc   string
 	Range  float32
 	Radius [MaxAbilityLevel]float32 // area hit, per level; 0 for none
@@ -33,10 +33,10 @@ type AbilityDef struct {
 
 // Abilities is indexed by slot.
 var Abilities = [NumAbilities]AbilityDef{
-	AbSignature: {Name: "Signature", Key: 'Q', Desc: "The equipped weapon's own ability; stronger with its special upgrades.", Always: true},
-	AbGrenade:   {Name: "Grenade", Key: 'W', Desc: "Lobbed at a point, bursts after a moment. Bigger and harder each level.", Range: 11, Radius: [3]float32{2.5, 3, 3.5}, Cool: [3]float32{9, 8, 7}, Costs: [3]int32{200, 450, 800}},
-	AbDash:      {Name: "Dash", Key: 'E', Desc: "Leap towards a point, out of a crowd. Further and sooner each level.", Range: 5, Cool: [3]float32{10, 8, 6}, Costs: [3]int32{150, 350, 650}},
-	AbAirstrike: {Name: "Airstrike", Key: 'D', Desc: "Mark a point anywhere near; two seconds later it is levelled.", Range: 40, Radius: [3]float32{5, 6, 7}, Cool: [3]float32{75, 65, 55}, Costs: [3]int32{600, 1200, 2000}},
+	AbSignature: {Name: "Signature", Key: "RMB", Desc: "The equipped weapon's own ability; stronger with its special upgrades.", Always: true},
+	AbGrenade:   {Name: "Grenade", Key: "Shift", Desc: "Lobbed at a point, bursts after a moment. Bigger and harder each level.", Range: 11, Radius: [3]float32{2.5, 3, 3.5}, Cool: [3]float32{9, 8, 7}, Costs: [3]int32{200, 450, 800}},
+	AbDash:      {Name: "Dash", Key: "E", Desc: "Leap towards a point, out of a crowd. Further and sooner each level.", Range: 5, Cool: [3]float32{10, 8, 6}, Costs: [3]int32{150, 350, 650}},
+	AbAirstrike: {Name: "Airstrike", Key: "Q", Desc: "Mark a point anywhere near; two seconds later it is levelled.", Range: 40, Radius: [3]float32{5, 6, 7}, Cool: [3]float32{75, 65, 55}, Costs: [3]int32{600, 1200, 2000}},
 }
 
 // SigDef is a weapon's signature ability.
@@ -259,6 +259,8 @@ func (w *World) stepEffects() {
 			if e.Left <= 0 {
 				w.explode(e.X, e.Y, e.R, e.Damage, e.Owner, 0)
 			}
+		case EffDrop:
+			w.stepDrop(&e)
 		case EffAirstrike:
 			if e.Left <= 0 {
 				w.explode(e.X, e.Y, e.R, e.Damage, e.Owner, 4)

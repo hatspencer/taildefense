@@ -113,6 +113,13 @@ type reviveDef struct {
 	HP    float32 `json:"hp"`
 }
 
+type medkitDef struct {
+	Heal float32 `json:"heal"`
+	Time float32 `json:"time"`
+	Max  uint8   `json:"max"`
+	Cost int32   `json:"cost"`
+}
+
 type point struct {
 	X float32 `json:"x"`
 	Y float32 `json:"y"`
@@ -151,6 +158,7 @@ type welcomeMsg struct {
 	Weathers        []weatherDef  `json:"weathers"`
 	Taunt           tauntDef      `json:"taunt"`
 	Revive          reviveDef     `json:"revive"`
+	Medkit          medkitDef     `json:"medkit"`
 }
 
 var fireNames = map[game.Fire]string{game.FireHitscan: "hitscan", game.FireCone: "cone", game.FireRocket: "rocket"}
@@ -199,7 +207,7 @@ func welcome(wel netplay.Welcome, core point, host, hint string, hosting bool) w
 		m.Gear = append(m.Gear, gd)
 	}
 	for _, a := range game.Abilities {
-		m.Abilities = append(m.Abilities, abilityDef{Name: a.Name, Key: string(a.Key), Desc: a.Desc, Target: "point",
+		m.Abilities = append(m.Abilities, abilityDef{Name: a.Name, Key: a.Key, Desc: a.Desc, Target: "point",
 			Range: a.Range, Radius: a.Radius[:], Cool: a.Cool[:], Costs: a.Costs[:], Always: a.Always})
 	}
 	for k, d := range game.Structs {
@@ -241,5 +249,7 @@ func welcome(wel netplay.Welcome, core point, host, hint string, hosting bool) w
 	m.Taunt = tauntDef{cool, radius, t}
 	reach, rt, hp := game.ReviveInfo()
 	m.Revive = reviveDef{reach, rt, hp}
+	mh, mt, mm, mc := game.MedkitInfo()
+	m.Medkit = medkitDef{mh, mt, mm, mc}
 	return m
 }

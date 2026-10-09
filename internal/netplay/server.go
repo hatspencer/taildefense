@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"strings"
 	"sync"
@@ -475,6 +476,16 @@ func (s *Server) command(p *peer, c Cmd) {
 		w.TogglePause(pl)
 	case OpPing:
 		err = w.Ping(pl, c.X, c.Y, game.PingKind(c.A))
+	case OpSteer:
+		if pl.Alive {
+			w.Steer(pl, float32(c.A)*(2*math.Pi/256), c.B == 1)
+		}
+	case OpMedkit:
+		err = w.UseMedkit(pl)
+	case OpBuyMedkit:
+		if err = w.BuyMedkit(pl); err == nil {
+			s.toast(p, 1, "bought a medkit · %d carried", pl.Medkits)
+		}
 	case OpRevive:
 		err = w.OrderRevive(pl, int(c.T))
 	case OpUpgradeStruct:
@@ -599,6 +610,9 @@ const (
 	OpSprint // A 1 held, 0 let go
 	OpPause  // toggles
 	OpPing   // A kind, X Y
+	OpSteer  // A angle in 256ths of a turn, B 1 walking, 0 let go
+	OpMedkit // use one
+	OpBuyMedkit
 )
 
 // Cmd is a discrete request from a player. X and Y are tiles, sent to 1/8; T names a creep

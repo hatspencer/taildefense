@@ -127,6 +127,9 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 			e.u8(a.Lv)
 			e.u16(deci16(a.Cool))
 		}
+		e.u8(p.Medkits)
+		e.u8(deci8(p.Heal))
+		e.u8(p.ReloadMask)
 		name := p.Name
 		if len(name) > 255 {
 			name = name[:255]
@@ -142,6 +145,12 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 			m |= 128
 		}
 		e.u8(m)
+	}
+	e.u8(uint8(min(len(r.Crates), 255)))
+	for _, c := range r.Crates[:min(len(r.Crates), 255)] {
+		e.pos(c.X)
+		e.pos(c.Y)
+		e.u8(uint8(min(max(c.Open, 0), 1) * 255))
 	}
 
 	e.u16(uint16(len(r.Structs)))

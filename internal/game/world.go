@@ -102,6 +102,9 @@ type Player struct {
 	Winded    bool    // stamina ran out; no sprinting until it is back to windedUntil
 	pingFree  uint32  // the tick from which a ping costs nothing; see World.Ping
 	Stamina   float32 // 0..1
+	Medkits   uint8   // carried, used one at a time with UseMedkit
+	Heal      float32 // seconds of a medkit's healing left
+	steerLeft float32 // seconds until an OrderSteer lapses without a repeat
 	noise     float32 // seconds until firing makes noise again
 	Dry       uint8   // searches in a row that found little, which makes the next luckier
 	lastAct   uint32  // the tick of the player's last command
@@ -138,6 +141,7 @@ const (
 	EffGrenade   EffectKind = iota + 1 // in flight from X0, Y0 to X, Y
 	EffNapalm                          // a burning pool
 	EffAirstrike                       // a target marked, the strike lands when Left runs out
+	EffDrop                            // a Huey flying in from X0, Y0; its crate lands on X, Y when Left runs out
 )
 
 // Effect is something that lasts more than a tick: a grenade in the air, a pool of napalm.
@@ -219,6 +223,7 @@ type World struct {
 	Players []*Player
 	Rockets []Projectile
 	Effects []Effect
+	Crates  []Crate // supply crates down and not yet opened
 	Sites   []Site
 
 	// Per tick outputs, cleared at the start of Step.
@@ -352,7 +357,7 @@ func (w *World) buildBase() {
 		}
 	}
 	w.Core = w.place(SCore, cx-2, cy-2, -1)
-	w.Armory = w.place(SArmory, cx+4, cy-1, -1)
+	w.Armory = w.place(SArmory, cx+6, cy-1, -1)
 	for i := -r; i <= r; i++ {
 		for _, p := range [][2]int{{cx + i, cy - r}, {cx + i, cy + r}, {cx - r, cy + i}, {cx + r, cy + i}} {
 			if w.StructAt(p[0], p[1]) >= 0 {
