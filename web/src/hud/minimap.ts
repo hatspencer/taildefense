@@ -1,5 +1,5 @@
 import type { Controller } from '../controller';
-import { EffectKind, PF_ALIVE, PF_CONNECTED, PingKind, siteX, siteY } from '../protocol';
+import { EffectKind, lootable, PF_ALIVE, PF_CONNECTED, PingKind, siteX, siteY } from '../protocol';
 import { PING_LIFE } from '../state';
 import { cssHex, playerColor } from '../scene/util';
 import { el, esc, show } from './dom';
@@ -97,6 +97,7 @@ export class Minimap {
     let best = -1, bd = 7;
     for (let i = 0; i < wd.sites.length; i++) {
       const s = wd.sites[i];
+      if (!lootable(s.kind)) continue;
       const d = Math.hypot(r.left + siteX(s) * px - e.clientX, r.top + siteY(s) * (r.height / Math.max(1, this.ctl.game.h)) - e.clientY);
       if (d < bd) { bd = d; best = i; }
     }
@@ -188,6 +189,7 @@ export class Minimap {
     const sd = Math.max(2, 2 * dpr), pip = Math.max(1, dpr);
     for (let i = 0; i < wd.sites.length; i++) {
       const s = wd.sites[i];
+      if (!lootable(s.kind)) continue;
       const x = Math.round(siteX(s) * sx), y = Math.round(siteY(s) * sy);
       // Unknown under fog of war counts as guarded: it may well be.
       const lvl = Math.max(0, Math.min(4, s.guard ?? 0)), done = f.siteSearched(i), guards = g.guardsLeft(i) < 0 ? lvl : f.siteGuards(i);

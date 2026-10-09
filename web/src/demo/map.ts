@@ -40,6 +40,8 @@ export interface DemoMap {
   ring: { x0: number; y0: number; x1: number; y1: number };
   // The ruined houses, walls included.
   houses: { x: number; y: number; w: number; h: number }[];
+  // The gas station by the west road: its shop, walls included, and its fuel pumps' tiles.
+  station?: { x: number; y: number; w: number; h: number; pumps: [number, number][] };
 }
 
 export function generateMap(w: number, h: number, seed: number): DemoMap {
@@ -114,6 +116,29 @@ export function generateMap(w: number, h: number, seed: number): DemoMap {
     }
   }
 
+  // The gas station, on the north side of the west road: a concrete lot, the shop at the back
+  // with its door to the pumps, as the host lays it out.
+  let station: DemoMap['station'];
+  const sx0 = 44;
+  let road = cy - 25;
+  while (road < cy + 25 && get(sx0 + 8, road) !== Tile.Dirt) road++;
+  if (road < cy + 25) {
+    const top = road - 14;
+    for (let y = top - 1; y <= top + 13; y++) for (let x = sx0 - 1; x <= sx0 + 16; x++) {
+      if (y >= top && y < top + 13 && x >= sx0 && x < sx0 + 16) set(x, y, Tile.Floor);
+      else if (get(x, y) >= Tile.Water) set(x, y, Tile.Dirt);
+    }
+    for (let y = top; y <= top + 5; y++) for (let x = sx0 + 4; x <= sx0 + 11; x++) {
+      const edge = y === top || y === top + 5 || x === sx0 + 4 || x === sx0 + 11;
+      if (edge && !(y === top + 5 && (x === sx0 + 7 || x === sx0 + 8))) set(x, y, Tile.Rock);
+    }
+    station = { x: sx0 + 4, y: top, w: 8, h: 6, pumps: [[sx0 + 6, top + 8], [sx0 + 9, top + 8], [sx0 + 6, top + 10], [sx0 + 9, top + 10]] };
+    for (let i = houses.length - 1; i >= 0; i--) {
+      const o = houses[i];
+      if (o.x < sx0 + 18 && sx0 - 2 < o.x + o.w && o.y < top + 15 && top - 2 < o.y + o.h) houses.splice(i, 1);
+    }
+  }
+
   // The base: cleared ground, a concrete floor inside the wall ring.
   const ring = { x0: cx - 14, y0: cy - 14, x1: cx + 14, y1: cy + 14 };
   for (let y = cy - 34; y <= cy + 34; y++) for (let x = cx - 40; x <= cx + 40; x++) {
@@ -124,5 +149,5 @@ export function generateMap(w: number, h: number, seed: number): DemoMap {
     const corner = (x < ring.x0 + 3 || x > ring.x1 - 3) && (y < ring.y0 + 3 || y > ring.y1 - 3);
     if (!corner) set(x, y, Tile.Floor);
   }
-  return { tiles: t, spawns, ring, houses };
+  return { tiles: t, spawns, ring, houses, station };
 }

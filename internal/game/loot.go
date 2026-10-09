@@ -21,6 +21,8 @@ const (
 	SiteAmbulance                 // an ambulance; its kit patches up the searcher
 	SiteBus                       // a school bus: slow to search, two finds, often a nest inside
 	SiteArmy                      // an army truck far out, always guarded
+	SiteStation                   // the gas station out by the edge: a weapon behind its counter, held hard
+	SitePump                      // one of the gas station's fuel pumps: not loot, it blows up when shot
 	NumSiteKinds
 )
 
@@ -56,10 +58,15 @@ var SiteDefs = [NumSiteKinds]SiteDef{
 	SiteAmbulance: {Name: "Ambulance", Search: 3, Luck: .25, Favor: FavorGear, Heal: true},
 	SiteBus:       {Name: "School bus", Search: 4, Luck: .25, Trap: .3, Finds: 2},
 	SiteArmy:      {Name: "Army truck", Search: 3.5, Luck: 1.25, Favor: FavorWeapons, Guard: 2},
+	SiteStation:   {Name: "Gas station", Search: 5, Luck: 1.5, Favor: FavorWeapons, Guard: 4},
+	SitePump:      {Name: "Fuel pump"},
 }
 
 // Wreck reports whether a site is a vehicle on a road.
-func (k SiteKind) Wreck() bool { return k == SiteCar || k >= SitePickup }
+func (k SiteKind) Wreck() bool { return k == SiteCar || k >= SitePickup && k <= SiteArmy }
+
+// Lootable reports whether a site can be searched; a fuel pump is only there to blow up.
+func (k SiteKind) Lootable() bool { return k != SitePump }
 
 // wreckOdds is how often each kind of wreck turns up on the roads, by tier: plain cars and
 // pickups everywhere, the bus nearer town, the police and the army further out.
@@ -74,7 +81,7 @@ var wreckOdds = [3][]struct {
 
 // Walled reports whether a site is a building searched from inside, rather than a thing in
 // the open.
-func (k SiteKind) Walled() bool { return k == SiteHouse || k == SiteOutpost }
+func (k SiteKind) Walled() bool { return k == SiteHouse || k == SiteOutpost || k == SiteStation }
 
 // outpostFinds is how many finds searching an outpost turns up; the first is rare or better,
 // the rest good or better.
@@ -90,11 +97,14 @@ type Site struct {
 	W, H     uint8
 	SX, SY   float32 // where a survivor stands to search
 	Tier     uint8   // 0 near the base .. 2 far out
-	Guard    uint8   // 0 unguarded .. 3 a lair, 4 an outpost's garrison: how many and how tough its guards are
+	Guard    uint8   // 0 unguarded .. 3 a lair, 4 a garrison: how many and how tough its guards are
 	Guards   uint8   // guards still alive
-	Searched bool
+	Searched bool    // for a fuel pump: blown up
 	Sprung   uint8   // ambushes already sprung here; the hardest places hide more than their guards
 	Yaw      float32 // a wreck's heading, radians from +x towards +y (wreck.go)
+
+	fuse float32 // a fuel pump hit: seconds until it goes up, 0 while it stands (station.go)
+	by   int8    // who set the pump off, -1 nobody
 }
 
 // lootReach is how close to a site's spot a survivor must be to search it.
@@ -156,6 +166,9 @@ func (w *World) OrderLoot(p *Player, si int) error {
 		return errOver
 	}
 	s := &w.Sites[si]
+	if !s.Kind.Lootable() {
+		return errors.New("nothing to search there")
+	}
 	if s.Searched {
 		return fmt.Errorf("the %s has been searched already", SiteDefs[s.Kind].lower())
 	}
@@ -174,8 +187,12 @@ func (w *World) search(p *Player, si int) {
 		w.Blasts = append(w.Blasts, Blast{s.SX, s.SY, 2.5, 6})
 		w.note(2, "%s woke a nest in a %s", p.Name, d.lower())
 	}
-	if s.Kind == SiteOutpost {
+	switch s.Kind {
+	case SiteOutpost:
 		w.searchOutpost(p, s)
+		return
+	case SiteStation:
+		w.searchStation(p, s)
 		return
 	}
 	r := Junk
@@ -284,7 +301,7 @@ func (w *World) ambush(si int, p *Player) {
 func (w *World) restock() int {
 	n := 0
 	for i := range w.Sites {
-		if w.Sites[i].Searched && w.rng.IntN(3) == 0 {
+		if w.Sites[i].Searched && w.Sites[i].Kind.Lootable() && w.rng.IntN(3) == 0 {
 			w.Sites[i].Searched, w.Sites[i].Sprung = false, 0
 			if w.Sites[i].Guards == 0 {
 				w.spawnGuards(i)
@@ -538,8 +555,11 @@ func (w *World) placeSites(ruins []ruin) []Site {
 			r -= wt[g]
 			g++
 		}
-		if k == SiteOutpost {
+		switch k {
+		case SiteOutpost:
 			g = 4
+		case SitePump:
+			g = 0
 		}
 		g = max(g, SiteDefs[k].Guard)
 		sites = append(sites, Site{Kind: k, X: int16(x), Y: int16(y), W: uint8(sw), H: uint8(sh), SX: sx, SY: sy, Tier: tier, Guard: g})
@@ -547,6 +567,16 @@ func (w *World) placeSites(ruins []ruin) []Site {
 	for _, h := range ruins {
 		x, y, hw, hh := h.x, h.y, h.w, h.h
 		sx, sy := float32(x)+float32(hw)/2, float32(y)+float32(hh)/2
+		if h.station {
+			// The shop is searched at its counter; its pumps stand out front.
+			if reach(sx, sy) {
+				add(SiteStation, x, y, hw, hh, sx, sy)
+				for _, p := range h.pumps {
+					add(SitePump, p[0], p[1], 1, 1, float32(p[0])+.5, float32(p[1])+.5)
+				}
+			}
+			continue
+		}
 		if h.outpost {
 			sx, sy = float32(h.cx)+.5, float32(h.cy)+.5
 			if !inside(int(sx), int(sy), 0) && reach(sx, sy) {
@@ -589,8 +619,9 @@ func (w *World) placeSites(ruins []ruin) []Site {
 }
 
 // Ambushes: the hardest places hide more than the guards you can see. An outpost springs one
-// when someone first gets into its yard and another when they start on its keep; a lair may
-// spring one when its search starts. The ambushers come out of hiding round the survivor and
+// when someone first gets into its yard and another when they start on its keep; the gas
+// station when someone first steps onto its forecourt, out of the shop and from all round,
+// and again at its counter; a lair may spring one when its search starts. The ambushers come out of hiding round the survivor and
 // go straight for them, and belong to the site afterwards, like its guards.
 
 // ambushOnEntry springs an outpost's first ambush on a survivor inside its walls.
@@ -604,13 +635,16 @@ func (w *World) ambushOnEntry(p *Player) {
 			w.springAmbush(si, p)
 		}
 	}
+	if si := w.station(); si >= 0 && w.Sites[si].Sprung == 0 && !w.Sites[si].Searched && w.onForecourt(si, p) {
+		w.springAmbush(si, p)
+	}
 }
 
 // ambushOnSearch is a search of site si starting.
 func (w *World) ambushOnSearch(si int, p *Player) {
 	s := &w.Sites[si]
 	switch {
-	case s.Kind == SiteOutpost && s.Sprung < 2:
+	case (s.Kind == SiteOutpost || s.Kind == SiteStation) && s.Sprung < 2:
 		w.springAmbush(si, p)
 	case s.Guard == 3 && s.Sprung == 0 && w.rng.Float32() < .6:
 		w.springAmbush(si, p)
@@ -632,13 +666,18 @@ func (w *World) springAmbush(si int, p *Player) {
 			k = CWalker
 		case r < 5 && w.Wave >= 4:
 			k = CSpitter
-		case r == 5 && s.Kind == SiteOutpost && w.Wave >= 6:
+		case r == 5 && (s.Kind == SiteOutpost || s.Kind == SiteStation) && w.Wave >= 6:
 			k = CBrute
 		}
 		for try := 0; try < 12; try++ {
 			a := w.rng.Float64() * 2 * math.Pi
 			d := 5 + w.rng.Float64()*3
 			x, y := p.X+float32(math.Cos(a)*d), p.Y+float32(math.Sin(a)*d)
+			if s.Kind == SiteStation && i%2 == 0 {
+				// Half of them were hiding in the shop, and come out of it.
+				x = float32(s.X) + 1 + w.rng.Float32()*float32(max(int(s.W)-2, 1))
+				y = float32(s.Y) + 1 + w.rng.Float32()*float32(max(int(s.H)-2, 1))
+			}
 			if ok, _ := w.creepFree(x, y); !ok {
 				continue
 			}
@@ -652,6 +691,9 @@ func (w *World) springAmbush(si int, p *Player) {
 			}
 			break
 		}
+	}
+	if s.Kind == SiteStation {
+		w.rouse(si, p)
 	}
 	if got == 0 {
 		return

@@ -110,8 +110,18 @@ func (w *World) wreckGrid() []int16 {
 	return g
 }
 
-// wreckAt reports whether a survivor's middle at x, y would be inside a wreck.
+// pumpBody is a fuel pump's half width; a survivor walks round a standing one like a wreck.
+const pumpBody = .3
+
+// wreckAt reports whether a survivor's middle at x, y would be inside a wreck or a standing
+// fuel pump.
 func (w *World) wreckAt(x, y float32) bool {
+	for _, i := range w.pumps() {
+		s := &w.Sites[i]
+		if dx, dy := abs32(x-s.SX), abs32(y-s.SY); !s.Searched && dx < pumpBody+PlayerRadius && dy < pumpBody+PlayerRadius {
+			return true
+		}
+	}
 	tx, ty := int(math.Floor(float64(x))), int(math.Floor(float64(y)))
 	if tx < 0 || ty < 0 || tx >= w.W || ty >= w.H {
 		return false

@@ -17,15 +17,20 @@ export const enum Weather { Clear = 0, Fog, Rain, Storm, Snow, Drizzle, Thunder,
 export const enum Emote { None = 0, Taunt }
 // What a ping means: picked from what is under the cursor when it is placed.
 export const enum PingKind { Here = 0, Danger, Loot, Defend }
-export const enum SiteKind { House = 0, Car, Crate, Outpost, Pickup, Police, Ambulance, Bus, Army }
+// Station: the gas station's shop. Pump: one of its fuel pumps, not loot; searched means blown up.
+export const enum SiteKind { House = 0, Car, Crate, Outpost, Pickup, Police, Ambulance, Bus, Army, Station, Pump }
 // A building searched from inside, rather than a thing in the open.
-export function walled(k: number): boolean { return k === SiteKind.House || k === SiteKind.Outpost; }
-// Which prop a site shows: an outpost's stash looks like a house's.
-export function propKind(k: number): number { return k === SiteKind.Outpost ? SiteKind.House : k > SiteKind.Outpost ? k - 1 : k; }
+export function walled(k: number): boolean { return k === SiteKind.House || k === SiteKind.Outpost || k === SiteKind.Station; }
+// Which prop a site shows (scene/loot.ts): an outpost's stash looks like a house's.
+const PROP = [0, 1, 2, 0, 3, 4, 5, 6, 7, 8, 9];
+export function propKind(k: number): number { return PROP[k] ?? -1; }
 // A vehicle on the road: a car, pickup, cruiser, ambulance, bus or army truck.
-export function wreck(k: number): boolean { return k === SiteKind.Car || k >= SiteKind.Pickup; }
+export function wreck(k: number): boolean { return k === SiteKind.Car || (k >= SiteKind.Pickup && k <= SiteKind.Army); }
+// Whether a site can be searched: a fuel pump is only there to be shot.
+export function lootable(k: number): boolean { return k !== SiteKind.Pump; }
 // Drop: a Huey flying in from (x0, y0); its crate lands on (x, y) when left runs out.
-export const enum EffectKind { Grenade = 1, Napalm = 2, AirTarget = 3, Drop = 4 }
+// Slam: a warlord's fists coming down on everything within r of (x, y) when left runs out.
+export const enum EffectKind { Grenade = 1, Napalm = 2, AirTarget = 3, Drop = 4, Slam = 5 }
 // The door gunner's shots, from the Huey in the air.
 export const TRACER_HELI = 34;
 

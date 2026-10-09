@@ -66,6 +66,7 @@ func (w *World) Step() {
 	w.stepTurrets()
 	w.stepRockets()
 	w.stepEffects()
+	w.stepPumps()
 	w.stepCrates()
 	w.stepCreeps()
 	w.reap()
@@ -342,6 +343,9 @@ func (w *World) stepCreeps() {
 		// The survivor it is after, if any; else a guard goes home, a creep that took against
 		// a structure goes for it, and the rest follow the field to the generator.
 		tp := w.creepTarget(c, d)
+		if w.bossSlam(c, tp) {
+			continue
+		}
 		var mx, my float32
 		if tp == nil && c.Home > 0 {
 			w.goHome(c, d, speed)
@@ -679,6 +683,11 @@ func (w *World) hitscan(owner int8, x, y, ang, rng, dmg float32, pierce int, bur
 			break
 		}
 	}
+	// A fuel pump in the way stops the shot, and goes up, unless a creep takes it first.
+	pump, pumpT := w.pumpOnRay(x, y, dx, dy, maxT)
+	if pump >= 0 {
+		maxT = pumpT
+	}
 	cands := w.hitBuf[:0]
 	w.rayCells(x, y, dx, dy, maxT, func(i int32) {
 		c := &w.Creeps[i]
@@ -714,6 +723,9 @@ func (w *World) hitscan(owner int8, x, y, ang, rng, dmg float32, pierce int, bur
 		}
 	}
 	w.hitBuf = cands[:0]
+	if pump >= 0 && endT >= pumpT {
+		w.lightPump(pump, owner, Dt)
+	}
 	w.tracer(x, y, x+dx*endT, y+dy*endT, kind)
 }
 
@@ -761,6 +773,7 @@ func (w *World) rayCells(x, y, dx, dy, length float32, fn func(i int32)) {
 func (w *World) cone(owner int8, x, y, ang, rng, half, dmg, burn float32, kind uint8) {
 	dx, dy := float32(math.Cos(float64(ang))), float32(math.Sin(float64(ang)))
 	cosHalf := float32(math.Cos(float64(half)))
+	w.pumpCone(owner, x, y, dx, dy, rng, cosHalf)
 	hits := 0
 	w.grid.each(x, y, rng, func(i int32) bool {
 		c := &w.Creeps[i]
@@ -826,6 +839,7 @@ func (w *World) explode(x, y, r, dmg float32, owner int8, kind uint8) {
 		w.damage(i, dmg*(1-.5*sqrt32(dd)/r), owner)
 		return true
 	})
+	w.pumpsIn(x, y, r, owner, pumpChain)
 	w.Blasts = append(w.Blasts, Blast{x, y, r, kind})
 }
 
@@ -925,6 +939,10 @@ func (w *World) stepRockets() {
 		if !boom {
 			if t := w.nearestCreep(r.X, r.Y, .9); t >= 0 {
 				boom = true
+			} else if v := sqrt32(r.VX*r.VX + r.VY*r.VY); v > 0 {
+				if p, _ := w.pumpOnRay(r.X-r.VX*Dt, r.Y-r.VY*Dt, r.VX/v, r.VY/v, v*Dt+pumpRadius); p >= 0 {
+					boom = true
+				}
 			}
 		}
 		if boom {

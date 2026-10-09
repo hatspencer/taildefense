@@ -36,6 +36,7 @@ type Creep struct {
 	HX, HY    float32
 	Asleep    bool
 	Returning bool
+	slam      float32 // an outpost warlord: seconds until it can slam the ground again
 }
 
 // Structure is a building. Index in World.Structs is its ID; dead slots are reused.
@@ -145,6 +146,7 @@ const (
 	EffNapalm                          // a burning pool
 	EffAirstrike                       // a target marked, the strike lands when Left runs out
 	EffDrop                            // a Huey flying in from X0, Y0; its crate lands on X, Y when Left runs out
+	EffSlam                            // a warlord's slam coming: it lands on everything within R when Left runs out
 )
 
 // Effect is something that lasts more than a tick: a grenade in the air, a pool of napalm.
@@ -232,6 +234,8 @@ type World struct {
 	Sites     []Site
 	wrecks    []int16 // wreckGrid's tiles
 	wrecksFor int     // len(Sites) when wrecks was built
+	pumpIdx   []int   // the fuel pumps' site indices
+	pumpsFor  int     // len(Sites) when pumpIdx was built
 
 	// Per tick outputs, cleared at the start of Step.
 	Tracers []Tracer
@@ -431,12 +435,15 @@ func Generate(seed uint64, w, h int) []Tile {
 	return t
 }
 
-// ruin is a walled place the generator built: a ruined house or an overrun outpost. For an
-// outpost, cx, cy is the middle of its keep.
+// ruin is a walled place the generator built: a ruined house, an overrun outpost or the gas
+// station's shop. For an outpost, cx, cy is the middle of its keep; for the station, pumps
+// are the tiles of its fuel pumps.
 type ruin struct {
 	x, y, w, h int
 	outpost    bool
 	cx, cy     int
+	station    bool
+	pumps      [][2]int
 }
 
 // generate is Generate, also returning the ruins it built.
@@ -494,7 +501,9 @@ func generate(seed uint64, w, h int) ([]Tile, []ruin) {
 	houses = outposts(t, w, h, rng, houses)
 	// Roads from each edge to the base, wobbling a little, two tiles wide.
 	cx, cy := w/2, h/2
-	for _, e := range [][2]int{{0, cy}, {w - 1, cy}, {cx, 0}, {cx, h - 1}} {
+	roads := make([][][2]int, 4)
+	road := make([]bool, w*h)
+	for ri, e := range [][2]int{{0, cy}, {w - 1, cy}, {cx, 0}, {cx, h - 1}} {
 		x, y := float64(e[0]), float64(e[1])
 		for step := 0; step < w+h; step++ {
 			dx, dy := float64(cx)-x, float64(cy)-y
@@ -506,16 +515,19 @@ func generate(seed uint64, w, h int) ([]Tile, []ruin) {
 			ang := math.Atan2(dy, dx) + wob
 			x += math.Cos(ang)
 			y += math.Sin(ang)
+			roads[ri] = append(roads[ri], [2]int{int(x), int(y)})
 			for oy := 0; oy <= 1; oy++ {
 				for ox := 0; ox <= 1; ox++ {
 					xi, yi := int(x)+ox, int(y)+oy
 					if xi >= 0 && yi >= 0 && xi < w && yi < h {
 						t[yi*w+xi] = TDirt
+						road[yi*w+xi] = true
 					}
 				}
 			}
 		}
 	}
+	houses = gasStation(t, w, h, rng, roads, road, houses)
 	// A solid border, so nothing walks off the edge.
 	for x := 0; x < w; x++ {
 		t[x], t[(h-1)*w+x] = TRock, TRock

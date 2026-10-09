@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import type { CameraRig } from './camera';
-import { walled, type Command, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_READY, Phase, PingKind, siteX, siteY, Tile } from './protocol';
+import { lootable, walled, type Command, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_READY, Phase, PingKind, siteX, siteY, Tile } from './protocol';
 import type { Effects } from './scene/effects';
 import type { Game } from './state';
 
@@ -113,6 +113,7 @@ export class Controller {
     let site = -1, sd = 0.9;
     for (let i = 0; i < wd.sites.length; i++) {
       const s = wd.sites[i];
+      if (!lootable(s.kind)) continue;
       if (walled(s.kind)) {
         if (bx >= s.x && bx < s.x + s.w && bz >= s.y && bz < s.y + s.h && site < 0) site = i;
         continue;
@@ -244,8 +245,8 @@ export class Controller {
     }
     for (let i = 0; i < wd.sites.length; i++) {
       // Guarded too: guards don't forbid a search, they only make it harder.
-      if (f.siteSearched(i)) continue;
       const s = wd.sites[i];
+      if (f.siteSearched(i) || !lootable(s.kind)) continue;
       take({ t: 'site', id: i }, siteX(s), siteY(s));
     }
     if (atHand) return best;

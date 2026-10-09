@@ -261,6 +261,10 @@ func (w *World) stepEffects() {
 			}
 		case EffDrop:
 			w.stepDrop(&e)
+		case EffSlam:
+			if e.Left <= 0 {
+				w.slamLands(&e)
+			}
 		case EffAirstrike:
 			if e.Left <= 0 {
 				w.explode(e.X, e.Y, e.R, e.Damage, e.Owner, 4)

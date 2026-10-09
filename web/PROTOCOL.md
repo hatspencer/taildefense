@@ -34,7 +34,7 @@ everything it knows, a terrain message follows).
 ```jsonc
 {
   "t": "welcome",
-  "proto": 8,
+  "proto": 9,
   "version": "a1b2c3d",
   "you": 0,                    // your player id
   "w": 320, "h": 200,          // map size in tiles
@@ -98,7 +98,9 @@ everything it knows, a terrain message follows).
     {"name": "Police cruiser", "search": 2.5},
     {"name": "Ambulance", "search": 3},
     {"name": "School bus", "search": 4},
-    {"name": "Army truck", "search": 3.5}
+    {"name": "Army truck", "search": 3.5},
+    {"name": "Gas station", "search": 5},
+    {"name": "Fuel pump", "search": 0}       // not loot: see below
   ],
   "sites": [                   // index = site id, used in the loot command
     {"kind": 0, "x": 40, "y": 30, "w": 8, "h": 6,  // tiles covered: the house with its walls
@@ -135,6 +137,16 @@ covers one tile and is not solid; the client draws the vehicle round it. Pickups
 ambulances lean towards gear, cruisers and army trucks towards weapons; an ambulance's kit
 heals the searcher, a bus gives two finds and often hides a nest, and an army truck is always
 guarded.
+Every map has one gas station (kind 9), beside a road out near the edge: `x, y, w, h` is its
+shop, a walled room searched at its counter, and its search always gives a weapon the
+searcher does not have yet. Its fuel pumps (kind 10, one tile each) stand on the concrete lot
+in front, under a canopy the client draws over them. They are sites only to share the list and
+the searched bit, which for a pump means blown up: they cannot be searched. A shot, a flame,
+a rocket or a blast that reaches a standing pump sets it off: a fireball (blast kind 0) that
+hurts survivors as well as creeps, sets off the pumps beside it, and leaves burning fuel
+(effect kind 2). A standing pump blocks survivors like a wreck. The station's garrison sleeps
+round the pumps, and more creeps hide in the shop: they burst out at the first survivor on
+the lot, and again when someone starts on the counter.
 Each site can be searched once; whether it has been is in every frame. Every fifth wave
 some searched sites are restocked, and their guards come back.
 
@@ -272,7 +284,8 @@ u16  nDeaths          creeps that died this tick
 u16  nEffects         lasting effects, the full current list every frame
   u8   kind           1 grenade in flight (x0,y0 -> x,y), 2 napalm pool, 3 airstrike target,
                       4 supply drop: a Huey flying in from x0,y0 to hover over x,y (eased in over
-                      all but the last 3 s); the crate lands at x,y when it ends
+                      all but the last 3 s); the crate lands at x,y when it ends, 5 a warlord's
+                      slam coming down on every survivor within r of x,y when it ends
   u16  x0, y0, x, y q8
   u8   r              radius * 8
   u8   left           deciseconds left
