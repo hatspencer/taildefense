@@ -35,8 +35,9 @@ usage:
   td doctor                      check tailscale, the browser and what updates need
   td config [KEY [VALUE]]        show, read or set name, port, difficulty, browser, autoupdate
                                  (td config KEY --reset returns one to its default)
-  td frame [--width W] [--height H] [--view menu|join|settings|help]
-                                 render one launcher frame from demo data
+  td frame [--width W] [--height H] [--view menu|join|settings|help|splash] [--at S]
+                                 render one launcher frame from demo data (--at: seconds
+                                 into the splash)
   td bench [--wave N] [--players P] [--seconds S] [--seed S]
                                  a late, busy wave (12, 4 players) timed: sim, encode, relay
   td install [-f]                install this binary to ~/.taildefense, linked from ~/.local/bin
@@ -51,6 +52,7 @@ flags:
   --no-browser     print the game's URL instead of opening it (td config browser none)
   --seed S         the map seed when hosting; 0 picks one
   --theme NAME     colour theme for the launcher and output (or TAILDEFENSE_THEME)
+  --no-splash      skip the launcher's boot animation
   --no-anim        no animation
   --no-color       no colour
 
@@ -61,6 +63,8 @@ update flags:
 
 type opts struct {
 	json, force, offline, noAnim, noColor bool
+	noSplash                              bool
+	at                                    float64
 	launcherFrame, noBrowser              bool
 	port, width, height                   int
 	wave, seconds, players                int
@@ -96,6 +100,8 @@ func run(args []string) int {
 	fs.BoolVar(&o.offline, "offline", false, "")
 	fs.BoolVar(&o.noAnim, "no-anim", false, "")
 	fs.BoolVar(&o.noColor, "no-color", false, "")
+	fs.BoolVar(&o.noSplash, "no-splash", false, "")
+	fs.Float64Var(&o.at, "at", 0, "")
 	fs.IntVar(&o.port, "port", 0, "")
 	fs.IntVar(&o.width, "width", 0, "")
 	fs.IntVar(&o.height, "height", 0, "")
@@ -185,7 +191,7 @@ func run(args []string) int {
 
 	switch cmd {
 	case "", "launch":
-		return launcher(prefs)
+		return launcher(prefs, o.noSplash)
 	case "host":
 		return hostCmd(prefs, o.seed)
 	case "join":
@@ -218,7 +224,7 @@ func run(args []string) int {
 		if h <= 0 {
 			h = 48
 		}
-		fmt.Println(tui.Frame(tui.Options{Prefs: prefs}, w, h, o.view))
+		fmt.Println(tui.Frame(tui.Options{Prefs: prefs, SplashAt: time.Duration(o.at * float64(time.Second))}, w, h, o.view))
 		return 0
 	case "bench":
 		return cli.Bench(os.Stderr, cli.BenchOptions{Wave: o.wave, Players: o.players, Seconds: o.seconds, Seed: o.seed})
@@ -239,7 +245,7 @@ func run(args []string) int {
 // launcher shows the launcher, runs what it picks, and shows it again with how that went,
 // until the player quits. The game plays in the browser; meanwhile the terminal says where
 // it is and that ctrl+c ends it.
-func launcher(prefs *config.Prefs) int {
+func launcher(prefs *config.Prefs, noSplash bool) int {
 	if !platform.CanHostFullscreen() {
 		ui.Errorf("the launcher needs an interactive terminal; without one: td ls, td host or td join HOST")
 		return 1
@@ -247,7 +253,7 @@ func launcher(prefs *config.Prefs) int {
 	sess := tui.NewSession(cli.NewAutoUpdater(prefs.AutoUpdate()))
 	var last *tui.Outcome
 	for {
-		act, err := tui.Run(tui.Options{Version: version.Current(), Date: version.Date(), Prefs: prefs, Session: sess, Last: last})
+		act, err := tui.Run(tui.Options{Version: version.Current(), Date: version.Date(), Prefs: prefs, Session: sess, Last: last, NoSplash: noSplash})
 		if err != nil {
 			ui.Errorf("%v", err)
 			return 1
