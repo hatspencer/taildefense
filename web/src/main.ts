@@ -107,6 +107,8 @@ async function main(): Promise<void> {
   let centredOnHero = false;
   let hooksApplied = false;
   let warm = 0; // 0 not started, 1 building the shaders, 2 done
+  let covered = !!splash;
+  void splash?.done.then(() => { covered = false; });
   const turretHeight = (x: number, y: number) => {
     const s = game.structAtTile(Math.floor(x), Math.floor(y));
     const k = s >= 0 ? game.cur.sKind[s] : 0;
@@ -304,16 +306,15 @@ async function main(): Promise<void> {
     if (wd && game.frames > 1 && warm === 0) {
       warm = 1;
       splash?.progress(0.4);
-      // Then one real frame behind the splash, for the shadow passes, which three cannot
-      // build ahead: whatever that costs is spent on the finished splash, not the game.
-      const p = world.warm((f) => splash?.progress(0.4 + 0.5 * f))
-        .then(() => new Promise<void>((ok) => requestAnimationFrame(() => { world.render(); splash?.progress(1); ok(); })))
+      const p = world.warm((f) => splash?.progress(0.4 + 0.6 * f))
         .catch((e) => console.warn('taildefense: shader warm-up failed', e));
       // Should it hang, the game shows anyway, shaders or not.
       void Promise.race([p, new Promise((ok) => setTimeout(ok, 20000))]).then(() => { warm = 2; });
       splash?.holdFor(p);
     }
-    if (warm === 2 || !wd) world.render();
+    // Before the game arrives only the empty world shows, and not behind the splash: drawing it
+    // there would only build its shaders while the page waits.
+    if (warm === 2 || (!wd && !covered)) world.render();
     if (wd) {
       const sel = ctl.sel;
       labels.draw(game, world.camera, {
