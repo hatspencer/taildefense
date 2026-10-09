@@ -34,7 +34,7 @@ everything it knows, a terrain message follows).
 ```jsonc
 {
   "t": "welcome",
-  "proto": 5,
+  "proto": 6,
   "version": "a1b2c3d",
   "you": 0,                    // your player id
   "w": 320, "h": 200,          // map size in tiles
@@ -102,7 +102,8 @@ everything it knows, a terrain message follows).
     {"kind": 0, "x": 40, "y": 30, "w": 8, "h": 6,  // tiles covered: the house with its walls
      "sx": 43.5, "sy": 32.5,                        // the spot a survivor searches from
      "tier": 2,                                     // 0 near the base .. 2 far out: better loot
-     "guard": 2}                                    // 0 unguarded .. 3 a lair, 4 a garrison: how hard its guards are
+     "guard": 2,                                    // 0 unguarded .. 3 a lair, 4 a garrison: how hard its guards are
+     "yaw": 0}                                      // a wreck's heading, radians from +x towards +y; survivors can't walk through it
   ]
 }
 ```

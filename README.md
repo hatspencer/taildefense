@@ -86,9 +86,9 @@ faces, however the camera is turned, and the camera follows while you walk.
 | input | |
 |---|---|
 | W A S D | walk |
-| F | use what is under the cursor, or else the nearest thing: revive a downed teammate, search a loot site, repair a damaged building, shop at the armory (walking there first); on a creep, focus fire on it |
+| E | use what is under the cursor, or else the nearest thing: revive a downed teammate, search a loot site, repair a damaged building, shop at the armory (walking there first); on a creep, focus fire on it |
 | right-click | on a creep, focus fire on it; anywhere else, the equipped weapon's signature, at the cursor |
-| Shift / E / Q | abilities: grenade, dash, airstrike; aim with the cursor and left-click |
+| Shift / F / Q | abilities: grenade, dash, airstrike; aim with the cursor and left-click |
 | H | hold position |
 | 1-7, R | equip a weapon, reload (or the reload button) |
 | 8 | use a medkit |
@@ -123,7 +123,7 @@ kit, like an ambulance. The gear row that raises regeneration is Vitamins.
 After every tenth wave a Huey gunship (surfboards strapped to its side) flies a supply crate out
 beyond the walls, its door gunner working over the zone on the way in. The crate comes down under
 a chute and marks itself with green smoke. Stand by it for a few seconds, unhurt, to open it:
-gold and full medkits for everyone, and a rare find for the one who opened it. F walks you to a
+gold and full medkits for everyone, and a rare find for the one who opened it. E walks you to a
 crate nearby.
 
 A ping shows for 5 s: rings on the ground and a beacon with your name over the spot, a pulse on
@@ -138,8 +138,9 @@ the same thing to everyone.
 Outside the walls are ruined houses, wrecks and supply crates worth looting. The wrecks on the
 roads differ: a pickup's bed holds tools and gear, a police cruiser or an army truck guns (the
 army trucks are far out, and always guarded), an ambulance's kit patches you up, and a school
-bus is slow to search but gives two finds, if nothing is nesting in it. A glint marks
-the ones nobody has searched yet. Press F on one to walk over and search it, which takes a few
+bus is slow to search but gives two finds, if nothing is nesting in it. Wrecks lie along the
+roads and are solid: you walk round them, and search one from its side. A glint marks
+the ones nobody has searched yet. Press E on one to walk over and search it, which takes a few
 seconds and stops if you get hit. The further from the base, the better the loot, and searching
 during a wave is luckier. Scavenger gear from the armory raises your luck too. Sometimes a house
 hides a nest, and every fifth wave some of the searched sites are restocked.
@@ -162,7 +163,7 @@ Creeps can be pulled. Shooting one may make it come for you instead of the gener
 taunt (V) pulls everything around you. Creeps also take against things by themselves now and
 then: a turret or wall they pass, or a survivor further off than they'd normally notice.
 
-When you go down you can be revived where you fell: a teammate presses F on you and stays
+When you go down you can be revived where you fell: a teammate presses E on you and stays
 next to you for a few seconds, and a hit starts it over. If nobody does, you're back at the base
 when the countdown runs out.
 

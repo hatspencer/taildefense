@@ -372,6 +372,7 @@ func (s *Server) welcome(p *peer) outMsg {
 		b.u16(qpos(st.SY))
 		b.u8(st.Tier)
 		b.u8(st.Guard)
+		b.u8(uint8(int(math.Round(float64(st.Yaw)/(2*math.Pi)*256)) & 255))
 	}
 	return outMsg{MsgWelcome, b.b}
 }

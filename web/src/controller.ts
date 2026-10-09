@@ -17,11 +17,11 @@ const RADIUS: Record<string, number> = {
 
 // Ability slots: the weapon's signature on the right mouse button, Overwatch style, then the
 // bought abilities; WASD walks.
-export const KEYS = ['RMB', 'Shift', 'E', 'Q'];
+export const KEYS = ['RMB', 'Shift', 'F', 'Q'];
 
-// How far F reaches for something to use when nothing is under the cursor, in tiles.
+// How far E reaches for something to use when nothing is under the cursor, in tiles.
 const USE_REACH = 4;
-const CRATE_REACH = 14; // tiles within which F walks to a supply crate
+const CRATE_REACH = 14; // tiles within which E walks to a supply crate
 
 // What the player is doing with the mouse, what is selected and hovered, and every action
 // the input handlers and the HUD buttons can trigger.
@@ -147,7 +147,7 @@ export class Controller {
     return `${name} · ${f.siteSearched(i) ? 'searched' : f.siteGuards(i) > 0 ? 'search, if you dare' : 'search'}`;
   }
 
-  // The downed teammate under the cursor that F would revive, or -1. For the
+  // The downed teammate under the cursor that E would revive, or -1. For the
   // cursor and the HUD; only while alive myself and not in a targeting mode.
   reviveTarget(): number {
     const h = this.hover, me = this.me();
@@ -196,7 +196,7 @@ export class Controller {
     if (this.groundOk) this.castAt(0, this.ground.x, this.ground.z);
   }
 
-  // F: use what is under the cursor (walking there first), or else the selected structure,
+  // E: use what is under the cursor (walking there first), or else the selected structure,
   // or else whatever usable is nearest: a downed teammate, a loot site, a damaged structure,
   // the armory, a supply crate. On a creep it focuses fire on it.
   interact(): void {
@@ -232,7 +232,8 @@ export class Controller {
       if (p.id !== me.id && !(p.flags & PF_ALIVE) && p.flags & PF_CONNECTED) take({ t: 'hero', id: p.id }, g.prx[p.id], g.pry[p.id]);
     }
     for (let i = 0; i < wd.sites.length; i++) {
-      if (f.siteSearched(i) || f.siteGuards(i) > 0) continue;
+      // Guarded too: guards don't forbid a search, they only make it harder.
+      if (f.siteSearched(i)) continue;
       const s = wd.sites[i];
       take({ t: 'site', id: i }, siteX(s), siteY(s));
     }
@@ -245,7 +246,7 @@ export class Controller {
     return best;
   }
 
-  // Carries out F on one thing; false when there is nothing to do with it.
+  // Carries out E on one thing; false when there is nothing to do with it.
   private useAt(h: Pick): boolean {
     const me = this.me();
     const g = this.game, f = g.cur;

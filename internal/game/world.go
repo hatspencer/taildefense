@@ -218,13 +218,15 @@ type World struct {
 	Seed    uint64
 	Diff    Difficulty
 
-	Creeps  []Creep
-	Structs []Structure
-	Players []*Player
-	Rockets []Projectile
-	Effects []Effect
-	Crates  []Crate // supply crates down and not yet opened
-	Sites   []Site
+	Creeps    []Creep
+	Structs   []Structure
+	Players   []*Player
+	Rockets   []Projectile
+	Effects   []Effect
+	Crates    []Crate // supply crates down and not yet opened
+	Sites     []Site
+	wrecks    []int16 // wreckGrid's tiles
+	wrecksFor int     // len(Sites) when wrecks was built
 
 	// Per tick outputs, cleared at the start of Step.
 	Tracers []Tracer
@@ -315,6 +317,11 @@ func NewGame(seed uint64, diff Difficulty) *World {
 	}
 	wd.SpawnPts = pts
 	wd.Sites = wd.placeSites(ruins)
+	for i := range wd.Sites {
+		if s := &wd.Sites[i]; s.Kind.Wreck() {
+			s.Yaw = wd.wreckYaw(i, int(s.X), int(s.Y))
+		}
+	}
 	for i := range wd.Sites {
 		wd.spawnGuards(i)
 	}

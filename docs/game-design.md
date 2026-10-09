@@ -136,7 +136,7 @@ the army trucks.
   abilities and building.
 - **The rest follows Overwatch.** The weapon's signature is secondary fire on the right mouse
   button, at the cursor. The abilities are Shift, E and Q, with the big one (airstrike) on Q.
-  F is "use": what is under the cursor, or else the nearest usable thing (a downed teammate, a
+  E is "use": what is under the cursor, or else the nearest usable thing (a downed teammate, a
   loot site, a damaged structure, the armory); on a creep it focuses fire. Attack-move and stop
   went away with click-to-move; H still holds position.
 - **The camera follows while you walk.** Arrows and the screen edge still look away, and the

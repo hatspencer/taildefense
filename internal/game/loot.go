@@ -93,7 +93,8 @@ type Site struct {
 	Guard    uint8   // 0 unguarded .. 3 a lair, 4 an outpost's garrison: how many and how tough its guards are
 	Guards   uint8   // guards still alive
 	Searched bool
-	Sprung   uint8 // ambushes already sprung here; the hardest places hide more than their guards
+	Sprung   uint8   // ambushes already sprung here; the hardest places hide more than their guards
+	Yaw      float32 // a wreck's heading, radians from +x towards +y (wreck.go)
 }
 
 // lootReach is how close to a site's spot a survivor must be to search it.

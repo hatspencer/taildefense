@@ -413,9 +413,9 @@ export class Hud {
   private buildHelp(): void {
     const rows: [string, string][] = [
       ['<kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>', 'walk, the way the view faces; the camera follows while you walk. Your hero shoots the nearest creep on its own'],
-      ['<kbd>F</kbd>', 'use: on what is under the cursor, or else the nearest thing. A downed teammate: revive them (stay close until the bar fills) · a loot site: search it · a damaged structure: repair · the armory: shop · a creep: focus your fire on it'],
+      ['<kbd>E</kbd>', 'use: on what is under the cursor, or else the nearest thing. A downed teammate: revive them (stay close until the bar fills) · a loot site: search it · a damaged structure: repair · the armory: shop · a creep: focus your fire on it'],
       ['Right-click', "on a creep: focus fire on it; elsewhere: the weapon's signature, at the cursor"],
-      ['<kbd>Shift</kbd> <kbd>E</kbd> <kbd>Q</kbd>', 'abilities: grenade, dash, airstrike; aim with the cursor, then left-click to cast, right-click or Esc cancels'],
+      ['<kbd>Shift</kbd> <kbd>F</kbd> <kbd>Q</kbd>', 'abilities: grenade, dash, airstrike; aim with the cursor, then left-click to cast, right-click or Esc cancels'],
       ['<kbd>Alt</kbd> + left-click, or <kbd>Z</kbd> then click', 'ping the spot for the whole team, in the world or on the map: on a creep it warns, on a loot site it marks loot, on a structure it calls to defend it'],
       ['<kbd>H</kbd>', 'hold position'],
       ['<kbd>V</kbd>', 'taunt: flip them off and shout, pulling every creep nearby onto you, then a cooldown'],
@@ -625,7 +625,7 @@ export class Hud {
       const t = el('span', 't', d);
       t.innerHTML = p.revived > 0
         ? `<b>${esc(p.name)}</b> is being revived${reviving ? ' · stay close' : ''}`
-        : `<b>${esc(p.name)}</b> is down ${esc(at(p))} · F on them to revive`;
+        : `<b>${esc(p.name)}</b> is down ${esc(at(p))} · E on them to revive`;
       el('span', 'n', d, `${p.respawn}s`);
       if (p.revived > 0) {
         const bar = el('div', 'bar revive', d);
@@ -799,7 +799,7 @@ export class Hud {
       }
       if (f.sHp[id] < f.sMaxHp[id]) {
         const cost = Math.ceil((f.sMaxHp[id] - f.sHp[id]) * wd.repairCostPerHP);
-        const rp = el('button', '', btns); rp.innerHTML = `Repair <span class="gold">~${cost}g</span> <kbd>F</kbd>`;
+        const rp = el('button', '', btns); rp.innerHTML = `Repair <span class="gold">~${cost}g</span> <kbd>E</kbd>`;
         rp.onclick = () => ctl.repairSel();
       }
       if (f.sKind[id] > 2) {
@@ -838,7 +838,7 @@ export class Hud {
       if (down && p.id !== wd.you) {
         const btns = el('div', 'btns', c);
         const rv = el('button', 'primary', btns, 'Revive');
-        rv.title = 'Or F on them';
+        rv.title = 'Or E on them';
         rv.onclick = () => ctl.send({ op: 'revive', p: p.id });
       }
       return;
@@ -849,7 +849,7 @@ export class Hud {
     const b2 = el('button', '', btns); b2.innerHTML = 'Armory <kbd>G</kbd>'; b2.onclick = () => ctl.openArmory(true);
     const b3 = el('button', '', btns); b3.innerHTML = 'Stop'; b3.onclick = () => ctl.send({ op: 'stop' });
     const b4 = el('button', '', btns); b4.innerHTML = 'Hold <kbd>H</kbd>'; b4.onclick = () => ctl.send({ op: 'hold' });
-    el('div', 'hint', c, 'WASD to walk · F to use · right-click: signature · F1 for all controls');
+    el('div', 'hint', c, 'WASD to walk · E to use · right-click: signature · F1 for all controls');
   }
 
   private updateMode(): void {

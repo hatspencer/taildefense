@@ -37,6 +37,9 @@ func CanStand(b Blocker, x, y float32) bool {
 			return false
 		}
 	}
+	if wb, ok := b.(wreckBlocker); ok && wb.wreckAt(x, y) {
+		return false
+	}
 	return true
 }
 
