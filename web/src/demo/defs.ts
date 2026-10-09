@@ -74,7 +74,7 @@ export const STRUCTS: StructDef[] = [
   { name: 'Gun turret', price: 120, hp: 220, w: 1, h: 1, range: 9, turret: true, key: 'T', desc: 'Fast, cheap single-target fire.', upgrade: up(120) },
   { name: 'Cannon', price: 240, hp: 280, w: 1, h: 1, range: 11, turret: true, key: 'C', desc: 'Slow shells that explode in an area.', upgrade: up(240) },
   { name: 'Frost tower', price: 180, hp: 220, w: 1, h: 1, range: 6, turret: true, key: 'F', desc: 'Pulses cold that slows everything around it.', upgrade: up(180) },
-  { name: 'Tesla coil', price: 320, hp: 220, w: 1, h: 1, range: 8, turret: true, key: 'L', desc: 'Lightning that chains between creeps.', upgrade: up(320) },
+  { name: 'Tesla coil', price: 320, hp: 220, w: 1, h: 1, range: 8, turret: true, key: 'L', desc: 'Lightning that chains between creeps, reaching two more every level.', upgrade: up(320) },
 ];
 
 export const WEATHERS = [
