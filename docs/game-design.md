@@ -252,7 +252,7 @@ choice, not a cheat guard.
 
 ## Boot splash
 
-The page opens on a short splash (about 2.5 s, any key or click skips it, reduced motion shows
+The page opens on a short splash (about 1.5 s, any key or click skips it, reduced motion shows
 the finished frame). It's in the same spirit as crowbar's boot, where a torch welds the wordmark,
 but it tells this game's story instead:
 
