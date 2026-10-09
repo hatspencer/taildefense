@@ -3,11 +3,13 @@ import { Emote, Order, PF_ALIVE, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, ty
 import { type Controller, KEYS } from '../controller';
 import { cssHex, playerColor } from '../scene/util';
 import { Armory } from './armory';
-import { archetypeName, readLook } from '../scene/look';
+import { archetypeName } from '../scene/look';
 import { CELL, type Portraits } from '../scene/portraits';
 import { K_TESLA } from '../scene/structs';
 import { el, esc, fmtGold, setClass, setText, show } from './dom';
 import { iconFor, weatherIcon } from './icons';
+import { scoreRows } from './score';
+import { drawReport } from './shot';
 import { Compass, where } from './compass';
 import { Minimap } from './minimap';
 import { wordmarkURL } from './splash';
@@ -70,6 +72,9 @@ export class Hud {
   private help: HTMLElement;
   private menu: HTMLElement;
   private over: HTMLElement;
+  // Keeps a picture of the field report when a game ends; the page sets it when a td serves it.
+  // Resolves to where the picture went.
+  keepShot: ((png: Blob, wave: number) => Promise<string>) | null = null;
   private overBoard: HTMLElement | null = null;
   private cover: HTMLElement;
   private statsEl: HTMLElement;
@@ -470,16 +475,23 @@ export class Hud {
     this.ctl.send({ op: 'leave' });
   }
 
+  // One card per survivor: who they are, what they carry, and the game they have had.
   private scoreTable(): string {
-    const g = this.ctl.game, f = g.cur;
-    const rows = [];
-    for (let i = 0; i < f.nPlayers; i++) {
-      const p = f.players[i];
-      const st = !(p.flags & PF_CONNECTED) ? '<span class="st muted">away</span>' : !(p.flags & PF_ALIVE) ? `<span class="st down">down ${p.respawn}s</span>` : '';
-      const you = p.id === g.welcome?.you && p.name !== 'you' ? ' <span class="muted">(you)</span>' : '';
-      rows.push(`<tr><td><span class="dot" style="background:${cssHex(playerColor(p.id))}"></span>${esc(p.name)}${you} <span class="muted">${esc(readLook(p.look).arch.name)}</span>${st}</td><td>${p.kills}</td><td>${fmtGold(p.damage)}</td><td class="gold">${fmtGold(p.gold)}</td></tr>`);
-    }
-    return `<table class="scoretable"><tr><th>Survivor</th><th>Kills</th><th>Damage</th><th>Gold</th></tr>${rows.join('')}</table>`;
+    const g = this.ctl.game, wd = g.welcome;
+    if (!wd) return '';
+    const cards = scoreRows(wd, g.cur).map((r) => {
+      const p = r.p;
+      const st = r.away ? '<span class="st muted">away</span>' : r.down ? `<span class="st down">down ${p.respawn}s</span>` : '';
+      const you = r.you && p.name !== 'you' ? ' <span class="muted">(you)</span>' : '';
+      const nums = r.nums.map((n) => `<div class="n${n.bad ? ' bad' : ''}"><b>${fmtGold(n.v)}</b><span>${n.label}</span></div>`).join('');
+      const kit = r.chips.map((c) => `<span class="pchip${c.held ? ' held' : ''}${c.ab ? ' ab' : ''}" title="${esc(c.title)}">${esc(c.text)}${c.lv ? `<b>${esc(c.lv)}</b>` : ''}</span>`).join('');
+      return `<div class="pcard${r.away ? ' away' : ''}">
+        <div class="who"><span class="dot" style="background:${r.color}"></span><span class="name">${esc(p.name)}</span>${you} <span class="muted">${esc(r.arch)}</span>${st}<span class="gold">${fmtGold(p.gold)}g</span></div>
+        <div class="nums">${nums}</div>
+        <div class="kit">${kit}</div>
+      </div>`;
+    });
+    return `<div class="scorecards">${cards.join('')}</div>`;
   }
 
   private renderScore(): void {
@@ -706,8 +718,23 @@ export class Hud {
       const lv = el('button', 'danger', row, 'Leave game');
       lv.onclick = () => this.leave();
       tick = true;
+      void this.saveReport();
     }
     if (tick && this.overBoard) this.overBoard.innerHTML = this.scoreTable();
+  }
+
+  // A picture of the report for td to keep, once the frame has the final tally.
+  private async saveReport(): Promise<void> {
+    const keep = this.keepShot, wd = this.ctl.game.welcome;
+    if (!keep || !wd) return;
+    try {
+      const png = await drawReport(wd, this.ctl.game.cur);
+      if (!png) return;
+      const at = await keep(png, this.ctl.game.cur.best);
+      this.toast(`Scoreboard saved to ${at}`, 1);
+    } catch (e) {
+      this.toast(`Could not save the scoreboard: ${e instanceof Error ? e.message : e}`, 2);
+    }
   }
 
   private updateHero(me: Player, wd: Welcome, now: number): void {

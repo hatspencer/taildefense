@@ -130,6 +130,12 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 		e.u8(p.Medkits)
 		e.u8(deci8(p.Heal))
 		e.u8(p.ReloadMask)
+		s := &p.Stats
+		for _, v := range [...]uint64{s.Downs, s.Revives, s.Built, s.Searched, s.Bosses} {
+			e.u16(uint16(min(v, math.MaxUint16)))
+		}
+		e.u32(clamp32(s.Taken))
+		e.u32(clamp32(s.Turret))
 		name := p.Name
 		if len(name) > 255 {
 			name = name[:255]

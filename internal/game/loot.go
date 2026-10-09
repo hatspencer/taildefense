@@ -181,6 +181,7 @@ func (w *World) OrderLoot(p *Player, si int) error {
 func (w *World) search(p *Player, si int) {
 	s := &w.Sites[si]
 	s.Searched = true
+	p.Tally.Searched++
 	d := SiteDefs[s.Kind]
 	if w.rng.Float32() < d.Trap {
 		w.ambush(si, p)

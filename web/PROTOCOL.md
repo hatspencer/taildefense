@@ -19,6 +19,10 @@ The page is opened as `http://127.0.0.1:PORT/#TOKEN`. The client connects to
 foreign `Origin` is refused. One browser tab at a time: a new connection replaces the old
 one, which receives `{"t":"end","reason":"opened in another tab"}`.
 
+When a game ends the page draws the field report as a PNG and POSTs it to
+`/shot?token=TOKEN&wave=N` (same token and `Origin` checks, at most 12 MB). The server keeps it
+in `screenshots/` under td's install folder and answers `{"path": "~/…/taildefense-….png"}`.
+
 On every (re)connection the server sends, in order: the `welcome` JSON, the terrain binary
 message, then frames. A reload of the page therefore resumes the same game.
 
@@ -34,7 +38,7 @@ everything it knows, a terrain message follows).
 ```jsonc
 {
   "t": "welcome",
-  "proto": 9,
+  "proto": 10,
   "version": "a1b2c3d",
   "you": 0,                    // your player id
   "w": 320, "h": 200,          // map size in tiles
@@ -233,6 +237,9 @@ u8   nPlayers
   u8   medkits        carried
   u8   heal           deciseconds of a medkit's healing left
   u8   reloading      bit k set: weapon k is reloading, in hand or not
+  u16  downs, revives, built, searched, bosses    this game's tallies, capped at 65535
+  u32  taken          damage taken
+  u32  turret         damage their turrets dealt, part of damage
   u8   nameLen, name (utf-8)
 
 u16  nSites           same as the welcome's site list

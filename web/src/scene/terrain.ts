@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { color, dot, floor, fract, mix, normalWorld, positionWorld, sin, smoothstep, time, vec2, vec3, vertexColor, float } from 'three/tsl';
 import { Tile } from '../protocol';
-import { box, cone, cyl, dodeca, merge, part, setEmissive, writeMatrix } from './util';
+import { box, cone, cyl, dodeca, instanceCap, merge, part, setEmissive, writeMatrix } from './util';
 import { uSnow, uWet } from './weather';
 
 function hash(x: number, y: number, s = 0): number {
@@ -43,10 +43,12 @@ class Scatter {
     this.keys.forEach((k, i) => { let l = blocks.get(k); if (!l) blocks.set(k, l = []); l.push(i); });
     const tinted = this.cols.length > 0;
     for (const list of blocks.values()) {
-      const m = new THREE.InstancedMesh(geo, mat, list.length);
+      const cap = instanceCap(list.length);
+      const m = new THREE.InstancedMesh(geo, mat, cap);
+      m.count = list.length;
       m.castShadow = shadow; m.receiveShadow = true;
       const a = m.instanceMatrix.array as Float32Array;
-      const c = tinted ? new Float32Array(list.length * 3) : null;
+      const c = tinted ? new Float32Array(cap * 3) : null;
       list.forEach((i, j) => {
         for (let e = 0; e < 16; e++) a[j * 16 + e] = this.mats[i * 16 + e];
         if (c) for (let e = 0; e < 3; e++) c[j * 3 + e] = this.cols[i * 3 + e];

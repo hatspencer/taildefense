@@ -527,6 +527,7 @@ func (w *World) attackStruct(c *Creep, d *CreepDef, si int) {
 }
 
 func (w *World) hurtPlayer(p *Player, dmg float32) {
+	p.Tally.Taken += float64(min(dmg, max(p.HP, 0)))
 	p.HP -= dmg
 	p.Hurt = .25
 	if p.Heal > 0 {
@@ -536,6 +537,7 @@ func (w *World) hurtPlayer(p *Player, dmg float32) {
 	if p.HP <= 0 {
 		p.HP = 0
 		p.Alive = false
+		p.Tally.Downs++
 		p.Respawn = w.diff().Revive
 		p.Firing = false
 		p.Order = Order{}
@@ -824,6 +826,9 @@ func (w *World) damage(i int32, dmg float32, owner int8) {
 		c.LastHit = owner
 		if int(owner) < len(w.Players) {
 			w.Players[owner].Damage += float64(d)
+			if w.turretFire {
+				w.Players[owner].Tally.Turret += float64(d)
+			}
 		}
 	}
 }
@@ -846,6 +851,8 @@ func (w *World) explode(x, y, r, dmg float32, owner int8, kind uint8) {
 // ---- turrets and rockets ---------------------------------------------------------------
 
 func (w *World) stepTurrets() {
+	w.turretFire = true
+	defer func() { w.turretFire = false }()
 	for si := range w.Structs {
 		s := &w.Structs[si]
 		if !s.Alive || !Structs[s.Kind].Turret {
@@ -975,6 +982,9 @@ func (w *World) reap() {
 			p := w.Players[c.LastHit]
 			p.Gold += int32(float32(Creeps[c.Kind].Bounty) * mult)
 			p.Kills++
+			if c.Kind == CBoss {
+				p.Tally.Bosses++
+			}
 		}
 		w.TotalKills++
 		w.freeIDs = append(w.freeIDs, c.ID)

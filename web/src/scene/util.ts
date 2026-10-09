@@ -17,6 +17,13 @@ export function linInto(out: Float32Array, o: number, hex: number, mul = 1): voi
 
 export const PLAYER_COLORS = [0x3d8bff, 0xff4d4d, 0x3ddc84, 0xffc53d, 0xc77dff, 0x2fd6d6, 0xff8c3d, 0xf06bb5];
 export const BASE_COLOR = 0x8a8676;
+// A capacity for an instanced mesh holding n: the next power of two. A small instanced
+// mesh's shader is written for its capacity, so meshes of a few sizes share a few shaders
+// where exact sizes would each build their own.
+export function instanceCap(n: number): number {
+  return 2 ** Math.ceil(Math.log2(Math.max(1, n)));
+}
+
 export function playerColor(id: number): number {
   return id < 0 ? BASE_COLOR : PLAYER_COLORS[id % PLAYER_COLORS.length];
 }
