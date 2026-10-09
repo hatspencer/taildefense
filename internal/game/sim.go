@@ -351,6 +351,7 @@ func (w *World) stepCreeps() {
 		}
 		c.Cool -= Dt
 		c.Chase = -1
+		c.swung, c.Swing = c.Swing, SwingNone
 		if c.Asleep {
 			if !w.wakes(c, d) {
 				continue
@@ -389,8 +390,7 @@ func (w *World) stepCreeps() {
 			dx, dy := tp.X-c.X, tp.Y-c.Y
 			dist := sqrt32(dx*dx + dy*dy)
 			if dist <= d.Radius+d.Reach {
-				if c.Cool <= 0 {
-					c.Cool = 1 / d.Rate
+				if c.swing(d, tp.X, tp.Y) {
 					w.hurtPlayer(tp, d.Damage)
 					if d.Ranged {
 						w.tracer(c.X, c.Y, tp.X, tp.Y, TracerSpit)
@@ -464,6 +464,37 @@ func (w *World) stepCreeps() {
 	}
 }
 
+// Swing is where a creep's attack is, for the client to animate it.
+type Swing uint8
+
+const (
+	SwingNone   Swing = iota
+	SwingReady        // in reach, between blows
+	SwingWindup       // the blow is coming: the last Windup seconds before it lands
+	SwingStrike       // it lands this tick
+)
+
+// swing is a creep in reach of what it attacks at tx, ty this tick: it turns to it, and
+// reports whether a blow lands now. Coming into reach it winds up first, so every blow is
+// telegraphed by Windup seconds of the swing pose before the strike.
+func (c *Creep) swing(d *CreepDef, tx, ty float32) bool {
+	c.Face = float32(math.Atan2(float64(ty-c.Y), float64(tx-c.X)))
+	if c.swung == SwingNone && c.Swing == SwingNone && c.Cool < d.Windup {
+		c.Cool = d.Windup
+	}
+	switch {
+	case c.Cool <= 0:
+		c.Cool = 1 / d.Rate
+		c.Swing = SwingStrike
+		return true
+	case c.Cool <= d.Windup:
+		c.Swing = max(c.Swing, SwingWindup)
+	default:
+		c.Swing = max(c.Swing, SwingReady)
+	}
+	return false
+}
+
 // moveCreep moves a creep to nx, ny, sliding along what it cannot enter and attacking a
 // structure that blocks it.
 func (w *World) moveCreep(c *Creep, d *CreepDef, nx, ny float32) {
@@ -496,11 +527,10 @@ func (w *World) creepFree(x, y float32) (bool, int) {
 }
 
 func (w *World) attackStruct(c *Creep, d *CreepDef, si int) {
-	if c.Cool > 0 {
+	s := &w.Structs[si]
+	if !c.swing(d, s.CX(), s.CY()) {
 		return
 	}
-	c.Cool = 1 / d.Rate
-	s := &w.Structs[si]
 	if !s.Alive || s.Kind == SArmory {
 		return
 	}

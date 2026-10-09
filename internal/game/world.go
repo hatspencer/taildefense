@@ -26,6 +26,9 @@ type Creep struct {
 	Siege     int16   // structure gone for, -1 none
 	SiegeLeft float32
 	Chase     int8    // player chased this tick, for the wire; -1 none
+	Swing     Swing   // where its attack is this tick, for the wire
+	Face      float32 // the angle to what it attacks, while Swing is set
+	swung     Swing   // Swing the tick before
 	think     float32 // seconds until it next considers something else to attack
 
 	// Guards of a loot site sleep at home until woken, and go back when led too far.

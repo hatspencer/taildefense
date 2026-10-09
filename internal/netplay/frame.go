@@ -34,6 +34,8 @@ const (
 	flagHunting = 1 << 3
 	flagSiege   = 1 << 4
 	flagAsleep  = 1 << 5
+	flagWindup  = 1 << 6
+	flagStrike  = 1 << 7
 )
 
 // Player flags on the wire.
@@ -115,14 +117,25 @@ func creepFlags(c *game.Creep) uint8 {
 	if c.Asleep {
 		f |= flagAsleep
 	}
+	switch c.Swing {
+	case game.SwingWindup:
+		f |= flagWindup
+	case game.SwingStrike:
+		f |= flagStrike
+	}
 	return f
 }
 
+// creepTarget is the chased player's id; else, for a creep attacking a structure, 128 + the
+// angle to it in 127ths of a turn; else 255.
 func creepTarget(c *game.Creep) uint8 {
-	if c.Chase < 0 {
-		return 255
+	if c.Chase >= 0 {
+		return uint8(c.Chase)
 	}
-	return uint8(c.Chase)
+	if c.Swing != game.SwingNone {
+		return 128 + uint8(int(math.Round(float64(c.Face)/(2*math.Pi)*127)+127)%127)
+	}
+	return 255
 }
 
 // Delta encodes this tick against the last and moves the sent state forward. Call it once per

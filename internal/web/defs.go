@@ -18,6 +18,8 @@ type creepDef struct {
 	Size   uint8   `json:"size"`
 	Ranged bool    `json:"ranged"`
 	Bounty int32   `json:"bounty"`
+	Rate   float32 `json:"rate"`
+	Windup float32 `json:"windup"`
 }
 
 type sigDef struct {
@@ -175,7 +177,7 @@ func welcome(wel netplay.Welcome, core point, host, hint string, hosting bool) w
 		Tracks:       game.TrackNames[:],
 	}
 	for _, c := range game.Creeps {
-		m.Creeps = append(m.Creeps, creepDef{c.Name, c.HP, c.Speed, c.Radius, c.Size, c.Ranged, c.Bounty})
+		m.Creeps = append(m.Creeps, creepDef{c.Name, c.HP, c.Speed, c.Radius, c.Size, c.Ranged, c.Bounty, c.Rate, c.Windup})
 	}
 	for k, d := range game.Weapons {
 		wk := game.WeaponKind(k)

@@ -34,7 +34,7 @@ everything it knows, a terrain message follows).
 ```jsonc
 {
   "t": "welcome",
-  "proto": 6,
+  "proto": 7,
   "version": "a1b2c3d",
   "you": 0,                    // your player id
   "w": 320, "h": 200,          // map size in tiles
@@ -61,7 +61,8 @@ everything it knows, a terrain message follows).
   "sellFraction": 0.5,         // selling returns this share of price + upgrades, times hp/maxHp
   "tracks": ["damage", "fire rate", "handling", "special"],
   "creeps": [                  // index = creep kind
-    {"name": "walker", "hp": 40, "speed": 1.7, "radius": 0.45, "size": 1, "ranged": false, "bounty": 3}
+    {"name": "walker", "hp": 40, "speed": 1.7, "radius": 0.45, "size": 1, "ranged": false, "bounty": 3,
+     "rate": 1, "windup": 0.4}   // blows per second; seconds each is wound up (creep flag 64)
   ],
   "weapons": [                 // index = weapon kind
     {
@@ -245,8 +246,12 @@ u16  nCreeps
   u8   flags          1 burning, 2 slowed, 4 guard (of a loot site, not of the wave),
                       8 hunting a survivor (aggro: pulled, taunted or provoked),
                       16 going for a structure (a turret or wall caught its eye),
-                      32 asleep (a guard resting at its site)
-  u8   target         for flag 8: the hunted survivor's player id, else 255
+                      32 asleep (a guard resting at its site),
+                      64 winding up a blow (it lands in the creep kind's windup seconds or less),
+                      128 striking (the blow lands this tick)
+  u8   target         for flag 8: the hunted survivor's player id; else, while attacking a
+                      structure, 128 + the angle to it in 127ths of a turn (0 = +x, towards +y);
+                      else 255
 
 u16  nTracers         shots fired this tick
   u16  x0, y0, x1, y1 q8

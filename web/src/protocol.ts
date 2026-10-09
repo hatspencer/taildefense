@@ -9,7 +9,7 @@ export const enum Phase { Build = 0, Wave = 1, Over = 2 }
 
 export const PF_CONNECTED = 1, PF_ALIVE = 2, PF_FIRING = 4, PF_READY = 8, PF_RELOADING = 16,
   PF_HURT = 32, PF_ARMORY = 64, PF_MOVING = 128;
-export const CF_BURNING = 1, CF_SLOWED = 2, CF_GUARD = 4, CF_HUNTING = 8, CF_SIEGE = 16, CF_ASLEEP = 32;
+export const CF_BURNING = 1, CF_SLOWED = 2, CF_GUARD = 4, CF_HUNTING = 8, CF_SIEGE = 16, CF_ASLEEP = 32, CF_WINDUP = 64, CF_STRIKE = 128;
 
 export const enum Order { Idle = 0, Move, AMove, Attack, Hold, Build, Repair, Loot, Revive, Steer }
 export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake }
@@ -29,7 +29,7 @@ export const enum EffectKind { Grenade = 1, Napalm = 2, AirTarget = 3, Drop = 4 
 // The door gunner's shots, from the Huey in the air.
 export const TRACER_HELI = 34;
 
-export interface CreepDef { name: string; hp: number; speed: number; radius: number; size: number; ranged: boolean; bounty: number }
+export interface CreepDef { name: string; hp: number; speed: number; radius: number; size: number; ranged: boolean; bounty: number; rate?: number; windup?: number }
 export interface SigDef { name: string; desc: string; cool: number; range: number; radius?: number; cone?: number; target: string }
 export interface WeaponDef {
   name: string; short: string; price: number; range: number; fire: string; special: string;

@@ -5,6 +5,7 @@ import { dispatch, type Handlers, type Transport } from '../net';
 import {
   type Command, MAX_CREEPS, Tile, Phase, Order, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_FIRING,
   PF_HURT, PF_MOVING, PF_READY, PF_RELOADING, CF_BURNING, CF_SLOWED, CF_GUARD, CF_HUNTING, CF_SIEGE, CF_ASLEEP,
+  CF_WINDUP, CF_STRIKE,
   BlastKind, EffectKind, Emote, type SiteDef, SiteKind, TRACER_HELI, Weather, type Welcome,
 } from '../protocol';
 import { ABILITY_RADIUS, CREEPS, STRUCTS, WEAPON_BASE, WEATHERS, demoWelcome } from './defs';
@@ -21,6 +22,15 @@ const SNOWY = [0, 0, 0, 0, 0.4, 0, 0, 1];
 const GUARD_ID0 = 16000;
 // Guard states.
 const G_ASLEEP = 1, G_HUNT = 2, G_HOME = 3;
+// Swing states, as the host's: in reach, the blow wound up, the blow landing this tick.
+const S_READY = 1, S_WINDUP = 2, S_STRIKE = 3;
+// Per kind: reach beyond the creep's radius (internal/game/defs.go), blows a second, windup,
+// and how hard a blow lands on a survivor relative to a walker's.
+const REACH = [0.5, 0.5, 0.4, 0.6, 6, 0.8];
+const RATE = CREEPS.map((c) => c.rate ?? 1), WINDUP = CREEPS.map((c) => c.windup ?? 0.4);
+const HEFT = [1, 1, 0.7, 2.5, 1, 5];
+// A creep's blow on a structure, as the host's.
+const SDMG = [6, 4, 2, 39, 9, 105];
 
 const W = 320, H = 200, DT = 0.05;
 
@@ -29,7 +39,7 @@ interface DPlayer {
   cur: number; ammo: number; reloadLeft: number; respawn: number; gold: number; kills: number; damage: number;
   owned: number; levels: Uint8Array; gear: Uint8Array; order: number; tx: number; ty: number; target: number;
   buildKind: number; repairId: number; buff: number; buffLeft: number; abLevel: number[]; abCool: number[];
-  ready: boolean; fireCd: number; shot: number; hurt: number; moving: boolean; wander: number;
+  ready: boolean; fireCd: number; shot: number; hurt: number; harm: number; moving: boolean; wander: number;
   site: number; searchT: number; revTarget: number; channel: number; emoteLeft: number; tauntCool: number; downT: number; look: number;
   medkits: number; heal: number; steerX: number; steerY: number; steerLeft: number;
 }
@@ -85,6 +95,14 @@ export class DemoHost implements Transport {
   private cHomeY = new Float32Array(MAX_CREEPS);
   private cHunt = new Uint8Array(MAX_CREEPS).fill(255);
   private cHuntT = new Float32Array(MAX_CREEPS);
+  // Attacking: cooldown to the next blow, this tick's and last tick's swing, the target byte
+  // while on a structure (128 + angle, else 255), blows dealt to it, and time it ignores structures.
+  private cCool = new Float32Array(MAX_CREEPS);
+  private cSwing = new Uint8Array(MAX_CREEPS);
+  private cSwung = new Uint8Array(MAX_CREEPS);
+  private cFace = new Uint8Array(MAX_CREEPS).fill(255);
+  private cBlows = new Uint8Array(MAX_CREEPS);
+  private cCalm = new Float32Array(MAX_CREEPS);
   private bosses = 0;
 
   // Per-tick events.
@@ -127,6 +145,9 @@ export class DemoHost implements Transport {
     this.clock = performance.now();
     this.timer = window.setInterval(() => this.pump(), 50);
   }
+
+  // Stops the simulation where it is, for the lab to take the world over.
+  halt(): void { window.clearInterval(this.timer); this.timer = 0; }
 
   // Runs the 20 Hz simulation on wall time. Called from a timer and from the render loop,
   // because background or headless pages throttle timers.
@@ -206,7 +227,7 @@ export class DemoHost implements Transport {
       id, name, bot, x, y, aim: 0, hp: 100, maxHp: 100, cur, ammo: WEAPON_BASE[cur].mag, reloadLeft: 0, respawn: 0,
       gold: 400 + id * 150, kills: 40 + id * 17, damage: 9000 + id * 2100, owned: 1 | (1 << cur),
       levels: new Uint8Array(28), gear: new Uint8Array(4), order: Order.Idle, tx: x, ty: y, target: -1, buildKind: 0,
-      repairId: -1, buff: 0, buffLeft: 0, abLevel: [1, 0, 0, 0], abCool: [0, 0, 0, 0], ready: bot, fireCd: 0, shot: 0, hurt: 0,
+      repairId: -1, buff: 0, buffLeft: 0, abLevel: [1, 0, 0, 0], abCool: [0, 0, 0, 0], ready: bot, fireCd: 0, shot: 0, hurt: 0, harm: 0,
       moving: false, wander: 2 + id, site: -1, searchT: 0, revTarget: -1, channel: 0, emoteLeft: 0, tauntCool: 0, downT: 0, medkits: 1, heal: 0, steerX: 0, steerY: 0, steerLeft: 0,
       // A random survivor, a different outfit for each.
       look: ((Math.floor(this.rnd() * 0x10000000) << 4) | (id * 3 % 10)) >>> 0,
@@ -266,7 +287,7 @@ export class DemoHost implements Transport {
         const kind = s.guard >= 3 && k === 0 ? 3 : s.guard >= 2 && k % 3 === 1 ? (k === 1 ? 4 : 1) : r() < 0.3 ? 2 : 0;
         const hp = CREEPS[kind].hp * (1 + 0.4 * s.guard);
         this.cAlive[id] = 1; this.cKind[id] = kind; this.cX[id] = x; this.cY[id] = y; this.cHp[id] = hp; this.cMax[id] = hp;
-        this.cBurn[id] = 0; this.cSlow[id] = 0; this.cRespawn[id] = -1;
+        this.cBurn[id] = 0; this.cSlow[id] = 0; this.cRespawn[id] = -1; this.fresh(id);
         this.cSite[id] = i; this.cState[id] = G_ASLEEP; this.cHomeX[id] = x; this.cHomeY[id] = y;
         this.guardIds[i].push(id++);
       }
@@ -441,8 +462,12 @@ export class DemoHost implements Transport {
     this.cAlive[id] = 1; this.cKind[id] = k; this.cX[id] = x; this.cY[id] = y;
     this.cSite[id] = -1; this.cHunt[id] = 255; this.cHuntT[id] = 0; this.cState[id] = 0;
     const hp = CREEPS[k].hp * (1 + 0.14 * (this.wave - 1));
-    this.cHp[id] = hp; this.cMax[id] = hp; this.cBurn[id] = 0; this.cSlow[id] = 0;
+    this.cHp[id] = hp; this.cMax[id] = hp; this.cBurn[id] = 0; this.cSlow[id] = 0; this.fresh(id);
     if (prefill && this.rnd() < 0.3) this.cHp[id] = hp * (0.2 + this.rnd() * 0.8);
+  }
+
+  private fresh(id: number): void {
+    this.cCool[id] = 0; this.cSwing[id] = 0; this.cSwung[id] = 0; this.cFace[id] = 255; this.cBlows[id] = 0; this.cCalm[id] = 0;
   }
 
   private kill(id: number, by: DPlayer | null, bounty: boolean): void {
@@ -573,6 +598,10 @@ export class DemoHost implements Transport {
       let sp = CREEPS[k].speed * DT * slowW;
       if (this.cSlow[id] > 0) { sp *= 0.5; this.cSlow[id] -= DT; }
       if (this.cBurn[id] > 0) { this.cBurn[id] -= DT; this.hurt(id, 8 * DT, null); if (!this.cAlive[id]) continue; }
+      this.cCool[id] = Math.max(-1, this.cCool[id] - DT);
+      this.cSwung[id] = this.cSwing[id]; this.cSwing[id] = 0; this.cFace[id] = 255;
+      if (this.cCalm[id] > 0) this.cCalm[id] -= DT;
+      if (this.cState[id] !== G_ASLEEP && this.bite(id)) continue;
       if (this.cSite[id] >= 0) { this.moveGuard(id, sp); continue; }
       if (this.cHuntT[id] > 0) {
         // Taunted: straight for the survivor until it wears off.
@@ -582,6 +611,7 @@ export class DemoHost implements Transport {
         else { this.stepTo(id, p.x + this.cOffX[id] * 0.5, p.y + this.cOffY[id] * 0.5, sp, 0.5); continue; }
       }
       let x = this.cX[id], y = this.cY[id];
+      if (this.cCalm[id] <= 0 && this.siege(id, ccx, ccy)) continue;
       const tx = Math.floor(x), ty = Math.floor(y);
       const n = this.next[ty * W + tx];
       let gx: number, gy: number;
@@ -590,11 +620,70 @@ export class DemoHost implements Transport {
       const dx = gx - x, dy = gy - y, d = Math.hypot(dx, dy) || 1;
       x += (dx / d) * sp; y += (dy / d) * sp;
       this.cX[id] = x; this.cY[id] = y;
-      if (Math.hypot(x - ccx, y - ccy) < 3.4 + CREEPS[k].radius) {
-        core.hp = Math.max(1, core.hp - (k === 5 ? 40 : 2));
-        this.kill(id, null, false);
+    }
+  }
+
+  // Mirrors the host's Creep.swing: coming into reach it winds up first, then a blow lands
+  // every 1/rate seconds, the last windup seconds of each telegraphed. True on the blow.
+  private swing(id: number): boolean {
+    const k = this.cKind[id], wu = WINDUP[k];
+    if (this.cSwung[id] === 0 && this.cSwing[id] === 0 && this.cCool[id] < wu) this.cCool[id] = wu;
+    if (this.cCool[id] <= 0) { this.cCool[id] = 1 / RATE[k]; this.cSwing[id] = S_STRIKE; return true; }
+    this.cSwing[id] = Math.max(this.cSwing[id], this.cCool[id] <= wu ? S_WINDUP : S_READY);
+    return false;
+  }
+
+  // A creep within reach of a survivor (the hunted one first) stops and attacks it; true if so.
+  private bite(id: number): boolean {
+    const k = this.cKind[id], x = this.cX[id], y = this.cY[id];
+    const r = CREEPS[k].radius + REACH[k] + 0.3, r2 = r * r, ps = this.players;
+    let p = this.cHunt[id] !== 255 ? ps[this.cHunt[id]] : undefined;
+    if (p && (p.hp <= 0 || (p.x - x) ** 2 + (p.y - y) ** 2 > r2)) p = undefined;
+    for (let i = 0; !p && i < ps.length; i++) if (ps[i].hp > 0 && (ps[i].x - x) ** 2 + (ps[i].y - y) ** 2 <= r2) p = ps[i];
+    if (!p) return false;
+    if (!this.swing(id)) return true;
+    // The demo's own hero is tougher so a screenshot does not open on a death screen; bots go gently too.
+    if (k === 4) { this.tracer(x, y, p.x, p.y, 32); this.hit(p, p.bot ? 5 : 2); }
+    else this.hit(p, (p.bot ? 4 : 1.5) * HEFT[k] / RATE[k]);
+    return true;
+  }
+
+  // A wave creep against the generator, or (some of them) a wall or turret it brushes, stops and
+  // attacks it; true if so. Three blows spend a creep on the generator; elsewhere it then moves on.
+  private siege(id: number, ccx: number, ccy: number): boolean {
+    const k = this.cKind[id], x = this.cX[id], y = this.cY[id], r = CREEPS[k].radius;
+    let s: DStruct | undefined, sx = ccx, sy = ccy;
+    if (Math.hypot(x - ccx, y - ccy) < 3.4 + r) s = this.structs[0];
+    else if (this.cOffX[id] > 0.2) {
+      const e = r + 0.3;
+      for (let d = 0; d < 4 && !s; d++) {
+        const tx = Math.floor(x + (d === 0 ? e : d === 1 ? -e : 0)), ty = Math.floor(y + (d === 2 ? e : d === 3 ? -e : 0));
+        if (tx < 0 || ty < 0 || tx >= W || ty >= H) continue;
+        const o = this.occ[ty * W + tx];
+        if (o > 1 && this.structs[o - 1].kind !== 4) { s = this.structs[o - 1]; sx = s.x + s.w / 2; sy = s.y + s.h / 2; }
       }
     }
+    if (!s) return false;
+    const a = Math.atan2(sy - y, sx - x);
+    this.cFace[id] = 128 + ((Math.round(a / (2 * Math.PI) * 127) + 127) % 127);
+    if (!this.swing(id)) return true;
+    const core = s === this.structs[0];
+    s.hp = Math.max(core ? 1 : Math.round(s.maxHp * 0.3), s.hp - (core ? (k === 5 ? 40 : 2) : SDMG[k]));
+    if (++this.cBlows[id] >= 3) {
+      if (core) this.kill(id, null, false);
+      else { this.cBlows[id] = 0; this.cCalm[id] = 4; }
+    }
+    return true;
+  }
+
+  // A creep's blow on a survivor. A crowd only hurts so fast, so a survivor deep in the
+  // horde lasts long enough to be worth watching.
+  private hit(p: DPlayer, dmg: number): void {
+    const cap = p.bot ? 24 : 6;
+    dmg = Math.min(dmg, Math.max(0, cap - p.harm)); p.harm += dmg;
+    p.hp -= dmg; p.hurt = 0.3;
+    if (p.heal > 0) { p.heal = 0; if (!p.bot) this.toast('a hit cut the medkit short'); }
+    if (p.hp <= 0) { p.hp = 0; p.respawn = 20; p.downT = 0; p.order = Order.Idle; this.notes.push({ level: 2, text: `${p.name} is down` }); }
   }
 
   // --- players ---
@@ -676,6 +765,7 @@ export class DemoHost implements Transport {
     p.emoteLeft = Math.max(0, p.emoteLeft - DT);
     p.tauntCool = Math.max(0, p.tauntCool - DT);
     p.hurt = Math.max(0, p.hurt - DT);
+    p.harm = Math.max(0, p.harm - (p.bot ? 24 : 6) * DT);
     p.shot = Math.max(0, p.shot - DT);
     for (let i = 0; i < 4; i++) p.abCool[i] = Math.max(0, p.abCool[i] - DT);
     if (p.buffLeft > 0) { p.buffLeft -= DT; if (p.buffLeft <= 0) p.buff = 0; }
@@ -764,15 +854,8 @@ export class DemoHost implements Transport {
     if (target >= 0 && p.reloadLeft <= 0) {
       while (p.fireCd <= 0 && p.ammo > 0 && this.cAlive[target]) this.fire(p, target);
     }
-    // Creeps bite whoever stands among them.
-    const ids = this.q, n = this.query(p.x, p.y, 0.9, ids, 8);
-    // The demo's own hero is tougher so a screenshot does not open on a death screen.
-    if (n > 0) {
-      p.hp -= n * (p.bot ? 6 : 1.5) * DT; p.hurt = 0.3;
-      if (p.heal > 0) { p.heal = 0; if (!p.bot) this.toast('a hit cut the medkit short'); }
-    }
-    else if (p.hurt <= 0) p.hp = Math.min(p.maxHp, p.hp + 2 * DT);
-    if (p.hp <= 0) { p.hp = 0; p.respawn = 20; p.downT = 0; p.order = Order.Idle; this.notes.push({ level: 2, text: `${p.name} is down` }); }
+    // Creeps' blows land in moveCreeps (hit); standing among them still holds off the quick regen.
+    if (p.hurt <= 0 && this.query(p.x, p.y, 0.9, this.q, 1) === 0) p.hp = Math.min(p.maxHp, p.hp + 2 * DT);
   }
 
   // Pulls every creep within the taunt radius onto p.
@@ -838,16 +921,6 @@ export class DemoHost implements Transport {
           px = this.cX[cur]; py = this.cY[cur];
         }
       } else this.hurt(t, dmg, null);
-    }
-    // Spitters spit at whatever is close.
-    if (this.tick % 3 === 0) {
-      for (const p of this.players) {
-        if (p.hp <= 0) continue;
-        const ids = this.q, n = this.query(p.x, p.y, 6, ids, 64);
-        for (let i = 0; i < n; i++) if (this.cKind[ids[i]] === 4 && this.rnd() < 0.15) {
-          this.tracer(this.cX[ids[i]], this.cY[ids[i]], p.x, p.y, 32); p.hp -= p.bot ? 3 : 1; p.hurt = 0.3;
-        }
-      }
     }
   }
 
@@ -1088,8 +1161,11 @@ export class DemoHost implements Transport {
       if (guard) fl |= CF_GUARD;
       if (guard && st === G_ASLEEP) fl |= CF_ASLEEP;
       if (hunting) fl |= CF_HUNTING;
-      else if (!guard && Math.abs(this.cX[id] - ccx) < 18 && Math.abs(this.cY[id] - ccy) < 18) fl |= CF_SIEGE;
-      w.u8(fl); w.u8(hunting ? this.cHunt[id] : 255);
+      else if (!guard && (this.cFace[id] !== 255 || (Math.abs(this.cX[id] - ccx) < 18 && Math.abs(this.cY[id] - ccy) < 18))) fl |= CF_SIEGE;
+      const sw = this.cSwing[id];
+      if (sw === S_WINDUP) fl |= CF_WINDUP;
+      else if (sw === S_STRIKE) fl |= CF_STRIKE;
+      w.u8(fl); w.u8(hunting ? this.cHunt[id] : this.cFace[id]);
     }
     const tr = this.tr;
     w.u16(tr.length / 5);

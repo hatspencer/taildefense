@@ -192,7 +192,34 @@ choice, not a cheat guard.
   cosmetic. No archetype plays differently, so nobody feels stuck with a bad pick.
 - **Assignment.** A new player is dealt one of the least-used archetypes, so a team is varied
   by default. A player who reconnects keeps their look.
-- **Portrait.** The HUD shows a 16×16 pixel portrait of your survivor.
+- **Portraits.** Your survivor's portrait in the console, and each teammate's in a frame down
+  the left, is their own model from the chest up, rendered live and pixelated like the world.
+  It shows how they are doing at a glance: breathing (hard when sprinting or hurt), blinking,
+  looking the way they aim, flinching red when hit, cut and bloodied as health drops, a plaster
+  while a medkit works, eyes down to reload or search, mouth open in a taunt, slumped when down.
+
+## Puppets: how bodies move
+
+- **Every body is a puppet** on one 12-joint skeleton (chest, head, two arms and two legs of two
+  parts each, and two spare joints for a spitter's belly or an abomination's extra arms). The
+  motion is procedural, not keyframed, so it reacts to what the body is doing.
+- **Feet don't slide.** The gait advances with distance actually travelled, so a slowed creep
+  shuffles and a runner bounds. Survivors split upper and lower body: legs follow the movement,
+  the torso follows the aim, so strafing and backpedalling read. Hands hold each gun by IK.
+- **Springs carry the weight.** Lean, recoil, flinch, a pack bouncing and hair swinging all run
+  through damped springs, so motion settles instead of snapping.
+- **Creeps are crowds of people.** Shirt, trousers, skin and hair are picked per creep, and each
+  one has its own gait offset and head tilt. A badly hurt walker or runner may lose an arm.
+- **Creeps are skinned on the GPU** so thousands can animate at once. The CPU only writes a few
+  numbers per creep each frame.
+- **The dead stay a while.** A killed creep falls the way it was facing, or is thrown by a
+  blast, lies there, then sinks into the ground.
+- **Blows are telegraphed.** Every creep winds up before it hits: walkers claw and bite, runners
+  coil and pounce, swarmers rear and lunge, brutes slam both fists down (with a dust ring),
+  spitters swell and whip the head forward, and the abomination rears and sweeps several arms.
+  The host decides the timing (protocol 7), so the windup you see is the real warning, and a
+  survivor who steps out of reach in time takes nothing.
+- `#lab` in the browser shows every animation side by side.
 
 ## Map and orientation
 
@@ -218,6 +245,10 @@ choice, not a cheat guard.
   number the game is lost on, so nobody should have to go looking for it. It is a segmented bar
   and a percentage: moss, then amber below 60%, rust and pulsing below 30%. It flashes when the
   generator takes a hit. Clicking it looks at the base.
+- **Teammates down the left**, one frame each: portrait, name, health and what they are doing.
+  One who is down turns red with their respawn countdown and where they fell, and the bar
+  fills as someone revives them. Clicking a frame looks at that teammate, or revives them if
+  they are down.
 
 ## Boot splash
 
