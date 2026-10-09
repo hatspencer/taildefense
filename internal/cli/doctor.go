@@ -23,6 +23,7 @@ import (
 // the game still runs without it.
 func Doctor(w io.Writer) int {
 	p := ui.New(w)
+	p.Banner("")
 	p.Step("td doctor")
 	checkTailscale(p)
 	checkBrowser(p)

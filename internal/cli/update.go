@@ -72,6 +72,7 @@ func updateTarget(o UpdateOptions, recorded string) (branch string, force bool) 
 // installer, so an update also picks up changes to how td installs.
 func Update(w io.Writer, o UpdateOptions) int {
 	p := ui.New(w)
+	p.Banner("")
 	p.Step("update")
 	if _, err := exec.LookPath("git"); err != nil {
 		p.Fail("git is not installed; td update clones with it")

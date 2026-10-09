@@ -74,7 +74,7 @@ func (p *Printer) Banner(subtitle string) {
 	if subtitle != "" {
 		p.printf("  %s\n", StyleDim.Render(subtitle))
 	}
-	p.printf("\n")
+	// No blank line after: what follows is a section, and a section brings its own.
 }
 
 // reveal animates artwork onto this Printer, holding the lock for the duration.
