@@ -27,6 +27,7 @@ type HostOptions struct {
 	Port    int    // 0 is netplay.DefaultPort
 	Seed    uint64 // 0 picks one from the clock
 	Diff    game.Difficulty
+	Fog     bool   // fog of war
 	Name    string // the hosting player's name; "" is the tailnet first name
 	Version string // this build, shown to everyone who probes the game
 }
@@ -130,6 +131,7 @@ func hostConfig(ctx context.Context, status func(context.Context) (tailnet.Self,
 		Addrs:      addrs,
 		Seed:       seed,
 		Difficulty: o.Diff,
+		FogOfWar:   o.Fog,
 		Version:    o.Version,
 		Host:       host,
 		Owner:      login,

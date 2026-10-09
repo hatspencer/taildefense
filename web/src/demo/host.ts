@@ -13,7 +13,7 @@ import { Writer } from './encode';
 import { type DemoMap, generateMap, rng } from './map';
 
 // weather: a fixed kind, or -1 to cycle. down: a teammate starts downed. coreHp: the generator's share of hp.
-export interface DemoOptions { creeps: number; phase: 'wave' | 'build' | 'over'; wave: number; gold: number; weather?: number; down?: boolean; coreHp?: number; drop?: boolean }
+export interface DemoOptions { creeps: number; phase: 'wave' | 'build' | 'over'; wave: number; gold: number; weather?: number; down?: boolean; coreHp?: number; drop?: boolean; fog?: boolean }
 
 // How much each weather counts as rain, as the host's wetness.
 const WET = [0, 0, 1, 1, 0, 0.3, 0.5, 0];
@@ -129,6 +129,7 @@ export class DemoHost implements Transport {
     this.welcome.core = { x: W / 2 + 0.5, y: H / 2 + 0.5 };
     this.sites = this.placeSites(m);
     this.welcome.sites = this.sites;
+    this.welcome.fogOfWar = !!opt.fog;
     this.reset();
     h.onConn('connecting');
     // Asynchronous like a socket, so the client finishes its own setup first.

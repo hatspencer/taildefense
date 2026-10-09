@@ -34,7 +34,7 @@ everything it knows, a terrain message follows).
 ```jsonc
 {
   "t": "welcome",
-  "proto": 7,
+  "proto": 8,
   "version": "a1b2c3d",
   "you": 0,                    // your player id
   "w": 320, "h": 200,          // map size in tiles
@@ -45,6 +45,7 @@ everything it knows, a terrain message follows).
   "tickRate": 20,
   "difficulty": {"id": 1, "name": "Normal"},   // chosen by the host before hosting
   "difficulties": ["Easy", "Normal", "Hard", "Brutal"],
+  "fogOfWar": false,           // the host's FOG setting: the client hides what the team cannot see
   "weathers": [                // index = weather kind in the frame
     {"name": "Clear", "info": ""},
     {"name": "Fog", "info": "everyone sees and shoots 25% less far; creeps notice you later"}

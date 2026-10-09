@@ -430,6 +430,12 @@ func (m *Model) menuKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.cursor < len(items) && items[m.cursor] == itemHost {
 			m.cycleDifficulty(k.String() == "right" || k.String() == "l")
 		}
+	case "f":
+		if m.cursor < len(items) && items[m.cursor] == itemHost {
+			key, _ := config.Lookup(config.KeyFog)
+			m.save(key, map[bool]string{false: "on", true: "off"}[m.prefs.Fog()])
+			m.notice = ""
+		}
 	case "enter", " ":
 		if m.cursor >= len(items) {
 			m.cursor = 0

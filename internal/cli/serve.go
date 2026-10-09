@@ -40,6 +40,7 @@ func Serve(w io.Writer, o HostOptions) int {
 		{"owner", plan.Config.Owner},
 		{"seed", fmt.Sprint(plan.Config.Seed)},
 		{"difficulty", plan.Config.Difficulty.String()},
+		{"fog of war", map[bool]string{false: "off", true: "on"}[plan.Config.FogOfWar]},
 		{"version", o.Version},
 	}
 	p.Fields(rows)

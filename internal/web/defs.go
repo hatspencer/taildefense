@@ -157,6 +157,7 @@ type welcomeMsg struct {
 	SiteKinds       []siteKindDef `json:"siteKinds"`
 	Sites           []siteDef     `json:"sites"`
 	Difficulty      difficultyRef `json:"difficulty"`
+	FogOfWar        bool          `json:"fogOfWar"`
 	Difficulties    []string      `json:"difficulties"`
 	Weathers        []weatherDef  `json:"weathers"`
 	Taunt           tauntDef      `json:"taunt"`
@@ -242,6 +243,7 @@ func welcome(wel netplay.Welcome, core point, host, hint string, hosting bool) w
 		m.Sites = append(m.Sites, siteDef{uint8(s.Kind), s.X, s.Y, s.W, s.H, s.SX, s.SY, s.Tier, s.Guard, s.Yaw})
 	}
 	m.Difficulty = difficultyRef{int(wel.Diff), wel.Diff.String()}
+	m.FogOfWar = wel.Fog
 	for _, d := range game.Difficulties {
 		m.Difficulties = append(m.Difficulties, d.Name)
 	}

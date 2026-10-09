@@ -61,6 +61,7 @@ export interface Welcome {
   gear: GearDef[]; abilities: AbilityDef[]; structs: StructDef[]; buildable: number[];
   siteKinds: SiteKindDef[]; sites: SiteDef[];
   difficulty: { id: number; name: string }; difficulties: string[]; weathers: WeatherDef[];
+  fogOfWar?: boolean;
   taunt: { cool: number; radius: number; time: number };
   revive: { reach: number; time: number; hp: number };
   // heal: the share of max HP one medkit gives back over time seconds; max carried; cost each.

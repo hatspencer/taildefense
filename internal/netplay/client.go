@@ -35,6 +35,7 @@ type Welcome struct {
 	W, H    int
 	Seed    uint64
 	Diff    game.Difficulty
+	Fog     bool // fog of war
 	Terrain []game.Tile
 	Sites   []game.Site
 }
@@ -46,6 +47,7 @@ func DecodeWelcome(p []byte) (Welcome, error) {
 	lo, hi := d.u32(), d.u32()
 	w.Seed = uint64(hi)<<32 | uint64(lo)
 	w.Diff = game.Difficulty(d.u8())
+	w.Fog = d.u8() != 0
 	t := d.bytes()
 	if d.err != nil {
 		return w, d.err

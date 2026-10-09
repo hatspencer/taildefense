@@ -365,6 +365,8 @@ export class Creeps {
       for (let k = 0; k < this.nPrev; k++) {
         const id = this.prevIds[k];
         if (this.stamp[id] === game.frames) continue;
+        // Walked out of sight under fog of war: gone from view, not dead.
+        if (game.hiddenAt[id] === game.frames) { this.lastT[id] = -1e9; continue; }
         let thrown = false;
         for (let b = 0; b < f.nBlasts; b++) {
           const kb = f.bKind[b];

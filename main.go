@@ -206,7 +206,7 @@ func run(args []string) int {
 			p.Warn("%s", news)
 			p.Detail("%s", how)
 		}
-		return cli.Serve(os.Stdout, cli.HostOptions{Port: prefs.Port(), Seed: o.seed, Diff: prefs.Difficulty(), Name: prefs.Name(), Version: version.Current()})
+		return cli.Serve(os.Stdout, cli.HostOptions{Port: prefs.Port(), Seed: o.seed, Diff: prefs.Difficulty(), Fog: prefs.Fog(), Name: prefs.Name(), Version: version.Current()})
 	case "ls":
 		if o.json {
 			ui.SetJSON(true)
@@ -323,7 +323,7 @@ func play(p *ui.Printer, prefs *config.Prefs, o web.Options) (web.Result, error)
 // when the player leaves: a game hosted from a laptop lasts as long as its host plays.
 func hostAndPlay(p *ui.Printer, prefs *config.Prefs, seed uint64) (web.Result, error) {
 	srv, plan, err := cli.StartHost(context.Background(), cli.HostOptions{
-		Port: prefs.Port(), Seed: seed, Diff: prefs.Difficulty(), Name: prefs.Name(), Version: version.Current(),
+		Port: prefs.Port(), Seed: seed, Diff: prefs.Difficulty(), Fog: prefs.Fog(), Name: prefs.Name(), Version: version.Current(),
 	}, nil)
 	for _, n := range plan.Notes {
 		p.Warn("%s", n)

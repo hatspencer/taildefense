@@ -23,7 +23,7 @@ import (
 // Proto is the wire protocol version. A host refuses a client with a different one and names
 // both versions, so the fix (td update) is obvious. Beyond the protocol, a host only lets in a
 // player running the same td (SameVersion).
-const Proto = 7
+const Proto = 8
 
 // DefaultPort is where a host listens.
 const DefaultPort = 7787
@@ -77,8 +77,15 @@ func readMsg(r *bufio.Reader) (byte, []byte, error) {
 // enc appends to a byte slice.
 type enc struct{ b []byte }
 
-func (e *enc) u8(v uint8)   { e.b = append(e.b, v) }
-func (e *enc) i8(v int8)    { e.b = append(e.b, uint8(v)) }
+func (e *enc) u8(v uint8) { e.b = append(e.b, v) }
+func (e *enc) i8(v int8)  { e.b = append(e.b, uint8(v)) }
+func (e *enc) flag(v bool) {
+	if v {
+		e.u8(1)
+	} else {
+		e.u8(0)
+	}
+}
 func (e *enc) u16(v uint16) { e.b = binary.LittleEndian.AppendUint16(e.b, v) }
 func (e *enc) u32(v uint32) { e.b = binary.LittleEndian.AppendUint32(e.b, v) }
 func (e *enc) uv(v uint64)  { e.b = binary.AppendUvarint(e.b, v) }

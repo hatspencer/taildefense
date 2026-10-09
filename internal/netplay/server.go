@@ -46,6 +46,7 @@ type ServerConfig struct {
 	Addrs      []string // listen addresses, host:port
 	Seed       uint64
 	Difficulty game.Difficulty
+	FogOfWar   bool
 	Version    string
 	Host       string // this machine's name, for the join list
 	Owner      string // the hosting login
@@ -109,6 +110,7 @@ func Listen(cfg ServerConfig) (*Server, error) {
 		done:    make(chan struct{}),
 		started: time.Now(),
 	}
+	s.world.FogOfWar = cfg.FogOfWar
 	for _, a := range cfg.Addrs {
 		ln, err := net.Listen("tcp", a)
 		if err != nil {
@@ -356,6 +358,7 @@ func (s *Server) welcome(p *peer) outMsg {
 	b.u32(uint32(w.Seed))
 	b.u32(uint32(w.Seed >> 32))
 	b.u8(uint8(w.Diff))
+	b.flag(w.FogOfWar)
 	t := make([]byte, len(w.Terrain))
 	for i, v := range w.Terrain {
 		t[i] = byte(v)
