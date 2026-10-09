@@ -162,7 +162,8 @@ func Update(w io.Writer, o UpdateOptions) int {
 		}
 		return 0
 	}
-	p.Info("updating %s -> %s from %s", ui.StyleYellow.Render(version.Current()), ui.StyleGreen.Render(remote), source)
+	installed := version.Current()
+	p.Info("updating %s -> %s from %s", ui.StyleYellow.Render(installed), ui.StyleGreen.Render(remote), source)
 
 	prog = ui.StartProgress("building with " + engine)
 	build := exec.Command("sh", "./build.sh", "build")
@@ -195,6 +196,7 @@ func Update(w io.Writer, o UpdateOptions) int {
 		p.Fail("the installer failed; the previous version is still in place: %v", err)
 		return 1
 	}
+	printNews(p, readNews(tmp, installed, remote), source)
 	if branch != "" {
 		p.Note("following %s: a plain td update stays on it, td update -f returns to main", branch)
 	}

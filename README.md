@@ -72,6 +72,12 @@ A host and its players must run the same td: a host refuses a player whose versi
 its own, and the refusal names both versions and says to run `td update` on both machines. The
 launcher's join list and `td ls` mark such games with ✗.
 
+After installing, `td update` lists the commits it brought in, newest first, read from its own
+clone deepened by 200 commits with blobs left out, about a second. An installed commit it cannot
+find there (a dirty local build, a branch switch, an install over 200 commits old) gets the latest
+15 instead, labelled as such, rather than a guess. It is best-effort: a fetch that fails never
+fails the update. A background update writes the list to its log.
+
 ## Playing
 
 Everyone who joins is dealt a survivor: a paramedic, mechanic, hunter, student, builder, nurse,
