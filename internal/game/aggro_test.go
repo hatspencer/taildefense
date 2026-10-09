@@ -437,7 +437,7 @@ func TestEveryFifthWaveBringsALongBreak(t *testing.T) {
 	d := w.diff()
 	for wave := 1; wave <= 10; wave++ {
 		w.Phase, w.Wave = PhaseWave, wave
-		w.endWave(0)
+		w.endWave()
 		want := d.Build
 		if wave%5 == 0 {
 			want = d.Rest
@@ -459,5 +459,48 @@ func TestEveryFifthWaveBringsALongBreak(t *testing.T) {
 	}
 	if !called {
 		t.Fatalf("no call home: %+v", w.Notes)
+	}
+}
+
+func TestTauntRightAfterCreepsDieStaysInBounds(t *testing.T) {
+	w := newBare(7)
+	p, _ := w.Join("ana", "ana@example")
+	w.Phase = PhaseWave
+	w.Queue = []Spawn{{At: 1e9}}
+	for i := 0; i < 40; i++ {
+		w.SpawnCreep(CWalker, p.X+3, p.Y+float32(i%5)*.3)
+	}
+	w.Step()
+	// Kill the lot mid-tick: the reap at the end of the step shrinks the slice, and a taunt
+	// coming in before the next step must not reach past its end.
+	for i := range w.Creeps {
+		w.Creeps[i].HP = 0
+	}
+	w.Step()
+	if err := w.Taunt(p); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTheNextWaveWaitsForTheLastOne(t *testing.T) {
+	w := New(7)
+	w.Join("ana", "ana@example")
+	w.startWave()
+	w.Queue, w.QueueHead = nil, 0
+	// A tough crowd, more than give up as stragglers, and a generator they cannot bring down.
+	for i := 0; i < stallFew+5; i++ {
+		if !w.SpawnCreep(CWalker, 2, 2) {
+			t.Fatal("no spawn")
+		}
+		c := &w.Creeps[len(w.Creeps)-1]
+		c.HP, c.MaxHP = 1e9, 1e9
+	}
+	core := &w.Structs[w.Core]
+	for i := 0; i < int(TickRate*240); i++ {
+		core.HP = core.MaxHP
+		w.Step()
+		if w.Phase != PhaseWave {
+			t.Fatalf("phase %v at %.0fs with %d of the wave alive", w.Phase, w.WaveTime, w.waveCreeps())
+		}
 	}
 }
