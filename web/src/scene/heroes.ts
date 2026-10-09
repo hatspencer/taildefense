@@ -140,15 +140,8 @@ export class Heroes {
       h.down = !alive;
       h.group.visible = (p.flags & 1) !== 0 || alive;
       h.group.position.set(game.prx[p.id], 0, game.pry[p.id]);
-      // Facing the aim; a taunt turns to the camera so the finger is aimed at the player too.
-      let yaw = -game.paim[p.id];
-      if (h.taunt > 0.01 && cam) {
-        const toCam = -Math.atan2(cam.position.z - game.pry[p.id], cam.position.x - game.prx[p.id]);
-        let d = toCam - yaw;
-        d = Math.atan2(Math.sin(d), Math.cos(d));
-        yaw += d * h.taunt;
-      }
-      h.body.rotation.y = yaw;
+      // Facing the aim, taunting or not: the finger goes wherever the hero is headed.
+      h.body.rotation.y = -game.paim[p.id];
       h.downAmt = ease(h.downAmt, alive ? 0 : 1, alive ? 14 : 7, dt);
       const moving = alive && (p.flags & PF_MOVING) !== 0;
       const channel = alive && (p.order === Order.Loot || p.order === Order.Revive) && p.channel > 0;

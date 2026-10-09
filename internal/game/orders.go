@@ -428,8 +428,7 @@ func (w *World) act(p *Player, st Stats) int32 {
 			p.Search = 0
 			return -1
 		}
-		dx, dy := s.SX-p.X, s.SY-p.Y
-		if dx*dx+dy*dy <= lootReach*lootReach {
+		if siteReached(s, p.X, p.Y) {
 			// Searching is all a survivor does: no shooting, and a hit starts it over. Guards
 			// don't forbid it; they only make it hard to get through without a scratch.
 			if p.Search == 0 && !o.Started {
@@ -488,6 +487,9 @@ func (f *pathfinder) init(w, h int) {
 
 func walkable(b Blocker, x, y int) bool {
 	if b.At(x, y).Solid() {
+		return false
+	}
+	if wb, ok := b.(wreckBlocker); ok && wb.wreckAt(float32(x)+.5, float32(y)+.5) {
 		return false
 	}
 	k := b.StructKindAt(x, y)

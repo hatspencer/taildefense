@@ -142,7 +142,7 @@ export class Input {
       case 'M': hud.minimap.toggle(); return;
       case 'U': ctl.upgradeSel(); return;
       case 'X': ctl.sellSel(); return;
-      case 'F': ctl.interact(); return;
+      case 'E': ctl.interact(); return;
       case 'V': ctl.taunt(); return;
     }
   }

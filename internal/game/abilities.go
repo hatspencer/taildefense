@@ -6,7 +6,7 @@ import (
 	"math"
 )
 
-// Ability slots, cast with Q W E R.
+// Ability slots, cast with right-click, Shift, F and Q.
 const (
 	AbSignature = iota // the equipped weapon's own ability, always there
 	AbGrenade
@@ -35,7 +35,7 @@ type AbilityDef struct {
 var Abilities = [NumAbilities]AbilityDef{
 	AbSignature: {Name: "Signature", Key: "RMB", Desc: "The equipped weapon's own ability; stronger with its special upgrades.", Always: true},
 	AbGrenade:   {Name: "Grenade", Key: "Shift", Desc: "Lobbed at a point, bursts after a moment. Bigger and harder each level.", Range: 11, Radius: [3]float32{2.5, 3, 3.5}, Cool: [3]float32{9, 8, 7}, Costs: [3]int32{200, 450, 800}},
-	AbDash:      {Name: "Dash", Key: "E", Desc: "Leap towards a point, out of a crowd. Further and sooner each level.", Range: 5, Cool: [3]float32{10, 8, 6}, Costs: [3]int32{150, 350, 650}},
+	AbDash:      {Name: "Dash", Key: "F", Desc: "Leap towards a point, out of a crowd. Further and sooner each level.", Range: 5, Cool: [3]float32{10, 8, 6}, Costs: [3]int32{150, 350, 650}},
 	AbAirstrike: {Name: "Airstrike", Key: "Q", Desc: "Mark a point anywhere near; two seconds later it is levelled.", Range: 40, Radius: [3]float32{5, 6, 7}, Cool: [3]float32{75, 65, 55}, Costs: [3]int32{600, 1200, 2000}},
 }
 

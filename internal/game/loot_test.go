@@ -12,7 +12,11 @@ func TestSitesAreReachableAndFixedBySeed(t *testing.T) {
 		var n [NumSiteKinds]int
 		for i, s := range w.Sites {
 			n[s.Kind]++
-			if !CanStand(w, s.SX, s.SY) {
+			if s.Kind.Wreck() {
+				if !besideWreck(w, &s) {
+					t.Errorf("seed %d: site %d (%s) has nowhere to search it from", seed, i, SiteDefs[s.Kind].Name)
+				}
+			} else if !CanStand(w, s.SX, s.SY) {
 				t.Errorf("seed %d: site %d (%s) cannot be stood at", seed, i, SiteDefs[s.Kind].Name)
 			}
 			if dx, dy := s.SX-w.CoreX, s.SY-w.CoreY; dx*dx+dy*dy < 28*28 {
@@ -168,4 +172,20 @@ func TestWrecksHaveTheirOwnTwists(t *testing.T) {
 	if n := w.Notes[len(w.Notes)-1].Text; !strings.Contains(n, " and ") {
 		t.Fatalf("a bus gives two finds: %q", n)
 	}
+}
+
+// besideWreck reports whether there is a spot a survivor can stand on to search a wreck,
+// which is solid itself.
+func besideWreck(w *World, s *Site) bool {
+	if CanStand(w, s.SX, s.SY) {
+		return false
+	}
+	for y := s.SY - 2.5; y <= s.SY+2.5; y += .25 {
+		for x := s.SX - 2.5; x <= s.SX+2.5; x += .25 {
+			if CanStand(w, x, y) && siteReached(s, x, y) {
+				return true
+			}
+		}
+	}
+	return false
 }

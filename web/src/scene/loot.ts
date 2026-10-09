@@ -322,7 +322,7 @@ export class Loot {
       counts[propKind(s.kind)] = (counts[propKind(s.kind)] ?? 0) + 1;
       if (!walled(s.kind)) {
         this.px[i] = siteX(s); this.pz[i] = siteY(s);
-        this.yaw[i] = wreck(s.kind) ? hash(i, 1) * 6.28 : (Math.floor(hash(i, 1) * 4) + (hash(i, 2) - 0.5) * 0.4) * Math.PI / 2;
+        this.yaw[i] = wreck(s.kind) ? s.yaw ?? hash(i, 1) * 6.28 : (Math.floor(hash(i, 1) * 4) + (hash(i, 2) - 0.5) * 0.4) * Math.PI / 2;
         return;
       }
       // Beside the searcher, towards the roomiest side of the house, facing back at the spot.

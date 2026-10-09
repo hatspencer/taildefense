@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"sort"
 	"strconv"
@@ -60,6 +61,7 @@ func DecodeWelcome(p []byte) (Welcome, error) {
 	for i := 0; i < n && d.err == nil && i < 4096; i++ {
 		s := game.Site{Kind: game.SiteKind(d.u8()), X: int16(d.u16()), Y: int16(d.u16()), W: d.u8(), H: d.u8()}
 		s.SX, s.SY, s.Tier, s.Guard = unq(d.u16()), unq(d.u16()), d.u8(), d.u8()
+		s.Yaw = float32(d.u8()) / 256 * 2 * math.Pi
 		w.Sites = append(w.Sites, s)
 	}
 	return w, d.err
