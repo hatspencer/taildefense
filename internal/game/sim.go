@@ -51,13 +51,9 @@ func (w *World) Step() {
 				w.dropStragglers()
 				n = 0
 			}
-			// The waves keep coming: a team off looting while the last of one roams the base
-			// gets the next on top of it.
-			if w.overtime > 0 || w.WaveTime > overtimeLate || w.atTheGates() {
-				w.overtime += Dt
-			}
-			if n == 0 || w.overtime > overtime {
-				w.endWave(n)
+			// A wave holds until the last of it is dead; the next never lands on top of it.
+			if n == 0 {
+				w.endWave()
 			}
 		}
 	}
@@ -73,6 +69,9 @@ func (w *World) Step() {
 	w.stepCrates()
 	w.stepCreeps()
 	w.reap()
+	// Reaping moves creeps about in the slice; commands run between ticks query the grid
+	// too, so it must match what is left.
+	w.grid.build(w.Creeps)
 	w.countGuards()
 }
 
@@ -102,7 +101,7 @@ func (w *World) startWave() {
 	w.WaveTime = 0
 	w.Queue = w.plan(w.Wave, w.active())
 	w.QueueHead = 0
-	w.stall, w.waveLeft, w.overtime = 0, 0, 0
+	w.stall, w.waveLeft = 0, 0
 	for _, p := range w.Players {
 		p.Ready = false
 	}
@@ -124,24 +123,7 @@ func (w *World) startWave() {
 const (
 	stallLimit = 30
 	stallFew   = 10 // only this few stragglers give up; a real fight is never cut short
-
-	// overtime is how long a wave may run, once all of it is out and it has reached the base,
-	// before the next countdown starts anyway with what is left of it still about.
-	overtime = 40
-	// overtimeLate starts the overtime clock even if the wave never gets to the base.
-	overtimeLate = 150
 )
-
-// atTheGates reports whether a creep of the wave is within the base's build radius.
-func (w *World) atTheGates() bool {
-	for i := range w.Creeps {
-		c := &w.Creeps[i]
-		if dx, dy := c.X-w.CoreX, c.Y-w.CoreY; c.Home == 0 && dx*dx+dy*dy < BuildRadius*BuildRadius {
-			return true
-		}
-	}
-	return false
-}
 
 // dropStragglers takes the creeps of the wave still about off the map, for nobody's bounty.
 func (w *World) dropStragglers() {
@@ -160,9 +142,8 @@ func (w *World) dropStragglers() {
 	w.note(0, "the last %d of the wave slunk off into the dark", n)
 }
 
-// endWave pays the wave bonus and starts the build countdown; left is how many of the wave
-// are still out there.
-func (w *World) endWave(left int) {
+// endWave pays the wave bonus and starts the build countdown.
+func (w *World) endWave() {
 	bonus := int32(float32(40+15*w.Wave) * w.diff().Gold)
 	for _, p := range w.Players {
 		if !p.Connected {
@@ -179,11 +160,7 @@ func (w *World) endWave(left int) {
 		w.PhaseLeft = w.diff().Rest
 	}
 	w.rollWeather()
-	if left > 0 {
-		w.note(2, "wave %d is still out there (%d left)  ·  +%d gold each  ·  the next comes in %.0fs", w.Wave, left, bonus, w.PhaseLeft)
-	} else {
-		w.note(1, "wave %d cleared  ·  +%d gold each  ·  wave %d in %.0fs", w.Wave, bonus, w.Wave+1, w.PhaseLeft)
-	}
+	w.note(1, "wave %d cleared  ·  +%d gold each  ·  wave %d in %.0fs", w.Wave, bonus, w.Wave+1, w.PhaseLeft)
 	if w.longBreak() {
 		w.note(1, "long break: %.0fs to explore and loot before wave %d", w.PhaseLeft, w.Wave+1)
 	}

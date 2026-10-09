@@ -31,11 +31,8 @@ it here along with the code.
 - **Announcements and a countdown.** The end of a wave says what it paid and how long the
   break is. The long break announces itself. The last 5 s of every break count down big in the
   middle of the screen ("wave N incoming"), so nobody is caught out.
-- **Waves don't wait.** Once a wave is all out, it gets 40 s of overtime. The clock only starts
-  when the wave reaches the base (a creep inside the build radius), or after 150 s whatever
-  happens. Then the next break starts whether or not the wave is dead. A team that stays out
-  looting comes back to two waves at once. The overtime waits for the base, so a slow wave
-  isn't cut short before it gets there.
+- **A wave holds until it is dead.** The next break only starts once every creep of the wave
+  is gone (sleeping guards don't count), so two waves never stack up on the base.
 - **Stragglers don't stall the game.** If nothing of a wave has died for 30 s and at most 10 are
   left, they give up. A real fight is never cut short.
 - **Pause.** Any player can pause, and any player can resume; the banner names who paused. If

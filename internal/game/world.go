@@ -251,7 +251,6 @@ type World struct {
 	sentToasts int
 	sentPings  int
 	stall      float32 // seconds since a creep of the wave last died, once all are out
-	overtime   float32 // seconds of overtime, counted once the wave is all out and at the base
 	waveLeft   int     // creeps of the wave alive at the last count
 	SpawnPts   [][2]float32
 	Core       int // structure index of the generator

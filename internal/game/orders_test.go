@@ -310,7 +310,7 @@ func TestEveryTenthWaveFliesInACrateThatOpensForEveryone(t *testing.T) {
 	a, _ := w.Join("ana", "ana@example")
 	b, _ := w.Join("bo", "bo@example")
 	w.Wave = 10
-	w.endWave(0)
+	w.endWave()
 	if len(w.Effects) != 1 || w.Effects[0].Kind != EffDrop {
 		t.Fatalf("no drop called after wave 10: %+v", w.Effects)
 	}
@@ -332,7 +332,7 @@ func TestEveryTenthWaveFliesInACrateThatOpensForEveryone(t *testing.T) {
 		t.Fatalf("the teammate got nothing: gold %d → %d, medkits %d", gold, b.Gold, b.Medkits)
 	}
 	w.Wave = 11
-	w.endWave(0)
+	w.endWave()
 	for _, e := range w.Effects {
 		if e.Kind == EffDrop {
 			t.Fatal("a drop after wave 11")
