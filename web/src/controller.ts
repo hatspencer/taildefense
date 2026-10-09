@@ -196,30 +196,41 @@ export class Controller {
     if (this.groundOk) this.castAt(0, this.ground.x, this.ground.z);
   }
 
-  // E: use what is under the cursor (walking there first), or else the selected structure,
-  // or else whatever usable is nearest: a downed teammate, a loot site, a damaged structure,
-  // the armory, a supply crate. On a creep it focuses fire on it.
+  // E: whatever is right at hand comes first (a downed teammate, a loot site, a supply crate),
+  // so a hero out looting searches the wreck beside them whatever is selected or under the
+  // cursor. Then what is under the cursor (walking there first), then the nearest usable
+  // thing (a damaged structure, the armory), then a supply crate further off. On a creep under
+  // the cursor it focuses fire on it.
   interact(): void {
     const me = this.me();
     if (!me || !(me.flags & PF_ALIVE)) return;
+    if (this.useAt(this.nearestUsable(me.x, me.y, true))) return;
+    const close = this.nearestCrate(me.x, me.y, USE_REACH);
+    if (close) { this.toCrate(close); return; }
     if (this.mouseIn && this.groundOk && this.useAt(this.hover)) return;
-    if (this.sel?.t === 'struct' && this.useAt(this.sel)) return;
     if (this.useAt(this.nearestUsable(me.x, me.y))) return;
-    // A supply crate nearby: walk up to it; standing by it opens it.
-    let crate: { x: number; y: number } | null = null, cd = CRATE_REACH;
-    for (const k of this.game.cur.crates) {
-      const d = Math.hypot(k.x - me.x, k.y - me.y);
-      if (d < cd) { cd = d; crate = k; }
-    }
-    if (crate) {
-      this.toArmory = false;
-      if (cd > 1) this.moveTo(crate.x, crate.y);
-      return;
-    }
+    const crate = this.nearestCrate(me.x, me.y, CRATE_REACH);
+    if (crate) { this.toCrate(crate); return; }
     this.onToast('nothing to use here', 1);
   }
 
-  private nearestUsable(x: number, y: number): Pick {
+  private nearestCrate(x: number, y: number, reach: number): { x: number; y: number; d: number } | null {
+    let best: { x: number; y: number; d: number } | null = null;
+    for (const k of this.game.cur.crates) {
+      const d = Math.hypot(k.x - x, k.y - y);
+      if (d < (best?.d ?? reach)) best = { x: k.x, y: k.y, d };
+    }
+    return best;
+  }
+
+  // Walks up to a supply crate; standing by it opens it.
+  private toCrate(c: { x: number; y: number; d: number }): void {
+    this.toArmory = false;
+    if (c.d > 1) this.moveTo(c.x, c.y);
+  }
+
+  // The nearest usable thing in reach; atHand keeps to downed teammates and loot sites.
+  private nearestUsable(x: number, y: number, atHand = false): Pick {
     const g = this.game, f = g.cur, wd = g.welcome, me = this.me();
     if (!wd || !me) return null;
     let best: Pick = null, bd = USE_REACH;
@@ -237,6 +248,7 @@ export class Controller {
       const s = wd.sites[i];
       take({ t: 'site', id: i }, siteX(s), siteY(s));
     }
+    if (atHand) return best;
     for (let s = 0; s < f.nStructs; s++) {
       if (!f.sAlive[s]) continue;
       const cx = f.sX[s] + f.sW[s] / 2, cy = f.sY[s] + f.sH[s] / 2, slack = Math.max(f.sW[s], f.sH[s]) / 2;

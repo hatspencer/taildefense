@@ -44,6 +44,11 @@ export class Weather {
   private uLen = uniform(0.9);
   private uAlpha = uniform(0.4);
   private uSnowAlpha = uniform(0.9);
+  // How far the rain has fallen and the wind has carried things so far, summed frame by frame.
+  // Speed times the clock would do while the speed holds, but as a storm eases off the
+  // shrinking speed times a big clock runs backwards and the rain rises.
+  private uFallen = uniform(0);
+  private uBlown = uniform(new THREE.Vector2());
   private rain: THREE.InstancedMesh;
   private snow: THREE.InstancedMesh;
   private lastTick = -1;
@@ -65,7 +70,7 @@ export class Weather {
     const speed = s.w.mul(0.4).add(0.8);
     const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false });
     if (rain) {
-      const motion = vec3(this.uWind.x.mul(t), this.uFall.mul(t).mul(speed).negate(), this.uWind.y.mul(t));
+      const motion = vec3(this.uBlown.x, this.uFallen.mul(speed).negate(), this.uBlown.y);
       const p = corner.add(fract(s.xyz.mul(size).add(motion).sub(corner).div(size)).mul(size));
       const dir = normalize(vec3(this.uWind.x, this.uFall.negate(), this.uWind.y));
       // Spanned by right and the fall direction, which points down: flip y so the face looks at the camera.
@@ -75,7 +80,7 @@ export class Weather {
       mat.opacityNode = this.uAlpha.mul(float(1).sub(smoothstep(0.75, 1, p.y.div(size.y))));
     } else {
       const fall = t.mul(1.6).mul(speed);
-      const drift = vec3(sin(t.mul(0.9).add(s.w.mul(20))).mul(0.6).add(this.uWind.x.mul(t).mul(0.3)), fall.negate(), cos(t.mul(0.7).add(s.w.mul(13))).mul(0.6).add(this.uWind.y.mul(t).mul(0.3)));
+      const drift = vec3(sin(t.mul(0.9).add(s.w.mul(20))).mul(0.6).add(this.uBlown.x.mul(0.3)), fall.negate(), cos(t.mul(0.7).add(s.w.mul(13))).mul(0.6).add(this.uBlown.y.mul(0.3)));
       const p = corner.add(fract(s.xyz.mul(size).add(drift).sub(corner).div(size)).mul(size));
       const r = s.w.mul(0.05).add(0.06);
       mat.positionNode = p.add(this.uRight.mul(g.x).add(this.uUp.mul(g.y)).mul(r));
@@ -134,6 +139,8 @@ export class Weather {
     this.uLen.value = 0.7 + 0.4 * l.storm;
     this.uWind.value.set(1.5 + 5 * l.storm + 9 * l.gust, 0.8 + 2 * l.storm + 3 * l.gust);
     this.uAlpha.value = 0.22 + 0.1 * l.storm;
+    this.uFallen.value += this.uFall.value * dt;
+    this.uBlown.value.addScaledVector(this.uWind.value, dt);
     this.rain.visible = this.rain.count > 0;
     this.snow.count = Math.floor(SNOW * l.flakes * zoomFill);
     this.snow.visible = this.snow.count > 0;

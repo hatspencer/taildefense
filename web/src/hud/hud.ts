@@ -420,7 +420,7 @@ export class Hud {
   private buildHelp(): void {
     const rows: [string, string][] = [
       ['<kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>', 'walk, the way the view faces; the camera follows while you walk. Your hero shoots the nearest creep on its own'],
-      ['<kbd>E</kbd>', 'use: on what is under the cursor, or else the nearest thing. A downed teammate: revive them (stay close until the bar fills) · a loot site: search it · a damaged structure: repair · the armory: shop · a creep: focus your fire on it'],
+      ['<kbd>E</kbd>', 'use: a downed teammate, loot site or supply crate right beside you first, else what is under the cursor, else the nearest thing. A downed teammate: revive them (stay close until the bar fills) · a loot site: search it · a damaged structure: repair · the armory: shop · a creep: focus your fire on it'],
       ['Right-click', "on a creep: focus fire on it; elsewhere: the weapon's signature, at the cursor"],
       ['<kbd>Shift</kbd> <kbd>F</kbd> <kbd>Q</kbd>', 'abilities: grenade, dash, airstrike; aim with the cursor, then left-click to cast, right-click or Esc cancels'],
       ['<kbd>Alt</kbd> + left-click, or <kbd>Z</kbd> then click', 'ping the spot for the whole team, in the world or on the map: on a creep it warns, on a loot site it marks loot, on a structure it calls to defend it'],
