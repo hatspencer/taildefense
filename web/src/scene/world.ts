@@ -152,8 +152,8 @@ export class World {
   // onProgress hears how far it is, 0..1.
   async warm(onProgress?: (f: number) => void): Promise<void> {
     const scene = this.scene;
-    // One object for each material and kind of geometry: the rest share its shaders. A small
-    // instanced mesh writes its instance count into its shader, so that counts too.
+    // One object for each material and kind of geometry: the rest share its shaders. Three
+    // builds every instanced mesh shaders of its own, so each of those is drawn.
     const reps: THREE.Object3D[] = [], seen = new Set<string>();
     const drawn: [THREE.Object3D, boolean, boolean][] = [];
     scene.traverse((o) => {
@@ -163,7 +163,7 @@ export class World {
       const mats = Array.isArray(m.material) ? m.material : [m.material];
       const g = m.geometry, inst = o as THREE.InstancedMesh;
       const key = [o.type, mats.map((x) => x.uuid).join(','), Object.keys(g.attributes).sort().join(','), g.index ? 'i' : '',
-        inst.isInstancedMesh ? `${inst.instanceMatrix.count}${inst.instanceColor ? 'c' : ''}` : '', o.castShadow, o.receiveShadow].join('|');
+        inst.isInstancedMesh ? inst.uuid : '', o.castShadow, o.receiveShadow].join('|');
       if (!seen.has(key)) { seen.add(key); reps.push(o); }
     });
     const BATCH = 12;

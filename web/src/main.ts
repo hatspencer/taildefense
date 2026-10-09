@@ -264,6 +264,8 @@ async function main(): Promise<void> {
     input.update(dt, W, H);
     rig.update(dt);
     world.followSun(rig.tx, rig.tz, rig.span());
+    // Not while the shaders warm: every prop has to be drawn once for that.
+    if (warm === 2) terrain.cull(world.camera);
     weather.update(game, dt, world.camera, rig.tx, rig.tz, rig.dist);
     world.setFog(rig.dist);
     if (wd) {

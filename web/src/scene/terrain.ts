@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { color, dot, floor, fract, mix, normalWorld, positionWorld, sin, smoothstep, time, vec2, vec3, vertexColor, float } from 'three/tsl';
 import { Tile } from '../protocol';
-import { box, cone, cyl, dodeca, instanceCap, merge, part, setEmissive, writeMatrix } from './util';
+import { box, cone, cyl, dodeca, merge, part, setEmissive, writeMatrix } from './util';
 import { uSnow, uWet } from './weather';
 
 function hash(x: number, y: number, s = 0): number {
@@ -24,12 +24,19 @@ function texelNoise(perTile: number, seed: number) {
 
 export const WATER_Y = -0.24;
 
-// One prop's instances over the whole map, built in blocks of it so those out of view, or out
-// of the sun's shadow frustum, are skipped rather than drawn.
-const BLOCK = 32;
+// One prop's instances over the whole map, sorted into blocks of it. Only the blocks in view,
+// or near enough to throw a shadow into it, are packed into the mesh and drawn. One mesh per
+// prop rather than one per block: three builds every instanced mesh its own shaders, so a
+// mesh per block meant a burst of shader builds whenever zooming out brought new blocks in.
+const BLOCK = 32, REACH = 3, TALL = 4;
 class Scatter {
   private mats: number[] = []; private cols: number[] = []; private keys: number[] = [];
   private m = new Float32Array(16);
+  private mesh: THREE.InstancedMesh | null = null;
+  private allM = new Float32Array(0); private allC: Float32Array | null = null;
+  // Per block: its first instance, its end, and its box grown by how far a shadow reaches.
+  private blocks: { from: number; to: number; box: THREE.Box3 }[] = [];
+  private shown = '';
 
   add(x: number, z: number, heading: number, s: number, sy = s, col?: number[]): void {
     writeMatrix(this.m, 0, x, 0, z, heading, s, sy);
@@ -39,24 +46,53 @@ class Scatter {
   }
 
   build(group: THREE.Group, geo: THREE.BufferGeometry, mat: THREE.Material, shadow: boolean): void {
-    const blocks = new Map<number, number[]>();
-    this.keys.forEach((k, i) => { let l = blocks.get(k); if (!l) blocks.set(k, l = []); l.push(i); });
+    const n = this.keys.length;
+    if (!n) return;
+    const order = [...this.keys.keys()].sort((a, b) => this.keys[a] - this.keys[b]);
     const tinted = this.cols.length > 0;
-    for (const list of blocks.values()) {
-      const cap = instanceCap(list.length);
-      const m = new THREE.InstancedMesh(geo, mat, cap);
-      m.count = list.length;
-      m.castShadow = shadow; m.receiveShadow = true;
-      const a = m.instanceMatrix.array as Float32Array;
-      const c = tinted ? new Float32Array(cap * 3) : null;
-      list.forEach((i, j) => {
-        for (let e = 0; e < 16; e++) a[j * 16 + e] = this.mats[i * 16 + e];
-        if (c) for (let e = 0; e < 3; e++) c[j * 3 + e] = this.cols[i * 3 + e];
-      });
-      if (c) m.instanceColor = new THREE.InstancedBufferAttribute(c, 3);
-      m.computeBoundingSphere();
-      group.add(m);
+    this.allM = new Float32Array(n * 16);
+    this.allC = tinted ? new Float32Array(n * 3) : null;
+    order.forEach((i, j) => {
+      for (let e = 0; e < 16; e++) this.allM[j * 16 + e] = this.mats[i * 16 + e];
+      if (this.allC) for (let e = 0; e < 3; e++) this.allC[j * 3 + e] = this.cols[i * 3 + e];
+      const k = this.keys[i];
+      if (j === 0 || this.keys[order[j - 1]] !== k) {
+        const bx = Math.floor(k / 1024) * BLOCK, bz = (k - Math.floor(k / 1024) * 1024) * BLOCK;
+        this.blocks.push({ from: j, to: j, box: new THREE.Box3(new THREE.Vector3(bx - REACH, 0, bz - REACH), new THREE.Vector3(bx + BLOCK + REACH, TALL, bz + BLOCK + REACH)) });
+      }
+      this.blocks[this.blocks.length - 1].to = j + 1;
+    });
+    this.mats = []; this.cols = []; this.keys = [];
+    const m = new THREE.InstancedMesh(geo, mat, n);
+    m.castShadow = shadow; m.receiveShadow = true;
+    // Culled here, block by block, for the view and the sun's frustum at once.
+    m.frustumCulled = false;
+    (m.instanceMatrix.array as Float32Array).set(this.allM);
+    if (this.allC) m.instanceColor = new THREE.InstancedBufferAttribute(this.allC.slice(), 3);
+    group.add(m);
+    this.mesh = m;
+  }
+
+  // Packs the blocks the frustum touches to the front of the mesh, when that set changes.
+  cull(fr: THREE.Frustum): void {
+    const m = this.mesh;
+    if (!m) return;
+    let shown = '';
+    for (let b = 0; b < this.blocks.length; b++) if (fr.intersectsBox(this.blocks[b].box)) shown += b + ',';
+    if (shown === this.shown) return;
+    this.shown = shown;
+    const a = m.instanceMatrix.array as Float32Array, c = m.instanceColor?.array as Float32Array | undefined;
+    let n = 0;
+    for (const b of shown.split(',')) {
+      if (!b) continue;
+      const { from, to } = this.blocks[+b];
+      a.set(this.allM.subarray(from * 16, to * 16), n * 16);
+      if (c && this.allC) c.set(this.allC.subarray(from * 3, to * 3), n * 3);
+      n += to - from;
     }
+    m.count = n;
+    m.instanceMatrix.clearUpdateRanges(); m.instanceMatrix.addUpdateRange(0, n * 16); m.instanceMatrix.needsUpdate = true;
+    if (m.instanceColor) { m.instanceColor.clearUpdateRanges(); m.instanceColor.addUpdateRange(0, n * 3); m.instanceColor.needsUpdate = true; }
   }
 }
 
@@ -77,6 +113,8 @@ function propMaterial(): THREE.MeshLambertNodeMaterial {
 export class Terrain {
   group = new THREE.Group();
   private disposables: { dispose(): void }[] = [];
+  private scatters: Scatter[] = [];
+  private frustum = new THREE.Frustum(); private pv = new THREE.Matrix4();
 
   constructor(scene: THREE.Scene) {
     scene.add(this.group);
@@ -85,6 +123,7 @@ export class Terrain {
   clear(): void {
     for (const d of this.disposables) d.dispose();
     this.disposables = [];
+    this.scatters = [];
     this.group.clear();
   }
 
@@ -95,6 +134,13 @@ export class Terrain {
     this.buildTrees(tiles, w, h);
     this.buildRocks(tiles, w, h);
     this.buildScrub(tiles, w, h);
+  }
+
+  // Per frame, before drawing: the props in view, and those that shadow it, only.
+  cull(cam: THREE.Camera): void {
+    cam.updateMatrixWorld();
+    this.frustum.setFromProjectionMatrix(this.pv.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
+    for (const sc of this.scatters) sc.cull(this.frustum);
   }
 
   private tileHeight(t: number, x: number, y: number): number {
@@ -224,6 +270,7 @@ export class Terrain {
         s, s * (0.85 + hash(x, y, 6) * 0.35), [b * a[0], b * a[1], b * a[2]]);
     }
     kinds.forEach((g, k) => scatters[k].build(this.group, g, mat, true));
+    this.scatters.push(...scatters);
     this.disposables.push(geoPine, geoRound, mat);
   }
 
@@ -259,6 +306,7 @@ export class Terrain {
         place(sc, x, y, [b, b * 0.98, b * 0.94]);
       }
       sc.build(this.group, geo, mat, true);
+      this.scatters.push(sc);
     };
     make(wallGeo, walls, (sc, x, y, col) => {
       // Ruins are broken: each block has its own height, but never low enough to look like
@@ -303,6 +351,7 @@ export class Terrain {
         sc.add(x + 0.2 + hash(x, y, 33) * 0.6, y + 0.2 + hash(x, y, 34) * 0.6, hash(x, y, 35) * 6.28, s);
       }
       sc.build(this.group, geo, mat, false);
+      this.scatters.push(sc);
     });
     this.disposables.push(bush, weeds, mat);
   }
