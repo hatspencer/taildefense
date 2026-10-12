@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { color, positionWorld, sin, time } from 'three/tsl';
-import { propKind, type SiteDef, SiteKind, siteX, siteY, walled, wreck } from '../protocol';
+import { lootable, propKind, type SiteDef, SiteKind, siteX, siteY, walled, wreck } from '../protocol';
 import type { Game } from '../state';
 import { box, cyl, lin, merge, octa, part, writeMatrix, type Part } from './util';
 
@@ -13,7 +13,7 @@ function hash(i: number, s: number): number {
 // Car paint, faded: tints over a light grey body.
 const PAINT = [0x7d8c99, 0x8f5a48, 0x6d7a58, 0xb2a88c, 0x9a9890, 0x5e6a78];
 const CAR_BODY = 0xc8c8c8;
-const GLINT_Y = [1.65, 1.35, 1.05, 1.35, 1.45, 1.8, 1.85, 1.85, 1.75, 0];
+const GLINT_Y = [1.65, 1.35, 1.05, 1.35, 1.45, 1.8, 1.85, 1.85, 1.75, 0, 1.75, 1.55, 1.85, 0.9, 3.4, 0];
 
 // Props face +x and stand on y = 0. Each kind comes closed (still worth a search) and opened.
 function houseProp(open: boolean): Part[] {
@@ -389,10 +389,233 @@ function canopy(sites: SiteDef[]): THREE.BufferGeometry | null {
   return merge(p);
 }
 
+// A fire engine: red, a white band, the ladder racked on the roof and lockers down the side.
+function fireProp(open: boolean): Part[] {
+  const red = 0xa8281e, white = 0xd8d4c6, dark = 0x24282a, steel = 0x9a9a92;
+  const p: Part[] = [
+    part(box(0.7, 0.84, 1.02), red, 1.06, 0.62, 0),
+    part(box(0.03, 0.3, 0.9), dark, 1.415, 0.84, 0),
+    part(box(0.5, 0.3, 1.04), dark, 1.05, 0.84, 0),
+    part(box(2.2, 0.86, 1.04), red, -0.38, 0.63, 0),
+    part(box(2.92, 0.08, 1.06), white, 0, 0.5, 0),
+    part(box(0.6, 0.08, 0.3), 0x3a5ac8, 1.05, 1.08, 0),
+    part(box(0.08, 0.14, 1.04), steel, 1.44, 0.3, 0),
+    // The ladder on the roof, its rails and rungs.
+    part(box(2.6, 0.05, 0.05), steel, -0.25, 1.14, 0.22),
+    part(box(2.6, 0.05, 0.05), steel, -0.25, 1.14, -0.22),
+    ...[-1.3, -0.9, -0.5, -0.1, 0.3, 0.7].map((x) => part(box(0.04, 0.04, 0.44), steel, x + 0.25, 1.14, 0)),
+    // Hose reel on the back, rust down the flank.
+    part(cyl(0.24, 0.24, 0.3, 10), 0xc8b674, -1.48, 0.62, 0, 0, 0, Math.PI / 2),
+    part(box(0.5, 0.24, 0.02), 0x6a3a22, -0.6, 0.36, 0.525),
+    tyre(1.0, 0.48, 0.22), tyre(1.0, -0.48, 0.22), tyre(-0.95, 0.48, 0.22), tyre(-0.95, -0.48, 0.22),
+  ];
+  // Lockers: shut, or rolled up on emptied shelves with a coat of hose on the ground.
+  for (const x of [-1.15, -0.55, 0.05]) {
+    if (open) p.push(part(box(0.5, 0.56, 0.02), 0x1e1c1a, x, 0.68, 0.522), part(box(0.48, 0.03, 0.06), steel, x, 0.6, 0.5));
+    else p.push(part(box(0.5, 0.56, 0.02), 0xb8b8b0, x, 0.68, 0.522), part(box(0.1, 0.03, 0.02), dark, x, 0.5, 0.535));
+  }
+  if (open) p.push(
+    part(cyl(0.3, 0.3, 0.08, 10), 0xc8b674, 0.1, 0.04, 0.95),
+    part(box(0.22, 0.2, 0.14), 0xb8302a, -0.5, 0.1, 0.85, 0, 0.5, 0),
+  );
+  return p;
+}
+
+// An armoured cash van: squat, grey, slits for windows and heavy doors at the back.
+function armoredProp(open: boolean): Part[] {
+  const grey = 0x6a7076, dark = 0x22262a, steel = 0x8a8e90;
+  const p: Part[] = [
+    part(box(0.5, 0.5, 0.98), grey, 0.8, 0.5, 0),
+    part(box(0.03, 0.12, 0.8), dark, 1.06, 0.66, 0),
+    part(box(1.66, 0.96, 1.0), grey, -0.24, 0.68, 0),
+    part(box(1.68, 0.06, 1.02), 0x2a5a3a, -0.24, 0.58, 0),
+    part(box(0.3, 0.06, 0.02), dark, 0.3, 0.9, 0.505),
+    part(box(0.3, 0.06, 0.02), dark, 0.3, 0.9, -0.505),
+    part(box(0.08, 0.16, 1.0), 0x3a3e40, 1.06, 0.3, 0),
+    part(box(1.0, 0.02, 0.6), 0x4a4e52, -0.3, 1.17, 0),
+    tyre(0.7, 0.46, 0.2), tyre(0.7, -0.46, 0.2), tyre(-0.75, 0.46, 0.2), tyre(-0.75, -0.46, 0.2),
+  ];
+  if (open) p.push(
+    // The back doors cut and hanging open on an empty strongroom; bags and coins in the dirt.
+    part(box(0.02, 0.86, 0.92), 0x141618, -1.075, 0.68, 0),
+    part(box(0.46, 0.84, 0.05), steel, -1.3, 0.68, 0.66, 0, -1.25, 0),
+    part(box(0.46, 0.84, 0.05), steel, -1.3, 0.68, -0.66, 0, 1.25, 0),
+    part(box(0.26, 0.2, 0.2), 0x8a8060, -1.6, 0.1, 0.2, 0, 0.4, 0),
+    part(box(0.2, 0.16, 0.18), 0x8a8060, -1.5, 0.08, -0.35, 0, -0.6, 0),
+    part(box(0.3, 0.02, 0.3), 0xd8b84a, -1.85, 0.01, -0.05),
+  );
+  else p.push(
+    part(box(0.03, 0.84, 0.94), steel, -1.075, 0.68, 0),
+    part(box(0.04, 0.84, 0.02), dark, -1.09, 0.68, 0),
+    part(box(0.05, 0.08, 0.2), 0xc8b674, -1.1, 0.68, 0.12),
+  );
+  return p;
+}
+
+// A camper van: cream with a brown stripe, the bunk over the cab, curtains drawn.
+function camperProp(open: boolean): Part[] {
+  const cream = 0xd8d0b4, brown = 0x7a5034, dark = 0x24282a;
+  const p: Part[] = [
+    part(box(0.5, 0.56, 1.0), cream, 1.0, 0.48, 0),
+    part(box(0.03, 0.26, 0.86), dark, 1.255, 0.66, 0, 0, 0, 0.25),
+    part(box(1.96, 1.12, 1.04), cream, -0.24, 0.82, 0),
+    part(box(0.62, 0.42, 1.04), cream, 0.98, 1.17, 0),
+    part(box(2.6, 0.12, 1.06), brown, 0.06, 0.66, 0),
+    part(box(0.36, 0.26, 0.02), 0x5a6a5a, -0.6, 1.02, 0.525),
+    part(box(0.36, 0.26, 0.02), 0x5a6a5a, -0.6, 1.02, -0.525),
+    part(box(0.3, 0.22, 0.02), 0x5a6a5a, 0.2, 1.02, -0.525),
+    part(box(0.5, 0.06, 0.4), 0x9a968a, -0.7, 1.41, 0),
+    part(box(0.08, 0.14, 1.0), 0x6a6a64, 1.26, 0.3, 0),
+    part(box(0.6, 0.3, 0.02), 0x6a3a22, -1.0, 0.5, -0.525),
+    tyre(0.8, 0.46, 0.2), tyre(0.8, -0.46, 0.2), tyre(-0.75, 0.46, 0.2), tyre(-0.75, -0.46, 0.2),
+  ];
+  if (open) p.push(
+    // The door off its hinges, the awning torn down, a mattress and a cooler dragged out.
+    part(box(0.36, 0.86, 0.02), 0x1a1a18, 0.2, 0.74, 0.525),
+    part(box(0.04, 0.86, 0.36), cream, 0.55, 0.1, 0.95, 0, 0.3, Math.PI / 2),
+    part(box(1.2, 0.04, 0.5), 0x8a6a3a, -0.4, 0.82, 0.85, -0.7, 0, 0),
+    part(box(0.9, 0.12, 0.55), 0x8a7a98, -0.6, 0.06, 1.3, 0, 0.3, 0),
+    part(box(0.3, 0.22, 0.2), 0x2a6aa0, 0.6, 0.11, 1.5, 0, -0.4, 0),
+  );
+  else p.push(
+    part(box(0.36, 0.86, 0.02), 0xc4bca0, 0.2, 0.74, 0.525),
+    part(box(1.2, 0.06, 0.12), brown, -0.4, 1.3, 0.56),
+  );
+  return p;
+}
+
+// A motorbike lying on its side, panniers strapped behind the seat. Paint-tinted.
+function motoProp(open: boolean): Part[] {
+  const dark = 0x1c1c1c, chrome = 0x9a9a92;
+  const wheel = (x: number) => part(cyl(0.24, 0.24, 0.08, 10), dark, x, 0.08, 0);
+  const p: Part[] = [
+    wheel(0.42), wheel(-0.42),
+    part(box(0.5, 0.18, 0.2), CAR_BODY, 0.06, 0.16, -0.06),
+    part(box(0.34, 0.1, 0.16), 0x2a2622, -0.22, 0.2, -0.04),
+    part(box(0.5, 0.05, 0.05), chrome, 0.18, 0.12, 0.08, 0, 0, -0.4),
+    part(box(0.05, 0.05, 0.5), chrome, 0.46, 0.3, -0.15),
+    part(box(0.5, 0.06, 0.06), chrome, -0.2, 0.06, 0.12),
+  ];
+  if (open) p.push(
+    // Panniers ripped open, a helmet rolled off.
+    part(box(0.24, 0.1, 0.2), 0x3a2a1a, -0.4, 0.05, -0.3, 0, 0.6, 0),
+    part(box(0.22, 0.02, 0.18), 0x2a1e14, -0.62, 0.01, -0.5, 0, 0.3, 0),
+    part(octa(0.14), 0x8a2a20, 0.3, 0.12, -0.55),
+  );
+  else p.push(
+    part(box(0.26, 0.2, 0.22), 0x4a3422, -0.38, 0.14, -0.12),
+    part(octa(0.14), 0x8a2a20, -0.1, 0.32, -0.2),
+  );
+  return p;
+}
+
+// Turns lx, lz about the origin by a, the way the server turns its frames (+x towards +z).
+function turn(lx: number, lz: number, a: number): [number, number] {
+  const c = Math.cos(a), s = Math.sin(a);
+  return [lx * c - lz * s, lx * s + lz * c];
+}
+
+// The crashed plane, in the server's frame (game/plane.go): the hull along x with its nose at
+// +x and its back broken at -x, the tail section thrown behind it, one wing on, the other in
+// pieces, and the scar it burnt into the ground.
+const TAIL_X = -9.1, TAIL_Z = 1.6, TAIL_TURN = 0.5;
+function planeProp(open: boolean): Part[] {
+  const skin = 0x8e928c, belly = 0x6a6e68, stripe = 0x3a4a6a, dark = 0x1e2022, burnt = 0x2a2420, scorch = 0x3a3428, soot = 0x26221e;
+  const p: Part[] = [];
+  // The scar: overlapping patches of scorched earth along the line it came down on.
+  const scar = [[-14, 0, 3, 1.6, 0.3], [-11, 0.8, 3.4, 2, 1.1], [-8, -0.6, 4, 2.4, 0.5], [-5.5, 2.2, 3, 2.2, 1.3], [-1, 3, 3.6, 2.4, 0.2],
+    [2, -2.8, 3.2, 2.2, 0.9], [6.5, 1, 3, 2.4, 0.4], [7.5, -1.6, 2.4, 1.8, 1.2], [-3, -6, 3, 2, 0.6], [0.5, 5.6, 2.6, 2, -0.4], [-6.5, -3, 2.4, 1.6, 0.2]];
+  scar.forEach(([x, z, w, d, a], i) => p.push(part(box(w, 0.02, d), i % 3 ? scorch : soot, x, 0.012 + i * 0.001, z, 0, a, 0)));
+  // The hull, its belly crushed into the dirt, a stripe down each side.
+  p.push(
+    part(box(9.7, 2.0, 2.2), skin, -0.65, 1.2, 0),
+    part(box(9.7, 0.4, 2.0), belly, -0.65, 0.2, 0),
+    part(box(9.72, 0.14, 2.22), stripe, -0.65, 1.55, 0),
+    part(box(9.0, 0.3, 1.6), skin, -0.9, 2.3, 0),
+    ...[-4, -2.8, -1.6, -0.4, 0.8, 2.0, 3.2].map((x) => part(box(0.28, 0.24, 2.24), 0x3a4048, x, 1.85, 0)),
+    // The nose, dipped into the ground, and the cockpit glass.
+    part(box(1.5, 1.7, 2.0), skin, 4.8, 1.0, 0, 0, 0, -0.18),
+    part(box(0.8, 1.1, 1.6), skin, 5.55, 0.75, 0, 0, 0, -0.35),
+    part(box(0.6, 0.36, 1.7), dark, 5.0, 1.75, 0, 0, 0, -0.5),
+    // The broken end: jagged ribs round a dark hole.
+    part(box(0.05, 1.9, 2.0), 0x141414, -5.49, 1.2, 0),
+    ...[[0.7, -0.5], [1.6, 0.4], [2.2, -0.2], [0.4, 0.8]].map(([y, z], i) => part(box(0.5 + (i % 2) * 0.3, 0.12, 0.1), belly, -5.6, y, z, 0.3 * i, 0.4, 0.2)),
+    // The wing still on: high on the hull, drooping to the ground at its tip; its root stub.
+    part(box(2.4, 0.2, 6.6), skin, 0.4, 1.7, 4.2, 0.22, 0, 0),
+    part(box(2.42, 0.06, 0.4), stripe, 0.4, 1.86, 2.0, 0.22, 0, 0),
+    part(box(2.2, 0.2, 2.0), skin, 0.4, 2.15, -1.9, -0.15, 0, 0),
+    part(box(1.6, 0.22, 0.9), burnt, 0.6, 2.05, -3.0, -0.4, 0.3, 0.2),
+    // What is left of the other wing, lying out on its own.
+    part(box(2.1, 0.18, 4.6), skin, -3.5, 0.18, -8.3, 0.08, 0.7, 0),
+    part(box(2.12, 0.04, 0.5), stripe, -3.5, 0.29, -6.4, 0.08, 0.7, 0),
+    // Soot where it burnt: over the hull, along the wing, round the break.
+    part(box(2.6, 0.04, 1.4), soot, -3.6, 2.46, 0.1, 0, 0.2, 0),
+    part(box(1.6, 0.04, 1.2), burnt, 1.6, 2.46, -0.2, 0, -0.3, 0),
+    part(box(1.4, 0.06, 2.2), soot, 0.2, 1.62, 5.4, 0.22, 0.2, 0),
+    part(box(0.06, 1.2, 1.6), soot, -5.2, 1.1, 1.11, 0, 0, 0),
+    part(box(1.6, 1.0, 0.04), burnt, -4.4, 1.3, -1.11),
+  );
+  // The tail section, turned off the hull's line: a tapering cone, the fin and the tailplane.
+  const tail = (lx: number, y: number, lz: number, g: THREE.BufferGeometry, col: number, rx = 0, rz = 0) => {
+    const [ox, oz] = turn(lx, lz, TAIL_TURN);
+    p.push(part(g, col, TAIL_X + ox, y, TAIL_Z + oz, rx, -TAIL_TURN, rz));
+  };
+  tail(0.6, 0.95, 0, box(3.2, 1.7, 1.8), skin);
+  tail(-1.4, 1.05, 0, box(1.4, 1.2, 1.2), skin, 0, 0.25);
+  tail(0.6, 1.3, 0, box(3.22, 0.12, 1.82), stripe);
+  tail(2.2, 0.95, 0, box(0.05, 1.6, 1.7), 0x141414);
+  tail(-1.5, 2.6, 0, box(1.8, 2.6, 0.18), skin, 0, -0.35);
+  tail(-1.7, 3.2, 0, box(1.0, 0.8, 0.2), 0xb02a24, 0, -0.35);
+  tail(-1.6, 1.5, 0, box(1.1, 0.12, 3.8), skin);
+  // Debris: panels, seats and cargo strewn along the scar.
+  const junk = [[-12, 1.5, 0.6], [-11, -2, 1.1], [7, 3, 0.4], [7.5, -2.5, 2.2], [3, -5, 0.9], [-6.5, 4.5, 1.7], [9, 0.5, 2.8], [-7, -4.5, 0.3]];
+  junk.forEach(([x, z, a], i) => p.push(part(box(0.9 - (i % 3) * 0.2, 0.06, 0.6), i % 2 ? skin : burnt, x, 0.04, z, 0.1, a, 0.05)));
+  p.push(
+    part(box(0.5, 0.5, 0.5), 0x4a5a6a, -11.5, 0.25, -0.5, 0, 0.4, 0),
+    part(box(0.5, 0.06, 0.5), 0x4a5a6a, -11.4, 0.6, -0.4, 0.5, 0.4, 0),
+  );
+  // The hold, seen through the break: cargo cases strapped in, or broken open and scattered.
+  if (open) p.push(
+    part(box(0.8, 0.5, 0.6), 0x4e5a34, -6.4, 0.25, 0.6, 0, 0.5, 0),
+    part(box(0.76, 0.02, 0.56), 0x1a1c14, -6.4, 0.51, 0.6, 0, 0.5, 0),
+    part(box(0.8, 0.06, 0.6), 0x445030, -6.9, 0.04, -0.6, 0, 1.2, 0),
+    part(box(0.7, 0.44, 0.5), 0x7a6040, -7.4, 0.22, 0.3, 0, -0.4, 0),
+    part(box(0.3, 0.2, 0.4), 0x2a2a28, -6.0, 0.1, -1.4, 0, 0.9, 0),
+  );
+  else p.push(
+    part(box(1.4, 0.7, 1.6), 0x4e5a34, -4.5, 0.75, 0),
+    part(box(1.42, 0.08, 1.62), 0xc8b674, -4.5, 0.95, 0),
+    part(box(1.0, 0.6, 1.2), 0x6a6a5a, -3.0, 0.7, 0),
+    part(box(0.8, 0.5, 0.6), 0x4e5a34, -5.9, 0.25, 0.4, 0, 0.3, 0),
+  );
+  return p;
+}
+
+// One of the plane's engines on the ground: a nacelle, its propeller bent back, fuel pooling
+// under it. Blown: a burnt-out shell.
+function engineProp(open: boolean): Part[] {
+  const skin = 0xa8aca6, dark = 0x2a2a2a;
+  const p: Part[] = [part(box(1.9, 0.02, 1.4), 0x24201a, -0.2, 0.012, 0.1, 0, 0.3, 0)];
+  if (open) p.push(
+    part(cyl(0.46, 0.5, 1.6, 8), 0x1e1c1a, -0.1, 0.44, 0, 0.2, 0, Math.PI / 2),
+    part(box(0.6, 0.3, 0.7), 0x2a2420, 0.5, 0.2, 0.3, 0.4, 0.6, 0.3),
+    part(box(0.9, 0.04, 0.2), dark, 0.9, 0.06, -0.5, 0, 0.9, 0),
+  );
+  else p.push(
+    part(cyl(0.48, 0.55, 1.9, 10), skin, 0, 0.55, 0, 0, 0, Math.PI / 2),
+    part(cyl(0.3, 0.3, 0.2, 8), dark, 0.98, 0.55, 0, 0, 0, Math.PI / 2),
+    part(box(0.12, 1.4, 0.16), dark, 1.1, 0.55, 0.1, 0.5, 0, -0.4),
+    part(box(0.12, 0.9, 0.16), dark, 1.1, 0.4, -0.35, -1.6, 0, 0.3),
+    part(box(1.0, 0.3, 0.6), skin, -0.2, 1.05, 0, 0, 0, 0.1),
+    part(box(1.1, 0.02, 0.8), 0x4a3a5a, -0.5, 0.02, 0.5, 0, 0.5, 0),
+  );
+  return p;
+}
+
 // Indexed by propKind.
-const PROPS = [houseProp, carProp, crateProp, pickupProp, policeProp, ambulanceProp, busProp, armyProp, counterProp, pumpProp];
+const PROPS = [houseProp, carProp, crateProp, pickupProp, policeProp, ambulanceProp, busProp, armyProp, counterProp, pumpProp, fireProp, armoredProp, camperProp, motoProp, planeProp, engineProp];
 // Wrecks that take a coat of faded paint.
-const PAINTED = new Set<number>([SiteKind.Car, SiteKind.Pickup]);
+const PAINTED = new Set<number>([SiteKind.Car, SiteKind.Pickup, SiteKind.Moto]);
 
 // Loot sites: a prop per site, instanced per kind and state, and a pulsing glint over the
 // ones nobody has searched yet.
@@ -433,8 +656,8 @@ export class Loot {
       this.roof.castShadow = true; this.roof.receiveShadow = true;
       this.group.add(this.roof);
     }
-    // The pumps face the road: away from the shop.
-    const shop = sites.find((s) => s.kind === SiteKind.Station);
+    // The pumps face the road: away from the shop. The plane's engines lie along its line.
+    const shop = sites.find((s) => s.kind === SiteKind.Station), plane = sites.find((s) => s.kind === SiteKind.Plane);
     this.sites = sites;
     this.sig = '';
     const n = sites.length;
@@ -446,6 +669,11 @@ export class Loot {
         this.px[i] = s.sx; this.pz[i] = s.sy;
         const dx = shop ? s.sx - (shop.x + shop.w / 2) : 1, dz = shop ? s.sy - (shop.y + shop.h / 2) : 0;
         this.yaw[i] = Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 0 : Math.PI) : (dz > 0 ? Math.PI / 2 : -Math.PI / 2);
+        return;
+      }
+      if (s.kind === SiteKind.Plane || s.kind === SiteKind.Tank) {
+        this.px[i] = s.sx; this.pz[i] = s.sy;
+        this.yaw[i] = (plane?.yaw ?? 0) + (s.kind === SiteKind.Tank ? (hash(i, 1) - 0.5) * 1.2 : 0);
         return;
       }
       if (!walled(s.kind)) {
@@ -514,7 +742,7 @@ export class Loot {
     const t = now / 1000, a = this.glints.instanceMatrix.array as Float32Array;
     let n = 0;
     for (let i = 0; i < this.sites.length; i++) {
-      if (f.siteSearched(i) || this.sites[i].kind === SiteKind.Pump) continue;
+      if (f.siteSearched(i) || !lootable(this.sites[i].kind)) continue;
       const k = propKind(this.sites[i].kind), ph = hash(i, 5) * 6.28;
       const s = 1 + 0.18 * Math.sin(t * 3.2 + ph);
       writeMatrix(a, n++ * 16, this.px[i], (GLINT_Y[k] ?? 1.2) + Math.sin(t * 1.8 + ph) * 0.08, this.pz[i], t * 1.5 + ph, s, s * 1.6);

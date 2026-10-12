@@ -374,7 +374,7 @@ async function main(): Promise<void> {
         x = game.rx[i]; y = game.ry[i]; r = (wd.creeps[f.cKind[i]]?.radius ?? 0.45) + 0.25; col = 0xff4030;
       } else if (p.t === 'site') {
         const s = wd.sites[p.id];
-        x = siteX(s); y = siteY(s); r = s.kind === SiteKind.Bus ? 1.7 : s.kind === SiteKind.Army || s.kind === SiteKind.Ambulance ? 1.3 : wreck(s.kind) ? 1.05 : 0.85; col = f.siteSearched(p.id) ? 0xa0a098 : 0xffd040;
+        x = siteX(s); y = siteY(s); r = s.kind === SiteKind.Plane ? 6.2 : s.kind === SiteKind.Bus ? 1.7 : s.kind === SiteKind.Army || s.kind === SiteKind.Ambulance || s.kind === SiteKind.Fire || s.kind === SiteKind.Camper ? 1.3 : s.kind === SiteKind.Moto ? 0.7 : wreck(s.kind) ? 1.05 : 0.85; col = f.siteSearched(p.id) ? 0xa0a098 : 0xffd040;
       } else if (p.t === 'hero') {
         x = game.prx[p.id]; y = game.pry[p.id]; r = 0.75; col = p.id === wd.you ? 0x50ff70 : 0x50c0ff;
       } else {

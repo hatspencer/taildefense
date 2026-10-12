@@ -323,6 +323,8 @@ func (w *World) spawnGuards(si int) {
 			var x, y float32
 			if s.Kind == SiteStation {
 				x, y = w.stationPost(s, j)
+			} else if s.Kind == SitePlane {
+				x, y = w.planePost(s)
 			} else if lv == 4 && j == 0 {
 				x, y = s.SX, s.SY
 			} else if s.Kind.Walled() {

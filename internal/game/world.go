@@ -279,6 +279,10 @@ type World struct {
 	stall      float32 // seconds since a creep of the wave last died, once all are out
 	waveLeft   int     // creeps of the wave alive at the last count
 	SpawnPts   [][2]float32
+	edgePts    [][2]float32 // the places along the edge a wave's fronts come in by (fronts.go)
+	lastFront  float64
+	fronted    bool
+	frontNames []string
 	Core       int // structure index of the generator
 	Armory     int
 	CoreX      float32
@@ -347,6 +351,7 @@ func NewGame(seed uint64, diff Difficulty) *World {
 		}
 	}
 	wd.SpawnPts = pts
+	wd.edgePts = wd.edgePoints()
 	wd.Sites = wd.placeSites(ruins)
 	for i := range wd.Sites {
 		if s := &wd.Sites[i]; s.Kind.Wreck() {
@@ -468,6 +473,8 @@ type ruin struct {
 	cx, cy     int
 	station    bool
 	pumps      [][2]int
+	plane      bool // the crashed plane, lying at yaw round cx, cy (plane.go)
+	yaw        float32
 }
 
 // generate is Generate, also returning the ruins it built.
@@ -552,6 +559,7 @@ func generate(seed uint64, w, h int) ([]Tile, []ruin) {
 		}
 	}
 	houses = gasStation(t, w, h, rng, roads, road, houses)
+	houses = planeCrash(t, w, h, rng, road, houses)
 	// A solid border, so nothing walks off the edge.
 	for x := 0; x < w; x++ {
 		t[x], t[(h-1)*w+x] = TRock, TRock

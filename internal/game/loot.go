@@ -23,6 +23,12 @@ const (
 	SiteArmy                      // an army truck far out, always guarded
 	SiteStation                   // the gas station out by the edge: a weapon behind its counter, held hard
 	SitePump                      // one of the gas station's fuel pumps: not loot, it blows up when shot
+	SiteFire                      // a fire engine: its lockers hold kit, and always a medkit
+	SiteArmored                   // an armoured cash van: slow to crack, full of gold, guarded
+	SiteCamper                    // a camper van somebody lived in, and maybe still does
+	SiteMoto                      // a motorbike on its side: a quick look in the panniers
+	SitePlane                     // the crashed cargo plane out in the wilds, held hard
+	SiteTank                      // one of the plane's engines, leaking fuel: not loot, it blows up when shot
 	NumSiteKinds
 )
 
@@ -33,6 +39,7 @@ const (
 	FavorNone Favor = iota
 	FavorWeapons
 	FavorGear
+	FavorGold
 )
 
 // SiteDef is a kind of loot site.
@@ -44,6 +51,7 @@ type SiteDef struct {
 	Favor  Favor   // the kind of find it leans towards
 	Finds  int     // finds a search turns up, 1 when 0
 	Heal   bool    // the search patches the searcher up to full health
+	Kit    bool    // the search turns up a medkit, if there is room for it
 	Guard  uint8   // the least guard level it is ever placed with
 }
 
@@ -60,13 +68,25 @@ var SiteDefs = [NumSiteKinds]SiteDef{
 	SiteArmy:      {Name: "Army truck", Search: 3.5, Luck: 1.25, Favor: FavorWeapons, Guard: 2},
 	SiteStation:   {Name: "Gas station", Search: 5, Luck: 1.5, Favor: FavorWeapons, Guard: 4},
 	SitePump:      {Name: "Fuel pump"},
+	SiteFire:      {Name: "Fire engine", Search: 3, Luck: .5, Favor: FavorGear, Kit: true},
+	SiteArmored:   {Name: "Armoured van", Search: 4.5, Luck: .75, Favor: FavorGold, Guard: 2},
+	SiteCamper:    {Name: "Camper van", Search: 3, Luck: .75, Trap: .25},
+	SiteMoto:      {Name: "Motorbike", Search: 1},
+	SitePlane:     {Name: "Crashed plane", Search: 6, Luck: 1.5, Favor: FavorGear, Guard: 4},
+	SiteTank:      {Name: "Engine"},
 }
 
 // Wreck reports whether a site is a vehicle on a road.
-func (k SiteKind) Wreck() bool { return k == SiteCar || k >= SitePickup && k <= SiteArmy }
+func (k SiteKind) Wreck() bool {
+	return k == SiteCar || k >= SitePickup && k <= SiteArmy || k >= SiteFire && k <= SiteMoto
+}
 
-// Lootable reports whether a site can be searched; a fuel pump is only there to blow up.
-func (k SiteKind) Lootable() bool { return k != SitePump }
+// Lootable reports whether a site can be searched; a fuel pump or a plane's engine is only
+// there to blow up.
+func (k SiteKind) Lootable() bool { return k != SitePump && k != SiteTank }
+
+// Explosive reports whether a site goes up when shot.
+func (k SiteKind) Explosive() bool { return k == SitePump || k == SiteTank }
 
 // wreckOdds is how often each kind of wreck turns up on the roads, by tier: plain cars and
 // pickups everywhere, the bus nearer town, the police and the army further out.
@@ -74,9 +94,9 @@ var wreckOdds = [3][]struct {
 	Kind SiteKind
 	Odds int
 }{
-	{{SiteCar, 50}, {SitePickup, 22}, {SiteBus, 16}, {SiteAmbulance, 12}},
-	{{SiteCar, 30}, {SitePickup, 20}, {SitePolice, 20}, {SiteAmbulance, 14}, {SiteBus, 10}, {SiteArmy, 6}},
-	{{SiteCar, 22}, {SitePickup, 14}, {SitePolice, 20}, {SiteAmbulance, 12}, {SiteBus, 8}, {SiteArmy, 24}},
+	{{SiteCar, 42}, {SitePickup, 20}, {SiteMoto, 16}, {SiteBus, 14}, {SiteAmbulance, 10}, {SiteCamper, 10}, {SiteFire, 4}},
+	{{SiteCar, 24}, {SitePickup, 16}, {SitePolice, 18}, {SiteAmbulance, 12}, {SiteBus, 8}, {SiteArmy, 6}, {SiteMoto, 10}, {SiteCamper, 10}, {SiteFire, 8}, {SiteArmored, 6}},
+	{{SiteCar, 16}, {SitePickup, 12}, {SitePolice, 18}, {SiteAmbulance, 10}, {SiteBus, 6}, {SiteArmy, 22}, {SiteMoto, 6}, {SiteCamper, 8}, {SiteFire, 8}, {SiteArmored, 12}},
 }
 
 // Walled reports whether a site is a building searched from inside, rather than a thing in
@@ -195,6 +215,9 @@ func (w *World) search(p *Player, si int) {
 	case SiteStation:
 		w.searchStation(p, s)
 		return
+	case SitePlane:
+		w.searchPlane(p, s)
+		return
 	}
 	r := Junk
 	var got []string
@@ -208,7 +231,7 @@ func (w *World) search(p *Player, si int) {
 		p.HP = p.MaxHP
 		what += ", and patched up with its kit"
 	}
-	if d.Heal && p.Medkits < medkitMax {
+	if (d.Heal || d.Kit) && p.Medkits < medkitMax {
 		p.Medkits++
 		what += ", and a medkit"
 	}
@@ -339,6 +362,11 @@ func (w *World) grant(p *Player, r Rarity, f Favor) string {
 	gold := func(g int32) string {
 		p.Gold += g
 		return fmt.Sprintf("%d gold", g)
+	}
+	if f == FavorGold && r < Jackpot {
+		// A cash van pays out in gold, more of it the better the find.
+		lo := [Jackpot]int{60, 140, 280, 520}
+		return gold(w.lootGold(lo[r], lo[r]*2))
 	}
 	switch r {
 	case Junk:
@@ -559,7 +587,7 @@ func (w *World) placeSites(ruins []ruin) []Site {
 		switch k {
 		case SiteOutpost:
 			g = 4
-		case SitePump:
+		case SitePump, SiteTank:
 			g = 0
 		}
 		g = max(g, SiteDefs[k].Guard)
@@ -574,6 +602,17 @@ func (w *World) placeSites(ruins []ruin) []Site {
 				add(SiteStation, x, y, hw, hh, sx, sy)
 				for _, p := range h.pumps {
 					add(SitePump, p[0], p[1], 1, 1, float32(p[0])+.5, float32(p[1])+.5)
+				}
+			}
+			continue
+		}
+		if h.plane {
+			// The plane is searched at its hull; its engines lie where the crash threw them.
+			if reach(sx, sy) || reach(sx, sy+2) || reach(sx, sy-2) {
+				add(SitePlane, x, y, hw, hh, sx, sy)
+				sites[len(sites)-1].Yaw = h.yaw
+				for _, e := range planeEngines(sx, sy, h.yaw) {
+					add(SiteTank, int(e[0]), int(e[1]), 1, 1, e[0], e[1])
 				}
 			}
 			continue
@@ -622,7 +661,8 @@ func (w *World) placeSites(ruins []ruin) []Site {
 // Ambushes: the hardest places hide more than the guards you can see. An outpost springs one
 // when someone first gets into its yard and another when they start on its keep; the gas
 // station when someone first steps onto its forecourt, out of the shop and from all round,
-// and again at its counter; a lair may spring one when its search starts. The ambushers come out of hiding round the survivor and
+// and again at its counter; the crashed plane when someone first walks into the wreckage, and
+// again at its hold; a lair may spring one when its search starts. The ambushers come out of hiding round the survivor and
 // go straight for them, and belong to the site afterwards, like its guards.
 
 // ambushOnEntry springs an outpost's first ambush on a survivor inside its walls.
@@ -639,13 +679,16 @@ func (w *World) ambushOnEntry(p *Player) {
 	if si := w.station(); si >= 0 && w.Sites[si].Sprung == 0 && !w.Sites[si].Searched && w.onForecourt(si, p) {
 		w.springAmbush(si, p)
 	}
+	if si := w.plane(); si >= 0 && w.Sites[si].Sprung == 0 && !w.Sites[si].Searched && w.atCrash(si, p) {
+		w.springAmbush(si, p)
+	}
 }
 
 // ambushOnSearch is a search of site si starting.
 func (w *World) ambushOnSearch(si int, p *Player) {
 	s := &w.Sites[si]
 	switch {
-	case (s.Kind == SiteOutpost || s.Kind == SiteStation) && s.Sprung < 2:
+	case (s.Kind == SiteOutpost || s.Kind == SiteStation || s.Kind == SitePlane) && s.Sprung < 2:
 		w.springAmbush(si, p)
 	case s.Guard == 3 && s.Sprung == 0 && w.rng.Float32() < .6:
 		w.springAmbush(si, p)
@@ -667,7 +710,7 @@ func (w *World) springAmbush(si int, p *Player) {
 			k = CWalker
 		case r < 5 && w.Wave >= 4:
 			k = CSpitter
-		case r == 5 && (s.Kind == SiteOutpost || s.Kind == SiteStation) && w.Wave >= 6:
+		case r == 5 && (s.Kind == SiteOutpost || s.Kind == SiteStation || s.Kind == SitePlane) && w.Wave >= 6:
 			k = CBrute
 		}
 		for try := 0; try < 12; try++ {
@@ -693,7 +736,7 @@ func (w *World) springAmbush(si int, p *Player) {
 			break
 		}
 	}
-	if s.Kind == SiteStation {
+	if s.Kind == SiteStation || s.Kind == SitePlane {
 		w.rouse(si, p)
 	}
 	if got == 0 {

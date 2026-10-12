@@ -144,7 +144,9 @@ the same thing to everyone.
 Outside the walls are ruined houses, wrecks and supply crates worth looting. The wrecks on the
 roads differ: a pickup's bed holds tools and gear, a police cruiser or an army truck guns (the
 army trucks are far out, and always guarded), an ambulance's kit patches you up, and a school
-bus is slow to search but gives two finds, if nothing is nesting in it. Wrecks lie along the
+bus is slow to search but gives two finds, if nothing is nesting in it. A fire engine's lockers
+always hold a medkit, an armoured cash van is slow to crack but pays out in gold, a camper van
+may still have somebody living in it, and a motorbike's panniers take a second. Wrecks lie along the
 roads and are solid: you walk round them, and search one from its side. A glint marks
 the ones nobody has searched yet. Press E on one to walk over and search it, which takes a few
 seconds and stops if you get hit. The further from the base, the better the loot, and searching
@@ -161,6 +163,11 @@ Far out are three overrun outposts: walled forts with a keep, held by a garrison
 warlord. They are hard going early on, and the stash inside is worth it: three finds, the first
 rare at least. The hardest sites spring ambushes, with creeps that burst out as you walk in or
 start searching.
+
+Out in the wilds lies a crashed cargo plane: the hull with its hold, the tail torn off behind it,
+a wing in pieces and a long burnt scar. A garrison sleeps in the wreckage, more come out when you
+walk in, and its leaking engines go up like the gas station's pumps when shot. The hold gives a
+field manual, a piece of kit and something rare or better.
 
 The dead also wander the wastes on their own, shambling about away from the base. They come
 for you if you get close or shoot them, and more turn up as they are killed, a few more every
@@ -204,9 +211,11 @@ Grenade, dash and airstrike are bought and levelled at the armory.
 Creeps follow a flow field toward the generator and chew through whatever is in the way. Walls
 and gates slow them down, but don't seal the base. The waves grow every time, faster the longer
 the game goes, and with every player who is actually playing (anyone idle for 90 s doesn't
-count). Every fifth wave is a swarm that swells as the game goes on; from wave 10 they are
-hordes, a third of which pours out of every spawn point at once. Every tenth wave brings an
-abomination.
+count). Each wave comes in from one side of the map, or from two or three later on, and seldom
+from the side the last one did; the wave's notice says where ("incoming from the north and
+east"). Every fifth wave is a swarm that swells as the game goes on; from wave 10 they are
+hordes, a third of which pours out of every point on the wave's sides at once. Every tenth wave
+brings an abomination.
 
 A wave holds until it is dead: the break before the next one starts only once every creep of it
 is gone (sleeping guards don't count), so two waves never land on the base at once. Stragglers

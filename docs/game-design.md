@@ -49,10 +49,15 @@ it here along with the code.
   count, so an AFK friend doesn't make the game harder for the rest.
 - **Spawning is spread out.** A wave comes out over `14 + min(wave, 30)` seconds, so later waves
   arrive as a stream, not a drip.
+- **Waves come from a side, not from everywhere.** The map's edge is lined with entry points
+  every few tiles. Each wave picks its fronts: one side for waves 1–3, one or two up to wave 9,
+  two or three after. Its groups come in at the points within about 25° of each front, and the
+  first front is at least 60° from the last wave's, so the pressure moves round the walls. The
+  wave's notice names the sides, so the team knows where to stand.
 - **Every fifth wave is a swarm.** Its budget is multiplied by `1.5 + 0.05·min(f, 40)`, so the
   swarms swell as the game goes on.
 - **Hordes from wave 10.** On swarm waves from 10 on, a third of the budget pours out of every
-  spawn point at once, within 4–8 s, mostly swarmers. The HUD labels the wave "HORDE". This is
+  entry point on the wave's fronts at once, within 4–8 s, mostly swarmers. The HUD labels the wave "HORDE". This is
   the moment the base has to hold, and why the walls matter.
 - **Every tenth wave brings an abomination**, a boss to rally around.
 - **The cap.** 16k creeps alive. Around wave 40 with 8 players the game reaches it.
@@ -91,6 +96,13 @@ each wave, but Normal is the reference for timing.
   the shop that burst out when you step onto the lot. The pumps blow up when shot, hurting
   everyone close, creeps and survivors alike, and setting off the pumps beside them. Blow them
   from range to thin the guards, or get caught in it.
+- **The plane crash.** One per map, out past the middle ring on open ground, off the roads and
+  well clear of the station and the outposts. Its scar is burnt clear of trees and water. The
+  hull and the broken-off tail are solid; its hold is searched from beside the hull and always
+  gives a field manual (an ability level), a piece of kit and a find that is rare or better.
+  A garrison of brutes, runners and spitters sleeps in the wreckage, an ambush comes out at
+  the first survivor inside it and another at the hold, and its two leaking engines blow up
+  like the pumps when shot.
 - **Wanderers.** The dead roam the wastes between the sites, away from the base: about ten at
   the start, one more each wave, more on harder settings. They come for a survivor who gets
   close or shoots them, and new ones turn up, out of sight, as they are killed. The way out is
@@ -122,6 +134,10 @@ Wrecks on the roads come in kinds, so you know what to expect at a glance:
 | ambulance | anywhere | gear, and patches up the searcher |
 | police cruiser | mid and far | leans to weapons |
 | army truck | far out | weapons, better luck, always guarded |
+| motorbike | nearer town | a one-second look in the panniers |
+| camper van | anywhere | better luck, but a quarter of them have something living inside |
+| fire engine | anywhere, more further out | leans to gear, always a medkit |
+| armoured van | mid and far | slow to crack, pays in gold, always guarded |
 
 "Leans to" means 60% of the finds come from the favoured kind. The kinds get tougher and
 richer further out: the near roads are mostly cars and pickups, and the far roads hold most of

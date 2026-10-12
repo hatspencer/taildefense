@@ -120,7 +120,11 @@ func (w *World) startWave() {
 	case w.Wave%5 == 0:
 		label = "  ·  SWARM"
 	}
-	w.note(2, "wave %d: %d creeps incoming%s", w.Wave, len(w.Queue), label)
+	from := ""
+	if f := w.frontsSaid(); f != "" {
+		from = " from " + f
+	}
+	w.note(2, "wave %d: %d creeps incoming%s%s", w.Wave, len(w.Queue), from, label)
 }
 
 // stallLimit is how long a wave may go without a single creep of it dying, once all are out,
@@ -211,8 +215,8 @@ var mixWeight = [NumCreepKinds]float32{CWalker: 1, CRunner: .5, CSwarmer: .6, CB
 // groupSize is the range of a group's size per kind.
 var groupSize = [NumCreepKinds][2]int{CWalker: {4, 12}, CRunner: {3, 8}, CSwarmer: {12, 30}, CBrute: {1, 2}, CSpitter: {2, 4}, CBoss: {1, 1}}
 
-// plan lays out every spawn of a wave: groups of one kind at one spawn point, spread over the
-// wave's opening seconds.
+// plan lays out every spawn of a wave: groups of one kind at one place on one of the wave's
+// fronts, spread over the wave's opening seconds.
 func (w *World) plan(wave, players int) []Spawn {
 	budget := Budget(wave, players) * w.diff().Count
 	swarm := wave%5 == 0
@@ -234,6 +238,11 @@ func (w *World) plan(wave, players int) []Spawn {
 		total += v
 	}
 	dur := 14 + min(float32(wave), 30)
+	fronts := w.pickFronts(wave)
+	at := func() [2]float32 {
+		f := fronts[w.rng.IntN(len(fronts))]
+		return f[w.rng.IntN(len(f))]
+	}
 	q := make([]Spawn, 0, int(budget*1.5))
 	add := func(k CreepKind, at float32, sp [2]float32, j int) {
 		x := sp[0] + (w.rng.Float32()-.5)*4
@@ -245,24 +254,26 @@ func (w *World) plan(wave, players int) []Spawn {
 	}
 	if wave%10 == 0 {
 		for i := 0; i < wave/10; i++ {
-			add(CBoss, dur*.5+float32(i)*3, w.SpawnPts[w.rng.IntN(len(w.SpawnPts))], 0)
+			add(CBoss, dur*.5+float32(i)*3, at(), 0)
 			budget -= Creeps[CBoss].Cost * .5
 		}
 	}
 	if wave%5 == 0 && wave >= hordeFrom {
-		// The horde: a third of the wave pours out of every spawn point together, a few
-		// seconds into it, so it hits as one wall.
+		// The horde: a third of the wave pours out of every place on its fronts together, a
+		// few seconds into it, so it hits as one wall.
 		surge := budget / 3
 		budget -= surge
-		at := 4 + w.rng.Float32()*4
+		t0 := 4 + w.rng.Float32()*4
 		for surge > 0 {
-			for _, sp := range w.SpawnPts {
-				k := CSwarmer
-				if w.rng.IntN(3) == 0 {
-					k = CWalker
+			for _, f := range fronts {
+				for _, sp := range f {
+					k := CSwarmer
+					if w.rng.IntN(3) == 0 {
+						k = CWalker
+					}
+					add(k, t0+w.rng.Float32()*6, sp, 0)
+					surge -= Creeps[k].Cost
 				}
-				add(k, at+w.rng.Float32()*6, sp, 0)
-				surge -= Creeps[k].Cost
 			}
 		}
 	}
@@ -278,10 +289,9 @@ func (w *World) plan(wave, players int) []Spawn {
 		}
 		lo, hi := groupSize[k][0], groupSize[k][1]
 		n := lo + w.rng.IntN(hi-lo+1)
-		sp := w.SpawnPts[w.rng.IntN(len(w.SpawnPts))]
-		at := w.rng.Float32() * dur
+		sp, t := at(), w.rng.Float32()*dur
 		for j := 0; j < n && budget > 0; j++ {
-			add(k, at, sp, j)
+			add(k, t, sp, j)
 			budget -= Creeps[k].Cost
 		}
 	}
@@ -962,7 +972,7 @@ func (w *World) stepRockets() {
 			if t := w.nearestCreep(r.X, r.Y, .9); t >= 0 {
 				boom = true
 			} else if v := sqrt32(r.VX*r.VX + r.VY*r.VY); v > 0 {
-				if p, _ := w.pumpOnRay(r.X-r.VX*Dt, r.Y-r.VY*Dt, r.VX/v, r.VY/v, v*Dt+pumpRadius); p >= 0 {
+				if p, _ := w.pumpOnRay(r.X-r.VX*Dt, r.Y-r.VY*Dt, r.VX/v, r.VY/v, v*Dt+tankRadius); p >= 0 {
 					boom = true
 				}
 			}
