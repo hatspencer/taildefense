@@ -162,6 +162,11 @@ warlord. They are hard going early on, and the stash inside is worth it: three f
 rare at least. The hardest sites spring ambushes, with creeps that burst out as you walk in or
 start searching.
 
+The dead also wander the wastes on their own, shambling about away from the base. They come
+for you if you get close or shoot them, and more turn up as they are killed, a few more every
+wave. Every tenth wave they hear the call: partway into it, every wanderer left rushes the
+generator, and the wave isn't over until they are dead too.
+
 Gunfire is loud. Shooting wakes guards nearby and pulls wave creeps in earshot towards you; rain
 and storms muffle it.
 

@@ -140,7 +140,7 @@ func (w *World) provoke(c *Creep) {
 	if dx, dy := c.X-p.X, c.Y-p.Y; dx*dx+dy*dy > provokeMax*provokeMax {
 		return
 	}
-	if c.Home > 0 {
+	if c.Home > 0 || c.Wander {
 		c.Hunt, c.HuntLeft, c.Returning = w.shooter, 6, false
 		return
 	}
@@ -362,11 +362,12 @@ func (w *World) countGuards() {
 	}
 }
 
-// waveCreeps is how many creeps of the waves are alive; guards do not hold a wave open.
+// waveCreeps is how many creeps of the waves are alive; guards and wanderers do not hold a
+// wave open.
 func (w *World) waveCreeps() int {
 	n := 0
 	for i := range w.Creeps {
-		if w.Creeps[i].Home == 0 {
+		if c := &w.Creeps[i]; c.Home == 0 && !c.Wander {
 			n++
 		}
 	}

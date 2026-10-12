@@ -34,7 +34,7 @@ func TestGuardsSleepWakeAndGoHome(t *testing.T) {
 	p.HP, p.MaxHP = 1e6, 1e6
 	w.Step()
 	for i := range w.Creeps {
-		if !w.Creeps[i].Asleep {
+		if c := &w.Creeps[i]; c.Home > 0 && !c.Asleep {
 			t.Fatal("a guard is awake with nobody near")
 		}
 	}

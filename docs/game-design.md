@@ -91,6 +91,12 @@ each wave, but Normal is the reference for timing.
   the shop that burst out when you step onto the lot. The pumps blow up when shot, hurting
   everyone close, creeps and survivors alike, and setting off the pumps beside them. Blow them
   from range to thin the guards, or get caught in it.
+- **Wanderers.** The dead roam the wastes between the sites, away from the base: about ten at
+  the start, one more each wave, more on harder settings. They come for a survivor who gets
+  close or shoots them, and new ones turn up, out of sight, as they are killed. The way out is
+  never quite empty.
+- **The call.** Every tenth wave, partway in, every wanderer left rushes the generator as part of
+  the wave, and the wave holds until they are dead. Thinning them beforehand pays off.
 - **Ambushes and nests.** The hardest sites spring creeps as you walk in or search, and a house
   can hide a nest. Danger is never fully known in advance.
 - **Restock.** Every fifth wave, some searched sites refill, so the map stays worth exploring
