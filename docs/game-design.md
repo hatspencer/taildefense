@@ -312,8 +312,6 @@ but it tells this game's story instead:
 - The **wordmark is a wall**. TAILDEFENSE is set in a chunky 6×7 block font, and every pixel
   of it is a bevelled brick. The bricks drop in from both ends towards the middle, glow hot as
   they land and kick up dust. "tail" is bone and "defense" amber, the HUD's two main inks.
-- **Creeps crawl in** from the dark edges while it is being built. Once the wall stands, its
-  guns open up from both ends and amber tracers pick them off one by one.
 - **A searchlight** crosses the finished word once.
 - The tagline types in under it in the CRT face: "hold the base · loot the dark · bring
   everyone home". A strip of masking tape ("co-op tower defense · over the tailnet") slaps
