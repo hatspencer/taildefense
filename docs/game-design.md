@@ -158,6 +158,22 @@ each wave, but Normal is the reference for timing.
   standing by it unhurt, and it pays the whole team (gold, full medkits) plus a rare find for the
   opener. Up to three wait unopened. The surfboards on the Huey's side are for Kilgore.
 
+### Ruined houses
+
+Houses come in kinds, each its own shape and build, so the countryside reads as more than
+one box repeated (`internal/game/ruins.go`, walls in `web/src/scene/terrain.ts`):
+
+- **Cottage:** one room, one doorway; clapboard, brick, fieldstone or timber.
+- **Two rooms:** split by an inner wall with a gap, a concrete floor; mostly brick.
+- **L-shaped:** a corner missing, a concrete floor, sometimes a back door.
+- **Barn:** big, timber, a wide door at each end so the dead can pour straight through, and
+  the loft's rubble on the floor.
+- **Shed:** small, timber or cinder block.
+- **Collapsed:** walls fallen in at several places and rubble inside; old stone or brick.
+
+Each is searched from its middle, which is always open floor. Outposts have their own concrete
+walls topped with sandbags, and the gas station's shop is painted block.
+
 ### Wrecks
 
 Wrecks on the roads come in kinds, so you know what to expect at a glance:

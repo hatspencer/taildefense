@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { color, dot, floor, fract, mix, normalWorld, positionWorld, sin, smoothstep, time, vec2, vec3, vertexColor, float } from 'three/tsl';
-import { Tile } from '../protocol';
+import { Ruin, SiteKind, Tile, type SiteDef } from '../protocol';
 import { box, cone, cyl, dodeca, merge, part, setEmissive, writeMatrix } from './util';
 import { uSnow, uWet } from './weather';
 
@@ -127,12 +127,12 @@ export class Terrain {
     this.group.clear();
   }
 
-  build(tiles: Uint8Array, w: number, h: number): void {
+  build(tiles: Uint8Array, w: number, h: number, sites: SiteDef[]): void {
     this.clear();
     this.buildGround(tiles, w, h);
     this.buildWater(w, h);
     this.buildTrees(tiles, w, h);
-    this.buildRocks(tiles, w, h);
+    this.buildRocks(tiles, w, h, sites);
     this.buildScrub(tiles, w, h);
   }
 
@@ -274,7 +274,7 @@ export class Terrain {
     this.disposables.push(geoPine, geoRound, mat);
   }
 
-  private buildRocks(tiles: Uint8Array, w: number, h: number): void {
+  private buildRocks(tiles: Uint8Array, w: number, h: number, sites: SiteDef[]): void {
     const isRock = (x: number, y: number) => x >= 0 && y >= 0 && x < w && y < h && tiles[y * w + x] === Tile.Rock;
     const walls: number[] = [], boulders: number[] = [];
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -283,14 +283,7 @@ export class Terrain {
       const line = isRock(x - 1, y) || isRock(x + 1, y) || isRock(x, y - 1) || isRock(x, y + 1);
       (line ? walls : boulders).push(x, y);
     }
-    // Rock lines are the shells of houses: a brick footing, faded siding, a broken top.
-    const wallGeo = merge([
-      part(box(1, 0.3, 1), 0x6e3e30, 0, 0.15, 0),
-      part(box(0.96, 0.7, 0.96), 0xb3a88c, 0, 0.65, 0),
-      part(box(1, 0.06, 1), 0x8a8270, 0, 0.62, 0),
-      part(box(0.98, 0.08, 0.98), 0x6a6458, 0, 1.0, 0),
-      part(box(0.45, 0.3, 0.45), 0x9c9178, 0.22, 1.12, 0.18, 0, 0.4, 0),
-    ]);
+    const style = wallStyles(tiles, w, h, sites);
     // Lone rocks are junk: a rubble heap with a dumped crate.
     const boulderGeo = merge([
       part(dodeca(0.5), 0x6c665a, 0, 0.2, 0, 0, 0, 0, 1, 0.6, 1),
@@ -299,26 +292,29 @@ export class Terrain {
       part(box(0.7, 0.05, 0.12), 0x7a5a36, 0.05, 0.3, 0.25, 0, 0.9, 0.25),
     ]);
     const mat = propMaterial();
-    const make = (geo: THREE.BufferGeometry, list: number[], place: (sc: Scatter, x: number, y: number, col: number[]) => void) => {
-      const sc = new Scatter();
-      for (let i = 0; i < list.length; i += 2) {
-        const x = list[i], y = list[i + 1], b = 0.82 + hash(x, y, 11) * 0.3;
-        place(sc, x, y, [b, b * 0.98, b * 0.94]);
-      }
-      sc.build(this.group, geo, mat, true);
-      this.scatters.push(sc);
-    };
-    make(wallGeo, walls, (sc, x, y, col) => {
+    const wallGeos = WALLS.map((s) => s.geo());
+    const scs = WALLS.map(() => new Scatter());
+    for (let i = 0; i < walls.length; i += 2) {
+      const x = walls[i], y = walls[i + 1], st = style[y * w + x], S = WALLS[st];
+      const b = 0.82 + hash(x, y, 11) * 0.3;
+      // Each block runs along its wall; a corner or a stub faces any way.
+      const across = isRock(x, y - 1) || isRock(x, y + 1), along = isRock(x - 1, y) || isRock(x + 1, y);
+      const heading = across && !along ? Math.PI / 2 : along && !across ? (hash(x, y, 14) < 0.5 ? 0 : Math.PI) : Math.floor(hash(x, y, 14) * 4) * Math.PI / 2;
       // Ruins are broken: each block has its own height, but never low enough to look like
       // something a shot would clear, since every wall tile stops bullets.
-      const hgt = 0.8 + hash(x, y, 13) * 0.8;
-      sc.add(x + 0.5, y + 0.5, Math.floor(hash(x, y, 14) * 4) * Math.PI / 2, 1, hgt, col);
-    });
-    make(boulderGeo, boulders, (sc, x, y, col) => {
+      const hgt = S.lo + hash(x, y, 13) * (S.hi - S.lo);
+      scs[st].add(x + 0.5, y + 0.5, heading, 1, hgt, [b, b * 0.98, b * 0.94]);
+    }
+    scs.forEach((sc, k) => { sc.build(this.group, wallGeos[k], mat, true); this.scatters.push(sc); });
+    const sc = new Scatter();
+    for (let i = 0; i < boulders.length; i += 2) {
+      const x = boulders[i], y = boulders[i + 1], b = 0.82 + hash(x, y, 11) * 0.3;
       const s = 0.9 + hash(x, y, 15) * 0.5;
-      sc.add(x + 0.5, y + 0.5, hash(x, y, 16) * 6.28, s, s * (0.8 + hash(x, y, 17) * 0.6), col);
-    });
-    this.disposables.push(wallGeo, boulderGeo, mat);
+      sc.add(x + 0.5, y + 0.5, hash(x, y, 16) * 6.28, s, s * (0.8 + hash(x, y, 17) * 0.6), [b, b * 0.98, b * 0.94]);
+    }
+    sc.build(this.group, boulderGeo, mat, true);
+    this.scatters.push(sc);
+    this.disposables.push(...wallGeos, boulderGeo, mat);
   }
 
   // Bushes and weeds on open grass, purely for looks.
@@ -355,4 +351,119 @@ export class Terrain {
     });
     this.disposables.push(bush, weeds, mat);
   }
+}
+
+// Ruined walls come in styles, each block of one built along +x, a tile long. lo..hi is how
+// tall a block of it stands, before the break.
+const enum Wall { Siding = 0, Brick, Stone, Cinder, Timber, Fort, Shop }
+const WALLS: { lo: number; hi: number; geo: () => THREE.BufferGeometry }[] = [
+  // Siding: a brick footing, faded clapboard, a broken top.
+  { lo: 0.8, hi: 1.6, geo: () => merge([
+    part(box(1, 0.3, 1), 0x6e3e30, 0, 0.15, 0),
+    part(box(0.96, 0.7, 0.96), 0xb3a88c, 0, 0.65, 0),
+    part(box(1, 0.06, 1), 0x8a8270, 0, 0.62, 0),
+    part(box(0.98, 0.08, 0.98), 0x6a6458, 0, 1.0, 0),
+    part(box(0.45, 0.3, 0.45), 0x9c9178, 0.22, 1.12, 0.18, 0, 0.4, 0),
+  ]) },
+  // Brick: red courses with pale mortar, the top fallen away in steps.
+  { lo: 0.85, hi: 1.5, geo: () => merge([
+    part(box(1, 0.9, 0.72), 0x8e4a34, 0, 0.45, 0),
+    part(box(1.01, 0.035, 0.73), 0xb0a090, 0, 0.22, 0),
+    part(box(1.01, 0.035, 0.73), 0xb0a090, 0, 0.45, 0),
+    part(box(1.01, 0.035, 0.73), 0xb0a090, 0, 0.68, 0),
+    part(box(0.6, 0.2, 0.72), 0x7a3c2a, -0.2, 1.0, 0),
+    part(box(0.28, 0.14, 0.72), 0x8e4a34, -0.36, 1.17, 0),
+    part(box(0.26, 0.12, 0.2), 0x8e4a34, 0.28, 0.06, 0.46, 0, 0.6, 0),
+  ]) },
+  // Fieldstone: an old farmhouse's grey stones, lumpy, with a capstone or two left.
+  { lo: 0.8, hi: 1.3, geo: () => merge([
+    part(box(1, 0.86, 0.8), 0x737064, 0, 0.43, 0),
+    part(dodeca(0.24), 0x878374, -0.3, 0.22, 0.32, 0.3, 0, 0, 1.3, 0.8, 0.6),
+    part(dodeca(0.22), 0x66635a, 0.22, 0.5, 0.33, 0, 0.5, 0, 1.4, 0.8, 0.6),
+    part(dodeca(0.2), 0x8f8a7a, -0.12, 0.7, -0.33, 0.4, 0, 0, 1.3, 0.8, 0.6),
+    part(dodeca(0.22), 0x6e6b5e, 0.3, 0.2, -0.33, 0, 0.3, 0, 1.2, 0.9, 0.6),
+    part(dodeca(0.26), 0x7d7a6c, -0.18, 0.92, 0, 0.2, 0.4, 0, 1.3, 0.6, 1.1),
+    part(dodeca(0.2), 0x8a8676, 0.26, 0.9, 0.05, 0, 0.9, 0, 1, 0.6, 1.2),
+  ]) },
+  // Cinder block: grey blocks with their seams, a stained foot, rusted rebar out of the top.
+  { lo: 0.9, hi: 1.5, geo: () => merge([
+    part(box(1, 1, 0.62), 0x8e8b84, 0, 0.5, 0),
+    part(box(1.01, 0.16, 0.63), 0x6a675f, 0, 0.08, 0),
+    part(box(1.01, 0.025, 0.63), 0x6e6c66, 0, 0.36, 0),
+    part(box(1.01, 0.025, 0.63), 0x6e6c66, 0, 0.68, 0),
+    part(box(0.025, 0.3, 0.63), 0x6e6c66, -0.2, 0.52, 0),
+    part(box(0.025, 0.3, 0.63), 0x6e6c66, 0.3, 0.84, 0),
+    part(box(0.04, 0.42, 0.04), 0x6a3a22, 0.22, 1.18, 0.05, 0, 0, 0.15),
+    part(box(0.04, 0.32, 0.04), 0x6a3a22, -0.3, 1.12, -0.06, 0.2, 0, -0.1),
+  ]) },
+  // Timber: a barn's or a shed's grey-brown boards between posts, some fallen short.
+  { lo: 0.85, hi: 1.2, geo: () => merge([
+    part(box(1, 0.62, 0.3), 0x5a4430, 0, 0.31, 0),
+    part(box(0.16, 1.15, 0.36), 0x46382a, -0.42, 0.575, 0),
+    part(box(0.3, 1.0, 0.26), 0x6b5038, -0.2, 0.5, 0),
+    part(box(0.3, 0.78, 0.26), 0x5d4631, 0.1, 0.39, 0),
+    part(box(0.26, 0.94, 0.26), 0x74593f, 0.37, 0.47, 0),
+    part(box(1, 0.08, 0.34), 0x4a3b2b, 0, 0.3, 0),
+    part(box(1, 0.08, 0.34), 0x4a3b2b, 0, 0.82, 0, 0.05, 0, 0.04),
+    part(box(0.14, 0.6, 0.06), 0x6b5038, 0.06, 0.1, 0.34, 1.35, 0.3, 0),
+  ]) },
+  // An outpost's wall: poured concrete, a dark stripe, a row of sandbags along the top.
+  { lo: 1.1, hi: 1.3, geo: () => merge([
+    part(box(1, 0.95, 0.85), 0x8c8b84, 0, 0.475, 0),
+    part(box(1.01, 0.1, 0.86), 0x56554f, 0, 0.22, 0),
+    part(dodeca(0.2), 0x8f8058, -0.3, 1.0, 0, 0, 0.2, 0, 1.5, 0.6, 1.4),
+    part(dodeca(0.2), 0x9a8a62, 0.02, 1.0, 0.04, 0, -0.1, 0, 1.5, 0.6, 1.4),
+    part(dodeca(0.2), 0x857652, 0.33, 1.0, -0.03, 0, 0.3, 0, 1.4, 0.6, 1.4),
+  ]) },
+  // The gas station's shop: painted block, a teal band where the sign ran, a grimy foot.
+  { lo: 1.2, hi: 1.35, geo: () => merge([
+    part(box(1, 1, 0.64), 0xc4bfae, 0, 0.5, 0),
+    part(box(1.01, 0.18, 0.65), 0x66635a, 0, 0.09, 0),
+    part(box(1.01, 0.15, 0.65), 0x2f7472, 0, 0.78, 0),
+    part(box(1.02, 0.05, 0.7), 0x8a867a, 0, 1.0, 0),
+  ]) },
+];
+
+// Which style each wall tile is built in: an outpost's and the gas station's their own, a
+// house's to suit its shape, and any other ruin one of the house styles by its look.
+function wallStyles(tiles: Uint8Array, w: number, h: number, sites: SiteDef[]): Uint8Array {
+  const out = new Uint8Array(w * h).fill(255);
+  const paint = (x0: number, y0: number, sw: number, sh: number, st: number) => {
+    for (let y = Math.max(0, y0); y < Math.min(h, y0 + sh); y++) for (let x = Math.max(0, x0); x < Math.min(w, x0 + sw); x++) {
+      if (tiles[y * w + x] === Tile.Rock && out[y * w + x] === 255) out[y * w + x] = st;
+    }
+  };
+  // Outposts and the station first: a house that overlaps one keeps to its own ground.
+  for (const s of sites) if (s.kind === SiteKind.Outpost) paint(s.x, s.y, s.w, s.h, Wall.Fort);
+  for (const s of sites) if (s.kind === SiteKind.Station) paint(s.x, s.y, s.w, s.h, Wall.Shop);
+  for (const s of sites) {
+    if (s.kind !== SiteKind.House) continue;
+    const r = hash(s.x, s.y, 51);
+    let st: Wall;
+    switch (s.ruin ?? Math.floor(hash(s.x, s.y, 50) * 6)) {
+      case Ruin.Barn: st = Wall.Timber; break;
+      case Ruin.Shed: st = r < 0.65 ? Wall.Timber : Wall.Cinder; break;
+      case Ruin.Collapsed: st = r < 0.5 ? Wall.Stone : r < 0.8 ? Wall.Brick : Wall.Siding; break;
+      case Ruin.TwoRoom: st = r < 0.45 ? Wall.Brick : r < 0.8 ? Wall.Siding : Wall.Cinder; break;
+      case Ruin.L: st = r < 0.4 ? Wall.Siding : r < 0.7 ? Wall.Cinder : Wall.Brick; break;
+      default: st = r < 0.4 ? Wall.Siding : r < 0.65 ? Wall.Brick : r < 0.85 ? Wall.Stone : Wall.Timber;
+    }
+    paint(s.x, s.y, s.w, s.h, st);
+  }
+  // The rest, a run of wall at a time, take one look each.
+  const q: number[] = [];
+  for (let i = 0; i < w * h; i++) {
+    if (tiles[i] !== Tile.Rock || out[i] !== 255) continue;
+    const st = [Wall.Siding, Wall.Brick, Wall.Stone, Wall.Cinder][Math.floor(hash(i % w, Math.floor(i / w), 52) * 4)];
+    out[i] = st; q.push(i);
+    while (q.length) {
+      const j = q.pop()!, x = j % w, y = (j - x) / w;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy, k = ny * w + nx;
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h || tiles[k] !== Tile.Rock || out[k] !== 255) continue;
+        out[k] = st; q.push(k);
+      }
+    }
+  }
+  return out;
 }

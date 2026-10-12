@@ -1,4 +1,4 @@
-import { Tile } from '../protocol';
+import { Ruin, Tile } from '../protocol';
 
 export function rng(seed: number): () => number {
   let a = seed >>> 0;
@@ -39,7 +39,7 @@ export interface DemoMap {
   // The wall ring around the base and where gates go.
   ring: { x0: number; y0: number; x1: number; y1: number };
   // The ruined houses, walls included.
-  houses: { x: number; y: number; w: number; h: number }[];
+  houses: { x: number; y: number; w: number; h: number; kind: Ruin }[];
   // The gas station by the west road: its shop, walls included, and its fuel pumps' tiles.
   station?: { x: number; y: number; w: number; h: number; pumps: [number, number][] };
 }
@@ -75,19 +75,16 @@ export function generateMap(w: number, h: number, seed: number): DemoMap {
   }
   t.set(shore);
 
-  // Ruins: hollow rock rectangles with collapsed gaps and an old floor.
+  // Ruined houses of all kinds, laid out as the host lays them (internal/game/ruins.go).
   const houses: DemoMap['houses'] = [];
   for (let n = 0; n < 22; n++) {
-    const rw = 5 + Math.floor(rnd() * 8), rh = 4 + Math.floor(rnd() * 6);
+    const kind = pickRuin(rnd), sz = RUIN_SIZE[kind];
+    const rw = sz[0] + Math.floor(rnd() * (sz[1] + 1)), rh = sz[2] + Math.floor(rnd() * (sz[3] + 1));
     const x0 = 6 + Math.floor(rnd() * (w - rw - 12)), y0 = 6 + Math.floor(rnd() * (h - rh - 12));
     if (Math.hypot(x0 + rw / 2 - cx, y0 + rh / 2 - cy) < 40) continue;
     if (houses.some((o) => x0 < o.x + o.w + 1 && o.x < x0 + rw + 1 && y0 < o.y + o.h + 1 && o.y < y0 + rh + 1)) continue;
-    houses.push({ x: x0, y: y0, w: rw, h: rh });
-    for (let y = y0; y < y0 + rh; y++) for (let x = x0; x < x0 + rw; x++) {
-      const edge = x === x0 || y === y0 || x === x0 + rw - 1 || y === y0 + rh - 1;
-      if (edge) set(x, y, rnd() < 0.78 ? Tile.Rock : Tile.Dirt);
-      else set(x, y, rnd() < 0.85 ? Tile.Floor : Tile.Dirt);
-    }
+    houses.push({ x: x0, y: y0, w: rw, h: rh, kind });
+    house(t, w, rnd, x0, y0, rw, rh, kind);
   }
 
   // Roads from the edges to the core, meandering far out and straight near the base.
@@ -150,4 +147,95 @@ export function generateMap(w: number, h: number, seed: number): DemoMap {
     if (!corner) set(x, y, Tile.Floor);
   }
   return { tiles: t, spawns, ring, houses, station };
+}
+
+const RUIN_ODDS = [26, 18, 16, 10, 12, 18];
+const RUIN_SIZE = [[4, 6, 4, 5], [7, 4, 6, 3], [7, 4, 7, 3], [10, 4, 7, 3], [4, 2, 4, 2], [5, 6, 5, 5]];
+
+function pickRuin(rnd: () => number): Ruin {
+  let r = Math.floor(rnd() * 100);
+  for (let k = 0; k < RUIN_ODDS.length; k++) { if (r < RUIN_ODDS[k]) return k as Ruin; r -= RUIN_ODDS[k]; }
+  return Ruin.Cottage;
+}
+
+// A ruined house of kind k over the box bx, by, bw, bh, its middle open floor (ruins.go house).
+function house(t: Uint8Array, w: number, rnd: () => number, bx: number, by: number, bw: number, bh: number, k: Ruin): void {
+  const ri = (n: number) => Math.floor(rnd() * n);
+  const mx = bx + (bw >> 1), my = by + (bh >> 1);
+  let cx0 = 0, cy0 = 0, cx1 = -1, cy1 = -1;
+  if (k === Ruin.L) {
+    const cw = 2 + ri((bw >> 1) - 2), ch = 2 + ri((bh >> 1) - 2);
+    cx0 = ri(2) ? bx : bx + bw - cw; cy0 = ri(2) ? by : by + bh - ch;
+    cx1 = cx0 + cw - 1; cy1 = cy0 + ch - 1;
+  }
+  const inside = (x: number, y: number) => x >= bx && y >= by && x < bx + bw && y < by + bh && !(x >= cx0 && x <= cx1 && y >= cy0 && y <= cy1);
+  const floor = k === Ruin.L || k === Ruin.TwoRoom ? Tile.Floor : Tile.Dirt;
+  for (let y = by; y < by + bh; y++) for (let x = bx; x < bx + bw; x++) {
+    if (!inside(x, y)) continue;
+    let edge = false;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (!inside(x + dx, y + dy)) edge = true;
+    t[y * w + x] = edge ? Tile.Rock : floor;
+  }
+  if (k === Ruin.TwoRoom) {
+    if (bw >= bh) {
+      const px = bx + Math.floor(bw / 3), gap = by + 1 + ri(bh - 3);
+      for (let y = by + 1; y < by + bh - 1; y++) if (y !== gap && y !== gap + 1) t[y * w + px] = Tile.Rock;
+    } else {
+      const py = by + Math.floor(bh / 3), gap = bx + 1 + ri(bw - 3);
+      for (let x = bx + 1; x < bx + bw - 1; x++) if (x !== gap && x !== gap + 1) t[py * w + x] = Tile.Rock;
+    }
+  }
+  const rock = (x: number, y: number) => x >= 0 && y >= 0 && x < w && y * w + x < t.length && t[y * w + x] === Tile.Rock;
+  const open = (x: number, y: number) => { t[y * w + x] = Tile.Dirt; };
+  // The way a straight run of outer wall at x, y runs, open floor one side and outside the other.
+  const door = (x: number, y: number): [number, number] | null => {
+    if (!rock(x, y) || !inside(x, y)) return null;
+    if (rock(x - 1, y) && rock(x + 1, y) && inside(x, y - 1) !== inside(x, y + 1) && !rock(x, y - 1) && !rock(x, y + 1)) return [1, 0];
+    if (rock(x, y - 1) && rock(x, y + 1) && inside(x - 1, y) !== inside(x + 1, y) && !rock(x - 1, y) && !rock(x + 1, y)) return [0, 1];
+    return null;
+  };
+  const doors: [number, number][] = [];
+  for (let y = by; y < by + bh; y++) for (let x = bx; x < bx + bw; x++) if (door(x, y)) doors.push([x, y]);
+  const opening = () => {
+    if (!doors.length) return;
+    const [x, y] = doors[ri(doors.length)], d = door(x, y);
+    if (!d) return;
+    const two = door(x + d[0], y + d[1]);
+    open(x, y);
+    if (two) open(x + d[0], y + d[1]);
+  };
+  const rubble = (n: number) => {
+    for (let i = 0; i < n * 4 && n > 0; i++) {
+      const x = bx + 1 + ri(bw - 2), y = by + 1 + ri(bh - 2);
+      if ((Math.abs(x - mx) <= 1 && Math.abs(y - my) <= 1) || t[y * w + x] !== floor) continue;
+      t[y * w + x] = Tile.Rock; n--;
+    }
+  };
+  switch (k) {
+    case Ruin.Barn:
+      for (let o = -1; o <= 1; o++) {
+        if (bw >= bh) { open(bx, my + o); open(bx + bw - 1, my + o); } else { open(mx + o, by); open(mx + o, by + bh - 1); }
+      }
+      rubble(2 + ri(3));
+      break;
+    case Ruin.Collapsed:
+      opening();
+      for (let i = 0, n = 2 + ri(3); i < n && doors.length; i++) {
+        const [x0, y0] = doors[ri(doors.length)], d = door(x0, y0);
+        let ok = !!d;
+        for (let j = 0, m = 1 + ri(3); d && ok && j < m; j++) {
+          const x = x0 + d[0] * j, y = y0 + d[1] * j;
+          ok = !!door(x + d[0], y + d[1]);
+          open(x, y);
+        }
+      }
+      rubble(1 + ri(3));
+      break;
+    case Ruin.TwoRoom: case Ruin.L:
+      opening();
+      if (ri(2) === 0) opening();
+      break;
+    default:
+      opening();
+  }
 }

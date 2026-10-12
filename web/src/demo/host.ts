@@ -249,7 +249,7 @@ export class DemoHost implements Transport {
       const sx = Math.floor(h.x + h.w / 2) + 0.5, sy = Math.floor(h.y + h.h / 2) + 0.5;
       if (this.tiles[Math.floor(sy) * W + Math.floor(sx)] >= Tile.Water) continue;
       const tr = tier(sx, sy);
-      sites.push({ kind: SiteKind.House, x: h.x, y: h.y, w: h.w, h: h.h, sx, sy, tier: tr, guard: Math.min(3, tr + (r() < 0.35 ? 1 : 0)) });
+      sites.push({ kind: SiteKind.House, x: h.x, y: h.y, w: h.w, h: h.h, sx, sy, tier: tr, guard: Math.min(3, tr + (r() < 0.35 ? 1 : 0)), ruin: h.kind });
     }
     const free = (x: number, y: number) => sites.every((s) => Math.hypot(s.x + s.w / 2 - x - 0.5, s.y + s.h / 2 - y - 0.5) > s.w / 2 + 5);
     const scatter = (kind: number, want: number, tile: number, minD: number) => {

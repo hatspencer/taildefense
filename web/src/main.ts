@@ -132,7 +132,7 @@ async function main(): Promise<void> {
     },
     onTerrain(t) {
       game.setTerrain(t);
-      terrain.build(game.tiles, game.w, game.h);
+      terrain.build(game.tiles, game.w, game.h, game.welcome?.sites ?? []);
       splash?.progress(0.35);
     },
     onFrame(buf) {
