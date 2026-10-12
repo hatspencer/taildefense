@@ -74,14 +74,15 @@ type CreepDef struct {
 	Aggro    float32 // distance at which a player is chased instead of the core
 	Windup   float32 // seconds a blow is telegraphed before it lands
 	Ranged   bool
+	Sprint   float32 // chance one of this kind is a sprinter, faster than a survivor in a chase
 	Unlocked string
 }
 
 // Creeps is indexed by CreepKind.
 var Creeps = [NumCreepKinds]CreepDef{
-	CWalker:  {Name: "walker", HP: 40, Speed: 1.7, Damage: 6, Rate: 1, Radius: .45, Reach: .5, Bounty: 3, Cost: 1, Size: 1, MinWave: 1, Aggro: 7, Windup: .4},
-	CRunner:  {Name: "runner", HP: 24, Speed: 3.6, Damage: 4, Rate: 1.6, Radius: .4, Reach: .5, Bounty: 3, Cost: 1.2, Size: 1, MinWave: 2, Aggro: 10, Windup: .28},
-	CSwarmer: {Name: "swarmer", HP: 9, Speed: 2.7, Damage: 2, Rate: 2, Radius: .3, Reach: .4, Bounty: 1, Cost: .35, Size: 1, MinWave: 3, Aggro: 6, Windup: .18},
+	CWalker:  {Name: "walker", HP: 40, Speed: 1.7, Damage: 6, Rate: 1, Radius: .45, Reach: .5, Bounty: 3, Cost: 1, Size: 1, MinWave: 1, Aggro: 7, Windup: .4, Sprint: .12},
+	CRunner:  {Name: "runner", HP: 24, Speed: 3.6, Damage: 4, Rate: 1.6, Radius: .4, Reach: .5, Bounty: 3, Cost: 1.2, Size: 1, MinWave: 2, Aggro: 10, Windup: .28, Sprint: .35},
+	CSwarmer: {Name: "swarmer", HP: 9, Speed: 2.7, Damage: 2, Rate: 2, Radius: .3, Reach: .4, Bounty: 1, Cost: .35, Size: 1, MinWave: 3, Aggro: 6, Windup: .18, Sprint: .2},
 	CBrute:   {Name: "brute", HP: 280, Speed: 1.15, Damage: 26, Rate: .7, Radius: .9, Reach: .6, Armor: 4, Bounty: 15, Cost: 6, Size: 2, MinWave: 4, Aggro: 5, Windup: .65},
 	CSpitter: {Name: "spitter", HP: 55, Speed: 1.5, Damage: 9, Rate: .5, Radius: .45, Reach: 6, Bounty: 6, Cost: 2.5, Size: 1, MinWave: 6, Aggro: 9, Windup: .5, Ranged: true},
 	CBoss:    {Name: "abomination", HP: 3200, Speed: .95, Damage: 70, Rate: .6, Radius: 1.4, Reach: .8, Armor: 9, Bounty: 300, Cost: 60, Size: 3, MinWave: 10, Aggro: 8, Windup: .7},

@@ -38,7 +38,11 @@ type Creep struct {
 	Returning bool
 	// A wanderer roams the wastes until a tenth wave calls it in; HX, HY is where it walks.
 	Wander bool
-	slam   float32 // an outpost warlord: seconds until it can slam the ground again
+	// A sprinter outruns a survivor in bursts while it chases one; sprint is the burst left,
+	// below zero the rest before the next.
+	Sprinter bool
+	sprint   float32
+	slam     float32 // an outpost warlord: seconds until it can slam the ground again
 }
 
 // Structure is a building. Index in World.Structs is its ID; dead slots are reused.

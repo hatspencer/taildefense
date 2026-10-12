@@ -150,8 +150,17 @@ func TestAbilities(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		w.SpawnCreep(CWalker, p.X+5, p.Y+float32(i)*.3-.6)
 	}
+	first := w.Creeps[len(w.Creeps)-5].ID
+	hit := func() *Creep {
+		for i := range w.Creeps {
+			if w.Creeps[i].ID == first {
+				return &w.Creeps[i]
+			}
+		}
+		return nil
+	}
 	w.Step()
-	hp := w.Creeps[0].HP
+	hp := hit().HP
 	if err := w.Cast(p, AbGrenade, p.X+5, p.Y); err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +177,7 @@ func TestAbilities(t *testing.T) {
 	if len(w.Effects) != 0 {
 		t.Fatal("the grenade never landed")
 	}
-	if len(w.Creeps) > 0 && w.Creeps[0].HP >= hp {
+	if c := hit(); c != nil && c.HP >= hp {
 		t.Fatal("the grenade did no damage")
 	}
 
