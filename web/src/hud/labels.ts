@@ -23,6 +23,10 @@ const PING_WORD = ['here', 'danger', 'loot', 'defend'];
 // A 5x4 skull, one guard-level pip.
 const SKULL = ['.###.', '#.#.#', '#####', '.#.#.'];
 
+// A survivor's search or revive ring, held back to draw over everything else.
+interface Ring { x: number; y: number; frac: number; col: string; caption: string }
+const RING_R = 10;
+
 // Names, HP bars and countdowns drawn on a 2D canvas over the 3D view: cheaper than DOM
 // elements when there are hundreds of them.
 export class Labels {
@@ -78,7 +82,7 @@ export class Labels {
   }
 
   // A segmented progress ring with a caption: a search, or a revive.
-  private ring(x: number, y: number, frac: number, col: string, caption: string, r = 10): void {
+  private ring(x: number, y: number, frac: number, col: string, caption: string, r = RING_R): void {
     const c = this.ctx, segs = 12;
     const lit = Math.floor(Math.min(1, frac) * segs + 0.001);
     const step = (Math.PI * 2) / segs, gap = 0.12;
@@ -109,7 +113,8 @@ export class Labels {
   }
 
   // The hovered site's tag: what it is, how hard its guards are and how many still stand.
-  private siteTag(game: Game, i: number, hint: string, x: number, y: number, zoom: number): void {
+  // It rises above any ring it would cover, so a search under way stays in sight.
+  private siteTag(game: Game, i: number, hint: string, x: number, y: number, zoom: number, rings: Ring[]): void {
     const c = this.ctx, wd = game.welcome!, f = game.cur, s = wd.sites[i];
     const searched = f.siteSearched(i);
     // -1: fog of war, and nobody has been inside to count them.
@@ -126,7 +131,17 @@ export class Labels {
     const w2 = line2 ? c.measureText(line2).width + skullW : 0;
     const w = Math.round(Math.max(w1, w2) + 16), lh = fs + 5;
     const h = line2 ? lh * 2 + 6 : lh + 6;
-    const bx = Math.round(x - w / 2), by = Math.round(y - h);
+    const bx = Math.round(x - w / 2);
+    let by = Math.round(y - h);
+    c.font = `600 12px ${FONT}`;
+    for (let moved = true; moved;) {
+      moved = false;
+      for (const r of rings) {
+        const rx0 = r.x - RING_R - 4, rx1 = r.x + RING_R + 7 + c.measureText(r.caption).width + 3;
+        const ry0 = r.y - RING_R - 4, ry1 = r.y + RING_R + 4;
+        if (bx - 2 < rx1 && bx + w + 2 > rx0 && by - 2 < ry1 && by + h + 2 > ry0) { by = Math.round(ry0 - 4 - h); moved = true; }
+      }
+    }
     // Plate: black edge, drab fill, tape strip down the left.
     c.fillStyle = INK; c.fillRect(bx - 2, by - 2, w + 4, h + 4);
     c.fillStyle = 'rgba(28,30,22,0.94)'; c.fillRect(bx, by, w, h);
@@ -177,6 +192,7 @@ export class Labels {
     // Heroes: name and HP; the downed show where they fell, their countdown and any revive.
     const fs = Math.round(13 * Math.max(0.85, zoom));
     const lift = 30 * Math.max(0.85, zoom), fog = game.fogged();
+    const rings: Ring[] = [];
     for (let i = 0; i < f.nPlayers; i++) {
       const p = f.players[i];
       const alive = (p.flags & PF_ALIVE) !== 0;
@@ -190,8 +206,8 @@ export class Labels {
         this.text(p.name, x, y - 3, col);
         if (hide) continue;
         this.bar(x, y + 1, 46 * zoom, p.hp / Math.max(1, p.maxHp));
-        if (p.order === Order.Loot && p.channel > 0) this.ring(x, y - lift, p.channel, AMBER, 'searching…');
-        else if (p.order === Order.Revive && p.channel > 0) this.ring(x, y - lift, p.channel, MOSS, 'reviving…');
+        if (p.order === Order.Loot && p.channel > 0) rings.push({ x, y: y - lift, frac: p.channel, col: AMBER, caption: 'searching…' });
+        else if (p.order === Order.Revive && p.channel > 0) rings.push({ x, y: y - lift, frac: p.channel, col: MOSS, caption: 'reviving…' });
       } else {
         // A blinking cross over the body, the name and the seconds left to reach them; a
         // revive in progress rings the cross.
@@ -210,7 +226,7 @@ export class Labels {
     const site = focus.hoverSite >= 0 ? wd.sites[focus.hoverSite] : undefined;
     if (site && focus.siteHint) {
       if (this.project(cam, siteX(site), walled(site.kind) ? 2.2 : 1.6, siteY(site))) {
-        this.siteTag(game, focus.hoverSite, focus.siteHint, this.v.x, this.v.y, zoom);
+        this.siteTag(game, focus.hoverSite, focus.siteHint, this.v.x, this.v.y, zoom, rings);
       }
     }
 
@@ -232,6 +248,8 @@ export class Labels {
       const s = Math.max(0, f.eLeft[i] / 10 - since).toFixed(1);
       this.text(s, this.v.x, this.v.y, '#e8846a');
     }
+    // Search and revive rings last, so no tag or label covers them.
+    for (const r of rings) this.ring(r.x, r.y, r.frac, r.col, r.caption);
     this.pings(game, cam, now);
   }
 
