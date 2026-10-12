@@ -71,12 +71,12 @@ export const STRUCTS: StructDef[] = [
   { name: 'none', price: 0, hp: 0, w: 1, h: 1, range: 0, turret: false, key: '', desc: '', upgrade: [] },
   { name: 'Generator', price: 0, hp: 2500, w: 5, h: 5, range: 0, turret: false, key: '', desc: 'Powers the base. If it falls, the game is over.', upgrade: [] },
   { name: 'Armory', price: 0, hp: 1200, w: 3, h: 3, range: 0, turret: false, key: '', desc: 'Buy and upgrade weapons, gear and abilities here.', upgrade: [] },
-  { name: 'Wall', price: 20, hp: 320, w: 1, h: 1, range: 0, turret: false, key: 'X', desc: 'Blocks creeps; they have to break through.', upgrade: [] },
-  { name: 'Gate', price: 45, hp: 320, w: 1, h: 1, range: 0, turret: false, key: 'G', desc: 'Players walk through, creeps break it down.', upgrade: [] },
-  { name: 'Gun turret', price: 120, hp: 220, w: 1, h: 1, range: 9, turret: true, key: 'T', desc: 'Fast, cheap single-target fire.', upgrade: up(120) },
-  { name: 'Cannon', price: 240, hp: 280, w: 1, h: 1, range: 11, turret: true, key: 'C', desc: 'Slow shells that explode in an area.', upgrade: up(240) },
-  { name: 'Frost tower', price: 180, hp: 220, w: 1, h: 1, range: 6, turret: true, key: 'F', desc: 'Pulses cold that slows everything around it.', upgrade: up(180) },
-  { name: 'Tesla coil', price: 320, hp: 220, w: 1, h: 1, range: 8, turret: true, key: 'L', desc: 'Lightning that chains between creeps, reaching two more every level.', upgrade: up(320) },
+  { name: 'Wall', price: 20, hp: 320, w: 1, h: 1, range: 0, turret: false, key: 'X', desc: 'Blocks creeps; they have to break through.', upgrade: up(20), upgradable: true },
+  { name: 'Gate', price: 45, hp: 320, w: 1, h: 1, range: 0, turret: false, key: 'G', desc: 'Players walk through, creeps break it down.', upgrade: up(45), upgradable: true },
+  { name: 'Gun turret', price: 120, hp: 220, w: 1, h: 1, range: 9, turret: true, key: 'T', desc: 'Fast, cheap single-target fire.', upgrade: up(120), upgradable: true },
+  { name: 'Cannon', price: 240, hp: 280, w: 1, h: 1, range: 11, turret: true, key: 'C', desc: 'Slow shells that explode in an area.', upgrade: up(240), upgradable: true },
+  { name: 'Frost tower', price: 180, hp: 220, w: 1, h: 1, range: 6, turret: true, key: 'F', desc: 'Pulses cold that slows everything around it.', upgrade: up(180), upgradable: true },
+  { name: 'Tesla coil', price: 320, hp: 220, w: 1, h: 1, range: 8, turret: true, key: 'L', desc: 'Lightning that chains between creeps, reaching two more every level.', upgrade: up(320), upgradable: true },
 ];
 
 export const WEATHERS = [

@@ -57,6 +57,8 @@ export interface AbilityDef {
 export interface StructDef {
   name: string; price: number; hp: number; w: number; h: number; range: number; ranges?: number[]; turret: boolean;
   key: string; desc: string; upgrade: number[];
+  // Whether it can be raised a level: turrets, and walls and gates (tougher only).
+  upgradable?: boolean;
 }
 export interface SiteKindDef { name: string; search: number }
 // A loot site: the tiles it covers, the spot it is searched from, how far out it is, and how

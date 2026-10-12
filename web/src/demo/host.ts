@@ -1282,11 +1282,11 @@ export class DemoHost implements Transport {
         break;
       case 'upgradeStruct': {
         const s = this.structs[cmd.s];
-        if (!s || !s.alive || !STRUCTS[s.kind].turret) { this.toast('cannot upgrade that'); break; }
+        if (!s || !s.alive || !STRUCTS[s.kind].upgradable) { this.toast('cannot upgrade that'); break; }
         if (s.level >= wd.maxStructLevel) { this.toast('already at max level'); break; }
         const c = STRUCTS[s.kind].upgrade[s.level];
         if (p.gold < c) { this.toast(`not enough gold: need ${c}, have ${p.gold}`); break; }
-        p.gold -= c; s.level++; s.maxHp = Math.round(STRUCTS[s.kind].hp * (1 + 0.25 * (s.level - 1))); s.hp = s.maxHp;
+        p.gold -= c; s.level++; s.maxHp = Math.round(STRUCTS[s.kind].hp * (1 + (STRUCTS[s.kind].turret ? 0.25 : 0.6) * (s.level - 1))); s.hp = s.maxHp;
         break;
       }
       case 'sell': {

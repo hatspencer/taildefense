@@ -92,7 +92,8 @@ everything it knows, a terrain message follows).
   ],
   "structs": [                 // index = struct kind; 0 is "none"
     {"name": "Wall", "price": 20, "hp": 320, "w": 1, "h": 1, "range": 0, "turret": false,
-     "key": "W", "desc": "...", "upgrade": [0, 96, 192, 288, 384]}   // [level] price level -> level+1
+     "key": "X", "desc": "...", "upgrade": [0, 16, 32, 48, 64],   // [level] price level -> level+1
+     "upgradable": true}       // turrets, walls and gates go up levels; a wall only gets tougher
   ],
   "buildable": [3, 4, 5, 6, 7, 8],
   "siteKinds": [               // index = site kind
