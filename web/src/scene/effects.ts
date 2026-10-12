@@ -227,6 +227,16 @@ export class Effects {
       }
       // Player weapons, from gun height.
       const col = TRACER[k] ?? 0xffffff;
+      if (k === 7) {
+        // The crowbar: a pale sweep across the front, no muzzle, no smoke.
+        const a = Math.atan2(y1 - y0, x1 - x0);
+        for (let j = -2; j <= 2; j++) {
+          const b = a + j * 0.3;
+          this.streaks.add(t + Math.abs(j) * 0.01, x0 + Math.cos(b - 0.3) * dist, 1.0, y0 + Math.sin(b - 0.3) * dist,
+            x0 + Math.cos(b) * dist, 0.9, y0 + Math.sin(b) * dist, 0.12, 0xdde4ee, 0.07, 0, 0, 0.5, 1, 1.2);
+        }
+        continue;
+      }
       if (k === 4) {
         // Flamethrower: a gout of fire particles rather than a line.
         for (let j = 0; j < 3; j++) {
@@ -514,7 +524,7 @@ export class Effects {
         writeMatrix(ra, nr++ * 16, f.eX[i], 0.12, f.eY[i], 0, r * pulse);
         writeMatrix(ra, nr++ * 16, f.eX[i], 0.12, f.eY[i], 0, r * (left / total) * 0.95 + 0.2);
       } else if (k === EffectKind.Slam) {
-        // A warlord's slam coming: its reach marked, and a ring swelling out to meet it when
+        // A brute's or abomination's slam coming: its reach marked, and a ring swelling out to meet it when
         // the fists land. Grit lifts off the ground inside.
         writeMatrix(ra, nr++ * 16, f.eX[i], 0.12, f.eY[i], 0, r);
         writeMatrix(ra, nr++ * 16, f.eX[i], 0.12, f.eY[i], 0, r * (1 - left / total) + 0.15);

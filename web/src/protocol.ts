@@ -1,6 +1,9 @@
 // Wire types and the binary frame decoder for web/PROTOCOL.md. Frames are decoded into
 // preallocated typed arrays: nothing per creep is allocated while the game runs.
 
+// Weapon kinds there are, and the crowbar's: brutal's starting weapon, on the 0 key.
+export const WEAPON_SLOTS = 8, CROWBAR = 7;
+
 export const MAX_CREEPS = 16384;
 export const MAX_PLAYERS = 8;
 
@@ -117,7 +120,7 @@ export type Command =
 export class Player {
   id = 0; flags = 0; x = 0; y = 0; aim = 0; hp = 0; maxHp = 1; cur = 0; ammo = 0; mag = 0;
   reload = 0; respawn = 0; gold = 0; kills = 0; damage = 0; owned = 0;
-  levels = new Uint8Array(28); gear = new Uint8Array(4);
+  levels = new Uint8Array(32); gear = new Uint8Array(4);
   // channel: the current search's (order Loot) or revive's (order Revive) progress, 0..1.
   // revived: for a downed survivor, how far someone's revive of them is, 0..1.
   order = 0; channel = 0; revived = 0; emote = 0; emoteLeft = 0; tauntCool = 0; stamina = 1; sprinting = false; winded = false; look = 0; buff = 0; buffLeft = 0;
@@ -261,7 +264,7 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
     p.gold = d.getUint32(o + 19, true); p.kills = d.getUint32(o + 23, true); p.damage = d.getUint32(o + 27, true);
     p.owned = d.getUint8(o + 31);
     o += 32;
-    p.levels.set(bytes.subarray(o, o + 28)); o += 28;
+    p.levels.set(bytes.subarray(o, o + 32)); o += 32;
     p.gear.set(bytes.subarray(o, o + 4)); o += 4;
     p.order = d.getUint8(o); p.channel = d.getUint8(o + 1) / 255; p.revived = d.getUint8(o + 2) / 255;
     p.emote = d.getUint8(o + 3); p.emoteLeft = d.getUint8(o + 4) / 10; p.tauntCool = d.getUint16(o + 5, true) / 10;

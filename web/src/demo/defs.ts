@@ -7,7 +7,7 @@ export const CREEPS: CreepDef[] = [
   { name: 'walker', hp: 40, speed: 1.7, radius: 0.45, size: 1, ranged: false, bounty: 3, rate: 1, windup: 0.4 },
   { name: 'runner', hp: 24, speed: 3.6, radius: 0.4, size: 1, ranged: false, bounty: 3, rate: 1.6, windup: 0.28 },
   { name: 'swarmer', hp: 9, speed: 2.7, radius: 0.3, size: 1, ranged: false, bounty: 1, rate: 2, windup: 0.18 },
-  { name: 'brute', hp: 280, speed: 1.15, radius: 0.9, size: 2, ranged: false, bounty: 15, rate: 0.7, windup: 0.65 },
+  { name: 'brute', hp: 280, speed: 1.5, radius: 0.9, size: 2, ranged: false, bounty: 15, rate: 0.7, windup: 0.65 },
   { name: 'spitter', hp: 55, speed: 1.5, radius: 0.45, size: 1, ranged: true, bounty: 6, rate: 0.5, windup: 0.5 },
   { name: 'abomination', hp: 3200, speed: 0.95, radius: 1.4, size: 3, ranged: false, bounty: 300, rate: 0.6, windup: 0.7 },
 ];
@@ -28,6 +28,8 @@ export const WEAPON_BASE: W0[] = [
     sig: { name: 'Overdrive', desc: 'No spread and +50% damage for 6 seconds.', cool: 20, range: 0, target: 'self' } },
   { name: 'Rocket launcher', short: 'RKT', price: 2000, range: 24, fire: 'rocket', special: '+blast radius', dmg: 140, rate: 0.8, mag: 4, reload: 2.6,
     sig: { name: 'Barrage', desc: 'Four rockets spread around the target point.', cool: 16, range: 24, target: 'point' } },
+  { name: 'Crowbar', short: 'BAR', price: 0, range: 1.9, fire: 'melee', special: '+wider swing', dmg: 34, rate: 1.8, mag: 1, reload: 0,
+    sig: { name: 'Haymaker', desc: 'A full swing all round that hurts three times as much and throws everything back.', cool: 8, range: 0, target: 'self' } },
 ];
 
 function upgradeCost(price: number, level: number): number {

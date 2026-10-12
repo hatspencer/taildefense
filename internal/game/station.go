@@ -217,7 +217,7 @@ func (w *World) stationPost(s *Site, j int) (float32, float32) {
 func (w *World) searchStation(p *Player, s *Site) {
 	var guns []WeaponKind
 	for k := WeaponKind(0); k < NumWeapons; k++ {
-		if !p.Weapons[k].Owned {
+		if !p.Weapons[k].Owned && k != WCrowbar {
 			guns = append(guns, k)
 		}
 	}

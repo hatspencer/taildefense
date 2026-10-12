@@ -363,6 +363,7 @@ func (w *World) stepCreeps() {
 		// The survivor it is after, if any; else a guard goes home, a creep that took against
 		// a structure goes for it, and the rest follow the field to the generator.
 		tp := w.creepTarget(c, d)
+		w.rally(c, tp)
 		if w.bossSlam(c, tp) {
 			continue
 		}
@@ -404,7 +405,7 @@ func (w *World) stepCreeps() {
 				}
 				continue
 			}
-			mx, my = (tp.X-c.X)/dist, (tp.Y-c.Y)/dist
+			mx, my = w.chaseWay(c, tp, dist)
 			speed = c.sprintSpeed(speed)
 		} else {
 			tx, ty := int(c.X), int(c.Y)
@@ -680,6 +681,8 @@ func (w *World) shoot(p *Player, st Stats, ang float32) {
 	switch Weapons[p.Cur].Fire {
 	case FireCone:
 		w.cone(owner, p.X, p.Y, ang, st.Range, st.Spread, st.Damage, st.Burn, kind)
+	case FireMelee:
+		w.melee(owner, p.X, p.Y, ang, st.Range, st.Spread, st.Damage, kind)
 	case FireRocket:
 		a := ang + (w.rng.Float32()*2-1)*st.Spread
 		const speed = 22
@@ -826,6 +829,40 @@ func (w *World) cone(owner int8, x, y, ang, rng, half, dmg, burn float32, kind u
 		a := float64(ang + s)
 		w.tracer(x, y, x+float32(math.Cos(a))*rng, y+float32(math.Sin(a))*rng, kind)
 	}
+}
+
+// meleeHits is how many creeps one swing of a melee weapon goes through.
+const meleeHits = 3
+
+// melee is a swing: the nearest few creeps within reach and within half radians of the aim
+// are hit. One tracer, from the survivor along the swing, lets the client draw it.
+func (w *World) melee(owner int8, x, y, ang, reach, half, dmg float32, kind uint8) {
+	dx, dy := float32(math.Cos(float64(ang))), float32(math.Sin(float64(ang)))
+	cosHalf := float32(math.Cos(float64(half)))
+	cands := w.hitBuf[:0]
+	w.grid.each(x, y, reach+1, func(i int32) bool {
+		c := &w.Creeps[i]
+		if c.HP <= 0 {
+			return true
+		}
+		ox, oy := c.X-x, c.Y-y
+		d := sqrt32(ox*ox + oy*oy)
+		if d > reach+Creeps[c.Kind].Radius || d > 1e-3 && (ox*dx+oy*dy)/d < cosHalf {
+			return true
+		}
+		cands = append(cands, hitCand{d, i})
+		return true
+	})
+	for a := 1; a < len(cands); a++ {
+		for b := a; b > 0 && cands[b].t < cands[b-1].t; b-- {
+			cands[b], cands[b-1] = cands[b-1], cands[b]
+		}
+	}
+	for k := 0; k < min(len(cands), meleeHits); k++ {
+		w.damage(cands[k].i, dmg, owner)
+	}
+	w.hitBuf = cands[:0]
+	w.tracer(x, y, x+dx*reach, y+dy*reach, kind)
 }
 
 func (w *World) ignite(i int32, dps float32) {

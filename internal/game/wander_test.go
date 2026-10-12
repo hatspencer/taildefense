@@ -6,8 +6,29 @@ func TestWanderersRoamComeBackAndRushTheTenthWave(t *testing.T) {
 	w := New(7)
 	w.PhaseLeft = 1e6
 	n := w.wanderers()
-	if n != w.wanderCap() || n == 0 {
+	if n > w.wanderCap() || n < w.wanderCap()-packLo || n == 0 {
 		t.Fatalf("%d wanderers, want %d", n, w.wanderCap())
+	}
+	// They come in packs: nearly every one has another close by.
+	alone := 0
+	for i := range w.Creeps {
+		c := &w.Creeps[i]
+		if !c.Wander {
+			continue
+		}
+		near := false
+		for j := range w.Creeps {
+			o := &w.Creeps[j]
+			if dx, dy := o.X-c.X, o.Y-c.Y; j != i && o.Wander && dx*dx+dy*dy < 4*4 {
+				near = true
+			}
+		}
+		if !near {
+			alone++
+		}
+	}
+	if alone > n/8 {
+		t.Fatalf("%d of %d wanderers are on their own", alone, n)
 	}
 	for i := range w.Creeps {
 		if c := &w.Creeps[i]; c.Wander {

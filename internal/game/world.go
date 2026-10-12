@@ -42,7 +42,11 @@ type Creep struct {
 	// below zero the rest before the next.
 	Sprinter bool
 	sprint   float32
-	slam     float32 // an outpost warlord: seconds until it can slam the ground again
+	slam     float32 // a brute or an abomination: seconds until it can slam the ground again
+	// The chain (chain.go): whether it has howled since it went for someone, and the seconds
+	// until it does.
+	shouted bool
+	alarm   float32
 }
 
 // Structure is a building. Index in World.Structs is its ID; dead slots are reused.
@@ -165,7 +169,7 @@ const (
 	EffNapalm                          // a burning pool
 	EffAirstrike                       // a target marked, the strike lands when Left runs out
 	EffDrop                            // a Huey flying in from X0, Y0; its crate lands on X, Y when Left runs out
-	EffSlam                            // a warlord's slam coming: it lands on everything within R when Left runs out
+	EffSlam                            // a brute's or an abomination's slam coming: it lands on everything within R when Left runs out
 )
 
 // Effect is something that lasts more than a tick: a grenade in the air, a pool of napalm.
@@ -299,6 +303,7 @@ type World struct {
 	structAt []int16 // per tile, structure index or -1
 	flow     flowField
 	flowDirt bool
+	chase    [MaxPlayers]chaseField
 	grid     spatial
 	freeIDs  []uint16
 	// Wanderers: seconds until the next one may appear, and when into this wave they rush, 0 none.

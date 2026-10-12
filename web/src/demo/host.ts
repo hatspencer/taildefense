@@ -229,7 +229,7 @@ export class DemoHost implements Transport {
     const p: DPlayer = {
       id, name, bot, x, y, aim: 0, hp: 100, maxHp: 100, cur, ammo: WEAPON_BASE[cur].mag, reloadLeft: 0, respawn: 0,
       gold: 400 + id * 150, kills: 40 + id * 17, damage: 9000 + id * 2100, owned: 1 | (1 << cur),
-      levels: new Uint8Array(28), gear: new Uint8Array(4), order: Order.Idle, tx: x, ty: y, target: -1, buildKind: 0,
+      levels: new Uint8Array(32), gear: new Uint8Array(4), order: Order.Idle, tx: x, ty: y, target: -1, buildKind: 0,
       repairId: -1, buff: 0, buffLeft: 0, abLevel: [1, 0, 0, 0], abCool: [0, 0, 0, 0], ready: bot, fireCd: 0, shot: 0, hurt: 0, harm: 0,
       moving: false, wander: 2 + id, site: -1, searchT: 0, revTarget: -1, channel: 0, emoteLeft: 0, tauntCool: 0, downT: 0, medkits: 1, heal: 0, steerX: 0, steerY: 0, steerLeft: 0, st: [0, 0, 0, 0, 0, 0],
       // A random survivor, a different outfit for each.

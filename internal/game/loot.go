@@ -425,7 +425,7 @@ func (w *World) grant(p *Player, r Rarity, f Favor) string {
 func (w *World) unowned(p *Player, most int32) WeaponKind {
 	var c []WeaponKind
 	for k := WeaponKind(0); k < NumWeapons; k++ {
-		if !p.Weapons[k].Owned && Weapons[k].Price <= most {
+		if !p.Weapons[k].Owned && k != WCrowbar && Weapons[k].Price <= most {
 			c = append(c, k)
 		}
 	}

@@ -59,6 +59,7 @@ var Signatures = [NumWeapons]SigDef{
 	WFlamer:   {Name: "Napalm", Desc: "A pool of fire at a point that burns for 6 seconds.", Cool: 14, Range: 9, Radius: 3},
 	WMinigun:  {Name: "Overdrive", Desc: "60% more fire rate and one more pierce for 5 seconds.", Cool: 16, Self: true},
 	WLauncher: {Name: "Barrage", Desc: "Six rockets scattered round a point.", Cool: 15, Range: 24, Radius: 2.5},
+	WCrowbar:  {Name: "Haymaker", Desc: "A full swing all round that hurts three times as much and throws everything back.", Cool: 8, Self: true, Radius: 2.6},
 }
 
 // AbilityRange is how far a slot reaches for this player right now.
@@ -161,36 +162,13 @@ func (w *World) signature(p *Player, x, y, ang float32) {
 		}
 	case WShotgun:
 		reach, half := Signatures[WShotgun].Radius, Signatures[WShotgun].Cone
-		dmg := st.Damage * 4 * pow
 		dx, dy := float32(math.Cos(float64(ang))), float32(math.Sin(float64(ang)))
-		cosHalf := float32(math.Cos(float64(half)))
-		w.grid.each(p.X, p.Y, reach, func(i int32) bool {
-			c := &w.Creeps[i]
-			ox, oy := c.X-p.X, c.Y-p.Y
-			dd := ox*ox + oy*oy
-			if dd > reach*reach || dd < 1e-6 {
-				return true
-			}
-			d := sqrt32(dd)
-			if (ox*dx+oy*dy)/d < cosHalf {
-				return true
-			}
-			w.damage(i, dmg, owner)
-			c.Slow = 2
-			// Thrown back, less the bigger the creep and the further it was.
-			push := (3 - d*.3) / (1 + Creeps[c.Kind].Radius)
-			if c.Kind != CBoss && push > 0 {
-				for s := 0; s < 6; s++ {
-					nx, ny := c.X+ox/d*push/6, c.Y+oy/d*push/6
-					if ok, _ := w.creepFree(nx, ny); !ok {
-						break
-					}
-					c.X, c.Y = nx, ny
-				}
-			}
-			return true
-		})
+		w.knockBack(p, owner, dx, dy, reach, float32(math.Cos(float64(half))), st.Damage*4*pow)
 		w.Blasts = append(w.Blasts, Blast{p.X + dx*2, p.Y + dy*2, reach, 3})
+	case WCrowbar:
+		reach := Signatures[WCrowbar].Radius
+		w.knockBack(p, owner, 1, 0, reach, -1, st.Damage*3*pow)
+		w.Blasts = append(w.Blasts, Blast{p.X, p.Y, reach, 3})
 	case WSMG, WMinigun:
 		p.Buff = p.Cur
 		p.BuffLeft = 4
@@ -299,4 +277,35 @@ func (w *World) BuyAbility(p *Player, slot int) error {
 	}
 	a.Lv++
 	return nil
+}
+
+// knockBack hurts everything within reach of p and inside the cone round dx, dy (cosHalf -1
+// for all round), slows it and throws it back.
+func (w *World) knockBack(p *Player, owner int8, dx, dy, reach, cosHalf, dmg float32) {
+	w.grid.each(p.X, p.Y, reach, func(i int32) bool {
+		c := &w.Creeps[i]
+		ox, oy := c.X-p.X, c.Y-p.Y
+		dd := ox*ox + oy*oy
+		if dd > reach*reach || dd < 1e-6 {
+			return true
+		}
+		d := sqrt32(dd)
+		if cosHalf > -1 && (ox*dx+oy*dy)/d < cosHalf {
+			return true
+		}
+		w.damage(i, dmg, owner)
+		c.Slow = 2
+		// Thrown back, less the bigger the creep and the further it was.
+		push := (3 - d*.3) / (1 + Creeps[c.Kind].Radius)
+		if c.Kind != CBoss && push > 0 {
+			for s := 0; s < 6; s++ {
+				nx, ny := c.X+ox/d*push/6, c.Y+oy/d*push/6
+				if ok, _ := w.creepFree(nx, ny); !ok {
+					break
+				}
+				c.X, c.Y = nx, ny
+			}
+		}
+		return true
+	})
 }

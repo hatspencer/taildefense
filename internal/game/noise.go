@@ -11,7 +11,7 @@ const (
 )
 
 // loudness is how far each weapon's shots are heard, in tiles.
-var loudness = [NumWeapons]float32{WPistol: 11, WShotgun: 15, WSMG: 13, WRifle: 17, WFlamer: 7, WMinigun: 18, WLauncher: 16}
+var loudness = [NumWeapons]float32{WPistol: 11, WShotgun: 15, WSMG: 13, WRifle: 17, WFlamer: 7, WMinigun: 18, WLauncher: 16, WCrowbar: 2}
 
 // noiseRange is how far p's current weapon is heard now.
 func (w *World) noiseRange(p *Player) float32 {

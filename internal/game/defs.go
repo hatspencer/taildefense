@@ -80,12 +80,12 @@ type CreepDef struct {
 
 // Creeps is indexed by CreepKind.
 var Creeps = [NumCreepKinds]CreepDef{
-	CWalker:  {Name: "walker", HP: 40, Speed: 1.7, Damage: 6, Rate: 1, Radius: .45, Reach: .5, Bounty: 3, Cost: 1, Size: 1, MinWave: 1, Aggro: 7, Windup: .4, Sprint: .12},
-	CRunner:  {Name: "runner", HP: 24, Speed: 3.6, Damage: 4, Rate: 1.6, Radius: .4, Reach: .5, Bounty: 3, Cost: 1.2, Size: 1, MinWave: 2, Aggro: 10, Windup: .28, Sprint: .35},
-	CSwarmer: {Name: "swarmer", HP: 9, Speed: 2.7, Damage: 2, Rate: 2, Radius: .3, Reach: .4, Bounty: 1, Cost: .35, Size: 1, MinWave: 3, Aggro: 6, Windup: .18, Sprint: .2},
-	CBrute:   {Name: "brute", HP: 280, Speed: 1.15, Damage: 26, Rate: .7, Radius: .9, Reach: .6, Armor: 4, Bounty: 15, Cost: 6, Size: 2, MinWave: 4, Aggro: 5, Windup: .65},
-	CSpitter: {Name: "spitter", HP: 55, Speed: 1.5, Damage: 9, Rate: .5, Radius: .45, Reach: 6, Bounty: 6, Cost: 2.5, Size: 1, MinWave: 6, Aggro: 9, Windup: .5, Ranged: true},
-	CBoss:    {Name: "abomination", HP: 3200, Speed: .95, Damage: 70, Rate: .6, Radius: 1.4, Reach: .8, Armor: 9, Bounty: 300, Cost: 60, Size: 3, MinWave: 10, Aggro: 8, Windup: .7},
+	CWalker:  {Name: "walker", HP: 40, Speed: 1.7, Damage: 7.5, Rate: 1, Radius: .45, Reach: .5, Bounty: 3, Cost: 1, Size: 1, MinWave: 1, Aggro: 7, Windup: .4, Sprint: .12},
+	CRunner:  {Name: "runner", HP: 24, Speed: 3.6, Damage: 5, Rate: 1.6, Radius: .4, Reach: .5, Bounty: 3, Cost: 1.2, Size: 1, MinWave: 2, Aggro: 10, Windup: .28, Sprint: .35},
+	CSwarmer: {Name: "swarmer", HP: 9, Speed: 2.7, Damage: 2.5, Rate: 2, Radius: .3, Reach: .4, Bounty: 1, Cost: .35, Size: 1, MinWave: 3, Aggro: 6, Windup: .18, Sprint: .2},
+	CBrute:   {Name: "brute", HP: 280, Speed: 1.5, Damage: 32.5, Rate: .7, Radius: .9, Reach: .6, Armor: 4, Bounty: 15, Cost: 6, Size: 2, MinWave: 4, Aggro: 5, Windup: .65},
+	CSpitter: {Name: "spitter", HP: 55, Speed: 1.5, Damage: 11.2, Rate: .5, Radius: .45, Reach: 6, Bounty: 6, Cost: 2.5, Size: 1, MinWave: 6, Aggro: 9, Windup: .5, Ranged: true},
+	CBoss:    {Name: "abomination", HP: 3200, Speed: .95, Damage: 87.5, Rate: .6, Radius: 1.4, Reach: .8, Armor: 9, Bounty: 300, Cost: 60, Size: 3, MinWave: 10, Aggro: 8, Windup: .7},
 }
 
 // HPScale is how much tougher creeps are on wave w.
@@ -94,7 +94,7 @@ func HPScale(w int) float32 {
 	return 1 + .14*f + .009*f*f
 }
 
-// WeaponKind identifies a weapon. The pistol is owned from the start.
+// WeaponKind identifies a weapon. The pistol is owned from the start, or the crowbar on brutal.
 type WeaponKind uint8
 
 const (
@@ -105,6 +105,7 @@ const (
 	WFlamer
 	WMinigun
 	WLauncher
+	WCrowbar // brutal's starting weapon, and only there: never sold or found
 	NumWeapons
 )
 
@@ -132,6 +133,7 @@ const (
 	FireHitscan Fire = iota
 	FireCone
 	FireRocket
+	FireMelee // a swing at whatever is in front, in arm's reach; no ammo
 )
 
 // WeaponDef is a weapon's base stats.
@@ -162,6 +164,7 @@ var Weapons = [NumWeapons]WeaponDef{
 	WFlamer:   {Name: "Flamethrower", Short: "FLM", Price: 900, Damage: 6, Rate: 12, Range: 6.5, Mag: 80, Reload: 2.5, Pellets: 1, Spread: .38, Fire: FireCone, Burn: 6, Special: "+range, +burn"},
 	WMinigun:  {Name: "Minigun", Short: "MNG", Price: 1400, Damage: 9, Rate: 22, Range: 16, Mag: 150, Reload: 3.5, Pellets: 1, Spread: .12, Special: "+1 pierce, +burn"},
 	WLauncher: {Name: "Rocket launcher", Short: "RKT", Price: 2000, Damage: 140, Rate: .8, Range: 24, Mag: 4, Reload: 2.6, Pellets: 1, Spread: .02, Fire: FireRocket, Blast: 3, Special: "+blast radius"},
+	WCrowbar:  {Name: "Crowbar", Short: "BAR", Price: 0, Damage: 34, Rate: 1.8, Range: 1.9, Mag: 1, Reload: 0, Pellets: 1, Spread: .8, Fire: FireMelee, Special: "+wider swing"},
 }
 
 // UpgradeCost is the price of raising a weapon's track from level to level+1.
@@ -208,6 +211,8 @@ func WeaponStats(w WeaponKind, lv [NumTracks]uint8) Stats {
 		s.Burn += 2 * float32(sp)
 	case WLauncher:
 		s.Blast += .6 * float32(sp)
+	case WCrowbar:
+		s.Spread += .15 * float32(sp)
 	}
 	return s
 }
@@ -338,6 +343,9 @@ func TrackValue(w WeaponKind, t Track, level uint8) string {
 	case TrackRate:
 		return fmt.Sprintf("%.1f/s", st.Rate)
 	case TrackHandling:
+		if w == WCrowbar {
+			return "no ammo"
+		}
 		return fmt.Sprintf("%d rounds, %.1fs reload", st.Mag, st.Reload)
 	}
 	switch w {
@@ -349,6 +357,8 @@ func TrackValue(w WeaponKind, t Track, level uint8) string {
 		return fmt.Sprintf("%d pierce, %.0f burn/s", st.Pierce, st.Burn)
 	case WLauncher:
 		return fmt.Sprintf("%.1f blast", st.Blast)
+	case WCrowbar:
+		return fmt.Sprintf("%.0f° swing", st.Spread*2*180/math.Pi)
 	}
 	return fmt.Sprintf("%d pierce", st.Pierce)
 }

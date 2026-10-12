@@ -308,6 +308,10 @@ func (w *World) stepPlayers() {
 					w.noise(p)
 				}
 				w.shoot(p, st, ang)
+				if Weapons[p.Cur].Fire == FireMelee {
+					ws.Cool += 1 / st.Rate
+					continue
+				}
 				ws.Ammo--
 				ws.Cool += 1 / st.Rate
 				if ws.Ammo == 0 {
