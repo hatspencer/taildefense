@@ -1,8 +1,7 @@
 import { el } from './dom';
 
-// The boot splash: the wordmark is laid brick by brick like a base wall while creeps crawl in
-// from the dark, then the wall's guns open up and pick them off, a searchlight crosses the
-// word, and the tagline types in under it. Drawn on a low-resolution canvas scaled up with
+// The boot splash: the wordmark is laid brick by brick like a base wall, a searchlight
+// crosses the word, and the tagline types in under it. Drawn on a low-resolution canvas scaled up with
 // hard pixels, in the HUD's palette; the tagline, the tape and the bar are DOM in the HUD's
 // faces. Any key or click skips it; reduced motion shows the finished frame.
 
@@ -44,7 +43,7 @@ function bricks(): { list: Brick[]; w: number } {
 const INK = [7, 8, 10], SOOT = [14, 16, 11], DRAB = [28, 30, 22];
 const BONE = { hi: [242, 236, 210], mid: [217, 209, 179], lo: [143, 138, 112] };
 const AMBER = { hi: [244, 194, 92], mid: [224, 166, 58], lo: [156, 122, 52] };
-const HOT = [255, 244, 214], RUST = [181, 71, 47], RUST_HI = [232, 132, 106], KHAKI = [147, 138, 102];
+const HOT = [255, 244, 214], KHAKI = [147, 138, 102];
 
 // Ordered dither threshold, 4x4 Bayer.
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => (v + 0.5) / 16);
@@ -53,10 +52,9 @@ const T = {
   lay0: 0.12, lay1: 1.15, // bricks land between these
   fall: 0.2, // seconds a brick falls
   cool: 0.35, // seconds a landed brick glows
-  guns: 1.3, // the wall starts shooting
-  sweep0: 1.45, sweep1: 2.0, // the searchlight's pass
-  type0: 1.05, type1: 1.9, // the tagline types in
-  done: 2.45, // the splash starts to fade
+  sweep0: 1.2, sweep1: 1.75, // the searchlight's pass
+  type0: 0.9, type1: 1.7, // the tagline types in
+  done: 2.1, // the splash starts to fade
   fade: 0.25,
 };
 // The whole timeline plays this much faster than the seconds above.
@@ -67,7 +65,6 @@ function rnd(seed: number): () => number {
   return () => { s = (s + 0x6d2b79f5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
 
-interface Creep { x: number; y: number; vx: number; vy: number; born: number; dies: number; gun: number }
 interface Bit { x: number; y: number; vx: number; vy: number; at: number; life: number; c: number[] }
 
 export class Splash {
@@ -78,10 +75,8 @@ export class Splash {
   private gw = 0; private gh = 0; private u = 4;
   private ox = 0; private oy = 0;
   private word = bricks();
-  private creeps: Creep[] = [];
   private bits: Bit[] = [];
   private landed = new Set<number>();
-  private shot = new Set<number>();
   // The splash's own clock. Each frame advances it by at most 1/30 s, so while the page is
   // busy loading (shaders compiling, the map arriving) the animation slows down rather than
   // skipping ahead.
@@ -117,7 +112,6 @@ export class Splash {
       b.at = T.lay0 + (T.lay1 - T.lay0 - T.fall) * (0.92 * fromEdge + 0.08 * r()) + (ROWS - 1 - b.y) * 0.012;
     }
     this.layout();
-    this.spawnCreeps();
     window.addEventListener('keydown', this.skip, { once: true });
     this.root.addEventListener('pointerdown', this.skip, { once: true });
     window.addEventListener('resize', this.onResize);
@@ -164,25 +158,6 @@ export class Splash {
     const bw = Math.min(wordPx * u * 0.55, 420);
     this.bar.style.width = `${Math.round(bw / 12) * 12 + 4}px`;
     this.bar.style.top = `${bottom + 72}px`;
-  }
-
-  private spawnCreeps(): void {
-    const r = rnd(42);
-    const cx = this.word.w * B / 2, cy = ROWS * B / 2;
-    const n = 14;
-    for (let i = 0; i < n; i++) {
-      // Just inside the screen's edge, word-relative, crawling in.
-      const a = (i / n) * Math.PI * 2 + r() * 0.4;
-      const x = cx + Math.cos(a) * this.gw * 0.46, y = cy + Math.sin(a) * this.gh * 0.44;
-      const speed = 16 + r() * 10;
-      const dx = cx - x, dy = cy - y, d = Math.hypot(dx, dy);
-      this.creeps.push({
-        x, y, vx: (dx / d) * speed, vy: (dy / d) * speed,
-        born: 0.15 + r() * 0.5,
-        dies: T.guns + (i % 7) * 0.09 + Math.floor(i / 7) * 0.045 + r() * 0.03,
-        gun: Math.cos(a) < 0 ? 0 : 1,
-      });
-    }
   }
 
   // Skipping jumps to the finished frame and fades out from there.
@@ -243,7 +218,6 @@ export class Splash {
     // Scanlines, every third row.
     for (let y = 2; y < gh; y += 3) for (let x = 0; x < gw; x++) { const o = (y * gw + x) * 4; d[o] *= 0.82; d[o + 1] *= 0.82; d[o + 2] *= 0.82; }
 
-    this.drawCreeps(t);
     this.drawWord(t);
     this.drawBits(t);
     this.ctx.putImageData(this.img, 0, 0);
@@ -285,54 +259,12 @@ export class Splash {
     for (let i = 0; i < 2; i++) this.bits.push({ x, y, vx: (i ? 1 : -1) * (6 + Math.random() * 10), vy: -6 - Math.random() * 6, at: t, life: 0.35, c: KHAKI });
   }
 
-  private drawCreeps(t: number): void {
-    const guns = [
-      [this.ox + 1, this.oy - 1],
-      [this.ox + this.word.w * B - 2, this.oy - 1],
-    ];
-    for (let i = 0; i < this.creeps.length; i++) {
-      const c = this.creeps[i];
-      if (t < c.born) continue;
-      const age = Math.min(t, c.dies) - c.born;
-      const x = this.ox + c.x + c.vx * age, y = this.oy + c.y + c.vy * age;
-      if (t >= c.dies) {
-        if (!this.shot.has(i)) {
-          this.shot.add(i);
-          // The tracer, and the creep bursts.
-          const [gx, gy] = guns[c.gun];
-          this.bits.push({ x: gx, y: gy, vx: x, vy: y, at: t, life: 0.07, c: [-1] });
-          for (let k = 0; k < 7; k++) {
-            const a = Math.random() * Math.PI * 2, s = 10 + Math.random() * 22;
-            this.bits.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 8, at: t, life: 0.3 + Math.random() * 0.25, c: k % 3 ? RUST : RUST_HI });
-          }
-        }
-        continue;
-      }
-      // A 3x3 hunched creep, its legs stepping.
-      const step = Math.floor(t * 8 + i) % 2;
-      const fade = Math.min(1, (t - c.born) / 0.25);
-      for (const [dx, dy, col] of [[0, -1, RUST], [1, -1, RUST], [-1, 0, RUST], [0, 0, RUST_HI], [1, 0, RUST], [2, 0, INK], [0, -2, INK], [1, -2, INK]] as [number, number, number[]][]) this.put(x + dx, y + dy, col, fade);
-      this.put(x + (step ? -1 : 0), y + 1, RUST, fade);
-      this.put(x + (step ? 1 : 2), y + 1, RUST, fade);
-    }
-  }
-
   private drawBits(t: number): void {
     this.bits = this.bits.filter((b) => t - b.at < b.life);
     for (const b of this.bits) {
       const k = t - b.at;
-      if (b.c[0] === -1) { this.line(b.x, b.y, b.vx, b.vy); continue; }
       const f = k / b.life;
       this.put(b.x + b.vx * k, b.y + b.vy * k + 40 * k * k, b.c, 1 - f * f);
-    }
-  }
-
-  // A tracer: a hot core with amber either side, on the grid.
-  private line(x0: number, y0: number, x1: number, y1: number): void {
-    const n = Math.ceil(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)));
-    for (let i = 0; i <= n; i++) {
-      const x = x0 + ((x1 - x0) * i) / n, y = y0 + ((y1 - y0) * i) / n;
-      this.put(x, y, i > n * 0.6 ? HOT : AMBER.hi);
     }
   }
 
