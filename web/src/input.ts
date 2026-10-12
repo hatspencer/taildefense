@@ -60,7 +60,7 @@ export class Input {
       if (fullScreen() && atEdge) { this.ex = x; this.ey = y; return; }
       this.inWin = false;
     });
-    window.addEventListener('blur', () => { this.keys.clear(); this.steer.clear(); this.spaceUp(false); });
+    window.addEventListener('blur', () => { this.keys.clear(); this.steer.clear(); this.spaceUp(false); this.holdCore(false); });
     window.addEventListener('keydown', (e) => this.down(e));
     window.addEventListener('keyup', (e) => {
       this.keys.delete(e.key);
@@ -68,7 +68,41 @@ export class Input {
       if (e.key === ' ') this.spaceUp(true);
       ctl.shift = e.shiftKey;
       if (e.key === 'Tab') this.hud.showScore(false);
+      if (e.key === 'n' || e.key === 'N') this.holdCore(false);
     });
+  }
+
+  // T: the next turret, in the order they stand in the base's list, selected (so its upgrade
+  // and sell card shows) with the view on it.
+  private nextTurret(): void {
+    const ctl = this.ctl, g = ctl.game, f = g.cur, wd = g.welcome;
+    if (!wd) return;
+    const list: number[] = [];
+    for (let i = 0; i < f.nStructs; i++) if (f.sAlive[i] && wd.structs[f.sKind[i]]?.turret) list.push(i);
+    if (!list.length) { this.hud.flash('no turrets standing'); return; }
+    const n = (list.indexOf(ctl.selectedStruct()) + 1) % list.length, id = list[n];
+    ctl.sel = { t: 'struct', id };
+    this.rig.locked = false; this.rig.follow = false;
+    this.rig.center(f.sX[id] + f.sW[id] / 2, f.sY[id] + f.sH[id] / 2, true);
+    this.hud.flash(`turret ${n + 1} of ${list.length}`);
+  }
+
+  // N, held: the view on the generator; let go, back to how it was.
+  private coreHeld: { follow: boolean; locked: boolean } | null = null;
+  private holdCore(on: boolean): void {
+    const rig = this.rig, wd = this.ctl.game.welcome;
+    if (on) {
+      if (this.coreHeld || !wd) return;
+      this.coreHeld = { follow: rig.follow, locked: rig.locked };
+      rig.follow = false; rig.locked = false;
+      rig.center(wd.core.x, wd.core.y, true);
+      return;
+    }
+    if (!this.coreHeld) return;
+    rig.follow = this.coreHeld.follow; rig.locked = this.coreHeld.locked;
+    this.coreHeld = null;
+    const me = this.ctl.me();
+    if (rig.follow && me) rig.center(me.x, me.y, true);
   }
 
   private spaceUp(tap: boolean): void {
@@ -134,11 +168,12 @@ export class Input {
     switch (up) {
       case 'Z': ctl.setMode({ k: ctl.mode.k === 'ping' ? 'none' : 'ping' }); return;
       case 'H': ctl.cancel(); ctl.send({ op: 'hold' }); return;
-      case 'T': e.preventDefault(); this.steer.clear(); hud.openChat(); return;
+      case 'T': this.nextTurret(); return;
       case 'R': ctl.send({ op: 'reload' }); return;
       case 'B': hud.buildCard = !hud.buildCard; if (!hud.buildCard) ctl.cancel(); return;
       case 'G': ctl.openArmory(!ctl.armoryOpen); return;
-      case 'N': ctl.toggleReady(); return;
+      case 'N': this.holdCore(true); return;
+      case 'Y': ctl.toggleReady(); return;
       case 'P': ctl.send({ op: 'pause' }); return;
       case 'M': hud.minimap.toggle(); return;
       case 'U': ctl.upgradeSel(); return;

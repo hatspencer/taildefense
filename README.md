@@ -107,7 +107,9 @@ faces, however the camera is turned, and the camera follows while you walk.
 | left-click | select a building, creep or player |
 | U / X | upgrade / sell the selected building |
 | G | armory: weapons, upgrade tracks, gear, abilities (you have to be standing by it) |
-| N | ready for the next wave |
+| Y | ready for the next wave |
+| T | the next turret: selects it (its upgrade and sell card shows) and looks at it; again for the one after |
+| N (hold) | look at the generator |
 | P | pause or resume the game, for everyone; anyone can do either |
 | M | big map, and back |
 | Alt+left-click, or Z then left-click | ping: mark the spot for the whole team, in the world or on the map. On a creep it warns of danger, on a loot site it marks loot, on a building it calls to defend it |
@@ -115,7 +117,7 @@ faces, however the camera is turned, and the camera follows while you walk.
 | middle-drag, Alt+wheel | rotate the camera |
 | wheel | zoom |
 | arrows, screen edges | look around; walking brings the camera back, tapping Space recenters on your hero, a double tap locks the camera to it |
-| T or Enter | chat with the team; in the chat, Tab adds where you are ("NE of the base, 40 m") |
+| Enter | chat with the team; in the chat, Tab adds where you are ("NE of the base, 40 m") |
 | Tab, F1, F3, Esc | scoreboard, help, stats, cancel / menu |
 
 The top bar always shows the base's health, the generator's, next to the wave. Click it to look at
