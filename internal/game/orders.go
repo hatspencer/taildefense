@@ -106,7 +106,7 @@ func (w *World) OrderRepair(p *Player, si int) error {
 		return errors.New("nothing to repair there")
 	}
 	s := &w.Structs[si]
-	if s.HP >= s.MaxHP {
+	if s.mended() {
 		return errors.New("it is not damaged")
 	}
 	w.order(p, Order{Kind: OrderRepair, Struct: si, X: s.CX(), Y: s.CY()})
@@ -423,7 +423,7 @@ func (w *World) act(p *Player, st Stats) int32 {
 			return -1
 		}
 		s := &w.Structs[o.Struct]
-		if !s.Alive || s.HP >= s.MaxHP {
+		if !s.Alive || s.mended() {
 			o.Kind = OrderIdle
 			return -1
 		}

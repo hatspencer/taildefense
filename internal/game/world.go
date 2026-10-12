@@ -126,6 +126,8 @@ type Player struct {
 	Look      uint32  // what the survivor looks like, dealt on joining; see Look
 
 	walk walker
+	// repairOwed is the part of a gold coin repairs have cost and not yet charged.
+	repairOwed float32
 }
 
 // Tally is a survivor's game so far, beyond kills and damage, for the scoreboard and the field
