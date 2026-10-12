@@ -104,7 +104,7 @@ export class Hud {
     const kills = el('div', 'kills', top);
     const readies = el('div', 'readies', top);
     const ready = el('button', 'ready', top, 'Ready');
-    ready.title = 'Ready for the next wave (N)';
+    ready.title = 'Ready for the next wave (Y)';
     ready.onclick = () => ctl.toggleReady();
     const pauseBtn = el('button', '', top, 'Pause');
     pauseBtn.title = 'Pause or resume the game for everyone (P)';
@@ -439,14 +439,16 @@ export class Hud {
       ['Left-click', 'select a structure, creep or hero'],
       ['<kbd>U</kbd> / <kbd>X</kbd>', 'upgrade / sell the selected structure'],
       ['<kbd>G</kbd>', 'armory window (opens by itself when you arrive)'],
-      ['<kbd>N</kbd>', 'ready for the next wave'],
+      ['<kbd>Y</kbd>', 'ready for the next wave'],
+      ['<kbd>T</kbd>', 'the next turret: selects it (upgrade / sell) and looks at it; again for the one after'],
+      ['<kbd>N</kbd>', 'hold: look at the generator'],
       ['Wheel', 'zoom · Alt+wheel or middle-drag: rotate'],
       ['<kbd>Space</kbd>', 'hold: sprint, until your stamina (the strip under your health) runs out · tap: back to your hero · double tap: lock the camera to it'],
       ['Arrows / screen edge', 'look around; walking brings the camera back'],
       ['Minimap', 'left-click/drag: look there · right-click: move there'],
       ['<kbd>P</kbd>', 'pause or resume the game, for everyone'],
       ['<kbd>M</kbd>', 'big map, and back; click it to look, right-click to walk there'],
-      ['<kbd>T</kbd> / <kbd>Enter</kbd>', 'chat with the team · in the chat, <kbd>Tab</kbd> adds where you are'],
+      ['<kbd>Enter</kbd>', 'chat with the team · in the chat, <kbd>Tab</kbd> adds where you are'],
       ['Compass', 'the strip at the top shows which way the view faces; click it to turn north up'],
       ['<kbd>Tab</kbd>', 'scoreboard (hold)'],
       ['<kbd>F3</kbd>', 'performance readout'],
