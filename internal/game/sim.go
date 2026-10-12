@@ -609,17 +609,25 @@ func (w *World) respawn(p *Player) {
 }
 
 // repair heals a structure for one tick, paid for as it goes; false when the gold ran out.
+// The gold is charged by the hit point, a coin at a time as the cost adds up, so mending a
+// scratch costs a scratch's worth and not a coin a tick.
 func (w *World) repair(p *Player, si int) bool {
 	s := &w.Structs[si]
 	hp := min(80*Dt*float32(1+p.Gear[GearVitamins]/2), s.MaxHP-s.HP)
-	cost := int32(math.Ceil(float64(hp * RepairCostPerHP)))
-	if p.Gold < cost {
+	owed := p.repairOwed + hp*RepairCostPerHP
+	if float32(p.Gold) < owed {
 		return false
 	}
-	p.Gold -= cost
+	coins := int32(owed)
+	p.Gold -= coins
+	p.repairOwed = owed - float32(coins)
 	s.HP += hp
 	return true
 }
+
+// mended reports whether s is as good as whole: within half a hit point of its max, which is
+// what the survivors see as full.
+func (s *Structure) mended() bool { return s.HP > s.MaxHP-.5 }
 
 func (w *World) toast(p *Player, level uint8, format string, a ...any) {
 	w.Toasts = append(w.Toasts, Toast{Player: p.ID, Level: level, Text: fmt.Sprintf(format, a...)})
