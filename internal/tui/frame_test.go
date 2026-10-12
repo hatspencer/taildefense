@@ -57,6 +57,12 @@ func TestFramesSayWhatMatters(t *testing.T) {
 	if got := ansi.Strip(Frame(Options{Session: sess}, 80, 24, FrameMenu)); !strings.Contains(got, "press u to update") || !strings.Contains(got, "Update td now") {
 		t.Errorf("no update offer:\n%s", got)
 	}
+	// Up to date, the menu still offers to look for one.
+	m := newModel(Options{Session: NewSession(nil), NoSplash: true})
+	m.sess.setUpdate(cli.SelfUpdate{State: cli.UpdateCurrent, Version: "abc1234"})
+	if got := ansi.Strip(strings.Join(m.menuView(80), "\n")); !strings.Contains(got, "Check for updates") {
+		t.Errorf("no update item when current:\n%s", got)
+	}
 	join := ansi.Strip(Frame(Options{}, 80, 24, FrameJoin))
 	for _, want := range []string{"pal", "2/4", "wave 7", "14ms", "✗", "enter address"} {
 		if !strings.Contains(join, want) {

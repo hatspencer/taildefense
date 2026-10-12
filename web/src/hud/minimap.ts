@@ -112,7 +112,7 @@ export class Minimap {
     const name = wd.siteKinds[s.kind]?.name ?? 'Loot site';
     const lvl = Math.max(0, Math.min(4, s.guard ?? 0));
     const left = g.guardsLeft(i);
-    const state = f.siteSearched(i) ? 'searched' : left < 0 ? 'dark inside' : lvl === 0 ? 'unguarded' : left > 0 ? `${left} left · search if you dare` : 'guards cleared';
+    const state = f.siteSearched(i) ? 'searched' : left === -2 ? (lvl > 0 ? 'how many, nobody knows' : 'unguarded') : left < 0 ? 'dark inside' : lvl === 0 ? 'unguarded' : left > 0 ? `${left} left · search if you dare` : 'guards cleared';
     const html = `<b>${esc(name)}</b> ${lvl > 0 ? `<span class="skulls">${'☠'.repeat(lvl)}</span> ${GUARD[lvl]}` : ''} <span class="muted">· ${esc(state)}</span>`;
     if (this.tip.innerHTML !== html) this.tip.innerHTML = html;
     show(this.tip, true);

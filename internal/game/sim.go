@@ -395,18 +395,31 @@ func (w *World) stepCreeps() {
 			c.Chase = int8(tp.ID)
 			dx, dy := tp.X-c.X, tp.Y-c.Y
 			dist := sqrt32(dx*dx + dy*dy)
+			reach := d.Radius + d.Reach
 			// A spitter needs a clear line, the same one a survivor's shot needs back.
-			if dist <= d.Radius+d.Reach && (!d.Ranged || w.clearShot(c.X, c.Y, tp.X, tp.Y)) {
+			if d.Ranged && dist <= reach && w.clearShot(c.X, c.Y, tp.X, tp.Y) {
 				if c.swing(d, tp.X, tp.Y) {
 					w.hurtPlayer(tp, d.Damage)
-					if d.Ranged {
-						w.tracer(c.X, c.Y, tp.X, tp.Y, TracerSpit)
-					}
+					w.tracer(c.X, c.Y, tp.X, tp.Y, TracerSpit)
 				}
 				continue
 			}
-			mx, my = w.chaseWay(c, tp, dist)
-			speed = c.sprintSpeed(speed)
+			if !d.Ranged && (dist <= reach || c.swung != SwingNone && dist <= reach+lunge) {
+				// A chaser swings on the run: it keeps after a survivor who moves while it
+				// winds up, and the blow lands on them if they are still within a lunge.
+				if c.swing(d, tp.X, tp.Y) {
+					w.hurtPlayer(tp, d.Damage)
+				}
+				close := d.Radius + PlayerRadius + .1
+				if dist <= close+.05 {
+					continue
+				}
+				speed = min(c.sprintSpeed(speed), (dist-close)/Dt)
+				mx, my = dx/dist, dy/dist
+			} else {
+				mx, my = w.chaseWay(c, tp, dist)
+				speed = c.sprintSpeed(speed)
+			}
 		} else {
 			tx, ty := int(c.X), int(c.Y)
 			ti := ty*w.W + tx
@@ -481,6 +494,10 @@ const (
 	SwingWindup       // the blow is coming: the last Windup seconds before it lands
 	SwingStrike       // it lands this tick
 )
+
+// lunge is how far past its reach a chaser's wound-up blow still lands on a survivor who
+// has stepped away.
+const lunge = .6
 
 // swing is a creep in reach of what it attacks at tx, ty this tick: it turns to it, and
 // reports whether a blow lands now. Coming into reach it winds up first, so every blow is

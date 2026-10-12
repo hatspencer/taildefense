@@ -67,3 +67,34 @@ func TestOneWokenCreepBringsTheOthers(t *testing.T) {
 		}
 	}
 }
+
+// A survivor walking away is caught and hit: the walker swings on the run.
+func TestChasersHitASurvivorOnTheMove(t *testing.T) {
+	w := New(5)
+	w.PhaseLeft = 1e6
+	w.Creeps, w.freeIDs = w.Creeps[:0], w.freeIDs[:0]
+	for i := MaxCreeps - 1; i >= 0; i-- {
+		w.freeIDs = append(w.freeIDs, uint16(i))
+	}
+	oy := int(w.CoreY) - 40
+	for y := oy - 3; y <= oy+3; y++ {
+		for x := 10; x < w.W-10; x++ {
+			w.Terrain[y*w.W+x] = TGrass
+		}
+	}
+	p, _ := w.Join("ana", "ana@example")
+	p.HP, p.MaxHP = 1e6, 1e6
+	p.X, p.Y = 40, float32(oy)+.5
+	w.SpawnCreep(CWalker, p.X-2, p.Y)
+	c := &w.Creeps[0]
+	c.Hunt, c.HuntLeft, c.HP = int8(p.ID), 1e6, 1e6
+	p.Weapons, p.Cur = [NumWeapons]WeaponState{}, WPistol // nothing to shoot back with
+	hp := p.HP
+	for i := 0; i < TickRate*8 && p.HP == hp; i++ {
+		p.X += p.Speed() * Dt
+		w.Step()
+	}
+	if p.HP == hp {
+		t.Fatalf("a walking survivor was never hit; the walker is %.1f behind", p.X-w.Creeps[0].X)
+	}
+}

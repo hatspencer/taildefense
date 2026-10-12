@@ -117,14 +117,14 @@ export class Labels {
   private siteTag(game: Game, i: number, hint: string, x: number, y: number, zoom: number, rings: Ring[]): void {
     const c = this.ctx, wd = game.welcome!, f = game.cur, s = wd.sites[i];
     const searched = f.siteSearched(i);
-    // -1: fog of war, and nobody has been inside to count them.
+    // -1: fog of war, and nobody has been inside to count them. -2: night, never counted.
     const guards = game.guardsLeft(i);
     const level = Math.max(0, Math.min(4, s.guard ?? 0));
     const fs = Math.round(13 * Math.max(0.9, zoom));
     c.save();
     c.textAlign = 'left'; c.textBaseline = 'middle';
     c.font = `600 ${fs}px ${FONT}`;
-    const line2 = searched ? (level > 0 ? 'picked clean' : '') : guards < 0 ? 'dark inside · go in to see' : level === 0 ? 'unguarded' : guards > 0 ? `${guards} ${guards === 1 ? 'guard' : 'guards'} left · search if you dare` : 'guards cleared';
+    const line2 = searched ? (level > 0 ? 'picked clean' : '') : guards === -2 ? (level > 0 ? 'how many, nobody knows · search if you dare' : 'unguarded') : guards < 0 ? 'dark inside · go in to see' : level === 0 ? 'unguarded' : guards > 0 ? `${guards} ${guards === 1 ? 'guard' : 'guards'} left · search if you dare` : 'guards cleared';
     const w1 = c.measureText(hint).width;
     c.font = `600 ${fs - 1}px ${FONT}`;
     const skullW = level > 0 ? level * 13 + 4 : 0;

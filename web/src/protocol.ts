@@ -74,6 +74,8 @@ export interface Welcome {
   siteKinds: SiteKindDef[]; sites: SiteDef[];
   difficulty: { id: number; name: string }; difficulties: string[]; weathers: WeatherDef[];
   fogOfWar?: boolean;
+  // Night on the harder settings: how far a survivor sees, out past the generator's lights.
+  dark?: number;
   taunt: { cool: number; radius: number; time: number };
   revive: { reach: number; time: number; hp: number };
   // heal: the share of max HP one medkit gives back over time seconds; max carried; cost each.
