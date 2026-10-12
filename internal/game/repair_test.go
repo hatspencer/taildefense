@@ -39,3 +39,28 @@ func TestRepairChargesByTheHitPoint(t *testing.T) {
 		t.Fatalf("chip damage drained %d gold", spent)
 	}
 }
+
+// Standing right by the generator slowly heals a survivor, mid-wave too; a few steps off, not.
+func TestTheGeneratorHealsWhoStandsByIt(t *testing.T) {
+	w := newBare(4)
+	w.Phase = PhaseWave
+	w.Queue = []Spawn{{At: 1e9}}
+	p, _ := w.Join("ana", "ana@example")
+	core := &w.Structs[w.Core]
+	for _, c := range []struct {
+		x    float32
+		want bool
+	}{{core.CX() + float32(core.W)/2 + 1, true}, {core.CX() + float32(core.W)/2 + 4, false}} {
+		p.X, p.Y, p.HP = c.x, core.CY(), 50
+		p.Order = Order{}
+		for i := 0; i < TickRate*5; i++ {
+			w.stepPlayers()
+		}
+		if healed := p.HP > 50; healed != c.want {
+			t.Fatalf("%.1f tiles from the generator's side: HP %.1f", c.x-core.CX()-float32(core.W)/2, p.HP)
+		}
+		if c.want && p.HP > 50+coreHeal*5+1 {
+			t.Fatalf("healed too fast: HP %.1f", p.HP)
+		}
+	}
+}

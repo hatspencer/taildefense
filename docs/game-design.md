@@ -137,7 +137,8 @@ each wave, but Normal is the reference for timing.
 - **Hits stun.** A survivor's hit stops a creep for a moment (a quarter second; a brute
   0.15 s, an abomination 0.08 s), its windup held where it was, so its blow comes late but
   still comes. A creep just stunned can't be stunned again for half a second, so a fast gun
-  doesn't pin one down. Turrets and burning ground never stun.
+  doesn't pin one down. A shotgun's load stuns two and a half times as long. Turrets and
+  burning ground never stun.
 - **Sprinters.** Some runners, swarmers and walkers sprint once they have a survivor to chase:
   faster than even a sprinting survivor for about three and a half seconds, then four seconds
   at the usual chase. You can't simply run from a pull; you have to outlast it.
@@ -209,6 +210,9 @@ the army trucks.
 - **Medkits are a decision, not a regen stat.** One heals 40% over 3 s, and a hit cuts it
   short, so you heal after you get clear, not in the crowd. You carry up to three, start with
   one, buy them for 60 gold or find them in ambulances. The old regen gear row is Vitamins.
+- **The generator heals, slowly.** Standing right by it (within a step and a half of its
+  sides) gives back 2 HP a second, mid-wave too: a place to catch your breath, not to stand
+  in a fight.
 - **The taunt is rude.** The survivor turns to the camera, flips the horde off and shouts. It's
   the funniest thing in the game to do to a brute, and it reads at a glance.
 

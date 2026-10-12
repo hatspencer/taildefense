@@ -260,6 +260,9 @@ func (w *World) stepPlayers() {
 		if w.Phase == PhaseBuild {
 			regen += 8
 		}
+		if w.byCore(p) {
+			regen += coreHeal
+		}
 		if p.Heal > 0 {
 			regen += p.MaxHP * medkitHeal / medkitTime
 			p.Heal = max(p.Heal-Dt, 0)
@@ -307,7 +310,9 @@ func (w *World) stepPlayers() {
 					p.noise = noiseEvery
 					w.noise(p)
 				}
+				w.slug = p.Cur == WShotgun
 				w.shoot(p, st, ang)
+				w.slug = false
 				if Weapons[p.Cur].Fire == FireMelee {
 					ws.Cool += 1 / st.Rate
 					continue
@@ -324,6 +329,24 @@ func (w *World) stepPlayers() {
 			ws.Cool = 0
 		}
 	}
+}
+
+// coreHeal is the HP a second a survivor gets back standing right by the generator, and
+// coreHealReach how close to its sides that is.
+const (
+	coreHeal      = 2
+	coreHealReach = 1.5
+)
+
+// byCore reports whether p stands right by the generator, and it still runs.
+func (w *World) byCore(p *Player) bool {
+	if w.Core < 0 || w.Core >= len(w.Structs) || !w.Structs[w.Core].Alive {
+		return false
+	}
+	s := &w.Structs[w.Core]
+	dx := max(abs32(p.X-s.CX())-float32(s.W)/2, 0)
+	dy := max(abs32(p.Y-s.CY())-float32(s.H)/2, 0)
+	return dx*dx+dy*dy <= coreHealReach*coreHealReach
 }
 
 // act carries out the player's order for one tick: walks, builds, repairs. It returns the
