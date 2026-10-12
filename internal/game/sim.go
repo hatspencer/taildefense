@@ -920,7 +920,7 @@ func (w *World) damage(i int32, dmg float32, owner int8) {
 	c.HP -= d
 	w.provoke(c)
 	if owner >= 0 && !w.turretFire && !w.burning {
-		c.stun()
+		c.stun(w.slug)
 	}
 	if owner >= 0 {
 		c.LastHit = owner

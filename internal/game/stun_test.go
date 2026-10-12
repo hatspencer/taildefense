@@ -47,3 +47,20 @@ func TestHitsStunCreepsForAMoment(t *testing.T) {
 		t.Fatal("no stun once the last had worn off")
 	}
 }
+
+// A shotgun's load stops a creep longer than any other gun's hit.
+func TestTheShotgunStunsLonger(t *testing.T) {
+	w := New(5)
+	w.Creeps, w.freeIDs = w.Creeps[:0], append(w.freeIDs[:0], 1)
+	w.SpawnCreep(CWalker, w.CoreX+40, w.CoreY)
+	c := &w.Creeps[0]
+	w.damage(0, 5, 0)
+	plain := c.stunLeft
+	c.stunLeft, c.stunCool = 0, 0
+	w.slug = true
+	w.damage(0, 5, 0)
+	w.slug = false
+	if c.stunLeft < plain*2 {
+		t.Fatalf("a shotgun stunned for %.2fs, another gun %.2fs", c.stunLeft, plain)
+	}
+}

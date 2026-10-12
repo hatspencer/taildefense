@@ -275,6 +275,7 @@ func TestMedkitsHealUnlessAHitCutsThemShort(t *testing.T) {
 	p, _ := w.Join("ana", "ana@example")
 	w.Phase = PhaseWave // no break-time regen
 	w.Queue = []Spawn{{At: 1e9}}
+	w.Structs[w.Core].Alive = false // nor the generator's
 	if err := w.UseMedkit(p); err == nil {
 		t.Fatal("used a medkit at full health")
 	}
