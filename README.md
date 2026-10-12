@@ -167,6 +167,9 @@ for you if you get close or shoot them, and more turn up as they are killed, a f
 wave. Every tenth wave they hear the call: partway into it, every wanderer left rushes the
 generator, and the wave isn't over until they are dead too.
 
+Some of the dead are sprinters: once one is after you it runs faster than you can, in bursts of
+a few seconds. Outrunning one means running on while it stops for breath, or turning to fight.
+
 Gunfire is loud. Shooting wakes guards nearby and pulls wave creeps in earshot towards you; rain
 and storms muffle it.
 

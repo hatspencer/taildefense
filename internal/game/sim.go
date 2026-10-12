@@ -308,6 +308,10 @@ func (w *World) SpawnCreep(k CreepKind, x, y float32) bool {
 	hp := Creeps[k].HP * HPScale(max(w.Wave, 1)) * w.diff().HP
 	w.Creeps = append(w.Creeps, Creep{X: x, Y: y, HP: hp, MaxHP: hp, ID: id, Kind: k, LastHit: -1, Cool: w.rng.Float32(),
 		Hunt: -1, Siege: -1, Chase: -1, think: w.rng.Float32() * 2})
+	if w.rng.Float32() < Creeps[k].Sprint {
+		c := &w.Creeps[len(w.Creeps)-1]
+		c.Sprinter, c.sprint = true, sprintFor
+	}
 	return true
 }
 
@@ -333,6 +337,7 @@ func (w *World) stepCreeps() {
 			speed *= .45
 		}
 		c.Cool -= Dt
+		c.rest()
 		c.Chase = -1
 		c.swung, c.Swing = c.Swing, SwingNone
 		if c.Asleep {
@@ -390,6 +395,7 @@ func (w *World) stepCreeps() {
 				continue
 			}
 			mx, my = (tp.X-c.X)/dist, (tp.Y-c.Y)/dist
+			speed = c.sprintSpeed(speed)
 		} else {
 			tx, ty := int(c.X), int(c.Y)
 			ti := ty*w.W + tx

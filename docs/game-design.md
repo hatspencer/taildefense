@@ -95,6 +95,9 @@ each wave, but Normal is the reference for timing.
   the start, one more each wave, more on harder settings. They come for a survivor who gets
   close or shoots them, and new ones turn up, out of sight, as they are killed. The way out is
   never quite empty.
+- **Sprinters.** Some runners, swarmers and walkers sprint once they have a survivor to chase:
+  faster than a survivor without boots for about three and a half seconds, then four seconds
+  winded at their usual pace. You can't simply walk away from a pull; you have to outlast it.
 - **The call.** Every tenth wave, partway in, every wanderer left rushes the generator as part of
   the wave, and the wave holds until they are dead. Thinning them beforehand pays off.
 - **Ambushes and nests.** The hardest sites spring creeps as you walk in or search, and a house
