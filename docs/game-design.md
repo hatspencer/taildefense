@@ -139,6 +139,11 @@ each wave, but Normal is the reference for timing.
   still comes. A creep just stunned can't be stunned again for half a second, so a fast gun
   doesn't pin one down. A shotgun's load stuns two and a half times as long. Turrets and
   burning ground never stun.
+- **Blows stun survivors too.** A creep's blow stops a survivor where they stand, holding
+  their fire, for a moment: a fifth of a second for most, half a second for a brute's, 0.8 s
+  for the abomination's. A slam stops them 0.6 s (brute) or 1 s (abomination), a fuel pump
+  going up 0.4 s. A survivor just stunned can't be stunned again for 0.6 s, so a swarm can't
+  pin one down.
 - **Sprinters.** Some runners, swarmers and walkers sprint once they have a survivor to chase:
   faster than even a sprinting survivor for about three and a half seconds, then four seconds
   at the usual chase. You can't simply run from a pull; you have to outlast it.
@@ -227,6 +232,12 @@ countdown ends. This makes going out alone risky, and going in pairs worth it.
 The weather changes between waves and is the same for everyone. Fog shortens everyone's range,
 and creeps notice you later. Rain dampens fire and slows creeps a little, storms throw
 lightning at creeps in the open, and snow slows everything.
+
+**Fog and rain close in.** A survivor sees 60% less far in full fog and 30% less in heavy rain
+or a storm (a drizzle and a thunder shower count as a fraction of it). On screen the world
+fades into the weather's haze past that distance round your survivor, in every difficulty.
+With fog of war or at night it is also the survivor's sight: what they can light, and so, at
+night, what their shots can find.
 
 **Heavy weather is rare.** Heavy rain, storms and heavy snow are dramatic but tiring to look at
 and play through wave after wave. Their everyday forms are a **drizzle** (a little rain, fire

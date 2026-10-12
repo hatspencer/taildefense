@@ -19,6 +19,12 @@ export const CF_BURNING = 1, CF_SLOWED = 2, CF_GUARD = 4, CF_HUNTING = 8, CF_SIE
 export const enum Order { Idle = 0, Move, AMove, Attack, Hold, Build, Repair, Loot, Revive, Steer }
 export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake }
 export const enum Weather { Clear = 0, Fog, Rain, Storm, Snow, Drizzle, Thunder, HeavySnow }
+// How much each weather counts as rain (internal/game/weather.go wetness).
+export const WET = [0, 0, 1, 1, 0, 0.3, 0.5, 0];
+// How far survivors see in this weather: fog drastically less, rain somewhat (weather.go sightMul).
+export function sightMul(weather: number, amt: number): number {
+  return 1 - 0.6 * (weather === Weather.Fog ? amt : 0) - 0.3 * (WET[weather] ?? 0) * amt;
+}
 export const enum Emote { None = 0, Taunt }
 // What a ping means: picked from what is under the cursor when it is placed.
 export const enum PingKind { Here = 0, Danger, Loot, Defend }

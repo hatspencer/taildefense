@@ -1,8 +1,9 @@
 import * as THREE from 'three/webgpu';
-import { Fn, float, luminance, mix, output, positionWorld, rangeFogFactor, reference, texture, uniform, vec3, vec4 } from 'three/tsl';
+import { Fn, float, luminance, mix, output, positionWorld, rangeFogFactor, reference, smoothstep, texture, uniform, vec3, vec4 } from 'three/tsl';
+import { PF_ALIVE, RIFLE, RIFLE_SIGHT, sightMul } from '../protocol';
 import type { Game } from '../state';
 
-// Fog of war on screen: the scene's fog node, which every lit material runs, darkens what
+// Fog of war on screen, and the weather's haze: the scene's fog node, which every lit material runs, darkens what
 // the team cannot see by a per-tile texture (red: in sight now, green: seen before), eased
 // so the edge of sight drifts rather than snaps. It also does the distance fog the scene's
 // Fog would, since a fog node replaces it. With fog of war off the texture is never read.
@@ -18,6 +19,12 @@ export class FogOfWar {
   private shown = new Float32Array(0);
   private seen = new Float32Array(0);
   private vision: Game['vision'] = null;
+  // Fog and rain close in round your survivor: past about their sight the world fades into
+  // the fog colour, by uHaze at most. Every difficulty, fog of war or not.
+  private uHaze = uniform(0);
+  private uEye = uniform(new THREE.Vector2());
+  private uNear = uniform(8);
+  private uFar = uniform(14);
 
   constructor(scene: THREE.Scene) {
     this.tex = this.node.value as THREE.DataTexture;
@@ -31,14 +38,17 @@ export class FogOfWar {
       const shade = mix(mix(this.uNever, this.uMem, mem), float(1), lit);
       const sat = mix(float(0.3), float(1), lit);
       // Distance first, so far ground the team has never seen is dark, not haze.
-      const c = mix(output.rgb, color, rangeFogFactor(near, far));
+      const d = mix(output.rgb, color, rangeFogFactor(near, far));
+      const c = mix(d, color, smoothstep(this.uNear, this.uFar, positionWorld.xz.sub(this.uEye).length()).mul(this.uHaze));
       const dark = mix(vec3(luminance(c)), c, sat).mul(shade);
       return vec4(mix(c, dark, this.uOn), output.a);
     })();
   }
 
-  // Eases the texture towards the team's sight; call once a rendered frame.
-  update(game: Game, dt: number): void {
+  // Eases the texture towards the team's sight, and the haze towards the weather's; call once
+  // a rendered frame. tx, tz: the view target, where the haze centres with no survivor of yours up.
+  update(game: Game, dt: number, tx: number, tz: number): void {
+    this.haze(game, dt, tx, tz);
     const v = game.vision;
     if (v !== this.vision) {
       this.vision = v;
@@ -78,7 +88,23 @@ export class FogOfWar {
     }
     if (moved) this.tex.needsUpdate = true;
   }
+
+  // The haze follows your survivor, or the view with none up, and reaches as far as you see.
+  private haze(game: Game, dt: number, tx: number, tz: number): void {
+    const f = game.cur, me = game.me(), k = Math.min(1, dt * 1.5);
+    const see = game.welcome ? sightMul(f.weather, f.weatherAmt) : 1;
+    const up = me && me.flags & PF_ALIVE;
+    if (up) this.uEye.value.set(game.prx[me.id], game.pry[me.id]);
+    else this.uEye.value.set(tx, tz);
+    const r = (game.welcome?.dark || SIGHT) * (up && me.cur === RIFLE ? RIFLE_SIGHT : 1) * see;
+    this.uNear.value += (r * 0.55 - this.uNear.value) * k;
+    this.uFar.value += (r * 1.15 - this.uFar.value) * k;
+    this.uHaze.value += (Math.min(1, (1 - see) / 0.6) * 0.9 - this.uHaze.value) * k;
+  }
 }
+
+// How far a survivor sees in the clear, as vision.ts has it.
+const SIGHT = 12;
 
 function blank(): THREE.DataTexture {
   const t = new THREE.DataTexture(new Uint8Array([255, 255, 0, 255]), 1, 1, THREE.RGBAFormat);
