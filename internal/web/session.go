@@ -12,6 +12,7 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"embed"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -256,7 +257,9 @@ func (s *session) greet() {
 			s.core = point{float32(st.X) + float32(st.W)/2, float32(st.Y) + float32(st.H)/2}
 		}
 	}
-	s.text(b, welcome(s.wel, s.core, s.o.Host, s.o.Hint, s.o.Hosting))
+	m := welcome(s.wel, s.core, s.o.Host, s.o.Hint, s.o.Hosting)
+	m.Seen = seenBytes(s.r.Seen)
+	s.text(b, m)
 	s.send(b, terrainMsg(s.wel.Terrain))
 	b.ready = true
 	if s.o.Notice != "" {
@@ -568,3 +571,15 @@ func (b *browser) writeQueued(p []byte) error {
 const launchPage = `<!doctype html><meta charset="utf-8"><title>taildefense</title>
 <body style="margin:0;display:grid;place-items:center;height:100vh;background:#16140f;color:#d8cfb4;font:16px monospace">
 <p>%s</p><script>setTimeout(() => window.close(), 1200)</script>`
+
+// seenBytes packs the ground found so far a bit per tile, tile 0 in the low bit of byte 0.
+func seenBytes(s game.Seen) []byte {
+	if s == nil {
+		return nil
+	}
+	b := make([]byte, 0, len(s)*8)
+	for _, v := range s {
+		b = binary.LittleEndian.AppendUint64(b, v)
+	}
+	return b
+}

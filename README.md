@@ -46,7 +46,8 @@ WebGL 2 where WebGPU isn't available. Any current Chrome, Edge, Firefox or Safar
 `DIFFICULTY` is `easy`, `normal` (the default), `hard` or `brutal`, for the games you host. It
 scales creep health and wave size, gold, the time between waves, how tough the loot guards are
 and how long a downed player can be revived (20 s on normal). Hard and brutal are played at night: out
-past the base you see only a few steps round you, the dead come out of the dark, and nobody
+past the base you see only a few steps round you (twice as far with a rifle), the map is black until someone on the team has
+been there, the dead come out of the dark, and nobody
 tells you how many guards a site has left. On brutal
 you start with only a crowbar. A restart keeps the game's difficulty.
 
@@ -182,6 +183,7 @@ sprinters, faster even than your sprint in bursts of a few seconds: outrunning o
 on while it slows, or turning to fight. They call to each other, too: one that comes for you
 brings everything round it, and that brings everything round it. Hiding in a ruin doesn't help
 for long; they find the door.
+Every hit you land stops one for a moment, though, which buys a step.
 
 Brutes and abominations slam the ground when you come near: a ring shows where it will land a
 moment before. Get out of it.

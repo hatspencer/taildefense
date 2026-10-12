@@ -261,3 +261,52 @@ func BenchmarkDelta5000Compressed(b *testing.B) {
 type countWriter int
 
 func (c *countWriter) Write(p []byte) (int, error) { *c += countWriter(len(p)); return len(p), nil }
+
+// At night the ground the team has found reaches a client that was there all along through
+// deltas, and one that joins late through its keyframe, and both agree with the host.
+func TestFoundGroundIsShared(t *testing.T) {
+	w := game.NewGame(5, game.DiffHard)
+	p, _ := w.Join("ana", "ana@example")
+	var e Encoder
+	r := NewReplica(w.W, w.H, w.Terrain, 0, w.Seed)
+	if err := r.Apply(e.Key(w, nil)); err != nil {
+		t.Fatal(err)
+	}
+	far := 0
+	for i := 0; i < 200; i++ {
+		// Out of the base and on, faster than any survivor runs.
+		p.X, p.Y = w.CoreX+20+float32(i)*.25, w.CoreY
+		w.Step()
+		if err := r.Apply(e.Delta(w, nil)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	late := NewReplica(w.W, w.H, w.Terrain, 0, w.Seed)
+	if err := late.Apply(e.Key(w, nil)); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < w.W*w.H; i++ {
+		if w.Seen.Has(i) != r.Seen.Has(i) || w.Seen.Has(i) != late.Seen.Has(i) {
+			t.Fatalf("tile %d: host %v, client %v, late joiner %v", i, w.Seen.Has(i), r.Seen.Has(i), late.Seen.Has(i))
+		}
+		if w.Seen.Has(i) && float32(i%w.W) > w.CoreX+40 {
+			far++
+		}
+	}
+	if far == 0 {
+		t.Fatal("the ground the survivor walked was never found")
+	}
+	if at := int(w.CoreY+20)*w.W + int(w.CoreX); w.Seen.Has(at) {
+		t.Fatal("ground nobody went near was found")
+	}
+	// Without the night nothing is kept.
+	n := game.NewGame(5, game.DiffNormal)
+	n.Join("ana", "ana@example")
+	n.Step()
+	n.Step()
+	n.Step()
+	n.Step()
+	if n.Seen != nil {
+		t.Fatal("the map is kept on normal")
+	}
+}

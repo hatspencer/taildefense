@@ -26,9 +26,13 @@ it here along with the code.
 | sight out past the base | 12 | 12 | 7, night | 5.5, night |
 
 - **Night on hard and brutal.** Out past the generator's lights a survivor sees only a small
-  pool round them: the ground beyond is near black, and the dead in it aren't shown at all, so
-  they come out of the dark on you. Guns only pick targets you can see, so a rifle out there
-  is no better than a shotgun at finding them. Within twelve tiles of the generator the base
+  pool round them (twice as far with a rifle in hand: the scope), and the dead beyond it aren't shown at all, so they come out of the dark
+  on you. The map starts pitch black, on screen and on the minimap, sites and all: only
+  ground someone has lit shows, dimly, once they have moved on. What one survivor finds the
+  whole team keeps, and the host remembers it, so a survivor who joins late or reloads starts
+  from the team's map. A survivor can only hit what the team can see: bullets,
+  blasts and swings go straight through the dead out in the dark, and guns only pick
+  targets in sight, so a rifle out there is no better than a shotgun at finding them. Within twelve tiles of the generator the base
   is lit, and turrets fire at full range; past the walls, only their muzzle flashes. Nor
   does anyone keep count of a site's guards: its skulls say how hard it is, never how many
   are left, so whether a site is clear is found out the hard way.
@@ -129,6 +133,10 @@ each wave, but Normal is the reference for timing.
 - **Chasing.** Every creep after a survivor runs faster than a walking survivor (6.6 to 6), but
   slower than a sprinting one, so sprinting still gets you away. Out of a straight line they
   path round walls: hide in a ruin and they find its door and pour in.
+- **Hits stun.** A survivor's hit stops a creep for a moment (a quarter second; a brute
+  0.15 s, an abomination 0.08 s), its windup held where it was, so its blow comes late but
+  still comes. A creep just stunned can't be stunned again for half a second, so a fast gun
+  doesn't pin one down. Turrets and burning ground never stun.
 - **Sprinters.** Some runners, swarmers and walkers sprint once they have a survivor to chase:
   faster than even a sprinting survivor for about three and a half seconds, then four seconds
   at the usual chase. You can't simply run from a pull; you have to outlast it.

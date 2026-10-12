@@ -13,6 +13,7 @@ func (w *World) Step() {
 	w.Tracers = w.Tracers[:0]
 	w.Blasts = w.Blasts[:0]
 	w.Deaths = w.Deaths[:0]
+	w.Found = w.Found[:0]
 	// Notes and toasts from commands that arrived since the last tick go out with this one.
 	w.Notes = append(w.Notes[:0], w.Notes[w.sentNotes:]...)
 	w.Toasts = append(w.Toasts[:0], w.Toasts[w.sentToasts:]...)
@@ -76,6 +77,7 @@ func (w *World) Step() {
 	// too, so it must match what is left.
 	w.grid.build(w.Creeps)
 	w.countGuards()
+	w.discover()
 }
 
 func (w *World) allReady() bool {
@@ -340,6 +342,9 @@ func (w *World) stepCreeps() {
 			if c.HP <= 0 {
 				continue
 			}
+		}
+		if c.stunned() {
+			continue
 		}
 		speed := d.Speed * w.creepSpeedMul()
 		if c.Slow > 0 {
@@ -662,11 +667,13 @@ func (w *World) clearShot(x0, y0, x1, y1 float32) bool {
 
 // nearestVisible is the closest living creep within r of x, y that a shot from there
 // reaches, or -1: the one to shoot, rather than one behind a wall.
-func (w *World) nearestVisible(x, y, r float32) int32 {
+func (w *World) nearestVisible(x, y, r float32) int32 { return w.nearestShot(x, y, r, false) }
+
+func (w *World) nearestShot(x, y, r float32, seen bool) int32 {
 	best, bi := r*r, int32(-1)
 	w.grid.each(x, y, r, func(i int32) bool {
 		c := &w.Creeps[i]
-		if c.HP <= 0 {
+		if c.HP <= 0 || seen && w.hidden(c) {
 			return true
 		}
 		dx, dy := c.X-x, c.Y-y
@@ -677,6 +684,9 @@ func (w *World) nearestVisible(x, y, r float32) int32 {
 	})
 	return bi
 }
+
+// nearestSeen is nearestVisible for a survivor's gun: at night, only what the team can see.
+func (w *World) nearestSeen(x, y, r float32) int32 { return w.nearestShot(x, y, r, true) }
 
 func (w *World) nearestCreep(x, y, r float32) int32 {
 	best, bi := r*r, int32(-1)
@@ -746,7 +756,7 @@ func (w *World) hitscan(owner int8, x, y, ang, rng, dmg float32, pierce int, bur
 	cands := w.hitBuf[:0]
 	w.rayCells(x, y, dx, dy, maxT, func(i int32) {
 		c := &w.Creeps[i]
-		if c.HP <= 0 {
+		if c.HP <= 0 || w.hidden(c) {
 			return
 		}
 		ox, oy := c.X-x, c.Y-y
@@ -832,7 +842,7 @@ func (w *World) cone(owner int8, x, y, ang, rng, half, dmg, burn float32, kind u
 	hits := 0
 	w.grid.each(x, y, rng, func(i int32) bool {
 		c := &w.Creeps[i]
-		if c.HP <= 0 {
+		if c.HP <= 0 || w.hidden(c) {
 			return true
 		}
 		ox, oy := c.X-x, c.Y-y
@@ -867,7 +877,7 @@ func (w *World) melee(owner int8, x, y, ang, reach, half, dmg float32, kind uint
 	cands := w.hitBuf[:0]
 	w.grid.each(x, y, reach+1, func(i int32) bool {
 		c := &w.Creeps[i]
-		if c.HP <= 0 {
+		if c.HP <= 0 || w.hidden(c) {
 			return true
 		}
 		ox, oy := c.X-x, c.Y-y
@@ -900,7 +910,7 @@ func (w *World) ignite(i int32, dps float32) {
 
 func (w *World) damage(i int32, dmg float32, owner int8) {
 	c := &w.Creeps[i]
-	if c.HP <= 0 {
+	if c.HP <= 0 || owner >= 0 && w.hidden(c) {
 		return
 	}
 	d := dmg - Creeps[c.Kind].Armor
@@ -909,6 +919,9 @@ func (w *World) damage(i int32, dmg float32, owner int8) {
 	}
 	c.HP -= d
 	w.provoke(c)
+	if owner >= 0 && !w.turretFire && !w.burning {
+		c.stun()
+	}
 	if owner >= 0 {
 		c.LastHit = owner
 		if int(owner) < len(w.Players) {
@@ -1031,7 +1044,8 @@ func (w *World) stepRockets() {
 		r.TTL -= Dt
 		boom := r.TTL <= 0 || w.blocksShot(int(r.X), int(r.Y))
 		if !boom {
-			if t := w.nearestCreep(r.X, r.Y, .9); t >= 0 {
+			// A rocket flies on through what nobody can see.
+			if t := w.nearestCreep(r.X, r.Y, .9); t >= 0 && !w.hidden(&w.Creeps[t]) {
 				boom = true
 			} else if v := sqrt32(r.VX*r.VX + r.VY*r.VY); v > 0 {
 				if p, _ := w.pumpOnRay(r.X-r.VX*Dt, r.Y-r.VY*Dt, r.VX/v, r.VY/v, v*Dt+tankRadius); p >= 0 {

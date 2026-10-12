@@ -12,6 +12,7 @@ func TestBlowsAreWoundUpFirst(t *testing.T) {
 		t.Fatal("no room for the creep")
 	}
 	c := &w.Creeps[0]
+	c.HP = 1e6  // the survivor shoots back
 	c.Cool = -5 // long ready: it would hit at once if nothing held it back
 	wound, hp := 0, p.HP
 	for i := 0; i < TickRate*2; i++ {

@@ -228,7 +228,9 @@ func (w *World) stepEffects() {
 				c := &w.Creeps[i]
 				dx, dy := c.X-x, c.Y-y
 				if dx*dx+dy*dy <= r*r {
+					w.burning = true
 					w.damage(i, dps*Dt, owner)
+					w.burning = false
 					w.ignite(i, dps*.5)
 				}
 				return true

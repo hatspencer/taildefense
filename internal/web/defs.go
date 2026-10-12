@@ -159,6 +159,7 @@ type welcomeMsg struct {
 	Difficulty      difficultyRef `json:"difficulty"`
 	FogOfWar        bool          `json:"fogOfWar"`
 	Dark            float32       `json:"dark,omitempty"` // survivors' sight at night; 0 for none
+	Seen            []byte        `json:"seen,omitempty"` // at night, the ground found so far: a bit per tile, low bit first
 	Difficulties    []string      `json:"difficulties"`
 	Weathers        []weatherDef  `json:"weathers"`
 	Taunt           tauntDef      `json:"taunt"`

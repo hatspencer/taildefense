@@ -113,7 +113,7 @@ export class Controller {
     let site = -1, sd = 0.9;
     for (let i = 0; i < wd.sites.length; i++) {
       const s = wd.sites[i];
-      if (!lootable(s.kind)) continue;
+      if (!lootable(s.kind) || g.unfound(i)) continue;
       if (walled(s.kind)) {
         if (bx >= s.x && bx < s.x + s.w && bz >= s.y && bz < s.y + s.h && site < 0) site = i;
         continue;

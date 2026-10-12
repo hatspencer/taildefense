@@ -2,7 +2,9 @@
 // preallocated typed arrays: nothing per creep is allocated while the game runs.
 
 // Weapon kinds there are, and the crowbar's: brutal's starting weapon, on the 0 key.
-export const WEAPON_SLOTS = 8, CROWBAR = 7;
+export const WEAPON_SLOTS = 8, RIFLE = 3, CROWBAR = 7;
+// How much further a survivor with a rifle in hand sees: the host's rifleSight.
+export const RIFLE_SIGHT = 2;
 
 export const MAX_CREEPS = 16384;
 export const MAX_PLAYERS = 8;
@@ -76,6 +78,8 @@ export interface Welcome {
   fogOfWar?: boolean;
   // Night on the harder settings: how far a survivor sees, out past the generator's lights.
   dark?: number;
+  // At night, the ground the team has found so far: base64, a bit per tile, low bit first.
+  seen?: string;
   taunt: { cool: number; radius: number; time: number };
   revive: { reach: number; time: number; hp: number };
   // heal: the share of max HP one medkit gives back over time seconds; max carried; cost each.
