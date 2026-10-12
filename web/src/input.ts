@@ -87,7 +87,8 @@ export class Input {
     this.hud.flash(`turret ${n + 1} of ${list.length}`);
   }
 
-  // N, held: the view on the generator; let go, back to how it was.
+  // N, held: the view on the generator; let go, back to how it was. Tapped twice, the hero walks there.
+  private lastN = 0;
   private coreHeld: { follow: boolean; locked: boolean } | null = null;
   private holdCore(on: boolean): void {
     const rig = this.rig, wd = this.ctl.game.welcome;
@@ -172,7 +173,13 @@ export class Input {
       case 'R': ctl.send({ op: 'reload' }); return;
       case 'B': hud.buildCard = !hud.buildCard; if (!hud.buildCard) ctl.cancel(); return;
       case 'G': ctl.openArmory(!ctl.armoryOpen); return;
-      case 'N': this.holdCore(true); return;
+      case 'N': {
+        // Twice quickly: the hero walks back to the generator.
+        const now = performance.now();
+        if (now - this.lastN < 400 && ctl.walkToCore()) { hud.flash('back to the generator'); this.lastN = 0; } else this.lastN = now;
+        this.holdCore(true);
+        return;
+      }
       case 'Y': ctl.toggleReady(); return;
       case 'P': ctl.send({ op: 'pause' }); return;
       case 'M': hud.minimap.toggle(); return;

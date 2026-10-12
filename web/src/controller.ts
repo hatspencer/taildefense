@@ -341,21 +341,32 @@ export class Controller {
 
   // Walks to a free spot beside the armory, on the side facing the hero.
   walkToArmory(): void {
-    const a = this.armoryCenter(), me = this.me();
-    if (!a || !me) return;
-    const sr = this.game.welcome?.shopRadius ?? 4;
-    let dx = me.x - a.x, dy = me.y - a.y;
+    const a = this.armoryCenter();
+    if (!a || !this.walkBeside(a.x, a.y, Math.min((this.game.welcome?.shopRadius ?? 4) * 0.6, 2.2))) return;
+    this.toArmory = true;
+  }
+
+  // Walks back to the generator, to a free spot beside it on the side facing the hero.
+  walkToCore(): boolean {
+    const c = this.game.welcome?.core;
+    return !!c && this.walkBeside(c.x, c.y, 3.6);
+  }
+
+  // Walks to a free spot r from x,y on the hero's side, trying either way round.
+  private walkBeside(cx: number, cy: number, r: number): boolean {
+    const me = this.me();
+    if (!me || !(me.flags & PF_ALIVE)) return false;
+    let dx = me.x - cx, dy = me.y - cy;
     const d = Math.hypot(dx, dy) || 1;
     dx /= d; dy /= d;
-    const r = Math.min(sr * 0.6, 2.2);
     for (let k = 0; k < 8; k++) {
       const ang = Math.atan2(dy, dx) + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.7;
-      const x = a.x + Math.cos(ang) * r, y = a.y + Math.sin(ang) * r;
+      const x = cx + Math.cos(ang) * r, y = cy + Math.sin(ang) * r;
       const t = this.game.tile(Math.floor(x), Math.floor(y));
-      if (t < Tile.Water && this.game.structAtTile(Math.floor(x), Math.floor(y)) < 0) { this.moveTo(x, y); this.toArmory = true; return; }
+      if (t < Tile.Water && this.game.structAtTile(Math.floor(x), Math.floor(y)) < 0) { this.moveTo(x, y); return true; }
     }
-    this.moveTo(a.x + dx * r, a.y + dy * r);
-    this.toArmory = true;
+    this.moveTo(cx + dx * r, cy + dy * r);
+    return true;
   }
 
   // --- abilities ---

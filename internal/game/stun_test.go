@@ -67,34 +67,33 @@ func TestTheShotgunStunsLonger(t *testing.T) {
 
 // A creep's blow stops a survivor where they stand for a moment, a brute's for longer; a
 // second blow straight after does not.
-func TestBlowsStunSurvivors(t *testing.T) {
+func TestBlowsSlowSurvivors(t *testing.T) {
 	w := newBare(4)
 	w.Phase = PhaseWave
 	w.Queue = []Spawn{{At: 1e9}}
 	p, _ := w.Join("ana", "ana@example")
-	stopped := func(k CreepKind) int {
+	// walked is how far a survivor holding a key gets in a second after a blow from k.
+	walked := func(k CreepKind, hit bool) float32 {
 		p.X, p.Y, p.HP = w.CoreX+.5, w.CoreY+6, p.MaxHP
-		p.stunLeft, p.stunCool = 0, 0
-		p.stun(playerStun[k])
-		n := 0
+		p.slowLeft, p.slowCool = 0, 0
+		if hit {
+			p.slow(playerSlow[k])
+		}
+		x0 := p.X
 		for i := 0; i < TickRate; i++ {
 			w.Steer(p, 0, true) // the key held down
-			x := p.X
 			w.stepPlayers()
-			if i == 1 {
-				p.stun(playerStun[k]) // too soon to stun again
-			}
-			if p.X == x {
-				n++
+			if i == 1 && hit {
+				p.slow(playerSlow[k]) // too soon to slow again
 			}
 		}
-		return n
+		return p.X - x0
 	}
-	walker, brute := stopped(CWalker), stopped(CBrute)
-	if want := int(playerStun[CWalker] * TickRate); walker < want-1 || walker > want+1 {
-		t.Fatalf("a walker's blow stopped a survivor for %d ticks, want about %d", walker, want)
+	free, walker, brute := walked(CWalker, false), walked(CWalker, true), walked(CBrute, true)
+	if walker <= 0 || walker >= free*.95 {
+		t.Fatalf("after a walker's blow a survivor walked %.2f, unhurt %.2f", walker, free)
 	}
-	if brute < walker*2 {
-		t.Fatalf("a brute's blow stopped a survivor %d ticks, a walker's %d", brute, walker)
+	if brute <= 0 || brute >= walker {
+		t.Fatalf("after a brute's blow a survivor walked %.2f, after a walker's %.2f", brute, walker)
 	}
 }

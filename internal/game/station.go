@@ -339,7 +339,7 @@ func (w *World) blowPump(i int) {
 		dx, dy := p.X-x, p.Y-y
 		if dd := dx*dx + dy*dy; dd < pumpBlast*pumpBlast {
 			w.hurtPlayer(p, pumpHurt*(1-.5*sqrt32(dd)/pumpBlast))
-			p.stun(blastStun)
+			p.slow(blastSlow)
 		}
 	}
 	w.Effects = append(w.Effects, Effect{Kind: EffNapalm, X0: x, Y0: y, X: x, Y: y, R: pumpFireR, Left: pumpFire, Total: pumpFire, Damage: pumpFireDP, Owner: by})

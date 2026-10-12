@@ -12,39 +12,39 @@ const (
 	slugMul = 2.5 // a shotgun's point-blank load stops them this many times longer
 )
 
-// A creep's blow stuns a survivor too: they stop where they stand and hold their fire for a
-// moment. A brute's or the abomination's blow, and a slam, stops them longest. The same gap
-// keeps a swarm from pinning a survivor in place.
+// A creep's blow slows a survivor: for a moment they walk at half speed, though they keep
+// firing. A brute's or the abomination's blow, and a slam, slows them longest. The same gap
+// keeps a swarm from holding a survivor slowed.
 
-// playerStun is how long a blow from each kind of creep stops a survivor, in seconds.
-var playerStun = [NumCreepKinds]float32{CWalker: .2, CRunner: .15, CSwarmer: .12, CBrute: .5, CSpitter: .2, CBoss: .8}
+// playerSlow is how long a blow from each kind of creep slows a survivor, in seconds.
+var playerSlow = [NumCreepKinds]float32{CWalker: .4, CRunner: .3, CSwarmer: .25, CBrute: 1, CSpitter: .4, CBoss: 1.5}
 
-// Seconds a slam (brute's, abomination's) and a fuel pump going up stop a survivor.
+// Seconds a slam (brute's, abomination's) and a fuel pump going up slow a survivor; how much
+// of their speed a slowed survivor keeps; the gap before they can be slowed again.
 const (
-	slamStunBrute = .6
-	slamStunBoss  = 1
-	blastStun     = .4
-	playerStunGap = .6
+	slamSlowBrute = 1.2
+	slamSlowBoss  = 1.8
+	blastSlow     = .8
+	slowSpeed     = .5
+	playerSlowGap = .6
 )
 
-// stun stops survivor p for t seconds, unless they were stunned too lately.
-func (p *Player) stun(t float32) {
-	if !p.Alive || p.stunLeft > 0 || p.stunCool > 0 {
+// slow slows survivor p for t seconds, unless they were slowed too lately.
+func (p *Player) slow(t float32) {
+	if !p.Alive || p.slowLeft > 0 || p.slowCool > 0 {
 		return
 	}
-	p.stunLeft, p.stunCool = t, t+playerStunGap
+	p.slowLeft, p.slowCool = t, t+playerSlowGap
 }
 
-// stunned counts a survivor's stun down and reports whether they are stopped this tick.
-func (p *Player) stunned() bool {
-	if p.stunCool > 0 {
-		p.stunCool -= Dt
+// tickSlow counts a survivor's slow down, once a tick.
+func (p *Player) tickSlow() {
+	if p.slowCool > 0 {
+		p.slowCool -= Dt
 	}
-	if p.stunLeft <= 0 {
-		return false
+	if p.slowLeft > 0 {
+		p.slowLeft -= Dt
 	}
-	p.stunLeft -= Dt
-	return true
 }
 
 // stun stops creep c for a moment, longer for a shotgun's load, unless it was stunned too lately.
