@@ -200,9 +200,10 @@ count). Every fifth wave is a swarm that swells as the game goes on; from wave 1
 hordes, a third of which pours out of every spawn point at once. Every tenth wave brings an
 abomination.
 
-The waves don't wait. 40 s after a wave has all come out and reached the base, the countdown to
-the next one starts whether or not the last is dead, so a team out looting comes back to two
-waves at once.
+A wave holds until it is dead: the break before the next one starts only once every creep of it
+is gone (sleeping guards don't count), so two waves never land on the base at once. Stragglers
+don't stall the game: if nothing of the wave has died for 30 s and at most 10 are left, they
+give up.
 
 Between waves there is a short break, 15 s on Normal, and after every fifth wave a long one,
 a minute on Normal, to go out exploring and looting; ten seconds before it ends everyone is
