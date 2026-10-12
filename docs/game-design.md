@@ -139,11 +139,10 @@ each wave, but Normal is the reference for timing.
   still comes. A creep just stunned can't be stunned again for half a second, so a fast gun
   doesn't pin one down. A shotgun's load stuns two and a half times as long. Turrets and
   burning ground never stun.
-- **Blows stun survivors too.** A creep's blow stops a survivor where they stand, holding
-  their fire, for a moment: a fifth of a second for most, half a second for a brute's, 0.8 s
-  for the abomination's. A slam stops them 0.6 s (brute) or 1 s (abomination), a fuel pump
-  going up 0.4 s. A survivor just stunned can't be stunned again for 0.6 s, so a swarm can't
-  pin one down.
+- **Blows slow survivors.** A creep's blow makes a survivor walk at half speed for a moment;
+  they keep firing. It lasts 0.4 s for most, a second for a brute's, 1.5 s for the
+  abomination's. A slam slows them 1.2 s (brute) or 1.8 s (abomination), a fuel pump going up
+  0.8 s. A survivor just slowed can't be slowed again for 0.6 s, so a swarm can't hold one.
 - **Sprinters.** Some runners, swarmers and walkers sprint once they have a survivor to chase:
   faster than even a sprinting survivor for about three and a half seconds, then four seconds
   at the usual chase. You can't simply run from a pull; you have to outlast it.

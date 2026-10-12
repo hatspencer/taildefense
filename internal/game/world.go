@@ -110,8 +110,8 @@ type Player struct {
 	Firing    bool
 	Moving    bool
 	Hurt      float32
-	// A stun (stun.go): seconds the survivor is stopped for, and until another can land.
-	stunLeft, stunCool float32
+	// A slow (stun.go): seconds the survivor walks at half speed for, and until another can land.
+	slowLeft, slowCool float32
 	Search             float32 // seconds into searching a loot site or reviving a teammate
 	Revived            float32 // while down: how far the best revive on them is, 0..1
 	Emote              uint8   // 0 none, 1 taunting

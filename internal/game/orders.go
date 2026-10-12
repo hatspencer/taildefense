@@ -179,6 +179,9 @@ func (w *World) stride(p *Player) float32 {
 	if p.Sprinting() {
 		speed *= sprintMul
 	}
+	if p.slowLeft > 0 {
+		speed *= slowSpeed
+	}
 	return speed
 }
 
@@ -292,13 +295,8 @@ func (w *World) stepPlayers() {
 		st := w.playerStats(p)
 		ws.Cool -= Dt
 
-		// A stunned survivor stands and holds fire; their order waits for them.
-		target := int32(-1)
-		if p.stunned() {
-			p.Moving = false
-		} else {
-			target = w.act(p, st)
-		}
+		p.tickSlow()
+		target := w.act(p, st)
 		p.stepStamina()
 		w.ambushOnEntry(p)
 		if p.noise > 0 {

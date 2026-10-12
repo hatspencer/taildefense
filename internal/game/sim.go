@@ -405,7 +405,7 @@ func (w *World) stepCreeps() {
 			if d.Ranged && dist <= reach && w.clearShot(c.X, c.Y, tp.X, tp.Y) {
 				if c.swing(d, tp.X, tp.Y) {
 					w.hurtPlayer(tp, d.Damage)
-					tp.stun(playerStun[c.Kind])
+					tp.slow(playerSlow[c.Kind])
 					w.tracer(c.X, c.Y, tp.X, tp.Y, TracerSpit)
 				}
 				continue
@@ -415,7 +415,7 @@ func (w *World) stepCreeps() {
 				// winds up, and the blow lands on them if they are still within a lunge.
 				if c.swing(d, tp.X, tp.Y) {
 					w.hurtPlayer(tp, d.Damage)
-					tp.stun(playerStun[c.Kind])
+					tp.slow(playerSlow[c.Kind])
 				}
 				close := d.Radius + PlayerRadius + .1
 				if dist <= close+.05 {
@@ -604,7 +604,7 @@ func (w *World) respawn(p *Player) {
 	p.X, p.Y = w.CoreX+.5, w.CoreY+3.8
 	p.Order = Order{}
 	p.Search, p.Revived = 0, 0
-	p.stunLeft, p.stunCool = 0, 0
+	p.slowLeft, p.slowCool = 0, 0
 	p.walk.reset()
 	p.BuffLeft = 0
 	p.Stamina, p.Winded = 1, false

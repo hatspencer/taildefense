@@ -441,7 +441,7 @@ export class Hud {
       ['<kbd>G</kbd>', 'armory window (opens by itself when you arrive)'],
       ['<kbd>Y</kbd>', 'ready for the next wave'],
       ['<kbd>T</kbd>', 'the next turret: selects it (upgrade / sell) and looks at it; again for the one after'],
-      ['<kbd>N</kbd>', 'hold: look at the generator'],
+      ['<kbd>N</kbd>', 'hold: look at the generator · twice: walk back to it'],
       ['Wheel', 'zoom · Alt+wheel or middle-drag: rotate'],
       ['<kbd>Space</kbd>', 'hold: sprint, until your stamina (the strip under your health) runs out · tap: back to your hero · double tap: lock the camera to it'],
       ['Arrows / screen edge', 'look around; walking brings the camera back'],

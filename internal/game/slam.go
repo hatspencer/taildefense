@@ -55,9 +55,9 @@ func (w *World) bossSlam(c *Creep, tp *Player) bool {
 
 // slamLands is a slam coming down: survivors inside the ring are hurt and thrown out of it.
 func (w *World) slamLands(e *Effect) {
-	throw, stun := slams[CBrute].throw, float32(slamStunBrute)
+	throw, slow := slams[CBrute].throw, float32(slamSlowBrute)
 	if e.R >= slams[CBoss].radius {
-		throw, stun = slams[CBoss].throw, slamStunBoss
+		throw, slow = slams[CBoss].throw, slamSlowBoss
 	}
 	for _, p := range w.Players {
 		if !p.Alive {
@@ -73,7 +73,7 @@ func (w *World) slamLands(e *Effect) {
 		if !p.Alive {
 			continue
 		}
-		p.stun(stun)
+		p.slow(slow)
 		if d < 1e-3 {
 			dx, dy, d = 1, 0, 1
 		}
