@@ -187,6 +187,15 @@ func (m *Model) menuView(w int) []string {
 	if m.notice != "" {
 		out = append(out, "", gutter+m.noticeText())
 	}
+	if n := m.whatsNew(); n != nil {
+		out = append(out, "", gutter+ui.StyleBold.Render(n.Head))
+		for _, c := range n.Changes {
+			out = append(out, gutter+"  "+ui.StyleCyan.Render(c[0])+"  "+c[1])
+		}
+		if n.More > 0 {
+			out = append(out, gutter+"  "+ui.StyleDim.Render(fmt.Sprintf("+ %d more", n.More)))
+		}
+	}
 	return out
 }
 

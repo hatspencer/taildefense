@@ -1,12 +1,15 @@
 package cli
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"unicode/utf8"
 
+	"taildefense/internal/install"
 	"taildefense/internal/ui"
 )
 
@@ -141,4 +144,81 @@ func (n updateNews) shown() ([]change, int) {
 		return n.Changes, 0
 	}
 	return n.Changes[:newsShown], len(n.Changes) - newsShown
+}
+
+// News is the last update's news as the launcher shows it. The update also keeps it beside
+// the install (newsFile), because a background update's own output goes to a log nobody
+// reads: the launcher lists it once the update is in, and again the first time the new td
+// starts.
+type News struct {
+	To      string      `json:"to"`
+	Head    string      `json:"head"`
+	Changes [][2]string `json:"changes"` // hash, subject
+	More    int         `json:"more"`
+	Seen    bool        `json:"seen"` // shown at a launch of the new td already
+}
+
+const newsFile = ".news"
+
+// saveNews keeps n beside the install, for the launcher. Best effort, like the rest of it.
+func saveNews(n updateNews, source string) {
+	paths, err := install.Resolve()
+	if err != nil {
+		return
+	}
+	out := News{To: n.To, Head: n.headline("→", source)}
+	list, more := n.shown()
+	for _, c := range list {
+		out.Changes = append(out.Changes, [2]string{c.Hash, c.Subject})
+	}
+	out.More = more
+	writeNews(filepath.Join(paths.Prefix, newsFile), out)
+}
+
+func writeNews(path string, n News) {
+	if b, err := json.Marshal(n); err == nil {
+		_ = os.WriteFile(path, b, 0o644)
+	}
+}
+
+// LastNews is what the last update installed, when it said anything.
+func LastNews() (News, bool) {
+	paths, err := install.Resolve()
+	if err != nil {
+		return News{}, false
+	}
+	return readNewsFile(filepath.Join(paths.Prefix, newsFile))
+}
+
+func readNewsFile(path string) (News, bool) {
+	var n News
+	b, err := os.ReadFile(path)
+	if err != nil || json.Unmarshal(b, &n) != nil || n.Head == "" {
+		return News{}, false
+	}
+	return n, true
+}
+
+// NewsSeen notes that the new td has shown the news at a launch, so the next one does not.
+func NewsSeen() {
+	paths, err := install.Resolve()
+	if err != nil {
+		return
+	}
+	path := filepath.Join(paths.Prefix, newsFile)
+	if n, ok := readNewsFile(path); ok && !n.Seen {
+		n.Seen = true
+		writeNews(path, n)
+	}
+}
+
+// SameCommit reports whether two versions name the same build's commit, however short each
+// hash is.
+func SameCommit(a, b string) bool {
+	a, b = baseCommit(a), baseCommit(b)
+	if a == "" || b == "" {
+		return false
+	}
+	n := min(len(a), len(b))
+	return a[:n] == b[:n]
 }
