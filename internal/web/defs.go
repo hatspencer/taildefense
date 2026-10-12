@@ -92,7 +92,8 @@ type siteDef struct {
 	SY    float32 `json:"sy"`
 	Tier  uint8   `json:"tier"`
 	Guard uint8   `json:"guard"`
-	Yaw   float32 `json:"yaw"` // a wreck's heading, radians from +x towards +y
+	Yaw   float32 `json:"yaw"`  // a wreck's heading, radians from +x towards +y
+	Ruin  uint8   `json:"ruin"` // a house's shape (game.RuinKind)
 }
 
 type difficultyRef struct {
@@ -244,7 +245,7 @@ func welcome(wel netplay.Welcome, core point, host, hint string, hosting bool) w
 	}
 	m.Sites = []siteDef{}
 	for _, s := range wel.Sites {
-		m.Sites = append(m.Sites, siteDef{uint8(s.Kind), s.X, s.Y, s.W, s.H, s.SX, s.SY, s.Tier, s.Guard, s.Yaw})
+		m.Sites = append(m.Sites, siteDef{uint8(s.Kind), s.X, s.Y, s.W, s.H, s.SX, s.SY, s.Tier, s.Guard, s.Yaw, uint8(s.Ruin)})
 	}
 	m.Difficulty = difficultyRef{int(wel.Diff), wel.Diff.String()}
 	m.FogOfWar = wel.Fog

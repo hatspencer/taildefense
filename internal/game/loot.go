@@ -115,13 +115,14 @@ type Site struct {
 	Kind     SiteKind
 	X, Y     int16 // top-left tile of what it covers
 	W, H     uint8
-	SX, SY   float32 // where a survivor stands to search
-	Tier     uint8   // 0 near the base .. 2 far out
-	Guard    uint8   // 0 unguarded .. 3 a lair, 4 a garrison: how many and how tough its guards are
-	Guards   uint8   // guards still alive
-	Searched bool    // for a fuel pump: blown up
-	Sprung   uint8   // ambushes already sprung here; the hardest places hide more than their guards
-	Yaw      float32 // a wreck's heading, radians from +x towards +y (wreck.go)
+	SX, SY   float32  // where a survivor stands to search
+	Tier     uint8    // 0 near the base .. 2 far out
+	Guard    uint8    // 0 unguarded .. 3 a lair, 4 a garrison: how many and how tough its guards are
+	Guards   uint8    // guards still alive
+	Searched bool     // for a fuel pump: blown up
+	Sprung   uint8    // ambushes already sprung here; the hardest places hide more than their guards
+	Yaw      float32  // a wreck's heading, radians from +x towards +y (wreck.go)
+	Ruin     RuinKind // a house's shape, which the page builds its walls to suit (ruins.go)
 
 	fuse float32 // a fuel pump hit: seconds until it goes up, 0 while it stands (station.go)
 	by   int8    // who set the pump off, -1 nobody
@@ -630,6 +631,7 @@ func (w *World) placeSites(ruins []ruin) []Site {
 			continue
 		}
 		add(SiteHouse, x, y, hw, hh, sx, sy)
+		sites[len(sites)-1].Ruin = h.kind
 	}
 	want := [NumSiteKinds]int{SiteCar: 30, SiteCrate: 22}
 	for try := 0; try < 4000 && (want[SiteCar] > 0 || want[SiteCrate] > 0); try++ {

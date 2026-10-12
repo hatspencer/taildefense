@@ -489,6 +489,7 @@ func Generate(seed uint64, w, h int) []Tile {
 // are the tiles of its fuel pumps.
 type ruin struct {
 	x, y, w, h int
+	kind       RuinKind // a house's shape (ruins.go)
 	outpost    bool
 	cx, cy     int
 	station    bool
@@ -523,31 +524,17 @@ func generate(seed uint64, w, h int) ([]Tile, []ruin) {
 			t[y*w+x] = tile
 		}
 	}
-	// Ruined houses: hollow rectangles with a doorway, so creeps funnel round them.
+	// Ruined houses of all kinds (ruins.go), so creeps funnel round them.
 	for i := 0; i < 70; i++ {
-		bw, bh := 4+rng.IntN(7), 4+rng.IntN(6)
+		k := pickRuin(rng)
+		sz := ruinSize[k]
+		bw, bh := sz[0]+rng.IntN(sz[1]+1), sz[2]+rng.IntN(sz[3]+1)
 		bx, by := 2+rng.IntN(w-bw-4), 2+rng.IntN(h-bh-4)
 		if abs(bx+bw/2-w/2) < 34 && abs(by+bh/2-h/2) < 30 {
 			continue
 		}
-		houses = append(houses, ruin{x: bx, y: by, w: bw, h: bh})
-		door := rng.IntN(2*(bw+bh) - 4)
-		k := 0
-		for y := by; y < by+bh; y++ {
-			for x := bx; x < bx+bw; x++ {
-				edge := y == by || y == by+bh-1 || x == bx || x == bx+bw-1
-				if edge {
-					if k != door && k != door+1 {
-						t[y*w+x] = TRock
-					} else {
-						t[y*w+x] = TDirt
-					}
-					k++
-				} else {
-					t[y*w+x] = TDirt
-				}
-			}
-		}
+		houses = append(houses, ruin{x: bx, y: by, w: bw, h: bh, kind: k})
+		house(t, w, rng, bx, by, bw, bh, k)
 	}
 	houses = outposts(t, w, h, rng, houses)
 	// Roads from each edge to the base, wobbling a little, two tiles wide.

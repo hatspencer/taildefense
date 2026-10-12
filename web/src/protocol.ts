@@ -70,7 +70,9 @@ export interface SiteKindDef { name: string; search: number }
 // A loot site: the tiles it covers, the spot it is searched from, how far out it is, and how
 // hard its guards are (0 none .. 3 a lair).
 // yaw: a wreck's heading (radians, +x towards +y); the host blocks survivors with a box along it.
-export interface SiteDef { kind: number; x: number; y: number; w: number; h: number; sx: number; sy: number; tier: number; guard: number; yaw?: number }
+// A ruined house's shape (internal/game/ruins.go).
+export const enum Ruin { Cottage = 0, TwoRoom, L, Barn, Shed, Collapsed }
+export interface SiteDef { kind: number; x: number; y: number; w: number; h: number; sx: number; sy: number; tier: number; guard: number; yaw?: number; ruin?: number }
 export interface WeatherDef { name: string; info: string }
 // Where a site's loot stands: a house's search spot, the middle of a car's or crate's tile.
 export function siteX(s: SiteDef): number { return walled(s.kind) ? s.sx : s.x + s.w / 2; }
