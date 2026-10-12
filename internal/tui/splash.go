@@ -11,14 +11,13 @@ import (
 )
 
 // The boot splash, the terminal twin of the browser's (web/src/hud/splash.ts): the wordmark is
-// laid brick by brick like a base wall while creeps crawl in along the ground from both sides,
-// then the wall's guns open up and pick them off, a searchlight crosses the word, and the
-// tagline types in under it. Drawn in half-block pixels, two to a cell, in the theme's colours.
+// laid brick by brick like a base wall on a strip of ground, a searchlight crosses the word,
+// and the tagline types in under it. Drawn in half-block pixels, two to a cell, in the theme's colours.
 // Every frame is a pure function of the elapsed time, so `td frame --view splash --at S` shows
 // any moment of it. Any key skips it.
 
 // SplashFor is how long the splash plays.
-const SplashFor = 2200 * time.Millisecond
+const SplashFor = 1500 * time.Millisecond
 
 // splashTick is the splash's frame interval: falling bricks want more than the spinner's ten
 // frames a second.
@@ -78,11 +77,11 @@ const brickH = 7
 
 // The timeline, in seconds.
 var splashT = struct {
-	lay0, lay1, fall, cool, guns, sweep0, sweep1, type0, type1 float64
+	lay0, lay1, fall, cool, sweep0, sweep1, type0, type1 float64
 }{
 	lay0: 0.08, lay1: 1.0, fall: 0.2, cool: 0.4,
-	guns: 1.0, sweep0: 1.35, sweep1: 1.9,
-	type0: 0.95, type1: 1.75,
+	sweep0: 0.95, sweep1: 1.4,
+	type0: 0.55, type1: 1.25,
 }
 
 // splashFits reports whether the splash has room: the word plus a margin, and rows for the
@@ -124,16 +123,6 @@ func (p *pixels) set(x, y int, c string, lv float64) {
 
 func (p *pixels) setf(x, y float64, c string, lv float64) {
 	p.set(int(math.Floor(x+0.5)), int(math.Floor(y+0.5)), c, lv)
-}
-
-// line draws from a to b, one pixel per step along the longer axis, fading from c0 at a to c1
-// at b.
-func (p *pixels) line(ax, ay, bx, by float64, c0, c1 string, lv float64) {
-	n := int(math.Max(math.Abs(bx-ax), math.Abs(by-ay))) + 1
-	for i := 0; i <= n; i++ {
-		f := float64(i) / float64(n)
-		p.setf(ax+(bx-ax)*f, ay+(by-ay)*f, ui.Mix(c0, c1, f), lv)
-	}
 }
 
 // splashStyles caches a style per colour pair; a frame has a few dozen of them.
@@ -202,14 +191,13 @@ func (p *pixels) rows() []string {
 
 // splashInk is the palette, from the theme, so a light terminal gets a light-terminal splash.
 type splashInk struct {
-	ramp                         []string
-	rest, hot, text, dim, bg     string
-	red, yellow, ground, creepHd string
+	ramp                     []string
+	rest, hot, text, dim, bg string
+	ground                   string
 }
 
 func newSplashInk() splashInk {
-	k := splashInk{bg: ui.Background(), text: ui.Hex(ui.ColorText), dim: ui.Hex(ui.ColorGray),
-		red: ui.Hex(ui.ColorRed), yellow: ui.Hex(ui.ColorYellow)}
+	k := splashInk{bg: ui.Background(), text: ui.Hex(ui.ColorText), dim: ui.Hex(ui.ColorGray)}
 	for _, c := range ui.AccentRamp {
 		k.ramp = append(k.ramp, ui.Hex(c))
 	}
@@ -218,7 +206,6 @@ func newSplashInk() splashInk {
 	}
 	k.rest, k.hot = k.ramp[ui.RampRest(len(k.ramp))], k.ramp[len(k.ramp)-1]
 	k.ground = ui.Mix(k.dim, k.bg, 0.55)
-	k.creepHd = ui.Mix(k.text, k.dim, 0.5)
 	return k
 }
 
@@ -247,26 +234,6 @@ func brickMarkFits(w, h int) bool { return w >= brickW+4 && h >= 22 }
 
 // quant rounds a blend to eighths, so cooling bricks share a handful of colours.
 func quant(f float64) float64 { return math.Round(clamp01(f)*8) / 8 }
-
-type creep struct {
-	born, speed, dies float64 // speed: a share of the way to the wall by the time the guns open
-	left              bool
-}
-
-// The creeps: born over the first second, from either side, walking in until the guns open up,
-// then dying one after another.
-var splashCreeps = func() []creep {
-	out := make([]creep, 12)
-	for i := range out {
-		out[i] = creep{
-			born:  0.05 + 0.75*hash01(uint64(i), 2),
-			speed: 0.75 + 0.45*hash01(uint64(i), 3),
-			left:  i%2 == 0,
-			dies:  splashT.guns + 0.06*float64(i) + 0.04*hash01(uint64(i), 4),
-		}
-	}
-	return out
-}()
 
 // splashView is the splash at t seconds in, exactly w by h cells.
 func splashView(w, h int, t float64) string {
@@ -312,65 +279,6 @@ func splashView(w, h int, t float64) string {
 			}
 		}
 		g.set(int(x), int(y), c, 2)
-	}
-
-	// Creeps crawl in along the ground, a red body under a grey head, and stop short of the
-	// wall. When its turn comes the wall's nearest gun fires and it bursts.
-	wallL, wallR := float64(mx-3), float64(mx+brickW+2)
-	for i, c := range splashCreeps {
-		if t < c.born {
-			continue
-		}
-		// Each walks so as to reach the wall about when the guns open up, give or take.
-		walk := math.Min(t, c.dies) - c.born
-		x := -2 + (wallL+3)*c.speed*walk/math.Max(splashT.guns-c.born, 0.3)
-		if x > wallL {
-			x = wallL - 3*float64(i/2%4)
-		}
-		if !c.left {
-			x = float64(w) - x
-			if x < wallR {
-				x = wallR + 3*float64(i/2%4)
-			}
-		}
-		if t < c.dies {
-			// Two pixels wide: legs that alternate, a body, a head that bobs.
-			step := int(walk*8) % 2
-			dir := 1.0
-			if !c.left {
-				dir = -1
-			}
-			g.setf(x+dir*float64(step), float64(ground-1), k.red, 3)
-			g.setf(x, float64(ground-2), k.red, 3)
-			g.setf(x+dir, float64(ground-2), k.red, 3)
-			g.setf(x+dir, float64(ground-3-step), k.creepHd, 3)
-			continue
-		}
-		age := t - c.dies
-		// The shot: a tracer from the top of the wall above the creep's side.
-		if age < 0.09 {
-			gx := float64(mx + 1)
-			if !c.left {
-				gx = float64(mx + brickW - 2)
-			}
-			gy := float64(my - 1)
-			g.line(gx, gy, x, float64(ground-1), k.hot, k.yellow, 4)
-			g.setf(gx, gy-1, k.hot, 5)
-		}
-		// The burst: a few bits thrown up that fall back and bounce off the ground.
-		if age < 0.55 {
-			for j := 0; j < 7; j++ {
-				id := uint64(i*16 + j)
-				vx := (hash01(id, 6) - 0.5) * 22
-				vy := -10 - 14*hash01(id, 7)
-				bx, by := x+vx*age, float64(ground-1)+vy*age+0.5*70*age*age
-				if by > float64(ground-1) {
-					by = float64(ground-1) - (by-float64(ground-1))*0.3
-				}
-				f := quant(age / 0.55)
-				g.setf(bx, by, ui.Mix(ui.Mix(k.yellow, k.red, math.Min(1, 2*f)), k.bg, f*0.7), 3)
-			}
-		}
 	}
 
 	lines := g.rows()
