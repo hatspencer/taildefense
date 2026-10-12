@@ -1,25 +1,29 @@
 package game
 
-// Sprinters: some of the dead run faster than a survivor once they have one to chase, but
-// only in bursts, so whoever keeps running gets away while it catches its breath.
+// The chase: every creep that has a survivor to go for runs faster than a survivor walks, so
+// walking away is no escape; a survivor has to sprint, fight, or get behind a wall. Some of
+// the dead are sprinters on top of that: in bursts they outrun even a sprinting survivor, and
+// whoever keeps running gets away only while one stops to catch its breath.
 
 const (
-	sprintSpeed = 6.6 // tiles per second: a tenth faster than a survivor without boots
-	sprintFor   = 3.5 // seconds a burst lasts
-	sprintRest  = 4   // seconds before the next
+	chaseSpeed  = 6.6  // tiles per second: a tenth faster than a survivor without boots
+	sprintSpeed = 10.5 // a sprinter's burst: faster than a survivor sprinting
+	sprintFor   = 3.5  // seconds a burst lasts
+	sprintRest  = 4    // seconds before the next
 )
 
 // sprintSpeed is how fast c chases a survivor this tick, given its speed otherwise, and spends
-// its burst.
+// a sprinter's burst.
 func (c *Creep) sprintSpeed(speed float32) float32 {
+	// Rain, snow and a slowing shot hold a chaser back as much as anything.
+	mul := speed / Creeps[c.Kind].Speed
 	if !c.Sprinter || c.sprint <= 0 {
-		return speed
+		return max(speed, chaseSpeed*mul)
 	}
 	if c.sprint -= Dt; c.sprint <= 0 {
 		c.sprint = -sprintRest
 	}
-	// Rain, snow and a slowing shot hold a sprinter back as much as anything.
-	return speed / Creeps[c.Kind].Speed * sprintSpeed
+	return sprintSpeed * mul
 }
 
 // rest is a tick of a sprinter catching its breath, or getting its burst back while it

@@ -3,26 +3,31 @@ package game
 import "math"
 
 // Wanderers: the dead that roam the wastes between the waves. They shamble about far from the
-// base, go for a survivor who comes near or shoots at them, and come back with time as they
-// are killed. Every tenth wave they hear the call: partway into it, every wanderer left turns
+// base in loose packs, mostly walkers, go for a survivor who comes near or shoots at them, and
+// come back with time as they are killed. Every tenth wave they hear the call: partway into it, every wanderer left turns
 // and rushes the generator, and the wave holds until they are dead too.
 
 const (
 	wanderSpawn = 40   // a wanderer appears at least this far from the generator
 	wanderAway  = 26   // and this far from every survivor, out of sight
 	wanderKeep  = 30   // it wanders no closer to the generator than this
-	wanderEvery = 5    // seconds between new wanderers while there are fewer than the map holds
+	wanderEvery = 5    // seconds between new packs while there are fewer than the map holds
 	wanderPace  = .4   // of its kind's speed, while it wanders
 	rushEvery   = 10   // the waves the wanderers rush
 	rushFrom    = 15   // seconds into the wave, at the earliest, that they rush
 	rushSpread  = 25   // and at the latest, rushFrom later
-	wanderMost  = 60   // the most wanderers the map ever holds
-	wanderBase  = 10.0 // how many it holds before the first wave, plus one a wave
+	wanderMost  = 150  // the most wanderers the map ever holds
+	wanderBase  = 24.0 // how many it holds before the first wave
+	wanderWave  = 2.0  // and how many more each wave
+	packLo      = 3    // a pack is this many
+	packHi      = 6    // to this many
+	packSpread  = 2.5  // tiles round its middle
+	packKeep    = 8    // a wanderer drifts back towards the others within this many tiles
 )
 
 // wanderCap is how many wanderers the map holds now.
 func (w *World) wanderCap() int {
-	return min(int(math.Round((wanderBase+float64(w.Wave))*float64(w.diff().Count))), wanderMost)
+	return min(int(math.Round((wanderBase+wanderWave*float64(w.Wave))*float64(w.diff().Count))), wanderMost)
 }
 
 // wanderers is how many wanderers are about.
@@ -47,50 +52,71 @@ func (w *World) stepWanderers() {
 		return
 	}
 	w.wanderCool = wanderEvery
-	if w.wanderers() < w.wanderCap() {
-		w.spawnWanderer()
+	if w.wanderers()+packLo <= w.wanderCap() {
+		w.spawnPack()
 	}
 }
 
 // fillWanderers puts the map's wanderers down at once, for a new game.
 func (w *World) fillWanderers() {
-	for n := w.wanderCap(); n > 0; n-- {
-		w.spawnWanderer()
+	for try := 0; try < 100 && w.wanderers()+packLo <= w.wanderCap(); try++ {
+		w.spawnPack()
 	}
 	w.wanderCool = wanderEvery
 }
 
-// spawnWanderer puts one wanderer down somewhere out in the wastes, away from the base, the
-// survivors and the loot sites, where the generator can be reached from.
-func (w *World) spawnWanderer() bool {
+// spawnPack puts a pack of wanderers down somewhere out in the wastes, away from the base,
+// the survivors and the loot sites, where the generator can be reached from: walkers
+// huddled together, now and then something worse among them. It returns how many came.
+func (w *World) spawnPack() int {
 	for try := 0; try < 40; try++ {
 		x, y := float32(w.rng.IntN(w.W))+.5, float32(w.rng.IntN(w.H))+.5
-		if ok, _ := w.creepFree(x, y); !ok || w.flow.dist[int(y)*w.W+int(x)] >= unreachable {
+		if !w.wanderSpot(x, y) {
 			continue
 		}
-		if dx, dy := x-w.CoreX, y-w.CoreY; dx*dx+dy*dy < wanderSpawn*wanderSpawn {
-			continue
+		n, got := packLo+w.rng.IntN(packHi-packLo+1), 0
+		for j := 0; j < n*3 && got < n; j++ {
+			px, py := x, y
+			if got > 0 {
+				px += (w.rng.Float32()*2 - 1) * packSpread
+				py += (w.rng.Float32()*2 - 1) * packSpread
+			}
+			if ok, _ := w.creepFree(px, py); !ok {
+				continue
+			}
+			k := CWalker
+			if got == n-1 {
+				// The last of a pack may be something other than a walker.
+				switch r := w.rng.IntN(10); {
+				case w.Wave >= 8 && r == 0:
+					k = CBrute
+				case w.Wave >= 6 && r == 1:
+					k = CSpitter
+				case w.Wave >= 3 && r < 4:
+					k = CRunner
+				}
+			}
+			if !w.SpawnCreep(k, px, py) {
+				return got
+			}
+			c := &w.Creeps[len(w.Creeps)-1]
+			c.Wander, c.HX, c.HY = true, px, py
+			got++
 		}
-		if w.nearestPlayer(x, y, wanderAway) != nil || w.nearSite(x, y, 6) {
-			continue
-		}
-		k := CWalker
-		switch r := w.rng.IntN(10); {
-		case w.Wave >= 8 && r == 0:
-			k = CBrute
-		case w.Wave >= 6 && r == 1:
-			k = CSpitter
-		case w.Wave >= 3 && r < 4:
-			k = CRunner
-		}
-		if !w.SpawnCreep(k, x, y) {
-			return false
-		}
-		c := &w.Creeps[len(w.Creeps)-1]
-		c.Wander, c.HX, c.HY = true, x, y
-		return true
+		return got
 	}
-	return false
+	return 0
+}
+
+// wanderSpot reports whether a pack may come in at x, y.
+func (w *World) wanderSpot(x, y float32) bool {
+	if ok, _ := w.creepFree(x, y); !ok || w.flow.dist[int(y)*w.W+int(x)] >= unreachable {
+		return false
+	}
+	if dx, dy := x-w.CoreX, y-w.CoreY; dx*dx+dy*dy < wanderSpawn*wanderSpawn {
+		return false
+	}
+	return w.nearestPlayer(x, y, wanderAway) == nil && !w.nearSite(x, y, 6)
 }
 
 // nearSite reports whether x, y is within r of a loot site.
@@ -109,7 +135,7 @@ func (w *World) nearSite(x, y, r float32) bool {
 func (w *World) wander(c *Creep, d *CreepDef, speed float32) {
 	if c.think -= Dt; c.think <= 0 {
 		c.think = 4 + w.rng.Float32()*8
-		c.HX, c.HY = w.wanderTo(c.X, c.Y)
+		c.HX, c.HY = w.wanderTo(c)
 	}
 	dx, dy := c.HX-c.X, c.HY-c.Y
 	dd := dx*dx + dy*dy
@@ -132,18 +158,35 @@ func (w *World) wander(c *Creep, d *CreepDef, speed float32) {
 	}
 }
 
-// wanderTo is a spot a few tiles from x, y to wander to, away from the generator; one that
-// strayed too close heads straight out again.
-func (w *World) wanderTo(x, y float32) (float32, float32) {
+// wanderTo is a spot a few tiles from wanderer c to wander to, away from the generator and
+// near the others of its pack; one that strayed too close to the base heads straight out.
+func (w *World) wanderTo(c *Creep) (float32, float32) {
+	x, y := c.X, c.Y
 	cx, cy := x-w.CoreX, y-w.CoreY
 	if cd := sqrt32(cx*cx + cy*cy); cd < wanderKeep {
 		cd += 1e-6
 		return x + cx/cd*8, y + cy/cd*8
 	}
+	// The pack's middle: a wanderer with others about wanders round them, not off alone.
+	var mx, my float32
+	n := 0
+	id := c.ID
+	w.grid.each(x, y, packKeep, func(i int32) bool {
+		if o := &w.Creeps[i]; o.Wander && o.ID != id {
+			mx, my = mx+o.X, my+o.Y
+			n++
+		}
+		return n < 8
+	})
+	ox, oy, lo, span := x, y, 3., 7.
+	if n > 0 {
+		// Round the middle, a little wider than the pack, so the pack as a whole slowly drifts.
+		ox, oy, lo, span = mx/float32(n), my/float32(n), 1, 4
+	}
 	for try := 0; try < 8; try++ {
 		a := w.rng.Float64() * 2 * math.Pi
-		r := 3 + w.rng.Float64()*7
-		tx, ty := x+float32(math.Cos(a)*r), y+float32(math.Sin(a)*r)
+		r := lo + w.rng.Float64()*span
+		tx, ty := ox+float32(math.Cos(a)*r), oy+float32(math.Sin(a)*r)
 		if dx, dy := tx-w.CoreX, ty-w.CoreY; dx*dx+dy*dy < wanderKeep*wanderKeep {
 			continue
 		}

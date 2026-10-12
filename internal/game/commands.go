@@ -82,8 +82,11 @@ func (w *World) Join(name, login string) (*Player, error) {
 func (w *World) resetPlayer(p *Player) {
 	p.Gold = 150
 	p.Weapons = [NumWeapons]WeaponState{}
-	p.Weapons[WPistol] = WeaponState{Owned: true, Ammo: Weapons[WPistol].Mag}
 	p.Cur = WPistol
+	if w.diff().Melee {
+		p.Cur = WCrowbar
+	}
+	p.Weapons[p.Cur] = WeaponState{Owned: true, Ammo: Weapons[p.Cur].Mag}
 	p.Gear = [NumGear]uint8{}
 	p.Medkits, p.Heal = 1, 0
 	p.MaxHP = 100
@@ -140,7 +143,7 @@ func (w *World) pay(p *Player, cost int32) error {
 
 // BuyWeapon buys a weapon and switches to it.
 func (w *World) BuyWeapon(p *Player, k WeaponKind) error {
-	if k >= NumWeapons {
+	if k >= NumWeapons || k == WCrowbar {
 		return errors.New("no such weapon")
 	}
 	if !w.atArmory(p) {

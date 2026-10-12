@@ -165,7 +165,7 @@ type welcomeMsg struct {
 	Medkit          medkitDef     `json:"medkit"`
 }
 
-var fireNames = map[game.Fire]string{game.FireHitscan: "hitscan", game.FireCone: "cone", game.FireRocket: "rocket"}
+var fireNames = map[game.Fire]string{game.FireHitscan: "hitscan", game.FireCone: "cone", game.FireRocket: "rocket", game.FireMelee: "melee"}
 
 // welcome builds the welcome for a session. host is the host machine's name.
 func welcome(wel netplay.Welcome, core point, host, hint string, hosting bool) welcomeMsg {

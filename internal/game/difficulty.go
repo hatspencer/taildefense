@@ -30,6 +30,7 @@ type DifficultyDef struct {
 	Rest   float32 // the long break after every fifth wave, to go out exploring and looting
 	Revive float32 // seconds a downed survivor can be revived before respawning at the base
 	Guard  float32 // loot guards: how many, and how tough
+	Melee  bool    // survivors start with a crowbar instead of the pistol
 }
 
 // Difficulties is indexed by Difficulty.
@@ -37,7 +38,7 @@ var Difficulties = [NumDifficulties]DifficultyDef{
 	DiffEasy:   {Name: "Easy", HP: .75, Count: .75, Gold: 1.25, First: 40, Build: 20, Rest: 75, Revive: 28, Guard: .7},
 	DiffNormal: {Name: "Normal", HP: 1, Count: 1, Gold: 1, First: 20, Build: 15, Rest: 60, Revive: 20, Guard: 1},
 	DiffHard:   {Name: "Hard", HP: 1.3, Count: 1.25, Gold: .9, First: 25, Build: 18, Rest: 60, Revive: 16, Guard: 1.3},
-	DiffBrutal: {Name: "Brutal", HP: 1.7, Count: 1.5, Gold: .8, First: 30, Build: 20, Rest: 60, Revive: 12, Guard: 1.7},
+	DiffBrutal: {Name: "Brutal", HP: 1.7, Count: 1.5, Gold: .8, First: 30, Build: 20, Rest: 60, Revive: 12, Guard: 1.7, Melee: true},
 }
 
 // String is the difficulty's name.

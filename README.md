@@ -45,7 +45,8 @@ WebGL 2 where WebGPU isn't available. Any current Chrome, Edge, Firefox or Safar
 
 `DIFFICULTY` is `easy`, `normal` (the default), `hard` or `brutal`, for the games you host. It
 scales creep health and wave size, gold, the time between waves, how tough the loot guards are
-and how long a downed player can be revived (20 s on normal). A restart keeps the game's difficulty.
+and how long a downed player can be revived (20 s on normal). On brutal you start with only a
+crowbar. A restart keeps the game's difficulty.
 
 `BROWSER` is `auto` by default: td finds the browsers installed (Chrome, Chromium, Brave, Edge,
 Vivaldi, Firefox, and Safari on macOS) and starts the best one full screen, as an app window with
@@ -96,7 +97,7 @@ faces, however the camera is turned, and the camera follows while you walk.
 | right-click | on a creep, focus fire on it; anywhere else, the equipped weapon's signature, at the cursor |
 | Shift / F / Q | abilities: grenade, dash, airstrike; aim with the cursor and left-click |
 | H | hold position |
-| 1-7, R | equip a weapon, reload (or the reload button) |
+| 1-7, 0, R | equip a weapon (0 is the crowbar, on brutal), reload (or the reload button) |
 | 8 | use a medkit |
 | V | taunt: flip them off and shout; every creep around you comes for you for 5 s, sleeping guards too |
 | B | build: X wall, G gate, T gun turret, C cannon, F frost tower, L tesla coil; shift keeps placing |
@@ -169,13 +170,19 @@ a wing in pieces and a long burnt scar. A garrison sleeps in the wreckage, more 
 walk in, and its leaking engines go up like the gas station's pumps when shot. The hold gives a
 field manual, a piece of kit and something rare or better.
 
-The dead also wander the wastes on their own, shambling about away from the base. They come
-for you if you get close or shoot them, and more turn up as they are killed, a few more every
-wave. Every tenth wave they hear the call: partway into it, every wanderer left rushes the
+The dead also wander the wastes on their own, in small packs, shambling about away from the base.
+They come for you if you get close or shoot them, and more turn up as they are killed, a few more
+every wave. Every tenth wave they hear the call: partway into it, every wanderer left rushes the
 generator, and the wave isn't over until they are dead too.
 
-Some of the dead are sprinters: once one is after you it runs faster than you can, in bursts of
-a few seconds. Outrunning one means running on while it stops for breath, or turning to fight.
+Once the dead are after you they run faster than you walk; only a sprint gets you away. Some are
+sprinters, faster even than your sprint in bursts of a few seconds: outrunning one means running
+on while it slows, or turning to fight. They call to each other, too: one that comes for you
+brings everything round it, and that brings everything round it. Hiding in a ruin doesn't help
+for long; they find the door.
+
+Brutes and abominations slam the ground when you come near: a ring shows where it will land a
+moment before. Get out of it.
 
 Gunfire is loud. Shooting wakes guards nearby and pulls wave creeps in earshot towards you; rain
 and storms muffle it.
@@ -205,6 +212,7 @@ Each weapon has its own signature ability on the right mouse button, stronger wi
 | Flamethrower | napalm: a pool of fire for 6 s |
 | Minigun | overdrive: faster and piercing for 5 s |
 | Rocket launcher | barrage: six rockets round a point |
+| Crowbar (brutal) | haymaker: a swing all round that hurts and throws back |
 
 Grenade, dash and airstrike are bought and levelled at the armory.
 

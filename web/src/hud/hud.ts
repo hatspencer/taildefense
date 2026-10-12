@@ -1,5 +1,5 @@
 import type { ConnState } from '../net';
-import { Emote, Order, PF_ALIVE, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, type Player, type Welcome, sellValue, turretRange } from '../protocol';
+import { CROWBAR, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, type Player, type Welcome, sellValue, turretRange, WEAPON_SLOTS } from '../protocol';
 import { type Controller, KEYS } from '../controller';
 import { cssHex, playerColor } from '../scene/util';
 import { Armory } from './armory';
@@ -231,9 +231,9 @@ export class Hud {
     this.taunt = { ...ts, cap };
 
     const ws = el('div', 'weapons', actions);
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < WEAPON_SLOTS; i++) {
       const w = el('div', 'wslot', ws);
-      el('span', 'key', w, String(i + 1));
+      el('span', 'key', w, i === CROWBAR ? '0' : String(i + 1));
       el('span', 'nm', w);
       w.onclick = () => { const me = ctl.me(); if (me && me.owned & (1 << i)) ctl.send({ op: 'select', w: i }); else ctl.openArmory(true); };
       this.tipOn(w, () => this.weaponTip(i));
@@ -309,7 +309,7 @@ export class Hud {
     const owned = (me.owned & (1 << i)) !== 0;
     const reloading = (me.reloading & (1 << i)) !== 0;
     const lv = [0, 1, 2, 3].map((t) => `${wd!.tracks[t]} ${me.levels[i * 4 + t]}`).join(' · ');
-    return `<b>${esc(w.name)}</b><kbd>${i + 1}</kbd><br><span class="muted">${w.fire} · range ${w.range} · special ${esc(w.special)}</span><br>${owned ? lv : `not owned · <span class="c">${w.price}g</span> at the armory`}<br><span class="muted">signature: ${esc(w.sig.name)}${reloading ? ' · reloading' : ''}</span>`;
+    return `<b>${esc(w.name)}</b><kbd>${i === CROWBAR ? 0 : i + 1}</kbd><br><span class="muted">${w.fire} · range ${w.range} · special ${esc(w.special)}</span><br>${owned ? lv : `not owned · <span class="c">${w.price}g</span> at the armory`}<br><span class="muted">signature: ${esc(w.sig.name)}${reloading ? ' · reloading' : ''}</span>`;
   }
 
   private diffTip(): string {
@@ -809,9 +809,10 @@ export class Hud {
     setClass(t.root, 'locked', !alive);
     setText(t.cap, me.tauntCool > 0 ? '' : 'taunt');
 
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < WEAPON_SLOTS; i++) {
       const e = this.wslots[i], w2 = wd.weapons[i];
-      show(e, !!w2);
+      // The crowbar is brutal's alone: its slot only shows for whoever carries it.
+      show(e, !!w2 && (i !== CROWBAR || (me.owned & (1 << i)) !== 0));
       if (!w2) continue;
       setClass(e, 'owned', (me.owned & (1 << i)) !== 0);
       setClass(e, 'cur', me.cur === i);

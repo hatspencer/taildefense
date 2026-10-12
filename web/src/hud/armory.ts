@@ -1,5 +1,5 @@
 import type { Controller } from '../controller';
-import { PF_ARMORY, Phase } from '../protocol';
+import { CROWBAR, PF_ARMORY, Phase } from '../protocol';
 import { el, esc, fmtGold, show } from './dom';
 
 type Tab = 'weapons' | 'gear' | 'abilities';
@@ -66,9 +66,10 @@ export class Armory {
       t.innerHTML = `<tr><th>Weapon</th><th></th>${wd.tracks.map((n) => `<th>${esc(n)}</th>`).join('')}</tr>`;
       wd.weapons.forEach((w, wi) => {
         const owned = (me.owned & (1 << wi)) !== 0;
+        if (wi === CROWBAR && !owned) return; // never sold
         const tr = el('tr', '', t);
         const n = el('td', '', tr);
-        n.innerHTML = `<span class="wname">${esc(w.name)}</span> <kbd>${wi + 1}</kbd><br><span class="muted small">${esc(w.fire)} · range ${w.range} · right-click: ${esc(w.sig.name)}</span>`;
+        n.innerHTML = `<span class="wname">${esc(w.name)}</span> <kbd>${wi === CROWBAR ? 0 : wi + 1}</kbd><br><span class="muted small">${esc(w.fire)} · range ${w.range} · right-click: ${esc(w.sig.name)}</span>`;
         const act = el('td', '', tr);
         if (!owned) btn(act, `Buy <span class="gold">${fmtGold(w.price)}g</span>`, w.price, true, () => ctl.send({ op: 'buyWeapon', w: wi }), 'primary');
         else if (me.cur === wi) el('span', 'muted', act, 'equipped');

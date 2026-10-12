@@ -40,6 +40,7 @@ const HOLDS: Hold[] = [
   { at: [0.22, 0.16, -0.12], grip: [0, -0.06, 0], fore: [0.3, 0.0, 0.04], muzzle: 0.56 },       // flamer, at the hip
   { at: [0.24, 0.13, -0.1], grip: [-0.1, 0.02, -0.06], fore: [0.02, 0.15, 0.06], muzzle: 0.68 }, // minigun, braced at the hip
   { at: [0.0, 0.55, -0.2], grip: [0.06, -0.09, 0], fore: [0.32, -0.09, 0.02], muzzle: 0.62 },   // launcher, on the shoulder
+  { at: [0.3, 0.42, -0.1], grip: [0, -0.04, 0], fore: [0.12, -0.04, 0], muzzle: 0.6 },          // crowbar, both hands, raised
 ];
 
 // The gun in the hand, facing +x from the grip, dressed in the player's colour.
@@ -67,6 +68,10 @@ function gunParts(w: number, c: number): { body: Part[]; spin: Part[] } {
       add(b, 0.1, 0.06, 0.18, c, 0.12, 0.02);
       for (const [y, z] of [[0.04, 0.04], [0.04, -0.04], [-0.03, 0], [0.09, 0]]) add(s, 0.56, 0.035, 0.035, M, 0.4, y - 0.02, z);
       break;
+    case 7:
+      // A bar, bent to a claw at the far end, and tape on the grip in the player's colour.
+      add(b, 0.62, 0.035, 0.035, 0x4a4f57, 0.24, 0.0, 0, 0.12); add(b, 0.14, 0.035, 0.035, 0x4a4f57, 0.56, 0.1, 0, 1.2);
+      add(b, 0.14, 0.05, 0.05, c, 0.0, -0.02, 0, 0.12); break;
     default:
       add(b, 0.8, 0.13, 0.13, O, 0.15, 0.03); add(b, 0.08, 0.17, 0.17, 0x3a3e28, 0.56, 0.03); add(b, 0.06, 0.14, 0.06, D, 0.05, -0.08);
       add(b, 0.06, 0.08, 0.02, D, 0.0, 0.12, 0.06); add(b, 0.1, 0.135, 0.135, c, -0.2, 0.03);
@@ -304,7 +309,7 @@ export class Heroes {
       h.pop = Math.max(0, h.pop - dt * 2.2);
       // One kick and flash per shot, at the weapon's own rate: a shotgun booms, an SMG chatters.
       if (!firing) h.shotAt = -1e9;
-      else if (now - h.shotAt >= 1000 / (WEAPON_BASE[h.weapon]?.rate ?? 3)) { h.shotAt = now; h.kick.kick(h.weapon === 1 || h.weapon === 6 ? 9 : 3); }
+      else if (now - h.shotAt >= 1000 / (WEAPON_BASE[h.weapon]?.rate ?? 3)) { h.shotAt = now; h.kick.kick(h.weapon === 1 || h.weapon === 6 ? 9 : h.weapon === 7 ? -14 : 3); }
       const hurt = (p.flags & PF_HURT) !== 0;
       if (hurt && !h.hurt && alive) { h.flinch.kick(7); h.tailS.kick(4); }
       h.hurt = hurt;
@@ -396,7 +401,7 @@ export class Heroes {
       h.gun.position.set(hold.at[0] - kick * 0.25 - sp * 0.06, hold.at[1] - sp * 0.1 - rl * 0.06, hold.at[2] + sp * 0.05);
       h.gun.rotation.set(rl * 0.7, sp * 0.35, kick * 0.6 - sp * 0.55 - rl * 0.3);
       h.gun.updateMatrix();
-      h.flash.visible = now - h.shotAt < (h.weapon === 1 ? 70 : 45);
+      h.flash.visible = h.weapon !== 7 && now - h.shotAt < (h.weapon === 1 ? 70 : 45);
       if (h.spin) h.spin.rotation.x += dt * (firing ? 40 : 0);
 
       // Hands: on the gun, unless kneeling, taunting or down.

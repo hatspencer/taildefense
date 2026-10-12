@@ -22,6 +22,12 @@ it here along with the code.
 | before wave 1 | 40 s | 20 s | 25 s | 30 s |
 | break between waves | 20 s | 15 s | 18 s | 20 s |
 | long break, after every 5th wave | 75 s | 60 s | 60 s | 60 s |
+| starting weapon | pistol | pistol | pistol | crowbar |
+
+- **Brutal starts in melee.** Survivors begin with a crowbar and no gun: a short swing that
+  hits up to three creeps in front, never runs dry, and is quiet. Its signature, the haymaker,
+  hits all round and throws everything back. Guns are bought or found as usual; the crowbar is
+  never sold or found, so it is brutal's alone.
 
 - **Short breaks** (15 s on Normal) keep the pressure on: enough to shop, repair and drop a
   turret, not enough to wander off. If everyone presses Ready, the countdown jumps to 3 s.
@@ -88,9 +94,10 @@ each wave, but Normal is the reference for timing.
   or shoot one, and give up and walk home if you lead them too far. You may search with the
   guards still about, if you dare. A hit stops the search.
 - **Outposts.** Three overrun forts far out, held by a garrison and its warlord. They give three
-  finds, the first one rare at least. They're hard early on, and a goal for later. The warlord
-  slams the ground every few seconds once it is fighting: a red ring marks its reach for a
-  second first, and whoever is still inside is hurt and thrown clear. Step out, or eat it.
+  finds, the first one rare at least. They're hard early on, and a goal for later. Every brute
+  and abomination slams the ground every few seconds once a survivor comes within its ring
+  (5.5 tiles for a brute, 8 for an abomination): the ring shows on the ground for about a second
+  first, and whoever is still inside is hurt and thrown clear. Step out, or eat it.
 - **The gas station.** One per map, beside a road out near the edge. Its shop always gives a
   gun you don't have yet, so it is heavily held: a garrison round the pumps, and more hiding in
   the shop that burst out when you step onto the lot. The pumps blow up when shot, hurting
@@ -103,13 +110,20 @@ each wave, but Normal is the reference for timing.
   A garrison of brutes, runners and spitters sleeps in the wreckage, an ambush comes out at
   the first survivor inside it and another at the hold, and its two leaking engines blow up
   like the pumps when shot.
-- **Wanderers.** The dead roam the wastes between the sites, away from the base: about ten at
-  the start, one more each wave, more on harder settings. They come for a survivor who gets
-  close or shoots them, and new ones turn up, out of sight, as they are killed. The way out is
-  never quite empty.
+- **Wanderers.** The dead roam the wastes between the sites, away from the base, in packs of
+  three to six that keep together: walkers mostly, now and then a runner, spitter or brute
+  among them. About two dozen at the start, two more each wave (up to 150), more on harder
+  settings. They come for a survivor who gets close or shoots them, and new packs turn up, out
+  of sight, as they are killed. The way out is never quite empty.
+- **The chain.** A creep that goes for a survivor howls a moment later, and everything within
+  seven tiles that isn't after that survivor yet wakes and comes too, and howls in its turn.
+  One shot, or one guard woken, can bring a whole stretch of the wastes down on you.
+- **Chasing.** Every creep after a survivor runs faster than a walking survivor (6.6 to 6), but
+  slower than a sprinting one, so sprinting still gets you away. Out of a straight line they
+  path round walls: hide in a ruin and they find its door and pour in.
 - **Sprinters.** Some runners, swarmers and walkers sprint once they have a survivor to chase:
-  faster than a survivor without boots for about three and a half seconds, then four seconds
-  winded at their usual pace. You can't simply walk away from a pull; you have to outlast it.
+  faster than even a sprinting survivor for about three and a half seconds, then four seconds
+  at the usual chase. You can't simply run from a pull; you have to outlast it.
 - **The call.** Every tenth wave, partway in, every wanderer left rushes the generator as part of
   the wave, and the wave holds until they are dead. Thinning them beforehand pays off.
 - **Ambushes and nests.** The hardest sites spring creeps as you walk in or search, and a house
