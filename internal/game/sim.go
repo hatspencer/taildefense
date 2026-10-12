@@ -51,13 +51,15 @@ func (w *World) Step() {
 				w.dropStragglers()
 				n = 0
 			}
-			// A wave holds until the last of it is dead; the next never lands on top of it.
-			if n == 0 {
+			// A wave holds until the last of it is dead, and on a tenth wave until the
+			// wanderers have rushed too; the next never lands on top of it.
+			if n == 0 && w.rushAt == 0 {
 				w.endWave()
 			}
 		}
 	}
 
+	w.stepWanderers()
 	w.stepWeather()
 	w.updateFlow()
 	w.grid.build(w.Creeps)
@@ -103,6 +105,9 @@ func (w *World) startWave() {
 	w.Queue = w.plan(w.Wave, w.active())
 	w.QueueHead = 0
 	w.stall, w.waveLeft = 0, 0
+	if w.Wave%rushEvery == 0 {
+		w.rushAt = rushFrom + w.rng.Float32()*rushSpread
+	}
 	for _, p := range w.Players {
 		p.Ready = false
 	}
@@ -130,7 +135,7 @@ const (
 func (w *World) dropStragglers() {
 	n := 0
 	for i := 0; i < len(w.Creeps); {
-		if w.Creeps[i].Home != 0 {
+		if c := &w.Creeps[i]; c.Home != 0 || c.Wander {
 			i++
 			continue
 		}
@@ -336,7 +341,7 @@ func (w *World) stepCreeps() {
 			}
 			w.wakeSite(c)
 		}
-		if c.Home == 0 {
+		if c.Home == 0 && !c.Wander {
 			w.think(c, d)
 		}
 
@@ -349,6 +354,10 @@ func (w *World) stepCreeps() {
 		var mx, my float32
 		if tp == nil && c.Home > 0 {
 			w.goHome(c, d, speed)
+			continue
+		}
+		if tp == nil && c.Wander {
+			w.wander(c, d, speed)
 			continue
 		}
 		if tp == nil && c.Siege >= 0 {

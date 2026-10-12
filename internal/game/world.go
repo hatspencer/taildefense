@@ -36,7 +36,9 @@ type Creep struct {
 	HX, HY    float32
 	Asleep    bool
 	Returning bool
-	slam      float32 // an outpost warlord: seconds until it can slam the ground again
+	// A wanderer roams the wastes until a tenth wave calls it in; HX, HY is where it walks.
+	Wander bool
+	slam   float32 // an outpost warlord: seconds until it can slam the ground again
 }
 
 // Structure is a building. Index in World.Structs is its ID; dead slots are reused.
@@ -291,11 +293,14 @@ type World struct {
 	flowDirt bool
 	grid     spatial
 	freeIDs  []uint16
-	rng      *rand.Rand
-	scratch  []int32
-	hitBuf   []hitCand
-	byID     []int32 // creep id -> index in Creeps, valid for creeps alive at the tick's start
-	paths    pathfinder
+	// Wanderers: seconds until the next one may appear, and when into this wave they rush, 0 none.
+	wanderCool float32
+	rushAt     float32
+	rng        *rand.Rand
+	scratch    []int32
+	hitBuf     []hitCand
+	byID       []int32 // creep id -> index in Creeps, valid for creeps alive at the tick's start
+	paths      pathfinder
 }
 
 // New builds a world from a seed at the default difficulty.
@@ -348,6 +353,7 @@ func NewGame(seed uint64, diff Difficulty) *World {
 		wd.spawnGuards(i)
 	}
 	wd.countGuards()
+	wd.fillWanderers()
 	return wd
 }
 
