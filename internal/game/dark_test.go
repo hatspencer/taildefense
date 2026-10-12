@@ -2,24 +2,49 @@ package game
 
 import "testing"
 
-func TestNightShortensSightOutsideTheBase(t *testing.T) {
-	for _, d := range []Difficulty{DiffEasy, DiffNormal, DiffHard, DiffBrutal} {
-		w := NewGame(5, d)
-		p, _ := w.Join("ana", "ana@example")
-		far := w.sightRange(p, 28)
-		if far != 28 {
-			t.Fatalf("%s: a rifle at the base sees %.1f", d, far)
+// At night the whole base is in sight, a survivor sees a small pool round them (twice as far
+// with a rifle), and a turret out on its own sees a little past what it shoots.
+func TestWhatIsInSightAtNight(t *testing.T) {
+	w := NewGame(5, DiffHard)
+	p, _ := w.Join("ana", "ana@example")
+	p.X, p.Y = w.CoreX+60, w.CoreY
+	var tur *Structure
+	for i := range w.Structs {
+		if Structs[w.Structs[i].Kind].Turret {
+			tur = &w.Structs[i]
+			break
 		}
-		p.X = w.CoreX + 40
-		dark := w.diff().Dark
-		if got := w.sightRange(p, 28); (dark == 0) != (got == 28) || dark > 0 && got > dark+1 {
-			t.Fatalf("%s: a rifle out in the wastes sees %.1f", d, got)
+	}
+	tur.X, tur.Y = int16(w.CoreX)-80, int16(w.CoreY)
+	_, rng, _ := TurretStats(tur.Kind, tur.Level)
+	w.Weather, w.WeatherAmt = WClear, 0
+	w.discover()
+	lit := func(x, y float32) bool {
+		c := Creep{X: x, Y: y}
+		return !w.hidden(&c)
+	}
+	dark := w.diff().Dark
+	for _, c := range []struct {
+		x, y float32
+		want bool
+		what string
+	}{
+		{w.CoreX + BuildRadius - 1, w.CoreY, true, "the edge of the base"},
+		{w.CoreX, w.CoreY - BuildRadius + 1, true, "the far side of the base"},
+		{w.CoreX + BuildRadius + 3, w.CoreY + 8, false, "just outside the base"},
+		{p.X + dark - 1, p.Y, true, "next to the survivor"},
+		{p.X + dark + 1, p.Y, false, "past the survivor's sight"},
+		{tur.CX() + rng + 1, tur.CY(), true, "just past the turret's range"},
+		{tur.CX() + rng + 3, tur.CY(), false, "well past the turret's range"},
+	} {
+		if lit(c.x, c.y) != c.want {
+			t.Fatalf("%s: in sight %v", c.what, !c.want)
 		}
-		// With the rifle in hand its scope sees twice as far.
-		p.Cur = WRifle
-		if got := w.sightRange(p, 28); dark > 0 && got != min(28, 2*dark+1) {
-			t.Fatalf("%s: through the scope a rifle sees %.1f", d, got)
-		}
+	}
+	p.Cur = WRifle
+	w.discover()
+	if !lit(p.X+2*dark-1, p.Y) {
+		t.Fatal("the rifle's scope sees no further")
 	}
 }
 

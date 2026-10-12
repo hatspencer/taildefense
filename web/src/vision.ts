@@ -7,8 +7,6 @@ import { PF_ALIVE, RIFLE, RIFLE_SIGHT, type Frame, type Welcome, Weather, turret
 // Walled sites, the houses and outposts with guards inside, are dark rooms: no sight from
 // outside reaches past their walls, and one survivor inside lights the whole room. What is
 // in there, and how many, stays unknown until someone goes in.
-// How far round the generator its lights keep the night off: the host's darkLit.
-const DARK_LIT = 12;
 
 export class Vision {
   // 1 where someone sees the tile this frame.
@@ -63,8 +61,8 @@ export class Vision {
     this.now.fill(0);
     // Weather fog shortens sight the way it shortens the guns.
     const mul = f.weather === Weather.Fog ? 1 - 0.25 * f.weatherAmt : 1;
-    // At night (hard and brutal) a survivor sees only a small pool round them, and the base
-    // only its own lit ground: the dead are on you before you know it.
+    // At night (hard and brutal) a survivor sees only a small pool round them: the dead are on
+    // you before you know it.
     const dark = wd.dark ?? 0, sight = dark || 12;
     for (let i = 0; i < f.nPlayers; i++) {
       const p = f.players[i];
@@ -76,11 +74,12 @@ export class Vision {
     for (let i = 0; i < f.nStructs; i++) {
       if (!f.sAlive[i]) continue;
       const d = wd.structs[f.sKind[i]];
-      // Turrets see a little past what they shoot; the generator and armory keep the base
-      // lit; walls and gates see just over themselves.
-      const r = dark
-        ? (f.sKind[i] === 1 ? DARK_LIT : f.sKind[i] === 2 ? 7 : d?.turret ? 4 : 2)
-        : d?.turret ? turretRange(d, f.sLevel[i]) * mul + 2 : f.sKind[i] === 1 ? 14 : f.sKind[i] === 2 ? 9 : 3;
+      // The generator keeps the whole base in sight, whatever the difficulty; turrets see a
+      // little past what they shoot, night or day; walls and gates see just over themselves.
+      // At night these follow the host's (discover.go), which decides what a shot can find.
+      const r = f.sKind[i] === 1 ? wd.buildRadius
+        : d?.turret ? turretRange(d, f.sLevel[i]) * mul + 2
+        : f.sKind[i] === 2 ? (dark ? 7 : 9) : dark ? 2 : 3;
       this.disc(f.sX[i] + f.sW[i] / 2, f.sY[i] + f.sH[i] / 2, r, -1);
     }
     this.version++;

@@ -296,7 +296,7 @@ func TestFoundGroundIsShared(t *testing.T) {
 	if far == 0 {
 		t.Fatal("the ground the survivor walked was never found")
 	}
-	if at := int(w.CoreY+20)*w.W + int(w.CoreX); w.Seen.Has(at) {
+	if at := int(w.CoreY+60)*w.W + int(w.CoreX); w.Seen.Has(at) {
 		t.Fatal("ground nobody went near was found")
 	}
 	// Without the night nothing is kept.
