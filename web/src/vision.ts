@@ -1,4 +1,4 @@
-import { PF_ALIVE, RIFLE, RIFLE_SIGHT, type Frame, type Welcome, Weather, turretRange, walled } from './protocol';
+import { PF_ALIVE, RIFLE, RIFLE_SIGHT, type Frame, type Welcome, Weather, sightMul, turretRange, walled } from './protocol';
 
 // Fog of war: what the team sees right now, and what it has ever seen, per tile. Vision is
 // shared: every survivor and every structure lights a disc around itself. The host sends
@@ -59,8 +59,8 @@ export class Vision {
 
   update(f: Frame, wd: Welcome): void {
     this.now.fill(0);
-    // Weather fog shortens sight the way it shortens the guns.
-    const mul = f.weather === Weather.Fog ? 1 - 0.25 * f.weatherAmt : 1;
+    // Fog shortens the guns, and it and rain shorten a survivor's sight more (weather.go).
+    const mul = f.weather === Weather.Fog ? 1 - 0.25 * f.weatherAmt : 1, see = sightMul(f.weather, f.weatherAmt);
     // At night (hard and brutal) a survivor sees only a small pool round them: the dead are on
     // you before you know it.
     const dark = wd.dark ?? 0, sight = dark || 12;
@@ -69,7 +69,7 @@ export class Vision {
       const r = this.roomAt(p.x, p.y);
       if (r >= 0) { this.entered[r] = 1; this.lightRoom(r); }
       // A rifle's scope sees twice as far.
-      this.disc(p.x, p.y, (p.flags & PF_ALIVE ? sight * (p.cur === RIFLE ? RIFLE_SIGHT : 1) : 4) * mul, r);
+      this.disc(p.x, p.y, (p.flags & PF_ALIVE ? sight * (p.cur === RIFLE ? RIFLE_SIGHT : 1) : 4) * see, r);
     }
     for (let i = 0; i < f.nStructs; i++) {
       if (!f.sAlive[i]) continue;

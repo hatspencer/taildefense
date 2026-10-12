@@ -300,7 +300,7 @@ async function main(): Promise<void> {
       loot.update(game, now);
       effects.update(game, world.camera, dt);
       helis.update(game, now, dt);
-      fow.update(game, dt);
+      fow.update(game, dt, rig.tx, rig.tz);
     }
     // The shaders are built behind the splash once the first frame has filled the scene, and
     // nothing is drawn until they are: drawing would build what is left all at once.

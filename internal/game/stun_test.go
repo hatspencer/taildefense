@@ -64,3 +64,37 @@ func TestTheShotgunStunsLonger(t *testing.T) {
 		t.Fatalf("a shotgun stunned for %.2fs, another gun %.2fs", c.stunLeft, plain)
 	}
 }
+
+// A creep's blow stops a survivor where they stand for a moment, a brute's for longer; a
+// second blow straight after does not.
+func TestBlowsStunSurvivors(t *testing.T) {
+	w := newBare(4)
+	w.Phase = PhaseWave
+	w.Queue = []Spawn{{At: 1e9}}
+	p, _ := w.Join("ana", "ana@example")
+	stopped := func(k CreepKind) int {
+		p.X, p.Y, p.HP = w.CoreX+.5, w.CoreY+6, p.MaxHP
+		p.stunLeft, p.stunCool = 0, 0
+		p.stun(playerStun[k])
+		n := 0
+		for i := 0; i < TickRate; i++ {
+			w.Steer(p, 0, true) // the key held down
+			x := p.X
+			w.stepPlayers()
+			if i == 1 {
+				p.stun(playerStun[k]) // too soon to stun again
+			}
+			if p.X == x {
+				n++
+			}
+		}
+		return n
+	}
+	walker, brute := stopped(CWalker), stopped(CBrute)
+	if want := int(playerStun[CWalker] * TickRate); walker < want-1 || walker > want+1 {
+		t.Fatalf("a walker's blow stopped a survivor for %d ticks, want about %d", walker, want)
+	}
+	if brute < walker*2 {
+		t.Fatalf("a brute's blow stopped a survivor %d ticks, a walker's %d", brute, walker)
+	}
+}

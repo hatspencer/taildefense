@@ -6,7 +6,7 @@ import {
   type Command, MAX_CREEPS, Tile, Phase, Order, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_FIRING,
   PF_HURT, PF_MOVING, PF_READY, PF_RELOADING, CF_BURNING, CF_SLOWED, CF_GUARD, CF_HUNTING, CF_SIEGE, CF_ASLEEP,
   CF_WINDUP, CF_STRIKE,
-  BlastKind, EffectKind, Emote, type SiteDef, SiteKind, TRACER_HELI, Weather, type Welcome,
+  BlastKind, EffectKind, Emote, type SiteDef, SiteKind, TRACER_HELI, WET, Weather, type Welcome,
 } from '../protocol';
 import { ABILITY_RADIUS, CREEPS, STRUCTS, WEAPON_BASE, WEATHERS, demoWelcome } from './defs';
 import { Writer } from './encode';
@@ -16,7 +16,6 @@ import { type DemoMap, generateMap, rng } from './map';
 export interface DemoOptions { creeps: number; phase: 'wave' | 'build' | 'over'; wave: number; gold: number; weather?: number; down?: boolean; coreHp?: number; drop?: boolean; fog?: boolean }
 
 // How much each weather counts as rain, as the host's wetness.
-const WET = [0, 0, 1, 1, 0, 0.3, 0.5, 0];
 const SNOWY = [0, 0, 0, 0, 0.4, 0, 0, 1];
 // Guard creeps take the top ids, clear of the wave's.
 const GUARD_ID0 = 16000;

@@ -26,11 +26,11 @@ type WeatherDef struct {
 // passing thunder shower and a light snowfall are their everyday, lighter forms.
 var Weathers = [NumWeathers]WeatherDef{
 	WClear:     {Name: "Clear", Weight: 40},
-	WFog:       {Name: "Fog", Info: "you and your turrets reach 25% less far; creeps notice you later", Weight: 18},
-	WRain:      {Name: "Heavy rain", Info: "fire burns half as hot; creeps 8% slower", Weight: 5},
+	WFog:       {Name: "Fog", Info: "you see far less; you and your turrets reach 25% less far; creeps notice you later", Weight: 18},
+	WRain:      {Name: "Heavy rain", Info: "harder to see; fire burns half as hot; creeps 8% slower", Weight: 5},
 	WStorm:     {Name: "Storm", Info: "heavy rain, and lightning strikes creeps out in the open", Weight: 3},
 	WSnow:      {Name: "Snow", Info: "creeps 6% slower, survivors 3% slower", Weight: 9},
-	WDrizzle:   {Name: "Drizzle", Info: "fire burns a little cooler", Weight: 16},
+	WDrizzle:   {Name: "Drizzle", Info: "a little harder to see; fire burns a little cooler", Weight: 16},
 	WThunder:   {Name: "Thunder shower", Info: "light rain; now and then lightning strikes a creep in the open", Weight: 8},
 	WHeavySnow: {Name: "Heavy snow", Info: "creeps 15% slower, survivors 8% slower", Weight: 4},
 }
@@ -113,6 +113,10 @@ func (w *World) wet() float32 { return wetness[w.Weather] * w.WeatherAmt }
 
 // rangeMul scales survivors' and turrets' reach: fog shortens it.
 func (w *World) rangeMul() float32 { return 1 - .25*w.amt(WFog) }
+
+// sightMul scales how far survivors see: fog drastically, rain somewhat (web/src/protocol.ts
+// sightMul matches it).
+func (w *World) sightMul() float32 { return 1 - .6*w.amt(WFog) - .3*w.wet() }
 
 // aggroMul scales how far creeps notice survivors: fog hides them.
 func (w *World) aggroMul() float32 { return 1 - .4*w.amt(WFog) }

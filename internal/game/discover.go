@@ -33,7 +33,7 @@ func (w *World) discover() {
 	if w.rooms == nil || w.roomsFor != len(w.Sites) {
 		w.rooms, w.roomsFor = w.roomGrid(), len(w.Sites)
 	}
-	mul := w.rangeMul()
+	mul, see := w.rangeMul(), w.sightMul()
 	for _, p := range w.Players {
 		r := float32(4)
 		if p.Alive {
@@ -44,7 +44,7 @@ func (w *World) discover() {
 			s := &w.Sites[in]
 			w.lightRect(int(s.X)+1, int(s.Y)+1, int(s.W)-2, int(s.H)-2)
 		}
-		w.lightDisc(p.X, p.Y, r*mul, in)
+		w.lightDisc(p.X, p.Y, r*see, in)
 	}
 	for i := range w.Structs {
 		s := &w.Structs[i]
