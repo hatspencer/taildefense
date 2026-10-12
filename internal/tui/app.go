@@ -144,10 +144,13 @@ type Model struct {
 
 	screen screen
 	help   bool
-	cursor int // menu
-	action Action
-	notice string
-	bad    bool // notice is an error
+	// What the last update brought, while there is something to say (whatsNew).
+	news    *cli.News
+	newsFor string
+	cursor  int // menu
+	action  Action
+	notice  string
+	bad     bool // notice is an error
 
 	// join
 	games    []cli.LsGame
@@ -193,7 +196,25 @@ func newModel(o Options) *Model {
 	m.splash = !o.NoSplash && o.Last == nil && ui.Motion()
 	m.addr.max = 255
 	m.field.max = 64
+	// The first launch of a freshly updated td says what came with it, once.
+	if n, ok := cli.LastNews(); ok && !n.Seen && cli.SameCommit(n.To, o.Version) {
+		m.news = &n
+		cli.NewsSeen()
+	}
 	return m
+}
+
+// whatsNew is the update news to show: a launch's own (newModel), or, once an update this
+// launcher ran or watched has installed, what that one brought.
+func (m *Model) whatsNew() *cli.News {
+	st := m.sess.Update()
+	if st.State == cli.UpdateUpdated && st.After != "" && st.After != m.newsFor {
+		m.newsFor = st.After
+		if n, ok := cli.LastNews(); ok && cli.SameCommit(n.To, st.After) {
+			m.news = &n
+		}
+	}
+	return m.news
 }
 
 // Run shows the launcher until the player picks something, and returns what.

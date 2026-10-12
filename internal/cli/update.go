@@ -221,7 +221,9 @@ func Update(w io.Writer, o UpdateOptions) int {
 		p.Fail("the installer failed; the previous version is still in place: %v", err)
 		return 1
 	}
-	printNews(p, readNews(tmp, installed, remote), source)
+	news := readNews(tmp, installed, remote)
+	printNews(p, news, source)
+	saveNews(news, source)
 	if branch != "" {
 		p.Note("following %s: a plain td update stays on it, td update -f returns to main", branch)
 	}
