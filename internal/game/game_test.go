@@ -124,6 +124,17 @@ func TestShopAndBuild(t *testing.T) {
 	if _, err := w.Sell(p, si); err != nil || w.StructAt(x, y) >= 0 {
 		t.Fatalf("sell: %v", err)
 	}
+	// Walls go up levels too, and only get tougher; the generator does not.
+	if err := w.Build(p, SWall, x, y); err != nil {
+		t.Fatal(err)
+	}
+	si = w.StructAt(x, y)
+	if err := w.UpgradeStruct(p, si); err != nil || w.Structs[si].Level != 2 || w.Structs[si].MaxHP != Structs[SWall].HP*1.6 {
+		t.Fatalf("wall upgrade: %v, %+v", err, w.Structs[si])
+	}
+	if err := w.UpgradeStruct(p, w.Core); err == nil {
+		t.Fatal("upgraded the generator")
+	}
 }
 
 func TestPlayersCannotWalkThroughWallsButThroughGates(t *testing.T) {

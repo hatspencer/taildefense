@@ -348,13 +348,13 @@ func (w *World) Nearest(p *Player, r float32, turretsOnly bool) int {
 	return bi
 }
 
-// UpgradeStruct raises a turret's level.
+// UpgradeStruct raises a turret's or a wall's level.
 func (w *World) UpgradeStruct(p *Player, si int) error {
 	if si < 0 || si >= len(w.Structs) || !w.Structs[si].Alive {
 		return errors.New("nothing to upgrade there")
 	}
 	s := &w.Structs[si]
-	if !Structs[s.Kind].Turret {
+	if !Upgradable(s.Kind) {
 		return fmt.Errorf("a %s cannot be upgraded; right-click it to repair", Structs[s.Kind].Name)
 	}
 	if s.Level >= MaxStructLevel {
@@ -364,7 +364,7 @@ func (w *World) UpgradeStruct(p *Player, si int) error {
 		return err
 	}
 	s.Level++
-	grow := Structs[s.Kind].HP * .25
+	grow := Structs[s.Kind].HP * StructGrowth(s.Kind)
 	s.MaxHP += grow
 	s.HP += grow
 	return nil

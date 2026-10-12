@@ -288,10 +288,22 @@ var Structs = [NumStructKinds]StructDef{
 // Buildable lists what the build menu offers, in menu order.
 var Buildable = []StructKind{SWall, SGate, STurretGun, STurretCannon, STurretFrost, STurretTesla}
 
-// MaxStructLevel is the highest turret level.
+// MaxStructLevel is the highest level a turret or a wall goes to.
 const MaxStructLevel = 5
 
-// StructUpgradeCost is the price of raising a turret from level to level+1.
+// Upgradable reports whether a structure of kind k can be raised a level: the turrets, and
+// walls and gates, which only get tougher.
+func Upgradable(k StructKind) bool { return Structs[k].Turret || k == SWall || k == SGate }
+
+// StructGrowth is the share of its base HP a structure gains with each level.
+func StructGrowth(k StructKind) float32 {
+	if Structs[k].Turret {
+		return .25
+	}
+	return .6
+}
+
+// StructUpgradeCost is the price of raising a structure from level to level+1.
 func StructUpgradeCost(k StructKind, level uint8) int32 {
 	return int32(float32(Structs[k].Price) * .8 * float32(level))
 }

@@ -63,17 +63,18 @@ type abilityDef struct {
 }
 
 type structDef struct {
-	Name    string    `json:"name"`
-	Price   int32     `json:"price"`
-	HP      float32   `json:"hp"`
-	W       uint8     `json:"w"`
-	H       uint8     `json:"h"`
-	Range   float32   `json:"range"`
-	Ranges  []float32 `json:"ranges,omitempty"`
-	Turret  bool      `json:"turret"`
-	Key     string    `json:"key"`
-	Desc    string    `json:"desc"`
-	Upgrade []int32   `json:"upgrade"`
+	Name       string    `json:"name"`
+	Price      int32     `json:"price"`
+	HP         float32   `json:"hp"`
+	W          uint8     `json:"w"`
+	H          uint8     `json:"h"`
+	Range      float32   `json:"range"`
+	Ranges     []float32 `json:"ranges,omitempty"`
+	Turret     bool      `json:"turret"`
+	Key        string    `json:"key"`
+	Desc       string    `json:"desc"`
+	Upgrade    []int32   `json:"upgrade"`
+	Upgradable bool      `json:"upgradable"`
 }
 
 type siteKindDef struct {
@@ -221,12 +222,13 @@ func welcome(wel netplay.Welcome, core point, host, hint string, hosting bool) w
 		if d.Key != 0 {
 			sd.Key = string(d.Key)
 		}
+		sd.Upgradable = game.Upgradable(game.StructKind(k))
 		for l := uint8(0); l < game.MaxStructLevel; l++ {
 			if d.Turret {
 				_, r, _ := game.TurretStats(game.StructKind(k), l+1)
 				sd.Ranges = append(sd.Ranges, r)
 			}
-			if d.Turret && l > 0 {
+			if game.Upgradable(game.StructKind(k)) && l > 0 {
 				sd.Upgrade = append(sd.Upgrade, game.StructUpgradeCost(game.StructKind(k), l))
 			} else {
 				sd.Upgrade = append(sd.Upgrade, 0)

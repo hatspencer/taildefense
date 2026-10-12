@@ -440,7 +440,8 @@ export class Structs {
       if (k !== K_WALL && k !== K_GATE) continue;
       const x = f.sX[i], y = f.sY[i], cx = x + 0.5, cz = y + 0.5;
       const gate = k === K_GATE;
-      writeMatrix(gate ? gpa : pa, (gate ? gp++ : np++) * 16, cx, 0, cz, 0, 1);
+      // Each level makes the post a little stouter.
+      writeMatrix(gate ? gpa : pa, (gate ? gp++ : np++) * 16, cx, 0, cz, 0, 1 + 0.07 * (f.sLevel[i] - 1));
       for (const [dx, dy, a] of dirs) {
         if (!isWall(x + dx, y + dy)) continue;
         writeMatrix(gate ? gaa : aa, (gate ? ga++ : na++) * 16, cx, 0, cz, a, 1);
