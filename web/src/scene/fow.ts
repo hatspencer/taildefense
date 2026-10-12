@@ -11,6 +11,8 @@ export class FogOfWar {
   private node = texture(blank());
   private uSize = uniform(new THREE.Vector2(1, 1));
   private uOn = uniform(0);
+  // How bright ground seen before stays: dimmer at night.
+  private uMem = uniform(0.4);
   private shown = new Float32Array(0);
   private seen = new Float32Array(0);
   private vision: Game['vision'] = null;
@@ -23,8 +25,8 @@ export class FogOfWar {
     scene.fogNode = Fn(() => {
       const lit = t.r, mem = t.g;
       // Never seen: near black. Seen before: dim and drained of colour, the way a map
-      // remembers ground but not what walks on it. In sight: as it is.
-      const shade = mix(mix(float(0.07), float(0.4), mem), float(1), lit);
+      // remembers ground but not what walks on it; at night, nearly black too. In sight: as it is.
+      const shade = mix(mix(float(0.07), this.uMem, mem), float(1), lit);
       const sat = mix(float(0.3), float(1), lit);
       // Distance first, so far ground the team has never seen is dark, not haze.
       const c = mix(output.rgb, color, rangeFogFactor(near, far));
@@ -39,6 +41,7 @@ export class FogOfWar {
     if (v !== this.vision) {
       this.vision = v;
       this.uOn.value = v ? 1 : 0;
+      this.uMem.value = game.welcome?.dark ? 0.16 : 0.4;
       if (v) {
         this.tex.dispose();
         this.tex = new THREE.DataTexture(new Uint8Array(v.w * v.h * 4), v.w, v.h, THREE.RGBAFormat);

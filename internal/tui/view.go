@@ -168,6 +168,9 @@ func (m *Model) menuView(w int) []string {
 	}
 	for i, it := range items {
 		label := itemLabels[it]
+		if it == itemUpdate && m.updateWaiting() {
+			label = "Update td now"
+		}
 		if it == itemHost {
 			label += "  ‹ " + m.prefs.Difficulty().String() + " ›"
 			if m.prefs.Fog() {
@@ -204,7 +207,15 @@ func (m *Model) itemHint(it menuItem) string {
 	case itemSettings:
 		return "name " + m.prefs.Name() + " · port " + fmt.Sprint(m.prefs.Port()) + " · browser " + m.prefs.Browser()
 	case itemUpdate:
-		return "td update, then back here"
+		switch st := m.sess.Update(); {
+		case st.State == cli.UpdateUpdating:
+			return "updating in the background already"
+		case st.State == cli.UpdateFollowing:
+			return "td update on the branch you follow, then back here"
+		case m.updateWaiting():
+			return "a newer td is out · td update, then back here"
+		}
+		return "td update: gets and installs a newer td if there is one, then back here"
 	case itemRestart:
 		return "start the updated td in place of this one"
 	}

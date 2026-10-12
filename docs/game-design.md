@@ -23,7 +23,15 @@ it here along with the code.
 | break between waves | 20 s | 15 s | 18 s | 20 s |
 | long break, after every 5th wave | 75 s | 60 s | 60 s | 60 s |
 | starting weapon | pistol | pistol | pistol | crowbar |
+| sight out past the base | 12 | 12 | 7, night | 5.5, night |
 
+- **Night on hard and brutal.** Out past the generator's lights a survivor sees only a small
+  pool round them: the ground beyond is near black, and the dead in it aren't shown at all, so
+  they come out of the dark on you. Guns only pick targets you can see, so a rifle out there
+  is no better than a shotgun at finding them. Within twelve tiles of the generator the base
+  is lit, and turrets fire at full range; past the walls, only their muzzle flashes. Nor
+  does anyone keep count of a site's guards: its skulls say how hard it is, never how many
+  are left, so whether a site is clear is found out the hard way.
 - **Brutal starts in melee.** Survivors begin with a crowbar and no gun: a short swing that
   hits up to three creeps in front, never runs dry, and is quiet. Its signature, the haymaker,
   hits all round and throws everything back. Guns are bought or found as usual; the crowbar is

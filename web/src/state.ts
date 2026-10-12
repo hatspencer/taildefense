@@ -58,7 +58,7 @@ export class Game {
     w.taunt ??= { cool: 12, radius: 12, time: 5 }; w.revive ??= { reach: 1.6, time: 2.5, hp: 0.4 };
     this.welcome = w;
     this.w = w.w; this.h = w.h;
-    this.vision = w.fogOfWar ? new Vision(w.w, w.h, w) : null;
+    this.vision = w.fogOfWar || w.dark ? new Vision(w.w, w.h, w) : null;
     this.hiddenAt.fill(0);
     this.frames++;
     this.seen.fill(0);
@@ -137,8 +137,10 @@ export class Game {
     return f;
   }
 
-  // How many guards site i has left, or -1 while fog of war keeps that from the team.
+  // How many guards site i has left; -1 while fog of war keeps that from the team, -2 at
+  // night (hard and brutal), when nobody keeps count.
   guardsLeft(i: number): number {
+    if (this.welcome?.dark) return -2;
     return this.vision && !this.vision.knows(i) ? -1 : this.cur.siteGuards(i);
   }
 

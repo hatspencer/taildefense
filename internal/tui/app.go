@@ -126,7 +126,7 @@ const (
 
 var itemLabels = map[menuItem]string{
 	itemHost: "Host a game", itemJoin: "Join a game", itemSettings: "Settings",
-	itemUpdate: "Update td now", itemRestart: "Restart into the new td", itemQuit: "Quit",
+	itemUpdate: "Check for updates", itemRestart: "Restart into the new td", itemQuit: "Quit",
 }
 
 // rescanEvery is how often the join screen looks again on its own.
@@ -290,16 +290,21 @@ func (m *Model) ensureTick() tea.Cmd {
 
 func (m *Model) menu() []menuItem {
 	items := []menuItem{itemHost, itemJoin, itemSettings}
-	switch st := m.sess.Update().State; {
-	case st == cli.UpdateUpdated:
+	if m.sess.Update().State == cli.UpdateUpdated {
 		items = append(items, itemRestart)
-	case st == cli.UpdateBehind || st == cli.UpdateFailed || m.updateOffered():
-		items = append(items, itemUpdate)
+	} else {
+		items = append(items, itemUpdate) // always there: it says whether one is waiting
 	}
 	return append(items, itemQuit)
 }
 
 // updateOffered is a last game that ended because the host runs another protocol.
+// updateWaiting is whether an update is known to be there to install.
+func (m *Model) updateWaiting() bool {
+	st := m.sess.Update().State
+	return st == cli.UpdateBehind || st == cli.UpdateFailed || m.updateOffered()
+}
+
 func (m *Model) updateOffered() bool {
 	return m.o.Last != nil && cli.NeedsUpdate(m.o.Last.Err) && m.sess.Update().State != cli.UpdateUpdated
 }
@@ -449,6 +454,10 @@ func (m *Model) menuKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case itemSettings:
 			m.screen, m.notice = screenSettings, ""
 		case itemUpdate:
+			if m.sess.Update().State == cli.UpdateUpdating {
+				m.say(false, "an update is already running in the background")
+				return m, nil
+			}
 			return m, m.foregroundUpdate()
 		case itemRestart:
 			return m.quit(Action{Kind: ActionRestart})
