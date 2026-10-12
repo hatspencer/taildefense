@@ -260,7 +260,9 @@ export class DemoHost implements Transport {
         if (d < minD || this.tiles[y * W + x] !== tile || !free(x, y)) continue;
         const tr = tier(x, y);
         // Wrecks come in kinds: the plain car most, the army truck only far out.
-        const k = kind !== SiteKind.Car ? kind : [SiteKind.Car, SiteKind.Car, SiteKind.Pickup, SiteKind.Police, SiteKind.Ambulance, SiteKind.Bus, tr === 2 ? SiteKind.Army : SiteKind.Car][Math.floor(r() * 7)];
+        const kinds = [SiteKind.Car, SiteKind.Car, SiteKind.Pickup, SiteKind.Police, SiteKind.Ambulance, SiteKind.Bus, tr === 2 ? SiteKind.Army : SiteKind.Car,
+          SiteKind.Fire, SiteKind.Armored, SiteKind.Camper, SiteKind.Moto];
+        const k = kind !== SiteKind.Car ? kind : kinds[Math.floor(r() * kinds.length)];
         sites.push({ kind: k, x, y, w: 1, h: 1, sx: x + 0.5, sy: y + 0.5, tier: tr, guard: r() < 0.3 ? 0 : Math.min(2, tr) });
         n++;
       }
@@ -269,6 +271,21 @@ export class DemoHost implements Transport {
       const st = m.station;
       sites.push({ kind: SiteKind.Station, x: st.x, y: st.y, w: st.w, h: st.h, sx: st.x + st.w / 2, sy: st.y + st.h / 2, tier: 2, guard: 4 });
       for (const [x, y] of st.pumps) sites.push({ kind: SiteKind.Pump, x, y, w: 1, h: 1, sx: x + 0.5, sy: y + 0.5, tier: 2, guard: 0 });
+    }
+    // The crashed plane, on open grass out past the houses, and its two engines.
+    for (let tries = 0; tries < 4000; tries++) {
+      const x = 20 + Math.floor(r() * (W - 40)), y = 20 + Math.floor(r() * (H - 40));
+      if (Math.hypot(x - cx, y - cy) < 34 || !free(x, y) || !sites.every((o) => Math.hypot(o.sx - x, o.sy - y) > 16)) continue;
+      let open = 0;
+      for (let dy = -6; dy <= 6; dy++) for (let dx = -10; dx <= 10; dx++) if (this.tiles[(y + dy) * W + x + dx] < Tile.Water) open++;
+      if (open < 250) continue;
+      const yaw = r() * 6.28, c = Math.cos(yaw), sn = Math.sin(yaw), sx = x + 0.5, sy = y + 0.5;
+      sites.push({ kind: SiteKind.Plane, x: x - 14, y: y - 14, w: 29, h: 29, sx, sy, tier: 2, guard: 4, yaw });
+      for (const [fx, fy] of [[0.4, 4.6], [-2.4, -6.9]]) {
+        const ex = sx + fx * c - fy * sn, ey = sy + fx * sn + fy * c;
+        sites.push({ kind: SiteKind.Tank, x: Math.floor(ex), y: Math.floor(ey), w: 1, h: 1, sx: ex, sy: ey, tier: 2, guard: 0 });
+      }
+      break;
     }
     scatter(SiteKind.Car, 4, Tile.Dirt, 20);
     scatter(SiteKind.Car, 10, Tile.Dirt, 34);

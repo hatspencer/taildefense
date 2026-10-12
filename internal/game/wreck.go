@@ -20,6 +20,14 @@ func wreckHalf(k SiteKind) (float32, float32) {
 		return 1.55, .54
 	case SiteArmy:
 		return 1.2, .5
+	case SiteFire:
+		return 1.45, .52
+	case SiteArmored:
+		return 1.05, .5
+	case SiteCamper:
+		return 1.25, .52
+	case SiteMoto:
+		return .5, .3
 	}
 	return .82, .44
 }
@@ -59,15 +67,18 @@ func hash01(x uint64) float64 {
 	return float64(x>>11) / float64(1<<53)
 }
 
-// wreckDist is how far x, y is from wreck s's box, 0 inside it.
+// wreckDist is how far x, y is from wreck s's box, 0 inside it; for the plane, from its
+// hull or its tail.
 func wreckDist(s *Site, x, y float32) float32 {
+	if s.Kind == SitePlane {
+		return planeDist(s, x, y)
+	}
 	hl, hw := wreckHalf(s.Kind)
-	c, sn := float32(math.Cos(float64(s.Yaw))), float32(math.Sin(float64(s.Yaw)))
-	dx, dy := x-s.SX, y-s.SY
-	u, v := abs32(dx*c+dy*sn)-hl, abs32(-dx*sn+dy*c)-hw
-	u, v = max(u, 0), max(v, 0)
-	return sqrt32(u*u + v*v)
+	return boxDist(s.SX, s.SY, s.Yaw, hl, hw, x, y)
 }
+
+// solidSite reports whether a survivor walks round a site: a wreck or the plane.
+func solidSite(k SiteKind) bool { return k.Wreck() || k == SitePlane }
 
 func abs32(v float32) float32 {
 	if v < 0 {
@@ -77,8 +88,8 @@ func abs32(v float32) float32 {
 }
 
 // wreckGrid is, per tile, 1 + the index of the wreck whose box (grown by a survivor's
-// radius) reaches into it, or 0. Wrecks are placed four tiles clear of every other site, so
-// one per tile is enough. Built on first use, since a client's replica of the world has its
+// radius) reaches into it, or 0. Wrecks are placed four tiles clear of every other site, and
+// the plane's scar keeps them off it, so one per tile is enough. Built on first use, since a client's replica of the world has its
 // sites only after the welcome.
 func (w *World) wreckGrid() []int16 {
 	if w.wrecks != nil && w.wrecksFor == len(w.Sites) {
@@ -87,10 +98,13 @@ func (w *World) wreckGrid() []int16 {
 	g := make([]int16, w.W*w.H)
 	for i := range w.Sites {
 		s := &w.Sites[i]
-		if !s.Kind.Wreck() {
+		if !solidSite(s.Kind) {
 			continue
 		}
 		hl, _ := wreckHalf(s.Kind)
+		if s.Kind == SitePlane {
+			hl = planeReach
+		}
 		r := int(hl+PlayerRadius) + 1
 		for ty := int(s.SY) - r; ty <= int(s.SY)+r; ty++ {
 			for tx := int(s.SX) - r; tx <= int(s.SX)+r; tx++ {
@@ -113,12 +127,19 @@ func (w *World) wreckGrid() []int16 {
 // pumpBody is a fuel pump's half width; a survivor walks round a standing one like a wreck.
 const pumpBody = .3
 
+// tankBody is the same for one of the plane's engines.
+const tankBody = .55
+
 // wreckAt reports whether a survivor's middle at x, y would be inside a wreck or a standing
 // fuel pump.
 func (w *World) wreckAt(x, y float32) bool {
 	for _, i := range w.pumps() {
 		s := &w.Sites[i]
-		if dx, dy := abs32(x-s.SX), abs32(y-s.SY); !s.Searched && dx < pumpBody+PlayerRadius && dy < pumpBody+PlayerRadius {
+		b := float32(pumpBody)
+		if s.Kind == SiteTank {
+			b = tankBody
+		}
+		if dx, dy := abs32(x-s.SX), abs32(y-s.SY); !s.Searched && dx < b+PlayerRadius && dy < b+PlayerRadius {
 			return true
 		}
 	}
@@ -138,7 +159,7 @@ type wreckBlocker interface {
 // siteReached reports whether a survivor at x, y is close enough to search site s: by a
 // wreck's side, or within reach of anything else's spot.
 func siteReached(s *Site, x, y float32) bool {
-	if s.Kind.Wreck() {
+	if solidSite(s.Kind) {
 		return wreckDist(s, x, y) <= PlayerRadius+.5
 	}
 	dx, dy := s.SX-x, s.SY-y

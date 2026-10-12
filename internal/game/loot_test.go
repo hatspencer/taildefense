@@ -12,11 +12,11 @@ func TestSitesAreReachableAndFixedBySeed(t *testing.T) {
 		var n [NumSiteKinds]int
 		for i, s := range w.Sites {
 			n[s.Kind]++
-			if s.Kind == SitePump {
+			if s.Kind.Explosive() {
 				if CanStand(w, s.SX, s.SY) {
-					t.Errorf("seed %d: fuel pump %d can be walked through", seed, i)
+					t.Errorf("seed %d: %s %d can be walked through", seed, SiteDefs[s.Kind].lower(), i)
 				}
-			} else if s.Kind.Wreck() {
+			} else if solidSite(s.Kind) {
 				if !besideWreck(w, &s) {
 					t.Errorf("seed %d: site %d (%s) has nowhere to search it from", seed, i, SiteDefs[s.Kind].Name)
 				}
@@ -36,6 +36,9 @@ func TestSitesAreReachableAndFixedBySeed(t *testing.T) {
 		}
 		if n[SiteStation] != 1 || n[SitePump] != len(pumpSpots) {
 			t.Errorf("seed %d: %d gas stations, %d pumps", seed, n[SiteStation], n[SitePump])
+		}
+		if n[SitePlane] != 1 || n[SiteTank] != planeEngineCount {
+			t.Errorf("seed %d: %d crashed planes, %d engines", seed, n[SitePlane], n[SiteTank])
 		}
 		if n[SiteHouse] < 25 || wrecks < 15 || kinds < 4 || n[SiteCrate] < 10 {
 			t.Errorf("seed %d: sites %v", seed, n)
@@ -187,8 +190,8 @@ func besideWreck(w *World, s *Site) bool {
 	if CanStand(w, s.SX, s.SY) {
 		return false
 	}
-	for y := s.SY - 2.5; y <= s.SY+2.5; y += .25 {
-		for x := s.SX - 2.5; x <= s.SX+2.5; x += .25 {
+	for y := s.SY - 3; y <= s.SY+3; y += .25 {
+		for x := s.SX - 3; x <= s.SX+3; x += .25 {
 			if CanStand(w, x, y) && siteReached(s, x, y) {
 				return true
 			}

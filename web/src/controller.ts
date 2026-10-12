@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import type { CameraRig } from './camera';
-import { lootable, walled, type Command, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_READY, Phase, PingKind, siteX, siteY, Tile } from './protocol';
+import { lootable, walled, type Command, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_READY, Phase, PingKind, SiteKind, siteX, siteY, Tile } from './protocol';
 import type { Effects } from './scene/effects';
 import type { Game } from './state';
 
@@ -118,7 +118,8 @@ export class Controller {
         if (bx >= s.x && bx < s.x + s.w && bz >= s.y && bz < s.y + s.h && site < 0) site = i;
         continue;
       }
-      const d = segDist(siteX(s), siteY(s));
+      // The plane is picked anywhere along its hull.
+      const d = s.kind === SiteKind.Plane ? Math.max(0, segDist(siteX(s), siteY(s)) - 4.5) : segDist(siteX(s), siteY(s));
       if (d < sd) { sd = d; site = i; }
     }
     if (site < 0) return null;

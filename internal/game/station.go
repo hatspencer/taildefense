@@ -26,6 +26,7 @@ var pumpSpots = [...][2]int{{6, 8}, {9, 8}, {6, 10}, {9, 10}}
 // Fuel pumps.
 const (
 	pumpRadius = .45 // what a shot has to pass within
+	tankRadius = .75 // the same for a plane's engine
 	pumpBlast  = 3.5 // the fireball's reach
 	pumpDamage = 160 // to a creep at its heart, half at its edge
 	pumpHurt   = 55  // the same for a survivor
@@ -163,6 +164,9 @@ func (w *World) forecourt() (float32, float32) {
 	var x, y float32
 	n := 0
 	for _, i := range w.pumps() {
+		if w.Sites[i].Kind != SitePump {
+			continue
+		}
 		x += w.Sites[i].SX
 		y += w.Sites[i].SY
 		n++
@@ -232,14 +236,15 @@ func (w *World) searchStation(p *Player, s *Site) {
 	w.note(1, "%s cleaned out the gas station: %s", p.Name, strings.Join(got, " and "))
 }
 
-// pumps lists the fuel pumps' site indices.
+// pumps lists the site indices of everything that goes up when shot: the fuel pumps and the
+// plane's engines.
 func (w *World) pumps() []int {
 	if w.pumpIdx != nil && w.pumpsFor == len(w.Sites) {
 		return w.pumpIdx
 	}
 	w.pumpIdx = []int{}
 	for i := range w.Sites {
-		if w.Sites[i].Kind == SitePump {
+		if w.Sites[i].Kind.Explosive() {
 			w.pumpIdx = append(w.pumpIdx, i)
 		}
 	}
@@ -261,7 +266,7 @@ func (w *World) pumpOnRay(x, y, dx, dy, maxT float32) (int, float32) {
 		if t < .3 || t >= bt {
 			continue
 		}
-		if px, py := ox-dx*t, oy-dy*t; px*px+py*py <= pumpRadius*pumpRadius {
+		if px, py, r := ox-dx*t, oy-dy*t, blastBody(s.Kind); px*px+py*py <= r*r {
 			best, bt = i, t
 		}
 	}
@@ -272,7 +277,7 @@ func (w *World) pumpOnRay(x, y, dx, dy, maxT float32) (int, float32) {
 func (w *World) pumpsIn(x, y, r float32, by int8, delay float32) {
 	for _, i := range w.pumps() {
 		s := &w.Sites[i]
-		if dx, dy := s.SX-x, s.SY-y; dx*dx+dy*dy <= (r+pumpRadius)*(r+pumpRadius) {
+		if dx, dy, b := s.SX-x, s.SY-y, blastBody(s.Kind); dx*dx+dy*dy <= (r+b)*(r+b) {
 			w.lightPump(i, by, delay)
 		}
 	}
@@ -318,7 +323,7 @@ func (w *World) blowPump(i int) {
 	s := &w.Sites[i]
 	first := true
 	for _, j := range w.pumps() {
-		if w.Sites[j].Searched {
+		if w.Sites[j].Searched && w.Sites[j].Kind == s.Kind {
 			first = false
 		}
 	}
@@ -344,10 +349,22 @@ func (w *World) blowPump(i int) {
 		return true
 	})
 	if first {
+		what := "a fuel pump at the gas station"
+		if s.Kind == SiteTank {
+			what = "one of the crashed plane's engines"
+		}
 		if by >= 0 && int(by) < len(w.Players) {
-			w.note(2, "%s blew up a fuel pump at the gas station", w.Players[by].Name)
+			w.note(2, "%s blew up %s", w.Players[by].Name, what)
 		} else {
-			w.note(2, "a fuel pump went up at the gas station")
+			w.note(2, "%s went up", what)
 		}
 	}
+}
+
+// blastBody is how close to an explosive site's middle a shot or a blast has to come.
+func blastBody(k SiteKind) float32 {
+	if k == SiteTank {
+		return tankRadius
+	}
+	return pumpRadius
 }

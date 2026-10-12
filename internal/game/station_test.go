@@ -34,7 +34,12 @@ func TestTheGasStationIsOutByTheEdgeAndHeldHard(t *testing.T) {
 func TestShootingAPumpBlowsItAndTheOnesBesideIt(t *testing.T) {
 	w := newBare(5)
 	p, _ := w.Join("ana", "ana@example")
-	pumps := w.pumps()
+	var pumps []int
+	for _, i := range w.pumps() {
+		if w.Sites[i].Kind == SitePump {
+			pumps = append(pumps, i)
+		}
+	}
 	pu := &w.Sites[pumps[0]]
 	// A creep by the pump, the survivor shooting at it from a few tiles off.
 	if !w.SpawnCreep(CWalker, pu.SX+.8, pu.SY+.6) {
