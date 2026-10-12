@@ -249,6 +249,13 @@ func (e *Encoder) Delta(w *game.World, atArmory func(*game.Player) bool) []byte 
 		}
 	}
 	events(b, w)
+	// Ground first seen this tick, at night, in tile order.
+	b.uv(uint64(len(w.Found)))
+	prev = 0
+	for _, i := range w.Found {
+		b.uv(uint64(int(i) - prev))
+		prev = int(i)
+	}
 	return b.b
 }
 
@@ -276,6 +283,12 @@ func (e *Encoder) Key(w *game.World, atArmory func(*game.Player) bool) []byte {
 		structRecord(b, &e.structs[i])
 	}
 	events(b, w)
+	// All the ground found so far, at night.
+	b.uv(uint64(len(w.Seen)))
+	for _, v := range w.Seen {
+		b.u32(uint32(v))
+		b.u32(uint32(v >> 32))
+	}
 	e.keyOK = true
 	return b.b
 }

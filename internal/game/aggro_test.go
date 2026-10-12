@@ -118,7 +118,10 @@ func TestTauntPullsCreepsOntoTheTaunter(t *testing.T) {
 	if err := w.Taunt(p); err == nil {
 		t.Fatal("taunted twice in a row")
 	}
-	w.Step()
+	// Past the stun the survivor's first shots gave them.
+	for k := 0; k < 8; k++ {
+		w.Step()
+	}
 	for i := range w.Creeps {
 		if c := &w.Creeps[i]; c.Hunt != int8(p.ID) || c.Chase != int8(p.ID) {
 			t.Fatalf("creep %d hunts %d, chases %d", i, c.Hunt, c.Chase)

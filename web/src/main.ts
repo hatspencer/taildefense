@@ -254,10 +254,11 @@ async function main(): Promise<void> {
     if (wd && game.frames > 1) {
       if (!hooksApplied && game.cur.nPlayers > 0) applyHooks();
       if (labMode && !lab) {
-        lab = new Lab(game, wd.core.x, wd.core.y);
+        lab = new Lab(game, wd.core.x, wd.core.y, P.has('gun') ? Number(P.get('gun')) : -1);
         (transport as DemoHost).halt();
         const [lx, ly] = lab.center(P.get('lab') ?? '');
         rig.follow = false; rig.center(lx, ly); rig.setDist(Number(P.get('dist')) || 26);
+        if (P.has('yaw')) rig.setYaw(Number(P.get('yaw')) * Math.PI / 180);
       }
       if (lab) lab.step(now); else game.interpolate(now);
       const me = game.me();

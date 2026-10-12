@@ -116,6 +116,7 @@ type Replica struct {
 	Searched   []bool  // per loot site, from the welcome's list
 	Guards     []uint8 // per loot site, its living guards
 	Crates     []CrateView
+	Seen       game.Seen // the ground the team has found, at night; nil otherwise
 
 	Alive  bitset
 	CX, CY [game.MaxCreeps]float32 // current position
@@ -332,6 +333,27 @@ func (r *Replica) Apply(p []byte) error {
 		g := game.Ping{Player: d.u8(), X: unq(d.u16()), Y: unq(d.u16()), Kind: game.PingKind(d.u8())}
 		if len(r.Pings) < 64 {
 			r.Pings = append(r.Pings, g)
+		}
+	}
+	if key {
+		nw := int(d.uv())
+		if nw > (r.W*r.H+63)/64 {
+			return fmt.Errorf("frame: %d words of found ground", nw)
+		}
+		r.Seen = r.Seen[:0]
+		for i := 0; i < nw && d.err == nil; i++ {
+			r.Seen = append(r.Seen, uint64(d.u32())|uint64(d.u32())<<32)
+		}
+	} else if nf := int(d.uv()); nf > 0 {
+		if r.Seen == nil {
+			r.Seen = make(game.Seen, (r.W*r.H+63)/64)
+		}
+		i := 0
+		for k := 0; k < nf && d.err == nil; k++ {
+			i += int(d.uv())
+			if i>>6 < len(r.Seen) {
+				r.Seen[i>>6] |= 1 << (i & 63)
+			}
 		}
 	}
 	if d.err != nil {

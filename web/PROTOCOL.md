@@ -38,7 +38,7 @@ everything it knows, a terrain message follows).
 ```jsonc
 {
   "t": "welcome",
-  "proto": 10,
+  "proto": 11,
   "version": "a1b2c3d",
   "you": 0,                    // your player id
   "w": 320, "h": 200,          // map size in tiles
@@ -50,6 +50,8 @@ everything it knows, a terrain message follows).
   "difficulty": {"id": 1, "name": "Normal"},   // chosen by the host before hosting
   "difficulties": ["Easy", "Normal", "Hard", "Brutal"],
   "fogOfWar": false,           // the host's FOG setting: the client hides what the team cannot see
+  "dark": 5.5,                 // hard and brutal: night, a survivor's sight radius; absent otherwise
+  "seen": "base64",            // at night, the ground the team has found: a bit per tile (y*w+x), low bit first
   "weathers": [                // index = weather kind in the frame
     {"name": "Clear", "info": ""},
     {"name": "Fog", "info": "everyone sees and shoots 25% less far; creeps notice you later"}

@@ -1,4 +1,4 @@
-import { PF_ALIVE, type Frame, type Welcome, Weather, turretRange, walled } from './protocol';
+import { PF_ALIVE, RIFLE, RIFLE_SIGHT, type Frame, type Welcome, Weather, turretRange, walled } from './protocol';
 
 // Fog of war: what the team sees right now, and what it has ever seen, per tile. Vision is
 // shared: every survivor and every structure lights a disc around itself. The host sends
@@ -22,12 +22,21 @@ export class Vision {
   // Per site: 1 once a survivor has been inside.
   entered: Uint8Array;
   private rooms: { x: number; y: number; w: number; h: number }[];
+  private sites: Welcome['sites'];
+  private foundSite: Uint8Array;
 
   constructor(readonly w: number, readonly h: number, wd: Welcome) {
     this.now = new Uint8Array(w * h);
     this.seen = new Uint8Array(w * h);
     this.room = new Int16Array(w * h).fill(-1);
     this.entered = new Uint8Array(wd.sites.length);
+    this.foundSite = new Uint8Array(wd.sites.length);
+    this.sites = wd.sites;
+    // At night the host keeps the ground the team has found, so a late joiner starts from it.
+    if (wd.seen) {
+      const b = atob(wd.seen);
+      for (let i = 0; i < w * h && i >> 3 < b.length; i++) this.seen[i] = (b.charCodeAt(i >> 3) >> (i & 7)) & 1;
+    }
     // The inside of the walls: the walls themselves show from outside like any ruin.
     this.rooms = wd.sites.map((s) => (walled(s.kind) ? { x: s.x + 1, y: s.y + 1, w: s.w - 2, h: s.h - 2 } : { x: 0, y: 0, w: 0, h: 0 }));
     this.rooms.forEach((s, i) => {
@@ -37,6 +46,17 @@ export class Vision {
 
   // Whether what is inside site i is known: always for open sites, for walled ones once
   // someone has been in.
+  // Whether any of site i's ground has been seen; once it has, it stays found.
+  found(i: number): boolean {
+    if (this.foundSite[i]) return true;
+    const s = this.sites[i];
+    if (!s) return false;
+    for (let y = Math.max(0, s.y); y < Math.min(this.h, s.y + s.h); y++) {
+      for (let x = Math.max(0, s.x); x < Math.min(this.w, s.x + s.w); x++) if (this.seen[y * this.w + x]) { this.foundSite[i] = 1; return true; }
+    }
+    return false;
+  }
+
   knows(i: number): boolean { return !(this.rooms[i]?.w > 0) || this.entered[i] === 1; }
 
   update(f: Frame, wd: Welcome): void {
@@ -50,7 +70,8 @@ export class Vision {
       const p = f.players[i];
       const r = this.roomAt(p.x, p.y);
       if (r >= 0) { this.entered[r] = 1; this.lightRoom(r); }
-      this.disc(p.x, p.y, (p.flags & PF_ALIVE ? sight : 4) * mul, r);
+      // A rifle's scope sees twice as far.
+      this.disc(p.x, p.y, (p.flags & PF_ALIVE ? sight * (p.cur === RIFLE ? RIFLE_SIGHT : 1) : 4) * mul, r);
     }
     for (let i = 0; i < f.nStructs; i++) {
       if (!f.sAlive[i]) continue;

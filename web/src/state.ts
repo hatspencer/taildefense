@@ -144,6 +144,11 @@ export class Game {
     return this.vision && !this.vision.knows(i) ? -1 : this.cur.siteGuards(i);
   }
 
+  // Whether site i is still out in the dark: at night, where the team has never been.
+  unfound(i: number): boolean {
+    return !!this.welcome?.dark && !!this.vision && !this.vision.found(i);
+  }
+
   private hideUnseen(f: Frame, serial: number): void {
     const v = this.vision!;
     v.update(f, this.welcome!);

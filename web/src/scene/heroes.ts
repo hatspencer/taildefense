@@ -40,7 +40,7 @@ const HOLDS: Hold[] = [
   { at: [0.22, 0.16, -0.12], grip: [0, -0.06, 0], fore: [0.3, 0.0, 0.04], muzzle: 0.56 },       // flamer, at the hip
   { at: [0.24, 0.13, -0.1], grip: [-0.1, 0.02, -0.06], fore: [0.02, 0.15, 0.06], muzzle: 0.68 }, // minigun, braced at the hip
   { at: [0.0, 0.55, -0.2], grip: [0.06, -0.09, 0], fore: [0.32, -0.09, 0.02], muzzle: 0.62 },   // launcher, on the shoulder
-  { at: [0.3, 0.42, -0.1], grip: [0, -0.04, 0], fore: [0.12, -0.04, 0], muzzle: 0.6 },          // crowbar, both hands, raised
+  { at: [0.16, 0.24, -0.17], grip: [0, 0, 0], fore: [-0.09, 0, 0], muzzle: 0.6 },             // crowbar, both hands on the tape, up at the shoulder
 ];
 
 // The gun in the hand, facing +x from the grip, dressed in the player's colour.
@@ -398,8 +398,17 @@ export class Heroes {
       // canted to the side for a reload.
       const hold = HOLDS[h.weapon] ?? HOLDS[0];
       const rl = h.reload, sp = h.sprint * (1 - rl);
-      h.gun.position.set(hold.at[0] - kick * 0.25 - sp * 0.06, hold.at[1] - sp * 0.1 - rl * 0.06, hold.at[2] + sp * 0.05);
-      h.gun.rotation.set(rl * 0.7, sp * 0.35, kick * 0.6 - sp * 0.55 - rl * 0.3);
+      if (h.weapon === 7) {
+        // The crowbar is held up at the right shoulder, ready, tipped out a little; each swing
+        // chops it down and across in front, fast, then lifts it back.
+        const u = (now - h.shotAt) / 420;
+        const sw = u < 0 || u >= 1 ? 0 : u < 0.25 ? Math.sin((u / 0.25) * Math.PI / 2) : 1 - (u - 0.25) / 0.75;
+        h.gun.position.set(hold.at[0] + sw * 0.18 - sp * 0.04, hold.at[1] - sw * 0.06 - sp * 0.06, hold.at[2] + sw * 0.22);
+        h.gun.rotation.set(-0.35 + sw * 0.75, -sw * 0.5, 1.4 - sw * 2.2 + sp * 0.3);
+      } else {
+        h.gun.position.set(hold.at[0] - kick * 0.25 - sp * 0.06, hold.at[1] - sp * 0.1 - rl * 0.06, hold.at[2] + sp * 0.05);
+        h.gun.rotation.set(rl * 0.7, sp * 0.35, kick * 0.6 - sp * 0.55 - rl * 0.3);
+      }
       h.gun.updateMatrix();
       h.flash.visible = h.weapon !== 7 && now - h.shotAt < (h.weapon === 1 ? 70 : 45);
       if (h.spin) h.spin.rotation.x += dt * (firing ? 40 : 0);

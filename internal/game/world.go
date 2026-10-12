@@ -47,6 +47,8 @@ type Creep struct {
 	// until it does.
 	shouted bool
 	alarm   float32
+	// A stun (stun.go): seconds it is stopped for, and until another can land.
+	stunLeft, stunCool float32
 }
 
 // Structure is a building. Index in World.Structs is its ID; dead slots are reused.
@@ -249,6 +251,10 @@ type World struct {
 	Diff    Difficulty
 	// FogOfWar hides what no survivor or structure can see. The sim ignores it; clients draw it.
 	FogOfWar bool
+	// Seen is the ground the team has found, at night only (discover.go); Found the tiles
+	// first seen this tick.
+	Seen  Seen
+	Found []int32
 
 	Creeps     []Creep
 	Structs    []Structure
@@ -262,6 +268,7 @@ type World struct {
 	pumpIdx    []int   // the fuel pumps' site indices
 	pumpsFor   int     // len(Sites) when pumpIdx was built
 	turretFire bool    // while turrets fire, so their damage is counted as theirs
+	burning    bool    // while burning ground does its damage, which stuns nothing
 
 	// Per tick outputs, cleared at the start of Step.
 	Tracers []Tracer
@@ -316,6 +323,9 @@ type World struct {
 	hitBuf     []hitCand
 	byID       []int32 // creep id -> index in Creeps, valid for creeps alive at the tick's start
 	paths      pathfinder
+	rooms      []int16 // per tile, the walled site it is inside (discover.go)
+	roomsFor   int     // len(Sites) when rooms was built
+	lit        Seen    // at night, the ground in sight this tick (discover.go)
 }
 
 // New builds a world from a seed at the default difficulty.

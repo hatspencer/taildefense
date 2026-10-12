@@ -742,7 +742,7 @@ export class Loot {
     const t = now / 1000, a = this.glints.instanceMatrix.array as Float32Array;
     let n = 0;
     for (let i = 0; i < this.sites.length; i++) {
-      if (f.siteSearched(i) || !lootable(this.sites[i].kind)) continue;
+      if (f.siteSearched(i) || !lootable(this.sites[i].kind) || game.unfound(i)) continue;
       const k = propKind(this.sites[i].kind), ph = hash(i, 5) * 6.28;
       const s = 1 + 0.18 * Math.sin(t * 3.2 + ph);
       writeMatrix(a, n++ * 16, this.px[i], (GLINT_Y[k] ?? 1.2) + Math.sin(t * 1.8 + ph) * 0.08, this.pz[i], t * 1.5 + ph, s, s * 1.6);

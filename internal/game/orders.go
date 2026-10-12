@@ -330,8 +330,8 @@ func (w *World) stepPlayers() {
 const darkLit = 12
 
 // sightRange is how far out p picks targets with a gun of range rng: the gun's range, but
-// on a night difficulty out past the generator's lights, only as far as p can see, plus a
-// step for what is just at the edge of it.
+// on a night difficulty out past the generator's lights, only as far as p can see (twice as
+// far through a rifle's scope), plus a step for what is just at the edge of it.
 func (w *World) sightRange(p *Player, rng float32) float32 {
 	dark := w.diff().Dark
 	if dark == 0 {
@@ -340,7 +340,7 @@ func (w *World) sightRange(p *Player, rng float32) float32 {
 	if dx, dy := p.X-w.CoreX, p.Y-w.CoreY; dx*dx+dy*dy < darkLit*darkLit {
 		return rng
 	}
-	return min(rng, dark+1)
+	return min(rng, w.sight(p)+1)
 }
 
 // act carries out the player's order for one tick: walks, builds, repairs. It returns the
@@ -355,7 +355,7 @@ func (w *World) act(p *Player, st Stats) int32 {
 	}
 	switch o.Kind {
 	case OrderIdle, OrderHold:
-		return w.nearestVisible(p.X, p.Y, w.sightRange(p, st.Range))
+		return w.nearestSeen(p.X, p.Y, w.sightRange(p, st.Range))
 	case OrderSteer:
 		if p.steerLeft -= Dt; p.steerLeft <= 0 {
 			o.Kind = OrderIdle
@@ -366,14 +366,14 @@ func (w *World) act(p *Player, st Stats) int32 {
 			p.X, p.Y = nx, ny
 			p.Aim = float32(math.Atan2(float64(o.Y), float64(o.X)))
 		}
-		return w.nearestVisible(p.X, p.Y, w.sightRange(p, st.Range))
+		return w.nearestSeen(p.X, p.Y, w.sightRange(p, st.Range))
 	case OrderMove:
 		if !walk() {
 			o.Kind = OrderIdle
 		}
 		return -1
 	case OrderAttackMove:
-		if t := w.nearestVisible(p.X, p.Y, w.sightRange(p, st.Range)); t >= 0 {
+		if t := w.nearestSeen(p.X, p.Y, w.sightRange(p, st.Range)); t >= 0 {
 			// Fighting pauses the walk; its progress check must not count the pause.
 			p.walk.check = .5
 			p.walk.cx, p.walk.cy = p.X, p.Y
@@ -385,9 +385,12 @@ func (w *World) act(p *Player, st Stats) int32 {
 		return -1
 	case OrderAttack:
 		t := w.creepIndex(o.Target)
+		if t >= 0 && w.hidden(&w.Creeps[t]) {
+			t = -1 // gone into the dark
+		}
 		if t < 0 {
 			o.Kind = OrderIdle
-			return w.nearestVisible(p.X, p.Y, w.sightRange(p, st.Range))
+			return w.nearestSeen(p.X, p.Y, w.sightRange(p, st.Range))
 		}
 		c := &w.Creeps[t]
 		dx, dy := c.X-p.X, c.Y-p.Y

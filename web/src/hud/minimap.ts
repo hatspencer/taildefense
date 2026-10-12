@@ -97,7 +97,7 @@ export class Minimap {
     let best = -1, bd = 7;
     for (let i = 0; i < wd.sites.length; i++) {
       const s = wd.sites[i];
-      if (!lootable(s.kind)) continue;
+      if (!lootable(s.kind) || this.ctl.game.unfound(i)) continue;
       const d = Math.hypot(r.left + siteX(s) * px - e.clientX, r.top + siteY(s) * (r.height / Math.max(1, this.ctl.game.h)) - e.clientY);
       if (d < bd) { bd = d; best = i; }
     }
@@ -148,9 +148,9 @@ export class Minimap {
     }
     if (v.version !== this.fogVersion) {
       this.fogVersion = v.version;
-      const d = this.fogImg!.data;
+      const d = this.fogImg!.data, never = this.ctl.game.welcome?.dark ? 255 : 235;
       for (let i = 0; i < v.now.length; i++) {
-        d[i * 4 + 3] = v.now[i] ? 0 : v.seen[i] ? 130 : 235;
+        d[i * 4 + 3] = v.now[i] ? 0 : v.seen[i] ? 130 : never;
       }
       this.fog.getContext('2d')!.putImageData(this.fogImg!, 0, 0);
     }
@@ -189,7 +189,7 @@ export class Minimap {
     const sd = Math.max(2, 2 * dpr), pip = Math.max(1, dpr);
     for (let i = 0; i < wd.sites.length; i++) {
       const s = wd.sites[i];
-      if (!lootable(s.kind)) continue;
+      if (!lootable(s.kind) || this.ctl.game.unfound(i)) continue;
       const x = Math.round(siteX(s) * sx), y = Math.round(siteY(s) * sy);
       // Unknown under fog of war counts as guarded: it may well be.
       const lvl = Math.max(0, Math.min(4, s.guard ?? 0)), done = f.siteSearched(i), guards = g.guardsLeft(i) < 0 ? lvl : f.siteGuards(i);
