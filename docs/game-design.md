@@ -32,8 +32,9 @@ it here along with the code.
   whole team keeps, and the host remembers it, so a survivor who joins late or reloads starts
   from the team's map. A survivor can only hit what the team can see: bullets,
   blasts and swings go straight through the dead out in the dark, and guns only pick
-  targets in sight, so a rifle out there is no better than a shotgun at finding them. Within twelve tiles of the generator the base
-  is lit, and turrets fire at full range; past the walls, only their muzzle flashes. Nor
+  targets in sight. The whole base, everything within building range of the generator, is
+  always in sight (on every difficulty), and each turret sees a little past what it shoots,
+  so what a turret out on the edge can see, the whole team can see and shoot. Nor
   does anyone keep count of a site's guards: its skulls say how hard it is, never how many
   are left, so whether a site is clear is found out the hard way.
 - **Brutal starts in melee.** Survivors begin with a crowbar and no gun: a short swing that

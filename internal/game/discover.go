@@ -51,14 +51,16 @@ func (w *World) discover() {
 		if !s.Alive {
 			continue
 		}
+		// The generator lights the whole base; a turret sees a little past what it shoots.
 		r := float32(2)
 		switch {
 		case s.Kind == SCore:
-			r = darkLit
+			r = BuildRadius
 		case s.Kind == SArmory:
 			r = 7
 		case Structs[s.Kind].Turret:
-			r = 4
+			_, rng, _ := TurretStats(s.Kind, s.Level)
+			r = rng*mul + 2
 		}
 		w.lightDisc(s.CX(), s.CY(), r, -1)
 	}
