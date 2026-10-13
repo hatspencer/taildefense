@@ -89,6 +89,14 @@ export class FogOfWar {
     if (moved) this.tex.needsUpdate = true;
   }
 
+  // How clearly x, z shows through the haze right now, 1 clear .. 0 lost in it, as the fog
+  // node fades it: for what is drawn over the scene, the labels, to fade with it.
+  clarity(x: number, z: number): number {
+    const d = Math.hypot(x - this.uEye.value.x, z - this.uEye.value.y);
+    const n = this.uNear.value, f = this.uFar.value, t = Math.min(1, Math.max(0, (d - n) / Math.max(1e-3, f - n)));
+    return 1 - t * t * (3 - 2 * t) * this.uHaze.value;
+  }
+
   // The haze follows your survivor, or the view with none up, and reaches as far as you see.
   private haze(game: Game, dt: number, tx: number, tz: number): void {
     const f = game.cur, me = game.me(), k = Math.min(1, dt * 1.5);

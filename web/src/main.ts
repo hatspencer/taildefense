@@ -344,7 +344,7 @@ async function main(): Promise<void> {
         hoverCreep: ctl.hover?.t === 'creep' ? ctl.hover.id : -1, selCreep: sel?.t === 'creep' ? sel.id : -1,
         showAllBars: ctl.mode.k === 'build',
         hoverSite: ctl.hover?.t === 'site' ? ctl.hover.id : -1, siteHint: ctl.hover?.t === 'site' ? ctl.siteHint(ctl.hover.id) : '',
-      }, now, rig.dist);
+      }, now, rig.dist, (x, z) => fow.clarity(x, z));
       hud.minimap.draw(now, W, H);
       // The portraits share the renderer, which the shader warm-up has to itself.
       if (warm === 2) portraits.update(game, now, dt, rig.yaw);

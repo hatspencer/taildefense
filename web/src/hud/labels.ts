@@ -23,6 +23,10 @@ const PING_WORD = ['here', 'danger', 'loot', 'defend'];
 // A 5x4 skull, one guard-level pip.
 const SKULL = ['.###.', '#.#.#', '#####', '.#.#.'];
 
+// Below this clarity a label isn't drawn at all; above it, it fades in to full by fade.
+const HAZE_GONE = 0.35;
+function fade(a: number): number { return Math.min(1, (a - HAZE_GONE) / (0.8 - HAZE_GONE)); }
+
 // A survivor's search or revive ring, held back to draw over everything else.
 interface Ring { x: number; y: number; frac: number; col: string; caption: string }
 const RING_R = 10;
@@ -158,7 +162,9 @@ export class Labels {
     c.restore();
   }
 
-  draw(game: Game, cam: THREE.Camera, focus: LabelFocus, now: number, dist: number): void {
+  // clarity says how clearly a spot shows through the weather's haze (FogOfWar.clarity): what
+  // the haze hides, its label hides too, or the bars would give away what the fog conceals.
+  draw(game: Game, cam: THREE.Camera, focus: LabelFocus, now: number, dist: number, clarity: (x: number, z: number) => number = () => 1): void {
     const c = this.ctx;
     c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     c.clearRect(0, 0, this.w, this.h);
@@ -174,9 +180,12 @@ export class Labels {
       if (!damaged && i !== focus.hoverStruct && i !== focus.selStruct && !focus.showAllBars) continue;
       const k = f.sKind[i];
       const hgt = k === 1 ? 3.0 : k === 2 ? 2.7 : k <= 4 ? 1.6 : 1.9;
-      if (!this.project(cam, f.sX[i] + f.sW[i] / 2, hgt, f.sY[i] + f.sH[i] / 2)) continue;
+      const sx = f.sX[i] + f.sW[i] / 2, sz = f.sY[i] + f.sH[i] / 2, a = clarity(sx, sz);
+      if (a < HAZE_GONE || !this.project(cam, sx, hgt, sz)) continue;
+      c.globalAlpha = fade(a);
       this.bar(this.v.x, this.v.y, (f.sW[i] > 1 ? 54 : 30) * zoom, f.sHp[i] / Math.max(1, f.sMaxHp[i]));
     }
+    c.globalAlpha = 1;
 
     // Big creeps always show their health; the hovered and selected one too.
     for (let i = 0; i < f.nCreeps; i++) {
@@ -185,9 +194,12 @@ export class Labels {
       const focused = id === focus.hoverCreep || id === focus.selCreep;
       if (!focused && !(def && def.size >= 2 && f.cHp[i] < 255)) continue;
       const r = def ? def.radius : 0.45;
-      if (!this.project(cam, game.rx[i], r * 2.1 * 1.9 + 0.3, game.ry[i])) continue;
+      const a = clarity(game.rx[i], game.ry[i]);
+      if (a < HAZE_GONE || !this.project(cam, game.rx[i], r * 2.1 * 1.9 + 0.3, game.ry[i])) continue;
+      c.globalAlpha = fade(a);
       this.bar(this.v.x, this.v.y, Math.max(24, r * 40) * zoom, f.cHp[i] / 255, focused ? -1 : 0xb5472f);
     }
+    c.globalAlpha = 1;
 
     // Heroes: name and HP; the downed show where they fell, their countdown and any revive.
     const fs = Math.round(13 * Math.max(0.85, zoom));
@@ -196,10 +208,13 @@ export class Labels {
     for (let i = 0; i < f.nPlayers; i++) {
       const p = f.players[i];
       const alive = (p.flags & PF_ALIVE) !== 0;
-      // In thick fog other survivors show only their name: no bar, ring or countdown.
-      const hide = fog && p.id !== wd.you;
+      // In thick fog other survivors show only their name: no bar, ring or countdown. Out in
+      // the haze, where they can't be seen, not even that.
+      const mine = p.id === wd.you, hide = fog && !mine;
+      const a = mine ? 1 : clarity(game.prx[p.id], game.pry[p.id]);
       const col = cssHex(playerColor(p.id));
-      if (!this.project(cam, game.prx[p.id], alive ? 2.25 : 0.5, game.pry[p.id])) continue;
+      if (a < HAZE_GONE || !this.project(cam, game.prx[p.id], alive ? 2.25 : 0.5, game.pry[p.id])) continue;
+      c.globalAlpha = fade(a);
       const x = this.v.x, y = this.v.y;
       c.font = `600 ${fs}px ${FONT}`;
       if (alive) {
@@ -221,6 +236,8 @@ export class Labels {
         this.text(`${p.respawn}s`, x, y + 14, '#e8846a');
       }
     }
+
+    c.globalAlpha = 1;
 
     // The hovered loot site says what it is and what guards it.
     const site = focus.hoverSite >= 0 ? wd.sites[focus.hoverSite] : undefined;
