@@ -33,7 +33,7 @@ const HAIRS = [0x2e2620, 0x16120f, 0x4e3220, 0x8e8a82, 0xa88a52, 0x6a2e1a, 0x2e2
 //   de  dying 0..1, falls forward (1) or back (-1), sunk, thrown
 //   pl  x, y, z, heading
 const STRIDE = 28;
-// Markers over creeps: a "z" over sleeping guards, a "!" over those hunting you.
+// The "z"s over sleeping guards.
 const MARKS = 2048;
 // The dead lie a while, then sink away.
 const CORPSES = 1024, LIE = 3.4, SINK = 1.3, FALL = 0.7;
@@ -169,7 +169,6 @@ export class Creeps {
   onBlow: ((x: number, y: number, kind: number, heading: number, radius: number) => void) | null = null;
   private uHover = uniform(0);
   private zs: THREE.InstancedMesh;
-  private bangs: THREE.InstancedMesh;
 
   // Per creep id.
   private phase = new Float32Array(MAX_CREEPS);
@@ -208,20 +207,14 @@ export class Creeps {
     this.zs = new THREE.InstancedMesh(merge([
       part(box(0.26, 0.06, 0.04), 0), part(box(0.26, 0.06, 0.04), 0, 0, -0.24, 0), part(box(0.06, 0.32, 0.04), 0, 0, -0.12, 0, 0, 0, -0.9),
     ]), zm, MARKS);
-    const bm = new THREE.MeshBasicNodeMaterial();
-    bm.colorNode = vec3(1, 0.16, 0.08).mul(sin(time.mul(9)).mul(0.25).add(1.05));
-    bm.fog = false;
-    this.bangs = new THREE.InstancedMesh(merge([part(box(0.1, 0.3, 0.06), 0, 0, 0.1, 0), part(box(0.1, 0.1, 0.06), 0, 0, -0.17, 0)]), bm, MARKS);
-    for (const m of [this.zs, this.bangs]) {
-      m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.count = 0; m.frustumCulled = false; m.renderOrder = 4;
-    }
+    this.zs.instanceMatrix.setUsage(THREE.DynamicDrawUsage); this.zs.count = 0; this.zs.frustumCulled = false; this.zs.renderOrder = 4;
   }
 
   setup(defs: CreepDef[]): void {
     for (const k of this.kinds) { k.mesh.geometry.dispose(); (k.mesh.material as THREE.Material).dispose(); }
     this.kinds = [];
     this.group.clear();
-    this.group.add(this.zs, this.bangs);
+    this.group.add(this.zs);
     this.nPrev = 0; this.nCorpse = 0; this.headCorpse = 0;
     this.lastT.fill(-1e9);
     defs.forEach((d, i) => {
@@ -259,8 +252,8 @@ export class Creeps {
     // Markers turn to face the camera round the vertical.
     const e = cam?.matrixWorld.elements;
     const face = e ? Math.atan2(-e[8], e[10]) : 0;
-    const za = this.zs.instanceMatrix.array as Float32Array, ba = this.bangs.instanceMatrix.array as Float32Array;
-    let nz = 0, nb = 0;
+    const za = this.zs.instanceMatrix.array as Float32Array;
+    let nz = 0;
     const newFrame = game.frames !== this.lastFrames;
     // Only those in view, or near enough to throw a shadow into it, are drawn.
     if (cam) {
@@ -363,15 +356,10 @@ export class Creeps {
       this.variety(fx, o, id, kind);
       fx[o + 20] = 0; fx[o + 21] = 1; fx[o + 22] = 0; fx[o + 23] = 0;
       fx[o + 24] = x; fx[o + 25] = 0; fx[o + 26] = y; fx[o + 27] = this.yaw[id];
-      if (asleep) {
-        if (nz < MARKS) {
-          const u = (sec * 0.45 + fx[o + 7]) % 1;
-          const s = 1 + u * 1.1;
-          writeMatrix(za, nz++ * 16, x + u * 0.35, km.top * 0.75 + 0.3 + u * 0.9, y, face, s * (1 - u * u * u));
-        }
-      } else if (me && nb < MARKS) {
-        const s = 1.5 + 0.2 * Math.sin(sec * 9 + this.phase[id]);
-        writeMatrix(ba, nb++ * 16, x, km.top + 0.5, y, face, s);
+      if (asleep && nz < MARKS) {
+        const u = (sec * 0.45 + fx[o + 7]) % 1;
+        const s = 1 + u * 1.1;
+        writeMatrix(za, nz++ * 16, x + u * 0.35, km.top * 0.75 + 0.3 + u * 0.9, y, face, s * (1 - u * u * u));
       }
     }
 
@@ -430,9 +418,8 @@ export class Creeps {
     }
     void live;
 
-    this.zs.count = nz; this.bangs.count = nb;
+    this.zs.count = nz;
     if (nz) this.zs.instanceMatrix.needsUpdate = true;
-    if (nb) this.bangs.instanceMatrix.needsUpdate = true;
     for (const k of kinds) {
       k.mesh.count = k.n;
       if (k.n === 0) continue;
