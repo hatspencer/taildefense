@@ -3,7 +3,7 @@ import {
   cameraPosition, clamp, cross, float, instancedDynamicBufferAttribute, length, mix, normalize, positionGeometry,
   abs, exp, mrt, normalView, output, vec4, pow, sin, smoothstep, step, time, uniform, uv, vec3,
 } from 'three/tsl';
-import { BlastKind, EffectKind, TRACER_HELI, Tile } from '../protocol';
+import { BlastKind, EffectKind, TRACER_HELI, TRACER_SHARD, Tile } from '../protocol';
 import type { Game } from '../state';
 import { K_ARMORY, K_CORE, K_TESLA } from './structs';
 import { linInto, writeMatrix } from './util';
@@ -125,7 +125,7 @@ const TRACER: Record<number, number> = { 0: 0xffe9a0, 1: 0xffb060, 2: 0xfff0b0, 
 const MUZZLE: Record<number, number> = { 0: 0.8, 1: 1.5, 2: 0.9, 3: 1.3, 4: 1.1, 5: 1.6 };
 const TURRET: Record<number, number> = { 5: 0xfff0a0, 6: 0xffa040, 7: 0x9fe4ff, 8: 0xd8b0ff };
 // Blood, dark and everywhere; the spitter bleeds bile.
-const CREEP_GORE = [0x4a0c0a, 0x56100c, 0x3e0a08, 0x5a1410, 0x4a5a14, 0x3a0808];
+const CREEP_GORE = [0x4a0c0a, 0x56100c, 0x3e0a08, 0x5a1410, 0x4a5a14, 0x3a0808, 0x4a0c0a];
 
 // Tracers, muzzle flashes, explosions, pulses, corpses and the lasting effects.
 export class Effects {
@@ -206,6 +206,13 @@ export class Effects {
         if (i % 3 === 0) this.glow.add(t + 0.1, x1, 0.55, y1, (Math.random() - 0.5) * 3, 2, (Math.random() - 0.5) * 3, 0.18, 0xffd27a, 0.18, 0.05, 9);
         continue;
       }
+      if (k === TRACER_SHARD) {
+        // A hurler's shard of bone: thrown high from overhead, a pale streak dropping onto
+        // its mark, and a puff of grit where it lands.
+        this.streaks.add(t, x0, 1.9, y0, x1, 0.9, y1, 0.22 + dist * 0.012, 0xe8dcc0, 0.09, 0, 0, 0.3, 1, 1.2);
+        this.glow.add(t + 0.2 + dist * 0.01, x1, 0.8, y1, 0, 0.6, 0, 0.25, 0xc8b898, 0.35, 0.15);
+        continue;
+      }
       if (k >= 32) {
         this.streaks.add(t, x0, 0.8, y0, x1, 0.9, y1, 0.35, 0x8cff3a, 0.2, 0, 0, 0.25, 1, 1.2);
         this.glow.add(t + 0.3, x1, 0.9, y1, 0, 0.5, 0, 0.25, 0x8cff3a, 0.6, 0.2);
@@ -264,7 +271,7 @@ export class Effects {
   // A creep's blow landing in front of it: chips and grit off whatever it hit, and for the
   // big ones a ring of dust where the fists come down.
   blow(x: number, y: number, kind: number, heading: number, radius: number): void {
-    if (kind === 4) return; // the spitter's blow is its spit, drawn as a tracer
+    if (kind === 4 || kind === 6) return; // a spitter's and a hurler's blows are thrown, drawn as tracers
     const t = this.now();
     const c = Math.cos(heading), s = Math.sin(heading);
     const ix = x + c * radius * 1.15, iy = y + s * radius * 1.15;

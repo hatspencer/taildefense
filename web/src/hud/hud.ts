@@ -98,6 +98,13 @@ export class Hud {
     this.base = { root: base, fill: base.querySelector('.bbar i') as HTMLElement, num: base.querySelector('.num') as HTMLElement, hp: -1, hitUntil: 0 };
     const diff = el('div', 'chip diff', top);
     this.tipOn(diff, () => this.diffTip());
+    // The host clicks through the difficulties, round to the easiest again.
+    diff.onclick = () => {
+      const wd = ctl.game.welcome;
+      if (!wd) return;
+      if (!wd.hosting) { this.toast('only the host can change the difficulty', 2); return; }
+      ctl.send({ op: 'difficulty', kind: (wd.difficulty.id + 1) % wd.difficulties.length });
+    };
     const weather = el('div', 'chip weather', top);
     this.tipOn(weather, () => this.weatherTip());
     el('div', 'spacer', top);
@@ -315,7 +322,7 @@ export class Hud {
   private diffTip(): string {
     const wd = this.ctl.game.welcome;
     if (!wd) return '';
-    return `<b>${esc(wd.difficulty.name)}</b><br>The host's choice for this game. It sets creep health and wave size, gold drops, build time, how tough loot guards are and how long a downed survivor can be revived.`;
+    return `<b>${esc(wd.difficulty.name)}</b><br>The host's choice for this game. It sets creep health and wave size, gold drops, build time, how tough loot guards are and how long a downed survivor can be revived.<br><span class="muted">${wd.hosting ? 'Click for the next difficulty; it counts from here on, creeps already out keep their health.' : 'Only the host can change it.'}</span>`;
   }
 
   private weatherTip(): string {
@@ -778,7 +785,7 @@ export class Hud {
     h.reload.disabled = !alive || full || reloading;
     setClass(h.reload, 'busy', reloading);
     h.reload.title = reloading ? 'Reloading' : full ? 'The magazine is full' : 'Reload now (T)';
-    setText(h.order, alive ? (me.emote === Emote.Taunt && me.emoteLeft > 0 ? `taunting · ${me.emoteLeft.toFixed(1)}s` : ORDER[me.order] ?? '') : `down · ${me.respawn}s`);
+    setText(h.order, alive ? (me.stunned ? 'stunned' : me.emote === Emote.Taunt && me.emoteLeft > 0 ? `taunting · ${me.emoteLeft.toFixed(1)}s` : ORDER[me.order] ?? '') : `down · ${me.respawn}s`);
     setText(h.buff, me.buff && me.buffLeft > 0 ? `${wd.weapons[me.buff]?.sig.name ?? 'buff'} · ${me.buffLeft.toFixed(1)}s` : '');
 
     const since = (now - this.ctl.game.frameAt) / 1000;

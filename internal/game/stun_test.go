@@ -97,3 +97,75 @@ func TestBlowsSlowSurvivors(t *testing.T) {
 		t.Fatalf("after a brute's blow a survivor walked %.2f, after a walker's %.2f", brute, walker)
 	}
 }
+
+func TestSlamsStunSurvivorsTheBossLongest(t *testing.T) {
+	w := newBare(4)
+	w.Phase = PhaseWave
+	w.Queue = []Spawn{{At: 1e9}}
+	p, _ := w.Join("ana", "ana@example")
+	p.MaxHP = 1000
+	// stopped is how many ticks a survivor holding a key stands still after a slam of kind k.
+	stopped := func(k CreepKind) int {
+		p.X, p.Y, p.HP, p.stunLeft = w.CoreX+.5, w.CoreY+6, p.MaxHP, 0
+		w.slamLands(&Effect{Kind: EffSlam, X: p.X - 1, Y: p.Y, R: slams[k].radius, Damage: slams[k].hurt})
+		if p.HP > p.MaxHP-slams[k].hurt*.5 {
+			t.Fatalf("%v's slam hurt only %.0f", k, p.MaxHP-p.HP)
+		}
+		n := 0
+		for i := 0; i < TickRate*4; i++ {
+			x0 := p.X
+			w.Steer(p, 0, true)
+			w.stepPlayers()
+			if p.X != x0 {
+				break
+			}
+			n++
+		}
+		return n
+	}
+	brute, boss := stopped(CBrute), stopped(CBoss)
+	if brute < TickRate || boss <= brute {
+		t.Fatalf("stopped %d ticks by a brute's slam, %d by the abomination's", brute, boss)
+	}
+	p.stun(1)
+	if err := w.Cast(p, 0, p.X+3, p.Y); err == nil {
+		t.Fatal("cast while stunned")
+	}
+}
+
+func TestAHurlerSlowsFromFarOff(t *testing.T) {
+	w := newBare(4)
+	w.Phase = PhaseWave
+	w.Queue = []Spawn{{At: 1e9}}
+	p, _ := w.Join("ana", "ana@example")
+	p.MaxHP, p.HP = 1000, 1000
+	// Out on open ground, a hurler eleven tiles off: far past a spitter's reach.
+	x, y := float32(0), float32(0)
+	for ty := 4; ty < w.H-4 && x == 0; ty += 3 {
+		for tx := 4; tx < w.W-16; tx++ {
+			if w.clearShot(float32(tx)+.5, float32(ty)+.5, float32(tx)+11.5, float32(ty)+.5) && !w.At(tx, ty).Solid() && !w.At(tx+11, ty).Solid() &&
+				abs(tx-int(w.CoreX)) > 40 {
+				x, y = float32(tx)+.5, float32(ty)+.5
+				break
+			}
+		}
+	}
+	p.X, p.Y = x+11, y
+	if !w.SpawnCreep(CHurler, x, y) {
+		t.Fatal("no hurler")
+	}
+	// Tough enough to outlast the survivor's return fire.
+	c := &w.Creeps[len(w.Creeps)-1]
+	c.HP, c.MaxHP = 1e6, 1e6
+	shard := false
+	for i := 0; i < TickRate*8 && p.slowLeft <= 0; i++ {
+		p.X, p.Y = x+11, y
+		w.Step()
+		for _, tr := range w.Tracers {
+			shard = shard || tr.Kind == TracerShard
+		}
+	}
+	if p.slowLeft < 1 || p.HP >= p.MaxHP || !shard {
+		t.Fatalf("after a hurler's throw: slowed %.2fs, hp %.0f, shard drawn %v", p.slowLeft, p.HP, shard)
+	}
+}

@@ -295,8 +295,14 @@ func (w *World) stepPlayers() {
 		st := w.playerStats(p)
 		ws.Cool -= Dt
 
+		// A stunned survivor stands and holds fire; their order waits for them.
 		p.tickSlow()
-		target := w.act(p, st)
+		target := int32(-1)
+		if p.Stunned() {
+			p.Moving = false
+		} else {
+			target = w.act(p, st)
+		}
 		p.stepStamina()
 		w.ambushOnEntry(p)
 		if p.noise > 0 {

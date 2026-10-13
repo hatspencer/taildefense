@@ -54,6 +54,7 @@ const (
 	CBrute
 	CSpitter
 	CBoss
+	CHurler // throws bone from far off; a hit slows
 	NumCreepKinds
 )
 
@@ -86,6 +87,7 @@ var Creeps = [NumCreepKinds]CreepDef{
 	CBrute:   {Name: "brute", HP: 280, Speed: 1.5, Damage: 32.5, Rate: .7, Radius: .9, Reach: .6, Armor: 4, Bounty: 15, Cost: 6, Size: 2, MinWave: 4, Aggro: 5, Windup: .65},
 	CSpitter: {Name: "spitter", HP: 55, Speed: 1.5, Damage: 11.2, Rate: .5, Radius: .45, Reach: 6, Bounty: 6, Cost: 2.5, Size: 1, MinWave: 6, Aggro: 9, Windup: .5, Ranged: true},
 	CBoss:    {Name: "abomination", HP: 3200, Speed: .95, Damage: 87.5, Rate: .6, Radius: 1.4, Reach: .8, Armor: 9, Bounty: 300, Cost: 60, Size: 3, MinWave: 10, Aggro: 8, Windup: .7},
+	CHurler:  {Name: "hurler", HP: 45, Speed: 1.4, Damage: 9, Rate: .4, Radius: .45, Reach: 13, Bounty: 8, Cost: 3, Size: 1, MinWave: 8, Aggro: 15, Windup: .8, Ranged: true},
 }
 
 // HPScale is how much tougher creeps are on wave w.

@@ -117,6 +117,7 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .top .chip .pips { display: inline-flex; gap: 2px; }
 .top .chip .pips i { width: 4px; height: 10px; background: #3c3f30; }
 .top .chip .pips i.on { background: var(--rust); }
+.top .chip.diff { cursor: pointer; }
 .top .chip.weather svg { display: block; }
 .top .chip.weather .info { color: var(--khaki); font-family: var(--small); font-size: 12px; max-width: 360px; overflow: hidden; text-overflow: ellipsis; }
 .top .chip.base { gap: 7px; cursor: pointer; }

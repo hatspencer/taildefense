@@ -49,7 +49,8 @@ and how long a downed player can be revived (20 s on normal). Hard and brutal ar
 past the base you see only a few steps round you (twice as far with a rifle), the map is black until someone on the team has
 been there, the dead come out of the dark, and nobody
 tells you how many guards a site has left. On brutal
-you start with only a crowbar. A restart keeps the game's difficulty.
+you start with only a crowbar. A restart keeps the game's difficulty. The host can also change it
+mid-game by clicking the difficulty chip at the top left.
 
 `BROWSER` is `auto` by default: td finds the browsers installed (Chrome, Chromium, Brave, Edge,
 Vivaldi, Firefox, and Safari on macOS) and starts the best one full screen, as an app window with

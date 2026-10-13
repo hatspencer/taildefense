@@ -112,6 +112,7 @@ type Player struct {
 	Hurt      float32
 	// A slow (stun.go): seconds the survivor walks at half speed for, and until another can land.
 	slowLeft, slowCool float32
+	stunLeft           float32 // seconds a slam keeps the survivor stopped
 	Search             float32 // seconds into searching a loot site or reviving a teammate
 	Revived            float32 // while down: how far the best revive on them is, 0..1
 	Emote              uint8   // 0 none, 1 taunting
@@ -155,8 +156,11 @@ type Tracer struct {
 	Kind           uint8 // 0..NumWeapons-1 player weapons, 16+ turret kinds, 32 spit
 }
 
-// TracerSpit marks a spitter's shot.
-const TracerSpit = 32
+// TracerSpit marks a spitter's shot, TracerShard a hurler's.
+const (
+	TracerSpit  = 32
+	TracerShard = 35
+)
 
 // TracerTurret is added to a turret StructKind.
 const TracerTurret = 16

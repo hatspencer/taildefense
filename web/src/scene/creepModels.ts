@@ -222,6 +222,31 @@ function spitter(): CreepRig {
   }, { stride: 0.75, bob: 0.03, drop: 0.2, turn: 5, flinch: 0.8 });
 }
 
+// Gaunt and too tall, the arms hanging past its knees, shards of its own bone breaking out of
+// its back; it rears up, both arms back over its head, and hurls one.
+function hurler(): CreepRig {
+  const p: RigPart[] = [];
+  legs(p, 0.66, 0.34, 0.1, 0.12, 0.11);
+  p.push(rp(-1, B(0.22, 0.12, 0.3, PANTS, 0, 0.67)));
+  p.push(rp(J.CHEST, B(0.2, 0.42, 0.34, SHIRT, 0, 0.94)));
+  p.push(rp(J.CHEST, B(0.2, 0.1, 0.44, SHIRT, 0, 1.14)));
+  // Ribs showing through the torn shirt, and bone shards jutting from the back and shoulders.
+  for (const y of [0.86, 0.94, 1.02]) p.push(rp(J.CHEST, B(0.02, 0.03, 0.22, BONE, 0.105, y)));
+  p.push(rp(J.CHEST, B(0.03, 0.2, 0.12, BLOOD, 0.1, 0.8, -0.1)));
+  for (const [z, a] of [[0.1, 0.5], [-0.12, -0.4], [0.02, 0.1]] as const) p.push(rp(J.CHEST, part(cone(0.05, 0.36, 4), BONE, -0.14, 1.2, z, a, 0, 0.6)));
+  for (const s of [1, -1]) p.push(rp(J.CHEST, part(cone(0.04, 0.24, 4), BONE, -0.02, 1.24, 0.22 * s, 0.6 * s, 0, 0.2)));
+  head(p, J.HEAD, 0.03, 1.2, 0.9);
+  arms(p, 1.15, 0.8, 0.25, 0.1, 0.08, SHIRT, SKIN, BONE);
+  return rig(p, {
+    [J.CHEST]: { p: [0, 0.68, 0], walk: [0, 0, 0.08, -0.12], flex: [0, 0, 0.1, 0.03], wind: [0.55, 0, 0, 0], strike: [-0.6, 0, 0, 0], die: [-0.5, 0, 0.2, 0], misc: [0.35, 0.3, 0, 0] },
+    [J.HEAD]: { p: [0.03, 1.2, 0], walk: [0, 1.2, 0.15, -0.1], flex: [0, 0, 0, 0.06], wind: [0.4, 0, 0, 0], strike: [-0.5, 0, 0, 0], die: [-0.5, 0.3, 0, 0], misc: [0.5, 0.4, 0, 0] },
+    [J.UARM_L]: { p: [0, 1.15, 0.25], walk: [0.15, 0.5, -0.05, 0.2], flex: [0, 0, 0, 0.05], wind: [-2.6, -0.2, 0, 0], strike: [1.5, 0.1, 0, 0], die: [-1.0, -0.2, 0, 0], misc: [-0.4, 1.4, 1, 1] },
+    [J.FARM_L]: { p: [0, 0.8, 0.25], walk: [0.1, 1.0, 0, 0.15], wind: [0.9, 0, 0, 0], strike: [-0.2, 0, 0, 0], die: [-0.2, 0, 0, 0], misc: [0, 0.9, 1, 1] },
+    [J.THIGH_L]: { p: [0, 0.66, 0.1], walk: [0.38, 0, 0, 0], wind: [-0.15, 0, 0, 0], strike: [0.3, 0, 0, 0], die: [1.35, 0, 0, 0], misc: [0, 0.5, 1, 2] },
+    [J.SHIN_L]: { p: [0, 0.34, 0.1], walk: [0, 0, 0, -0.05], flex: [-0.8, Math.PI / 2, 0, 0], strike: [-0.2, 0, 0, 0], die: [-2.1, 0, 0, 0], misc: [0, 0.4, 1, 2] },
+  }, { stride: 1.05, bob: 0.03, drop: 0.26, turn: 5, flinch: 0.9 });
+}
+
 // A mound of fused bodies, bone breaking through, four arms clawing out of it; it rears up
 // and sweeps them through everything in front.
 function abomination(): CreepRig {
@@ -271,6 +296,7 @@ export function creepRig(kind: number, name: string): CreepRig {
     case 2: return swarmer();
     case 3: return brute();
     case 4: return spitter();
+    case 6: return hurler();
     default: return walker();
   }
 }

@@ -23,7 +23,7 @@ import (
 // Proto is the wire protocol version. A host refuses a client with a different one and names
 // both versions, so the fix (td update) is obvious. Beyond the protocol, a host only lets in a
 // player running the same td (SameVersion).
-const Proto = 11
+const Proto = 12
 
 // DefaultPort is where a host listens.
 const DefaultPort = 7787
@@ -37,6 +37,7 @@ const (
 	MsgFrame   byte = 5 // s->c
 	MsgCmd     byte = 7 // c->s
 	MsgToast   byte = 8 // s->c, to one player
+	MsgDiff    byte = 9 // s->c, to everyone: u8 the difficulty the host changed to
 )
 
 // maxMessage bounds what a peer may make us allocate.

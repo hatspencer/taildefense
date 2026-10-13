@@ -310,3 +310,46 @@ func TestFoundGroundIsShared(t *testing.T) {
 		t.Fatal("the map is kept on normal")
 	}
 }
+
+// The host changes the difficulty as the game goes, and everyone is told; anyone else is refused.
+func TestOnlyTheHostChangesTheDifficulty(t *testing.T) {
+	for _, owner := range []string{"me", "someone else"} {
+		s, err := Listen(ServerConfig{Addrs: []string{"127.0.0.1:0"}, Seed: 3, Version: "test", Host: "box", LocalLogin: "me", LocalName: "me", Owner: owner})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		c, _, err := Dial(ctx, s.Addrs()[0], Hello{Name: "tester", Version: "test"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = c.Send(Cmd{Op: OpDifficulty, A: uint8(game.DiffHard)})
+		got, toast := -1, ""
+		deadline := time.After(3 * time.Second)
+		for got < 0 && toast == "" {
+			select {
+			case m := <-c.Msgs():
+				if m.Err != nil {
+					t.Fatal(m.Err)
+				}
+				switch m.Type {
+				case MsgDiff:
+					got = int(m.Payload[0])
+				case MsgToast:
+					_, toast = DecodeToast(m.Payload)
+				}
+			case <-deadline:
+				t.Fatalf("owner %q: no answer", owner)
+			}
+		}
+		if owner == "me" && got != int(game.DiffHard) {
+			t.Fatalf("the host's change: got %d, toast %q", got, toast)
+		}
+		if owner != "me" && (got >= 0 || !strings.Contains(toast, "only the host")) {
+			t.Fatalf("a guest's change: got %d, toast %q", got, toast)
+		}
+		c.Close()
+		cancel()
+		s.Close()
+	}
+}

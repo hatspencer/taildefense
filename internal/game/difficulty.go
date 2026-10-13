@@ -1,11 +1,13 @@
 package game
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
 
-// Difficulty is how hard a game is, chosen by the host before it starts and fixed for it.
+// Difficulty is how hard a game is, chosen by the host before it starts; the host can
+// change it as it goes (SetDifficulty).
 type Difficulty uint8
 
 const (
@@ -65,3 +67,23 @@ func ParseDifficulty(s string) (Difficulty, error) {
 }
 
 func (w *World) diff() *DifficultyDef { return &Difficulties[w.Diff] }
+
+// SetDifficulty changes the difficulty mid-game. What it scales is read as it is needed, so
+// the change shows from here on: the next creeps' health, the next wave's size, gold, the
+// breaks, guards spawned from now. Creeps already about keep their health, and a survivor's
+// starting weapon was dealt when they joined. Night comes and goes with it: a survivor sees
+// the dark in from what is in sight now.
+func (w *World) SetDifficulty(by *Player, d Difficulty) error {
+	if d >= NumDifficulties {
+		return errors.New("no such difficulty")
+	}
+	if d == w.Diff {
+		return nil
+	}
+	w.Diff = d
+	if w.diff().Dark <= 0 {
+		w.Seen, w.lit = nil, nil
+	}
+	w.Notes = append(w.Notes, Note{Text: fmt.Sprintf("%s set the difficulty to %s", by.Name, w.diff().Name)})
+	return nil
+}

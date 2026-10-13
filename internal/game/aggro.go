@@ -36,10 +36,11 @@ func TauntInfo() (cool, radius, time float32) { return tauntCool, tauntRadius, t
 func ReviveInfo() (reach, time, hp float32) { return reviveReach, reviveTime, reviveHP }
 
 // siegeChance and huntChance are, per kind, how likely a creep of the waves is, each time it
-// thinks (every two seconds or so), to go for a structure or a survivor on its own.
+// thinks (every two seconds or so), to go for a structure or a survivor on its own. A hurler
+// never sieges: from its reach it would outrange the turrets.
 var (
 	siegeChance = [NumCreepKinds]float32{CWalker: .08, CRunner: .04, CSwarmer: .03, CBrute: .3, CSpitter: .2, CBoss: .25}
-	huntChance  = [NumCreepKinds]float32{CWalker: .05, CRunner: .12, CSwarmer: .06, CBrute: .03, CSpitter: .05, CBoss: .05}
+	huntChance  = [NumCreepKinds]float32{CWalker: .05, CRunner: .12, CSwarmer: .06, CBrute: .03, CSpitter: .05, CBoss: .05, CHurler: .1}
 )
 
 // Taunt pulls every creep within reach onto the player, sleeping guards too.
