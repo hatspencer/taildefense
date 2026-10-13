@@ -18,6 +18,8 @@ var Keys = []KeyHelp{
 	{"R", "restart into the new td after an update", "everywhere"},
 	{"r", "look for games again now (it also does every 5 s)", "join"},
 	{"a", "type an address: host, host:port or a tailnet IP", "join"},
+	{"↑↓ pgup pgdn", "scroll", "changelog"},
+	{"r", "read the changelog again", "changelog"},
 	{"enter", "edit a setting, or flip an on/off one", "settings"},
 	{"esc", "cancel an edit", "settings"},
 	{"ctrl+c", "quit", "everywhere"},

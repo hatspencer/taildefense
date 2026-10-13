@@ -71,3 +71,13 @@ func TestShownCapsTheListAndCountsTheRest(t *testing.T) {
 		t.Errorf("got %d shown, %d more", len(list), more)
 	}
 }
+
+func TestChangelogMarksThisTd(t *testing.T) {
+	log := "aaa1111\x1f2026-10-13\x1fnewest\nbbb2222\x1f2026-10-12\x1fmine\nccc3333\x1f2026-10-11\x1folder\n"
+	if c := changelogOf("main", log, "bbb2222c0ffee-dirty"); c.Local != 1 || len(c.Commits) != 3 || c.Commits[1].Subject != "mine" || c.Commits[0].Date != "2026-10-13" {
+		t.Errorf("got %+v", c)
+	}
+	if c := changelogOf("main", log, "dev"); c.Local != -1 {
+		t.Errorf("a dev build matched %d", c.Local)
+	}
+}

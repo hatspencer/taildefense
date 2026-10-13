@@ -34,6 +34,8 @@ func (m *Model) View() string {
 		body = m.joinView(elapsed, h-len(head)-3)
 	case m.screen == screenSettings:
 		body = m.settingsView()
+	case m.screen == screenChangelog:
+		body = m.changelogView(elapsed, h-len(head)-1)
 	default:
 		body = m.menuView(w)
 	}
@@ -225,6 +227,8 @@ func (m *Model) itemHint(it menuItem) string {
 			return "a newer td is out · td update, then back here"
 		}
 		return "td update: gets and installs a newer td if there is one, then back here"
+	case itemChangelog:
+		return "the latest commits, and which of them this td is"
 	case itemRestart:
 		return "start the updated td in place of this one"
 	}
@@ -295,6 +299,68 @@ func (m *Model) joinView(elapsed time.Duration, room int) []string {
 	return out
 }
 
+// changelogView lists the latest commits on the branch td follows: those newer than this td
+// bright, this td's own marked, the ones it already has dimmed. room is the lines it has.
+func (m *Model) changelogView(elapsed time.Duration, room int) []string {
+	c, err, reading := m.sess.changelog()
+	title := ui.StyleBold.Render("Changelog")
+	if reading {
+		title += "  " + ui.StyleCyan.Render(spinner(elapsed)+" reading the latest commits")
+	} else if c != nil {
+		title += "  " + ui.StyleDim.Render(fmt.Sprintf("latest %s on %s", plural(len(c.Commits), "commit"), c.Source))
+	}
+	out := []string{gutter + title, ""}
+	switch {
+	case err != nil && !reading:
+		return append(out, gutter+ui.StyleRed.Render("✘ could not read the changelog: ")+oneLine(err.Error()),
+			gutter+ui.StyleDim.Render("r tries again"))
+	case c == nil:
+		return out
+	}
+
+	ver := m.o.Version
+	switch {
+	case c.Local == 0:
+		out = append(out, gutter+ui.StyleGreen.Render("✔ td "+ver+" is the latest"))
+	case c.Local > 0:
+		out = append(out, gutter+ui.StyleYellow.Render(fmt.Sprintf("td %s is %s behind", ver, plural(c.Local, "commit")))+
+			ui.StyleDim.Render(" · u update"))
+	default:
+		out = append(out, gutter+ui.StyleYellow.Render("td "+m.o.Version+" is not among these")+
+			ui.StyleDim.Render(" · older than all of them, or built from elsewhere"))
+	}
+	out = append(out, "")
+
+	rows := make([]string, len(c.Commits))
+	for i, e := range c.Commits {
+		date := ui.StyleDim.Render(e.Date)
+		switch {
+		case i == c.Local:
+			rows[i] = gutter + ui.StyleGreen.Render("▶ ") + ui.StyleGreen.Render(e.Hash) + "  " + date + "  " +
+				ui.StyleBold.Render(e.Subject) + "  " + ui.StyleGreen.Render("◀ this td")
+		case c.Local >= 0 && i > c.Local:
+			rows[i] = gutter + "  " + ui.StyleDim.Render(e.Hash+"  "+e.Date+"  "+e.Subject)
+		default:
+			rows[i] = gutter + "  " + ui.StyleYellow.Render(e.Hash) + "  " + date + "  " + e.Subject
+		}
+	}
+	// Open with this td's own commit in view, then scroll from there.
+	shown := max(room-len(out)-1, 1)
+	if m.lscroll < 0 {
+		m.lscroll = 0
+		if c.Local >= shown {
+			m.lscroll = c.Local - shown/2
+		}
+	}
+	m.lscroll = min(m.lscroll, max(len(rows)-shown, 0))
+	end := min(m.lscroll+shown, len(rows))
+	out = append(out, rows[m.lscroll:end]...)
+	if m.lscroll > 0 || end < len(rows) {
+		out = append(out, gutter+"  "+ui.StyleDim.Render(fmt.Sprintf("%d–%d of %d", m.lscroll+1, end, len(rows))))
+	}
+	return out
+}
+
 func (m *Model) settingsView() []string {
 	out := []string{gutter + ui.StyleBold.Render("Settings") + "  " + ui.StyleDim.Render("saved to "+prefsPath()), ""}
 	for i, k := range config.Keys {
@@ -346,6 +412,8 @@ func (m *Model) footer() []string {
 		keys = "↑↓ move · enter join · a address · r rescan · esc back · ? help"
 	case m.screen == screenSettings:
 		keys = "↑↓ move · enter edit · esc back · ? help"
+	case m.screen == screenChangelog:
+		keys = "↑↓ scroll · r read again · esc back · ? help"
 	default:
 		keys = "↑↓ move · enter choose · q quit · ? help"
 	}
@@ -386,11 +454,12 @@ func prefsPath() string {
 
 // Screen names Frame takes.
 const (
-	FrameMenu     = "menu"
-	FrameJoin     = "join"
-	FrameSettings = "settings"
-	FrameHelp     = "help"
-	FrameSplash   = "splash"
+	FrameMenu      = "menu"
+	FrameJoin      = "join"
+	FrameSettings  = "settings"
+	FrameHelp      = "help"
+	FrameChangelog = "changelog"
+	FrameSplash    = "splash"
 )
 
 // Frame renders one launcher frame without a terminal, from synthetic data: a tailnet, two
@@ -425,6 +494,17 @@ func Frame(o Options, width, height int, view string) string {
 		m.screen = screenSettings
 	case FrameHelp:
 		m.help = true
+	case FrameChangelog:
+		m.screen, m.lscroll = screenChangelog, -1
+		if l, _, _ := m.sess.changelog(); l == nil {
+			log := &cli.Changelog{Source: "main", Local: 3}
+			for i := range 24 {
+				log.Commits = append(log.Commits, cli.Commit{Hash: fmt.Sprintf("%07x", 0xabc1234+(i+1)*4099),
+					Date: "2026-10-" + fmt.Sprintf("%02d", 28-i), Subject: fmt.Sprintf("The %d-th change, said in one line", 24-i)})
+			}
+			log.Commits[3].Hash = o.Version
+			m.sess.setChangelog(log, nil)
+		}
 	case FrameSplash:
 		at := o.SplashAt
 		if at <= 0 {
