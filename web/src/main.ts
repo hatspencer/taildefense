@@ -51,10 +51,30 @@ async function makeWorld(app: HTMLElement, forceWebGL: boolean): Promise<World> 
       canvas.remove();
     }
   }
-  // A fresh canvas: one that already handed out a WebGPU context cannot give a WebGL one.
-  const w = new World(mk(), true);
-  await w.init();
-  return w;
+  // A fresh canvas: one that already handed out a WebGPU context cannot give a WebGL one. Older
+  // GPUs can refuse a multisampled WebGL2 context, so the last try goes without antialiasing.
+  let err: unknown;
+  for (const aa of [true, false]) {
+    const canvas = mk();
+    const w = new World(canvas, true, aa);
+    try { await w.init(); return w; } catch (e) {
+      console.warn(`taildefense: WebGL2 init failed (antialias ${aa})`, e);
+      err = e;
+      canvas.remove();
+    }
+  }
+  throw new Error(probeWebGL2() ? `WebGL2 failed to start: ${(err as Error)?.message ?? err}` : NO_WEBGL2);
+}
+
+// NO_WEBGL2 explains a browser that gives no WebGL2 context at all, three.js's least backend.
+const NO_WEBGL2 = 'This browser has no WebGL2. Use a current Chrome, Firefox or Safari (15 or newer) '
+  + 'and turn on hardware acceleration (in Chrome: Settings, System, "Use graphics acceleration"; '
+  + 'chrome://gpu shows what is blocked).';
+
+function probeWebGL2(): boolean {
+  const gl = document.createElement('canvas').getContext('webgl2');
+  gl?.getExtension('WEBGL_lose_context')?.loseContext();
+  return !!gl;
 }
 
 async function main(): Promise<void> {
