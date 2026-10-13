@@ -176,6 +176,12 @@ a wing in pieces and a long burnt scar. A garrison sleeps in the wreckage, more 
 walk in, and its leaking engines go up like the gas station's pumps when shot. The hold gives a
 field manual, a piece of kit and something rare or better.
 
+On the outskirts, far from the base, stands an old church. Press E at the bell rope inside, under
+the tower, and the bell rings out over the whole map: for a minute every creep there is, the wave
+on its way in, the wanderers and the guards at their sites, heads for the church. Use it to pull a
+wave off the base or to empty the sites for a raid, and don't be there when they arrive. The bell
+can be rung again after a couple of minutes.
+
 The dead also wander the wastes on their own, in small packs, shambling about away from the base.
 They come for you if you get close or shoot them, and more turn up as they are killed, a few more
 every wave. Every tenth wave they hear the call: partway into it, every wanderer left rushes the

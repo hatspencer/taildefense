@@ -38,19 +38,26 @@ func (w *World) updateFlow() {
 		return
 	}
 	w.flowDirt = false
-	f := &w.flow
+	w.goals = w.goals[:0]
+	core := &w.Structs[w.Core]
+	for y := int(core.Y); y < int(core.Y)+int(core.H); y++ {
+		for x := int(core.X); x < int(core.X)+int(core.W); x++ {
+			w.goals = append(w.goals, int32(y*w.W+x))
+		}
+	}
+	w.fillFlow(&w.flow, w.goals)
+}
+
+// fillFlow makes f the shortest way from every tile to the nearest of goals.
+func (w *World) fillFlow(f *flowField, goals []int32) {
 	for i := range f.dist {
 		f.dist[i] = unreachable
 		f.next[i] = -1
 	}
 	f.heap = f.heap[:0]
-	core := &w.Structs[w.Core]
-	for y := int(core.Y); y < int(core.Y)+int(core.H); y++ {
-		for x := int(core.X); x < int(core.X)+int(core.W); x++ {
-			i := y*w.W + x
-			f.dist[i] = 0
-			f.push(0, int32(i))
-		}
+	for _, i := range goals {
+		f.dist[i] = 0
+		f.push(0, i)
 	}
 	for len(f.heap) > 0 {
 		d, i := f.pop()

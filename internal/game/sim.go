@@ -70,6 +70,7 @@ func (w *World) Step() {
 	w.stepRockets()
 	w.stepEffects()
 	w.stepPumps()
+	w.stepBell()
 	w.stepCrates()
 	w.stepCreeps()
 	w.reap()
@@ -375,7 +376,7 @@ func (w *World) stepCreeps() {
 			}
 			w.wakeSite(c)
 		}
-		if c.Home == 0 && !c.Wander {
+		if c.Home == 0 && !c.Wander && !c.lured {
 			w.think(c, d)
 		}
 
@@ -387,15 +388,17 @@ func (w *World) stepCreeps() {
 			continue
 		}
 		var mx, my float32
-		if tp == nil && c.Home > 0 {
+		// The church bell outweighs home, wandering and a grudge against a structure.
+		lure := tp == nil && c.lured
+		if tp == nil && c.Home > 0 && !lure {
 			w.goHome(c, d, speed)
 			continue
 		}
-		if tp == nil && c.Wander {
+		if tp == nil && c.Wander && !lure {
 			w.wander(c, d, speed)
 			continue
 		}
-		if tp == nil && c.Siege >= 0 {
+		if tp == nil && c.Siege >= 0 && !lure {
 			s := &w.Structs[c.Siege]
 			if !s.Alive {
 				c.Siege = -1
@@ -451,13 +454,23 @@ func (w *World) stepCreeps() {
 			if tx < 0 || ty < 0 || tx >= w.W || ty >= w.H {
 				continue
 			}
-			nx := w.flow.next[ti]
-			if nx < 0 {
-				// Unreachable from here: walk straight at the generator and break what is in the way.
-				dx, dy := w.CoreX-c.X, w.CoreY-c.Y
+			// The generator's field, or the church's while its bell draws them, at a hurry.
+			f, gx, gy := &w.flow, w.CoreX, w.CoreY
+			if lure {
+				s := &w.Sites[w.bell.site]
+				f, gx, gy = &w.bell.flow, s.SX, s.SY
+				speed *= pullPace
+			}
+			nx := f.next[ti]
+			switch {
+			case nx < 0 && lure && f.dist[ti] == 0:
+				// In the nave: milling about, only the crowd moving it.
+			case nx < 0:
+				// Unreachable from here: walk straight at the goal and break what is in the way.
+				dx, dy := gx-c.X, gy-c.Y
 				dl := sqrt32(dx*dx+dy*dy) + 1e-6
 				mx, my = dx/dl, dy/dl
-			} else {
+			default:
 				gx, gy := float32(int(nx)%w.W)+.5, float32(int(nx)/w.W)+.5
 				if si := w.structAt[nx]; si >= 0 {
 					reach := d.Radius + d.Reach + .55
@@ -467,7 +480,7 @@ func (w *World) stepCreeps() {
 					}
 				}
 				// Look one step further to cut the staircase a grid path makes.
-				if nn := w.flow.next[nx]; nn >= 0 && w.structAt[nn] < 0 {
+				if nn := f.next[nx]; nn >= 0 && w.structAt[nn] < 0 {
 					gx = (gx + float32(int(nn)%w.W) + .5) / 2
 					gy = (gy + float32(int(nn)/w.W) + .5) / 2
 				}

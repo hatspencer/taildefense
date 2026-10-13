@@ -71,27 +71,7 @@ func planeDist(s *Site, x, y float32) float32 {
 func planeCrash(t []Tile, w, h int, rng *rand.Rand, road []bool, houses []ruin) []ruin {
 	const r, gap = planeClear, 14
 	// What can be walked to from the middle of the map: the scar must open onto it.
-	open := make([]bool, w*h)
-	var q [][2]int
-	for y := h/2 - 6; y <= h/2+6; y++ {
-		for x := w/2 - 6; x <= w/2+6; x++ {
-			if !t[y*w+x].Solid() {
-				open[y*w+x] = true
-				q = append(q, [2]int{x, y})
-			}
-		}
-	}
-	for len(q) > 0 {
-		c := q[len(q)-1]
-		q = q[:len(q)-1]
-		for _, d := range [4][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}} {
-			x, y := c[0]+d[0], c[1]+d[1]
-			if x > 0 && y > 0 && x < w-1 && y < h-1 && !open[y*w+x] && !t[y*w+x].Solid() {
-				open[y*w+x] = true
-				q = append(q, [2]int{x, y})
-			}
-		}
-	}
+	open := openFromMiddle(t, w, h)
 	bx, by, best := 0, 0, math.MaxInt
 	for try := 0; try < 400; try++ {
 		x, y := r+4+rng.IntN(w-2*r-8), r+4+rng.IntN(h-2*r-8)

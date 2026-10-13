@@ -133,6 +133,16 @@ each wave, but Normal is the reference for timing.
   A garrison of brutes, runners and spitters sleeps in the wreckage, an ambush comes out at
   the first survivor inside it and another at the hold, and its two leaking engines blow up
   like the pumps when shot.
+- **The church.** One per map, out on the outskirts far from the base and clear of the other
+  landmarks: a roofless stone nave with pews and an altar, its bell tower at the end facing the
+  generator. Nothing guards it and there is nothing to find. Press E inside at the foot of the
+  tower and you pull the rope for 2.5 s (a hit starts you over), and the bell rings out over
+  the whole map: every creep there is, the wave on its way in, the wanderers and the guards
+  asleep at their sites, drops what it was doing and makes for the church at half again its
+  pace, for a minute, unless it sees a survivor on the way. It pulls a wave off the base or
+  empties the sites for a raid, and whoever rang it had better be gone before they arrive.
+  When the bell stops, the wave turns back to the generator and the guards try to get home; one
+  that can't settles where it stands. The bell can be rung again two and a half minutes after.
 - **Wanderers.** The dead roam the wastes between the sites, away from the base, in packs of
   three to six that keep together: walkers mostly, now and then a runner, spitter or brute
   among them. About four dozen at the start, four more each wave (up to 300), more on harder

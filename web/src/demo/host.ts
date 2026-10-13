@@ -271,6 +271,7 @@ export class DemoHost implements Transport {
       sites.push({ kind: SiteKind.Station, x: st.x, y: st.y, w: st.w, h: st.h, sx: st.x + st.w / 2, sy: st.y + st.h / 2, tier: 2, guard: 4 });
       for (const [x, y] of st.pumps) sites.push({ kind: SiteKind.Pump, x, y, w: 1, h: 1, sx: x + 0.5, sy: y + 0.5, tier: 2, guard: 0 });
     }
+    if (m.church) sites.push({ kind: SiteKind.Church, tier: 2, guard: 0, ...m.church });
     // The crashed plane, on open grass out past the houses, and its two engines.
     for (let tries = 0; tries < 4000; tries++) {
       const x = 20 + Math.floor(r() * (W - 40)), y = 20 + Math.floor(r() * (H - 40));

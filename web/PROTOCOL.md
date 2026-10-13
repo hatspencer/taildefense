@@ -38,7 +38,7 @@ everything it knows, a terrain message follows).
 ```jsonc
 {
   "t": "welcome",
-  "proto": 11,
+  "proto": 13,
   "version": "a1b2c3d",
   "you": 0,                    // your player id
   "w": 352, "h": 220,          // map size in tiles
@@ -155,6 +155,13 @@ hurts survivors as well as creeps, sets off the pumps beside it, and leaves burn
 (effect kind 2). A standing pump blocks survivors like a wreck. The station's garrison sleeps
 round the pumps, and more creeps hide in the shop: they burst out at the first survivor on
 the lot, and again when someone starts on the counter.
+Every map has one church (kind 17) out on the outskirts: `x, y, w, h` is its nave, walled,
+and its bell tower stands beyond the nave's end wall, three tiles deep and centred on it, the
+way `yaw` points (a multiple of a right angle, towards the map's middle). It is not loot: the
+`loot` op sent on it rings the bell, which takes its `search` seconds at the rope, at `sx, sy`
+inside the nave at the tower's foot. A rung bell draws every creep on the map, guards, wanderers
+and the wave, to the church for a minute; its searched bit stays set until it can be rung
+again.
 Each site can be searched once; whether it has been is in every frame. Every fifth wave
 some searched sites are restocked, and their guards come back.
 
@@ -289,7 +296,8 @@ u16  nBlasts          explosions and pulses this tick
   u8   kind           0 explosion, 1 frost pulse, 2 tesla spark, 3 concussion, 4 airstrike,
                       5 loot found (r: 8 = jackpot or rare, else common), 6 ambush (a nest wakes),
                       7 taunt (a ring the size of the pull), 8 lightning strike (storm),
-                      9 revived (a survivor stands up), 10 guards wake (at the guard)
+                      9 revived (a survivor stands up), 10 guards wake (at the guard),
+                      11 the church bell rung (at its rope)
 u16  nDeaths          creeps that died this tick
   u16  x, y q8
   u8   kind

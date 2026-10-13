@@ -42,7 +42,16 @@ export interface DemoMap {
   houses: { x: number; y: number; w: number; h: number; kind: Ruin }[];
   // The gas station by the west road: its shop, walls included, and its fuel pumps' tiles.
   station?: { x: number; y: number; w: number; h: number; pumps: [number, number][] };
+  // The church out east, as the host lays it (internal/game/church.go): its nave, the rope
+  // spot inside at the tower's foot, and the way the tower faces.
+  church?: { x: number; y: number; w: number; h: number; sx: number; sy: number; yaw: number };
 }
+
+// The church's plan, as the host's: x across the nave, y along it to the tower.
+const CHURCH = [
+  '#########', '#.......#', '#.......#', '#.......#', '........#', '#.......#', '#.......#', '#.......#', '#........',
+  '#.......#', '#.......#', '#.......#', '#.......#', '#..###..#', '   ###   ', '   ###   ', '   ###   ',
+];
 
 export function generateMap(w: number, h: number, seed: number): DemoMap {
   const rnd = rng(seed);
@@ -136,6 +145,26 @@ export function generateMap(w: number, h: number, seed: number): DemoMap {
     }
   }
 
+  // The church out on the eastern outskirts, its tower towards the base.
+  const ccx = w - 30, ccy = Math.floor(h * 0.3), fx = -1, fy = 0;
+  const at = (lx: number, ly: number): [number, number] => {
+    const ox = lx - 4, oy = ly - 8;
+    return [ccx + ox * fy + oy * fx, ccy - ox * fx + oy * fy];
+  };
+  for (let y = ccy - 11; y <= ccy + 11; y++) for (let x = ccx - 11; x <= ccx + 11; x++) if (get(x, y) >= Tile.Water || get(x, y) === Tile.Sand) set(x, y, Tile.Grass);
+  for (let i = houses.length - 1; i >= 0; i--) {
+    const o = houses[i];
+    if (o.x < ccx + 12 && ccx - 12 < o.x + o.w && o.y < ccy + 12 && ccy - 12 < o.y + o.h) houses.splice(i, 1);
+  }
+  let x0 = w, y0 = h, x1 = 0, y1 = 0;
+  CHURCH.forEach((row, ly) => [...row].forEach((c, lx) => {
+    const [x, y] = at(lx, ly);
+    if (c === '#') set(x, y, Tile.Rock); else if (c === '.') set(x, y, Tile.Floor);
+    if (ly < 14) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  }));
+  const [rx, ry] = at(4, 12);
+  const church = { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1, sx: rx + 0.5, sy: ry + 0.5, yaw: Math.atan2(fy, fx) };
+
   // The base: cleared ground, a concrete floor inside the wall ring.
   const ring = { x0: cx - 14, y0: cy - 14, x1: cx + 14, y1: cy + 14 };
   for (let y = cy - 34; y <= cy + 34; y++) for (let x = cx - 40; x <= cx + 40; x++) {
@@ -146,7 +175,7 @@ export function generateMap(w: number, h: number, seed: number): DemoMap {
     const corner = (x < ring.x0 + 3 || x > ring.x1 - 3) && (y < ring.y0 + 3 || y > ring.y1 - 3);
     if (!corner) set(x, y, Tile.Floor);
   }
-  return { tiles: t, spawns, ring, houses, station };
+  return { tiles: t, spawns, ring, houses, station, church };
 }
 
 const RUIN_ODDS = [26, 18, 16, 10, 12, 18];

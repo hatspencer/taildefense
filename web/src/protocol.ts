@@ -17,7 +17,7 @@ export const PF_CONNECTED = 1, PF_ALIVE = 2, PF_FIRING = 4, PF_READY = 8, PF_REL
 export const CF_BURNING = 1, CF_SLOWED = 2, CF_GUARD = 4, CF_HUNTING = 8, CF_SIEGE = 16, CF_ASLEEP = 32, CF_WINDUP = 64, CF_STRIKE = 128;
 
 export const enum Order { Idle = 0, Move, AMove, Attack, Hold, Build, Repair, Loot, Revive, Steer }
-export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake }
+export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake, Bell }
 export const enum Weather { Clear = 0, Fog, Rain, Storm, Snow, Drizzle, Thunder, HeavySnow }
 // How much each weather counts as rain (internal/game/weather.go wetness).
 export const WET = [0, 0, 1, 1, 0, 0.3, 0.5, 0];
@@ -30,11 +30,12 @@ export const enum Emote { None = 0, Taunt }
 export const enum PingKind { Here = 0, Danger, Loot, Defend }
 // Station: the gas station's shop. Pump: one of its fuel pumps, not loot; searched means blown up.
 // Plane: the crashed plane, searched from beside its hull. Tank: one of its engines, like a pump.
-export const enum SiteKind { House = 0, Car, Crate, Outpost, Pickup, Police, Ambulance, Bus, Army, Station, Pump, Fire, Armored, Camper, Moto, Plane, Tank }
+// Church: rung, not searched, from inside at the foot of its tower; searched means the bell still swings.
+export const enum SiteKind { House = 0, Car, Crate, Outpost, Pickup, Police, Ambulance, Bus, Army, Station, Pump, Fire, Armored, Camper, Moto, Plane, Tank, Church }
 // A building searched from inside, rather than a thing in the open.
-export function walled(k: number): boolean { return k === SiteKind.House || k === SiteKind.Outpost || k === SiteKind.Station; }
+export function walled(k: number): boolean { return k === SiteKind.House || k === SiteKind.Outpost || k === SiteKind.Station || k === SiteKind.Church; }
 // Which prop a site shows (scene/loot.ts): an outpost's stash looks like a house's.
-const PROP = [0, 1, 2, 0, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+const PROP = [0, 1, 2, 0, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 export function propKind(k: number): number { return PROP[k] ?? -1; }
 // A vehicle on the road: a car, pickup, cruiser, ambulance, bus, army truck, fire engine, cash
 // van, camper or motorbike.
