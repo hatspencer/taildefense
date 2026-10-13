@@ -439,11 +439,11 @@ func (w *World) stepCreeps() {
 				if dist <= close+.05 {
 					continue
 				}
-				speed = min(c.sprintSpeed(speed), (dist-close)/Dt)
+				speed = min(w.pursuit(c, d, speed, dist), (dist-close)/Dt)
 				mx, my = dx/dist, dy/dist
 			} else {
 				mx, my = w.chaseWay(c, tp, dist)
-				speed = c.sprintSpeed(speed)
+				speed = w.pursuit(c, d, speed, dist)
 			}
 		} else {
 			tx, ty := int(c.X), int(c.Y)

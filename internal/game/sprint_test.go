@@ -47,3 +47,48 @@ func TestChasersOutrunASurvivorAndSprintersOutrunASprint(t *testing.T) {
 		t.Fatalf("a sprinter's burst is %v, a sprinting survivor %v", v, sprinting)
 	}
 }
+
+func TestAHitPullsACreepFromAfarWithoutAJumpToARun(t *testing.T) {
+	for _, wander := range []bool{false, true} {
+		w := newBare(4)
+		w.Phase = PhaseWave
+		w.Queue = []Spawn{{At: 1e9}}
+		p, _ := w.Join("ana", "ana@example")
+		p.MaxHP, p.HP = 1e6, 1e6
+		// Out on open ground, the survivor twelve tiles off: past a walker's sight.
+		x, y := float32(0), float32(0)
+		for ty := 4; ty < w.H-4 && x == 0; ty += 3 {
+			for tx := 4; tx < w.W-16; tx++ {
+				if w.clearShot(float32(tx)+.5, float32(ty)+.5, float32(tx)+12.5, float32(ty)+.5) && !w.At(tx, ty).Solid() &&
+					abs(tx-int(w.CoreX)) > 40 {
+					x, y = float32(tx)+.5, float32(ty)+.5
+					break
+				}
+			}
+		}
+		if !w.SpawnCreep(CWalker, x, y) {
+			t.Fatal("no walker")
+		}
+		c := &w.Creeps[len(w.Creeps)-1]
+		c.HP, c.MaxHP, c.Sprinter, c.Wander = 1e6, 1e6, false, wander
+		c.HX, c.HY = x-20, y
+		// Shot by the survivor, and set on them whatever the dice say.
+		w.shooter = int8(p.ID)
+		w.damage(int32(len(w.Creeps)-1), 5, int8(p.ID))
+		w.shooter = -1
+		c.Hunt, c.HuntLeft = int8(p.ID), 6
+		fastest := float32(0)
+		for i := 0; i < TickRate*2; i++ {
+			p.X, p.Y = x+12, y
+			p.Weapons[p.Cur].Cool = 1
+			x0, y0 := c.X, c.Y
+			w.Step()
+			if dx, dy := c.X-x0, c.Y-y0; c.X-p.X < -Creeps[CWalker].Aggro-1 {
+				fastest = max(fastest, sqrt32(dx*dx+dy*dy)*TickRate)
+			}
+		}
+		if fastest > Creeps[CWalker].Speed*pullPace*1.3 || fastest < Creeps[CWalker].Speed {
+			t.Fatalf("wander %v: a walker shot from afar comes on at up to %.2f tiles/s", wander, fastest)
+		}
+	}
+}

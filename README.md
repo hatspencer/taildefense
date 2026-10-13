@@ -195,7 +195,8 @@ too.
 Gunfire is loud. Shooting wakes guards nearby and pulls wave creeps in earshot towards you; rain
 and storms muffle it.
 
-Creeps can be pulled. Shooting one may make it come for you instead of the generator, and a
+Creeps can be pulled. Shooting one may make it come for you instead of the generator (at a
+quickened walk until it is close enough to see you, then at a run), and a
 taunt (V) pulls everything around you. Creeps also take against things by themselves now and
 then: a turret or wall they pass, or a survivor further off than they'd normally notice.
 
