@@ -119,6 +119,7 @@ each wave, but Normal is the reference for timing.
   first, and whoever is still inside is hurt hard (75 at the middle for a brute, 130 for an
   abomination, half that at the edge), thrown clear and stunned where they land: no walking,
   firing or abilities for 1.5 s (brute) or 2.5 s (abomination), with stars round their head.
+  Turrets, walls and other buildings caught by the ring are hurt the same (the armory excepted).
   Step out, or eat it.
 - **The gas station.** One per map, beside a road out near the edge. Its shop always gives a
   gun you don't have yet, so it is heavily held: a garrison round the pumps, and more hiding in

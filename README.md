@@ -189,7 +189,8 @@ for long; they find the door.
 Every hit you land stops one for a moment, though, which buys a step.
 
 Brutes and abominations slam the ground when you come near: a ring shows where it will land a
-moment before. Get out of it.
+moment before. Get out of it, and don't fight them next to your turrets: the slam wrecks those
+too.
 
 Gunfire is loud. Shooting wakes guards nearby and pulls wave creeps in earshot towards you; rain
 and storms muffle it.
