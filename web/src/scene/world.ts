@@ -32,8 +32,8 @@ export class World {
   private shadowSpan = 40;
   private cssW = 1; private cssH = 1;
 
-  constructor(canvas: HTMLCanvasElement, forceWebGL: boolean) {
-    this.renderer = new THREE.WebGPURenderer({ canvas, antialias: true, forceWebGL, powerPreference: 'high-performance' });
+  constructor(canvas: HTMLCanvasElement, forceWebGL: boolean, antialias = true) {
+    this.renderer = new THREE.WebGPURenderer({ canvas, antialias, forceWebGL, powerPreference: 'high-performance' });
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.scene.background = new THREE.Color(SKY);
