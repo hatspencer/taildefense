@@ -13,7 +13,7 @@ interface Hero {
   group: THREE.Group; body: THREE.Group; hips: THREE.Group; torso: THREE.Group; head: THREE.Group; tail: THREE.Group | null; pack: THREE.Group;
   legL: Limb; legR: Limb; armL: Limb; armR: Limb;
   gun: THREE.Group; gunMesh: THREE.Mesh | null; spin: THREE.Group | null; flash: THREE.Object3D; finger: THREE.Object3D; hand: THREE.Object3D;
-  shout: THREE.Object3D; marker: THREE.Object3D; cross: THREE.Object3D; progress: THREE.Object3D;
+  shout: THREE.Object3D; stars: THREE.Object3D; marker: THREE.Object3D; cross: THREE.Object3D; progress: THREE.Object3D;
   look: number; wd: number; ht: number; weapon: number; color: number;
   phase: number; seen: number; down: boolean; pop: number; shotAt: number; crouch: number; downAmt: number; taunt: number; reload: number;
   sprint: number; leap: number; hurt: boolean;
@@ -90,11 +90,13 @@ export class Heroes {
   private mat = litMaterial();
   private flashMat = new THREE.MeshBasicNodeMaterial({ color: 0xffe08a, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending });
   private bubbleMat = new THREE.MeshBasicNodeMaterial({ color: 0xf4efe0 });
+  private starMat = new THREE.MeshBasicNodeMaterial({ color: 0xffe060 });
   private shoutMat = new THREE.MeshBasicNodeMaterial({ color: 0xd8281c });
   private markerMat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
   private crossMat = new THREE.MeshBasicNodeMaterial();
   private progMat = new THREE.MeshBasicNodeMaterial({ color: 0x60ff90, transparent: true, opacity: 0.55, depthWrite: false });
   private bubbleGeo: THREE.BufferGeometry; private shoutGeo: THREE.BufferGeometry;
+  private starGeo = merge([part(box(0.13, 0.04, 0.04), 0, 0, 0, 0), part(box(0.04, 0.13, 0.04), 0, 0, 0, 0), part(box(0.04, 0.04, 0.13), 0, 0, 0, 0)]);
   private ringGeo: THREE.BufferGeometry; private discGeo: THREE.BufferGeometry; private crossGeo: THREE.BufferGeometry;
   private serial = 0;
   private q = new THREE.Quaternion();
@@ -207,6 +209,15 @@ export class Heroes {
     shout.add(new THREE.Mesh(this.bubbleGeo, this.bubbleMat), new THREE.Mesh(this.shoutGeo, this.shoutMat));
     shout.visible = false;
     g.add(shout);
+    // Stunned by a slam: stars wheeling round the head.
+    const stars = new THREE.Group();
+    for (let k = 0; k < 4; k++) {
+      const a = k * Math.PI / 2, s = new THREE.Mesh(this.starGeo, this.starMat);
+      s.position.set(Math.cos(a) * 0.38, 0, Math.sin(a) * 0.38);
+      stars.add(s);
+    }
+    stars.visible = false;
+    g.add(stars);
     const marker = new THREE.Mesh(this.ringGeo, this.markerMat);
     marker.position.y = 0.03; marker.renderOrder = 4; marker.visible = false;
     const progress = new THREE.Mesh(this.discGeo, this.progMat);
@@ -218,7 +229,7 @@ export class Heroes {
     this.group.add(g);
     const h: Hero = {
       group: g, body, hips, torso, head, tail, pack, legL, legR, armL, armR, gun, gunMesh: null, spin: null, flash, finger, hand,
-      shout, marker, cross, progress, look, wd: L.width, ht: L.height, weapon: -1, color: c,
+      shout, stars, marker, cross, progress, look, wd: L.width, ht: L.height, weapon: -1, color: c,
       phase: 0, seen: 0, down: false, pop: 0, shotAt: -1e9, crouch: 0, downAmt: 0, taunt: 0, reload: 0, sprint: 0, leap: 0, hurt: false,
       x: 0, y: 0, vx: 0, vy: 0, legYaw: 0, dirSign: 1, fresh: true,
       leanX: new Spring(2.2, 0.45, 0), leanZ: new Spring(2.2, 0.45, 0), aim: new Spring(4.5, 0.75, 1.6), flinch: new Spring(3, 0.3, 0),
@@ -440,6 +451,11 @@ export class Heroes {
         h.shout.position.set(0, 1.95 + Math.sin(t * 6) * 0.04, 0);
         h.shout.quaternion.copy(this.q);
         h.shout.scale.setScalar(0.6 + tn * 0.5 + jab * 0.5);
+      }
+      h.stars.visible = alive && p.stunned;
+      if (h.stars.visible) {
+        h.stars.position.set(0, 1.75 + Math.sin(t * 7) * 0.04, 0);
+        h.stars.rotation.set(0, t * 5, 0);
       }
       // Downed: just a small flat ring on the ground; the HUD label draws the cross, countdown
       // and revive progress above them, so nothing 3D floats up into it.

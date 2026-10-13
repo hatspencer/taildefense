@@ -133,7 +133,8 @@ the next one in over a few seconds; its effects scale with `weatherAmt`:
 | 6    | Thunder shower | light rain, and lightning now and then (every 7–15 s) |
 | 7    | Heavy snow | creeps 15% slower, survivors 8% slower (rare) |
 
-Difficulty is the host's choice, fixed for the game (a restart keeps it): it scales creep
+Difficulty is the host's choice (a restart keeps it), and the host can change it mid-game
+with the `difficulty` op; every page is then sent a `difficulty` message. It scales creep
 health and wave size, the gold creeps drop, the build time between waves, the strength of
 loot guards and how long a downed survivor can be revived.
 
@@ -227,7 +228,8 @@ u8   nPlayers
   u8   emoteLeft      deciseconds left of the emote
   u16  tauntCool      deciseconds until the taunt can be used again
   u8   stamina        0..255, spent by sprinting
-  u8   sprint         bit 0 sprinting now, bit 1 winded (no sprint until the bar is back to about a third)
+  u8   sprint         bit 0 sprinting now, bit 1 winded (no sprint until the bar is back to about a third),
+                      bit 2 stunned by a slam (not moving, firing or casting)
   u32  look           what the survivor looks like, dealt by the host on joining, bits:
                         0-3 archetype (0 paramedic, 1 mechanic, 2 hunter, 3 student, 4 builder,
                             5 nurse, 6 biker, 7 farmer, 8 ex-soldier, 9 office worker),
@@ -279,7 +281,7 @@ u16  nCreeps
 u16  nTracers         shots fired this tick
   u16  x0, y0, x1, y1 q8
   u8   kind           0..6 player weapon kind (6 the crowbar: a swing, the survivor to its
-                      reach), 16+structKind turret shot, 32 spitter spit, 33 dash (the hero's leap, start to end), 34 the Huey's door gunner
+                      reach), 16+structKind turret shot, 32 spitter spit, 35 a hurler's bone, 33 dash (the hero's leap, start to end), 34 the Huey's door gunner
                       (x0,y0 is the Huey over the ground; it fires from the air)
 u16  nBlasts          explosions and pulses this tick
   u16  x, y q8
@@ -315,6 +317,7 @@ u8   nPings           spots players marked for the team this tick
 {"t": "toast", "level": 2, "text": "not enough gold: need 250, have 120"}  // to you only
 {"t": "status", "text": "hosting · 2/8 · friends: td join box"}          // about every 2 s
 {"t": "end", "reason": "the host ended the game or went away"}          // then the socket closes
+{"t": "difficulty", "difficulty": {"id": 2, "name": "Hard"}, "dark": 7}  // the host changed it; dark as in the welcome
 ```
 
 ## Browser → server
@@ -349,6 +352,7 @@ integers. The host checks everything; a refusal comes back as a `toast` with lev
 {"op": "revive",  "p": 2}                    // walk to downed player 2 and revive them
 {"op": "ready",   "on": true}                // ready for the next wave (all ready: starts in 3 s)
 {"op": "restart"}                            // a new map, only once the game is over
+{"op": "difficulty", "kind": 2}              // the host only: change the difficulty from here on
 {"op": "chat",    "text": "gg"}
 {"op": "ping",    "x": 150, "y": 98, "kind": 1}  // mark a spot for everyone; 3 back to back, then one a second
 {"op": "leave"}                              // back to the terminal; ends the game if hosting

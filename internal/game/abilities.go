@@ -96,6 +96,9 @@ func (w *World) Cast(p *Player, slot int, x, y float32) error {
 	if !p.Alive {
 		return errors.New("you are down")
 	}
+	if p.Stunned() {
+		return errors.New("you are stunned")
+	}
 	if w.Phase == PhaseOver {
 		return errOver
 	}

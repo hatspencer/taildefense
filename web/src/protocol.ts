@@ -47,7 +47,7 @@ export function lootable(k: number): boolean { return k !== SiteKind.Pump && k !
 // Slam: a warlord's fists coming down on everything within r of (x, y) when left runs out.
 export const enum EffectKind { Grenade = 1, Napalm = 2, AirTarget = 3, Drop = 4, Slam = 5 }
 // The door gunner's shots, from the Huey in the air.
-export const TRACER_HELI = 34;
+export const TRACER_HELI = 34, TRACER_SHARD = 35;
 
 export interface CreepDef { name: string; hp: number; speed: number; radius: number; size: number; ranged: boolean; bounty: number; rate?: number; windup?: number }
 export interface SigDef { name: string; desc: string; cool: number; range: number; radius?: number; cone?: number; target: string }
@@ -111,13 +111,16 @@ export function sellValue(d: StructDef, level: number, hp: number, maxHp: number
 export interface Toast { t: 'toast'; level: number; text: string }
 export interface Status { t: 'status'; text: string }
 export interface End { t: 'end'; reason: string }
-export type TextMsg = Welcome | Toast | Status | End;
+// The host changed the difficulty mid-game; dark is the night it brings (0 for none).
+export interface DifficultyMsg { t: 'difficulty'; difficulty: { id: number; name: string }; dark: number }
+export type TextMsg = Welcome | Toast | Status | End | DifficultyMsg;
 
 export type Command =
   | { op: 'move' | 'amove'; x: number; y: number }
   | { op: 'attack'; id: number }
   | { op: 'stop' } | { op: 'hold' } | { op: 'reload' } | { op: 'restart' } | { op: 'leave' } | { op: 'taunt' } | { op: 'sprint'; on: boolean } | { op: 'pause' }
   | { op: 'revive'; p: number }
+  | { op: 'difficulty'; kind: number }
   | { op: 'ability'; slot: number; x: number; y: number }
   | { op: 'build'; kind: number; tx: number; ty: number }
   | { op: 'repair' | 'upgradeStruct' | 'sell'; s: number }
@@ -139,7 +142,7 @@ export class Player {
   levels = new Uint8Array(WEAPON_SLOTS * 4); gear = new Uint8Array(4);
   // channel: the current search's (order Loot) or revive's (order Revive) progress, 0..1.
   // revived: for a downed survivor, how far someone's revive of them is, 0..1.
-  order = 0; channel = 0; revived = 0; emote = 0; emoteLeft = 0; tauntCool = 0; stamina = 1; sprinting = false; winded = false; look = 0; buff = 0; buffLeft = 0;
+  order = 0; channel = 0; revived = 0; emote = 0; emoteLeft = 0; tauntCool = 0; stamina = 1; sprinting = false; winded = false; stunned = false; look = 0; buff = 0; buffLeft = 0;
   abLevel = new Uint8Array(4); abCool = new Float32Array(4);
   // Medkits carried, and seconds of a medkit's healing left.
   medkits = 0; heal = 0;
@@ -167,7 +170,7 @@ export class Player {
     this.reload = o.reload; this.respawn = o.respawn; this.gold = o.gold; this.kills = o.kills;
     this.damage = o.damage; this.owned = o.owned; this.levels.set(o.levels); this.gear.set(o.gear);
     this.order = o.order; this.channel = o.channel; this.revived = o.revived; this.emote = o.emote;
-    this.emoteLeft = o.emoteLeft; this.tauntCool = o.tauntCool; this.stamina = o.stamina; this.sprinting = o.sprinting; this.winded = o.winded; this.look = o.look; this.buff = o.buff; this.buffLeft = o.buffLeft;
+    this.emoteLeft = o.emoteLeft; this.tauntCool = o.tauntCool; this.stamina = o.stamina; this.sprinting = o.sprinting; this.winded = o.winded; this.stunned = o.stunned; this.look = o.look; this.buff = o.buff; this.buffLeft = o.buffLeft;
     this.abLevel.set(o.abLevel); this.abCool.set(o.abCool); this.medkits = o.medkits; this.heal = o.heal; this.reloading = o.reloading; this.name = o.name;
     this.downs = o.downs; this.revives = o.revives; this.built = o.built; this.searched = o.searched; this.bosses = o.bosses; this.taken = o.taken; this.turret = o.turret;
   }
@@ -284,7 +287,7 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
     p.gear.set(bytes.subarray(o, o + 4)); o += 4;
     p.order = d.getUint8(o); p.channel = d.getUint8(o + 1) / 255; p.revived = d.getUint8(o + 2) / 255;
     p.emote = d.getUint8(o + 3); p.emoteLeft = d.getUint8(o + 4) / 10; p.tauntCool = d.getUint16(o + 5, true) / 10;
-    p.stamina = d.getUint8(o + 7) / 255; const sp = d.getUint8(o + 8); p.sprinting = (sp & 1) !== 0; p.winded = (sp & 2) !== 0;
+    p.stamina = d.getUint8(o + 7) / 255; const sp = d.getUint8(o + 8); p.sprinting = (sp & 1) !== 0; p.winded = (sp & 2) !== 0; p.stunned = (sp & 4) !== 0;
     p.look = d.getUint32(o + 9, true);
     p.buff = d.getUint8(o + 13); p.buffLeft = d.getUint8(o + 14) / 10; o += 15;
     for (let a = 0; a < 4; a++) {

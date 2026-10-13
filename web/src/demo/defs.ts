@@ -10,6 +10,7 @@ export const CREEPS: CreepDef[] = [
   { name: 'brute', hp: 280, speed: 1.5, radius: 0.9, size: 2, ranged: false, bounty: 15, rate: 0.7, windup: 0.65 },
   { name: 'spitter', hp: 55, speed: 1.5, radius: 0.45, size: 1, ranged: true, bounty: 6, rate: 0.5, windup: 0.5 },
   { name: 'abomination', hp: 3200, speed: 0.95, radius: 1.4, size: 3, ranged: false, bounty: 300, rate: 0.6, windup: 0.7 },
+  { name: 'hurler', hp: 45, speed: 1.4, radius: 0.45, size: 1, ranged: true, bounty: 8, rate: 0.4, windup: 0.8 },
 ];
 
 interface W0 { name: string; short: string; price: number; range: number; fire: string; special: string; dmg: number; rate: number; mag: number; reload: number; sig: WeaponDef['sig'] }

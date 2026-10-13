@@ -237,6 +237,14 @@ func (s *session) host(m netplay.Msg) {
 		default:
 			// The page is behind; this frame is dropped, the next one is whole anyway.
 		}
+	case netplay.MsgDiff:
+		// The host changed the difficulty: the page's welcome follows it.
+		if len(m.Payload) == 1 {
+			s.wel.Diff = game.Difficulty(m.Payload[0])
+			if s.b != nil && s.b.ready {
+				s.text(s.b, difficultyMsg(s.wel.Diff))
+			}
+		}
 	case netplay.MsgToast:
 		level, text := netplay.DecodeToast(m.Payload)
 		if s.b != nil {
@@ -396,6 +404,8 @@ func (s *session) command(p []byte) bool {
 		}
 	case "medkit":
 		nc = netplay.Cmd{Op: netplay.OpMedkit}
+	case "difficulty":
+		nc = netplay.Cmd{Op: netplay.OpDifficulty, A: u8(c.Kind)}
 	case "buyMedkit":
 		nc = netplay.Cmd{Op: netplay.OpBuyMedkit}
 	case "revive":

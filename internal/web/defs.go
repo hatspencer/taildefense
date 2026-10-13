@@ -266,3 +266,12 @@ func welcome(wel netplay.Welcome, core point, host, hint string, hosting bool) w
 	m.Medkit = medkitDef{mh, mt, mm, mc}
 	return m
 }
+
+// difficultyMsg tells a page the host changed the difficulty, with the night it brings.
+func difficultyMsg(d game.Difficulty) map[string]any {
+	m := map[string]any{"t": "difficulty", "difficulty": difficultyRef{int(d), d.String()}, "dark": float32(0)}
+	if d < game.NumDifficulties {
+		m["dark"] = game.Difficulties[d].Dark
+	}
+	return m
+}

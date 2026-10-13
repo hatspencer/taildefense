@@ -5,17 +5,18 @@ import "math"
 // The slam: a brute or an abomination, once it has a survivor in reach, stops, rears up and
 // brings both fists down, and the ground round it heaves. The blow is telegraphed for a
 // moment by a ring on the ground (EffSlam); whoever is still inside it when it lands is hurt
-// and thrown clear. The abomination's ring is the bigger, and hurts the more.
+// hard, thrown clear and stunned: stopped where they land, not moving or firing. The
+// abomination's ring is the bigger, hurts the more and stuns the longest.
 
 // slamDef is a kind's slam.
 type slamDef struct {
-	every, windup, radius, hurt, throw float32
+	every, windup, radius, hurt, throw, stun float32
 }
 
 // slams is indexed by creep kind; a zero radius is a kind that does not slam.
 var slams = [NumCreepKinds]slamDef{
-	CBrute: {every: 4.5, windup: .9, radius: 5.5, hurt: 34, throw: 1.4},
-	CBoss:  {every: 4, windup: 1.1, radius: 8, hurt: 65, throw: 2.2},
+	CBrute: {every: 4.5, windup: .9, radius: 6, hurt: 75, throw: 1.6, stun: 1.5},
+	CBoss:  {every: 4, windup: 1.1, radius: 9, hurt: 130, throw: 2.6, stun: 2.5},
 }
 
 // slamStart is how long after a survivor first comes within the ring before the first slam.
@@ -53,12 +54,14 @@ func (w *World) bossSlam(c *Creep, tp *Player) bool {
 	return true
 }
 
-// slamLands is a slam coming down: survivors inside the ring are hurt and thrown out of it.
+// slamLands is a slam coming down: survivors inside the ring are hurt, thrown out of it and
+// stunned.
 func (w *World) slamLands(e *Effect) {
-	throw, slow := slams[CBrute].throw, float32(slamSlowBrute)
+	sd := slams[CBrute]
 	if e.R >= slams[CBoss].radius {
-		throw, slow = slams[CBoss].throw, slamSlowBoss
+		sd = slams[CBoss]
 	}
+	throw := sd.throw
 	for _, p := range w.Players {
 		if !p.Alive {
 			continue
@@ -73,7 +76,7 @@ func (w *World) slamLands(e *Effect) {
 		if !p.Alive {
 			continue
 		}
-		p.slow(slow)
+		p.stun(sd.stun)
 		if d < 1e-3 {
 			dx, dy, d = 1, 0, 1
 		}

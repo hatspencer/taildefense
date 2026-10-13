@@ -509,6 +509,22 @@ func (s *Server) command(p *peer, c Cmd) {
 			break
 		}
 		s.restart()
+	case OpDifficulty:
+		if s.cfg.Owner == "" || p.id.Login != s.cfg.Owner {
+			err = errors.New("only the host can change the difficulty")
+			break
+		}
+		if err = w.SetDifficulty(pl, game.Difficulty(c.A)); err == nil {
+			for _, q := range s.peers {
+				if q.gone {
+					continue
+				}
+				select {
+				case q.out <- outMsg{MsgDiff, []byte{uint8(w.Diff)}}:
+				default:
+				}
+			}
+		}
 	case OpChat:
 		if t := strings.TrimSpace(c.Text); t != "" {
 			w.Notes = append(w.Notes, game.Note{Text: pl.Name + ": " + t, Level: game.NoteChat})
@@ -617,6 +633,7 @@ const (
 	OpSteer  // A angle in 256ths of a turn, B 1 walking, 0 let go
 	OpMedkit // use one
 	OpBuyMedkit
+	OpDifficulty // A difficulty; the host only
 )
 
 // Cmd is a discrete request from a player. X and Y are tiles, sent to 1/8; T names a creep

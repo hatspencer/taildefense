@@ -212,7 +212,7 @@ const hordeFrom = 10
 
 // mixWeight is how often each kind is picked for a group once its wave is reached; brutes
 // grow more common up to wave 24.
-var mixWeight = [NumCreepKinds]float32{CWalker: 1, CRunner: .5, CSwarmer: .6, CBrute: .1, CSpitter: .25}
+var mixWeight = [NumCreepKinds]float32{CWalker: 1, CRunner: .5, CSwarmer: .6, CBrute: .1, CSpitter: .25, CHurler: .15}
 
 // walkersFor is how many times over a wave's budget pays for walkers: twice from wave 3. The
 // first wave is left as it was, all the starting turrets can hold alone, the second between.
@@ -229,7 +229,7 @@ func cost(k CreepKind, wave int) float32 {
 }
 
 // groupSize is the range of a group's size per kind.
-var groupSize = [NumCreepKinds][2]int{CWalker: {4, 12}, CRunner: {3, 8}, CSwarmer: {12, 30}, CBrute: {1, 2}, CSpitter: {2, 4}, CBoss: {1, 1}}
+var groupSize = [NumCreepKinds][2]int{CWalker: {4, 12}, CRunner: {3, 8}, CSwarmer: {12, 30}, CBrute: {1, 2}, CSpitter: {2, 4}, CBoss: {1, 1}, CHurler: {1, 3}}
 
 // plan lays out every spawn of a wave: groups of one kind at one place on one of the wave's
 // fronts, spread over the wave's opening seconds.
@@ -420,7 +420,11 @@ func (w *World) stepCreeps() {
 				if c.swing(d, tp.X, tp.Y) {
 					w.hurtPlayer(tp, d.Damage)
 					tp.slow(playerSlow[c.Kind])
-					w.tracer(c.X, c.Y, tp.X, tp.Y, TracerSpit)
+					kind := uint8(TracerSpit)
+					if c.Kind == CHurler {
+						kind = TracerShard
+					}
+					w.tracer(c.X, c.Y, tp.X, tp.Y, kind)
 				}
 				continue
 			}
@@ -586,7 +590,11 @@ func (w *World) attackStruct(c *Creep, d *CreepDef, si int) {
 	}
 	s.HP -= dmg
 	if d.Ranged {
-		w.tracer(c.X, c.Y, s.CX(), s.CY(), TracerSpit)
+		kind := uint8(TracerSpit)
+		if c.Kind == CHurler {
+			kind = TracerShard
+		}
+		w.tracer(c.X, c.Y, s.CX(), s.CY(), kind)
 	}
 }
 
@@ -618,7 +626,7 @@ func (w *World) respawn(p *Player) {
 	p.X, p.Y = w.CoreX+.5, w.CoreY+3.8
 	p.Order = Order{}
 	p.Search, p.Revived = 0, 0
-	p.slowLeft, p.slowCool = 0, 0
+	p.slowLeft, p.slowCool, p.stunLeft = 0, 0, 0
 	p.walk.reset()
 	p.BuffLeft = 0
 	p.Stamina, p.Winded = 1, false

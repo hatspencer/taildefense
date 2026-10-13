@@ -52,6 +52,18 @@ export class Game {
   vision: Vision | null = null;
   hiddenAt = new Uint32Array(MAX_CREEPS);
 
+  // setDifficulty follows the host changing the difficulty: night comes or goes with it, and
+  // with night the sight the page keeps.
+  setDifficulty(d: { id: number; name: string }, dark: number): void {
+    const w = this.welcome;
+    if (!w) return;
+    w.difficulty = d;
+    if ((w.dark ?? 0) === dark) return;
+    w.dark = dark;
+    this.vision = w.fogOfWar || w.dark ? new Vision(w.w, w.h, w) : null;
+    this.hiddenAt.fill(0);
+  }
+
   reset(w: Welcome): void {
     w.siteKinds ??= []; w.sites ??= []; w.weathers ??= [{ name: 'Clear', info: '' }];
     w.difficulties ??= ['Normal']; w.difficulty ??= { id: 0, name: 'Normal' };

@@ -87,6 +87,9 @@ it here along with the code.
 ## Difficulty
 
 Difficulty scales creep health, wave size, gold, break lengths, revive time and loot guards.
+The host can change it mid-game by clicking the difficulty chip at the top left, which steps
+to the next one (round from Brutal to Easy). It counts from then on: creeps already out keep
+their health, and a survivor keeps the weapon they started with. Night falls or lifts with it.
 Harder modes get a little longer short breaks than Normal, since there is more to build against
 each wave, but Normal is the reference for timing.
 
@@ -112,8 +115,11 @@ each wave, but Normal is the reference for timing.
 - **Outposts.** Three overrun forts far out, held by a garrison and its warlord. They give three
   finds, the first one rare at least. They're hard early on, and a goal for later. Every brute
   and abomination slams the ground every few seconds once a survivor comes within its ring
-  (5.5 tiles for a brute, 8 for an abomination): the ring shows on the ground for about a second
-  first, and whoever is still inside is hurt and thrown clear. Step out, or eat it.
+  (6 tiles for a brute, 9 for an abomination): the ring shows on the ground for about a second
+  first, and whoever is still inside is hurt hard (75 at the middle for a brute, 130 for an
+  abomination, half that at the edge), thrown clear and stunned where they land: no walking,
+  firing or abilities for 1.5 s (brute) or 2.5 s (abomination), with stars round their head.
+  Step out, or eat it.
 - **The gas station.** One per map, beside a road out near the edge. Its shop always gives a
   gun you don't have yet, so it is heavily held: a garrison round the pumps, and more hiding in
   the shop that burst out when you step onto the lot. The pumps blow up when shot, hurting
@@ -144,8 +150,12 @@ each wave, but Normal is the reference for timing.
   burning ground never stun.
 - **Blows slow survivors.** A creep's blow makes a survivor walk at half speed for a moment;
   they keep firing. It lasts 0.4 s for most, a second for a brute's, 1.5 s for the
-  abomination's. A slam slows them 1.2 s (brute) or 1.8 s (abomination), a fuel pump going up
-  0.8 s. A survivor just slowed can't be slowed again for 0.6 s, so a swarm can't hold one.
+  abomination's, 2.2 s for a hurler's bone. A fuel pump going up slows them 0.8 s; a slam stuns instead (above). A survivor just slowed can't be slowed again for 0.6 s, so a swarm can't hold one.
+- **Hurlers.** From wave 8, in ones to threes, a gaunt dead thing tears shards of bone out of
+  its own back and throws them: 13 tiles, over twice a spitter's reach, with a long wind-up.
+  Each hit is light but slows the survivor longest of any blow, pinning them for the rest of
+  the crowd. They hunt survivors and never siege the base, which their reach would let them
+  shell from beyond the turrets.
 - **Sprinters.** Some runners, swarmers and walkers sprint once they have a survivor to chase:
   faster than even a sprinting survivor for about three and a half seconds, then four seconds
   at the usual chase. You can't simply run from a pull; you have to outlast it.

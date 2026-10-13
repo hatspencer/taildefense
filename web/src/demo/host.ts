@@ -25,9 +25,9 @@ const G_ASLEEP = 1, G_HUNT = 2, G_HOME = 3;
 const S_READY = 1, S_WINDUP = 2, S_STRIKE = 3;
 // Per kind: reach beyond the creep's radius (internal/game/defs.go), blows a second, windup,
 // and how hard a blow lands on a survivor relative to a walker's.
-const REACH = [0.5, 0.5, 0.4, 0.6, 6, 0.8];
+const REACH = [0.5, 0.5, 0.4, 0.6, 6, 0.8, 13];
 const RATE = CREEPS.map((c) => c.rate ?? 1), WINDUP = CREEPS.map((c) => c.windup ?? 0.4);
-const HEFT = [1, 1, 0.7, 2.5, 1, 5];
+const HEFT = [1, 1, 0.7, 2.5, 1, 5, 1];
 // A creep's blow on a structure, as the host's.
 const SDMG = [6, 4, 2, 39, 9, 105];
 
@@ -464,7 +464,8 @@ export class DemoHost implements Transport {
     const r = this.rnd();
     if (r < 0.002 && this.bosses < 3) { this.bosses++; return 5; }
     if (r < 0.06) return 3;
-    if (r < 0.12) return 4;
+    if (r < 0.1) return 4;
+    if (r < 0.12) return 6;
     if (r < 0.37) return 2;
     if (r < 0.57) return 1;
     return 0;
@@ -667,7 +668,7 @@ export class DemoHost implements Transport {
     if (!p) return false;
     if (!this.swing(id)) return true;
     // The demo's own hero is tougher so a screenshot does not open on a death screen; bots go gently too.
-    if (k === 4) { this.tracer(x, y, p.x, p.y, 32); this.hit(p, p.bot ? 5 : 2); }
+    if (k === 4 || k === 6) { this.tracer(x, y, p.x, p.y, k === 6 ? 35 : 32); this.hit(p, p.bot ? 5 : 2); }
     else this.hit(p, (p.bot ? 4 : 1.5) * HEFT[k] / RATE[k]);
     return true;
   }
@@ -1335,6 +1336,14 @@ export class DemoHost implements Transport {
       }
       case 'chat': this.notes.push({ level: 3, text: `${p.name}: ${cmd.text}` }); break;
       case 'ping': this.pings.push({ player: p.id, x: cmd.x, y: cmd.y, kind: Math.min(3, Math.max(0, cmd.kind | 0)) }); break;
+      case 'difficulty': {
+        const names = this.welcome.difficulties, id = cmd.kind;
+        if (id < 0 || id >= names.length || id === this.welcome.difficulty.id) break;
+        this.welcome.difficulty = { id, name: names[id] };
+        dispatch(this.h, JSON.stringify({ t: 'difficulty', difficulty: this.welcome.difficulty, dark: this.welcome.dark ?? 0 }));
+        this.notes.push({ level: 0, text: `${p.name} set the difficulty to ${names[id]}` });
+        break;
+      }
       case 'pause':
         this.paused = this.paused >= 0 ? -1 : p.id;
         this.notes.push({ level: 0, text: `${p.name} ${this.paused >= 0 ? 'paused' : 'resumed'} the game` });

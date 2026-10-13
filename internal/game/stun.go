@@ -13,17 +13,16 @@ const (
 )
 
 // A creep's blow slows a survivor: for a moment they walk at half speed, though they keep
-// firing. A brute's or the abomination's blow, and a slam, slows them longest. The same gap
+// firing. A hurler's bone, from far off, slows them longest, then the abomination's and a
+// brute's blows. The same gap
 // keeps a swarm from holding a survivor slowed.
 
 // playerSlow is how long a blow from each kind of creep slows a survivor, in seconds.
-var playerSlow = [NumCreepKinds]float32{CWalker: .4, CRunner: .3, CSwarmer: .25, CBrute: 1, CSpitter: .4, CBoss: 1.5}
+var playerSlow = [NumCreepKinds]float32{CWalker: .4, CRunner: .3, CSwarmer: .25, CBrute: 1, CSpitter: .4, CBoss: 1.5, CHurler: 2.2}
 
-// Seconds a slam (brute's, abomination's) and a fuel pump going up slow a survivor; how much
-// of their speed a slowed survivor keeps; the gap before they can be slowed again.
+// Seconds a fuel pump going up slows a survivor; how much of their speed a slowed survivor
+// keeps; the gap before they can be slowed again.
 const (
-	slamSlowBrute = 1.2
-	slamSlowBoss  = 1.8
 	blastSlow     = .8
 	slowSpeed     = .5
 	playerSlowGap = .6
@@ -37,13 +36,29 @@ func (p *Player) slow(t float32) {
 	p.slowLeft, p.slowCool = t, t+playerSlowGap
 }
 
-// tickSlow counts a survivor's slow down, once a tick.
+// A slam stuns a survivor (slam.go): they stand where it threw them, neither moving nor
+// firing, their order waiting for them. A second slam while stunned stuns them no longer.
+
+// stun stops survivor p for t seconds, unless they are stopped for longer already.
+func (p *Player) stun(t float32) {
+	if p.Alive {
+		p.stunLeft = max(p.stunLeft, t)
+	}
+}
+
+// Stunned reports whether survivor p is stopped by a slam.
+func (p *Player) Stunned() bool { return p.stunLeft > 0 }
+
+// tickSlow counts a survivor's slow and stun down, once a tick.
 func (p *Player) tickSlow() {
 	if p.slowCool > 0 {
 		p.slowCool -= Dt
 	}
 	if p.slowLeft > 0 {
 		p.slowLeft -= Dt
+	}
+	if p.stunLeft > 0 {
+		p.stunLeft -= Dt
 	}
 }
 
