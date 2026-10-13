@@ -10,7 +10,19 @@ const (
 	sprintSpeed = 10.5 // a sprinter's burst: faster than a survivor sprinting
 	sprintFor   = 3.5  // seconds a burst lasts
 	sprintRest  = 4    // seconds before the next
+	pullPace    = 1.5  // of its own speed: a creep pulled from beyond its sight closes in at this
 )
+
+// pursuit is how fast c goes after a survivor dist away this tick. Only one that can see
+// them, within its aggro, breaks into the chase; one pulled from further off (shot, heard,
+// taunted, called) closes in at a quickened walk until it does, rather than jumping straight
+// from a shamble to a run.
+func (w *World) pursuit(c *Creep, d *CreepDef, speed, dist float32) float32 {
+	if dist > d.Aggro*w.aggroMul() {
+		return speed * pullPace
+	}
+	return c.sprintSpeed(speed)
+}
 
 // sprintSpeed is how fast c chases a survivor this tick, given its speed otherwise, and spends
 // a sprinter's burst.

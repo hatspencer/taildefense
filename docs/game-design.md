@@ -144,6 +144,8 @@ each wave, but Normal is the reference for timing.
 - **Chasing.** Every creep after a survivor runs faster than a walking survivor (6.6 to 6), but
   slower than a sprinting one, so sprinting still gets you away. Out of a straight line they
   path round walls: hide in a ruin and they find its door and pour in.
+  Only one that can see the survivor (within its aggro) runs; one pulled from further off, by
+  a shot, the noise, a howl or a taunt, comes on at half again its own pace until it can.
 - **Hits stun.** A survivor's hit stops a creep for a moment (a quarter second; a brute
   0.15 s, an abomination 0.08 s), its windup held where it was, so its blow comes late but
   still comes. A creep just stunned can't be stunned again for half a second, so a fast gun
