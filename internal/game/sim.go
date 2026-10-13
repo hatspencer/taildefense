@@ -214,6 +214,20 @@ const hordeFrom = 10
 // grow more common up to wave 24.
 var mixWeight = [NumCreepKinds]float32{CWalker: 1, CRunner: .5, CSwarmer: .6, CBrute: .1, CSpitter: .25}
 
+// walkersFor is how many times over a wave's budget pays for walkers: twice from wave 3. The
+// first wave is left as it was, all the starting turrets can hold alone, the second between.
+func walkersFor(wave int) float32 {
+	return min(.5+.5*float32(wave), 2)
+}
+
+// cost is what one creep of kind k takes from wave's budget.
+func cost(k CreepKind, wave int) float32 {
+	if k == CWalker {
+		return Creeps[k].Cost / walkersFor(wave)
+	}
+	return Creeps[k].Cost
+}
+
 // groupSize is the range of a group's size per kind.
 var groupSize = [NumCreepKinds][2]int{CWalker: {4, 12}, CRunner: {3, 8}, CSwarmer: {12, 30}, CBrute: {1, 2}, CSpitter: {2, 4}, CBoss: {1, 1}}
 
@@ -274,7 +288,7 @@ func (w *World) plan(wave, players int) []Spawn {
 						k = CWalker
 					}
 					add(k, t0+w.rng.Float32()*6, sp, 0)
-					surge -= Creeps[k].Cost
+					surge -= cost(k, wave)
 				}
 			}
 		}
@@ -294,7 +308,7 @@ func (w *World) plan(wave, players int) []Spawn {
 		sp, t := at(), w.rng.Float32()*dur
 		for j := 0; j < n && budget > 0; j++ {
 			add(k, t, sp, j)
-			budget -= Creeps[k].Cost
+			budget -= cost(k, wave)
 		}
 	}
 	sort.Slice(q, func(i, j int) bool { return q[i].At < q[j].At })

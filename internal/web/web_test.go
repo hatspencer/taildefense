@@ -129,14 +129,14 @@ func TestTheBrowserPlaysThroughTheBridge(t *testing.T) {
 		t.Fatalf("first message: op %d err %v", op, err)
 	}
 	var wel welcomeMsg
-	if err := json.Unmarshal(p, &wel); err != nil || wel.T != "welcome" || wel.W != 320 || !wel.Hosting {
+	if err := json.Unmarshal(p, &wel); err != nil || wel.T != "welcome" || wel.W != 352 || !wel.Hosting {
 		t.Fatalf("welcome: %v %+v", err, wel)
 	}
 	if len(wel.Weapons) != int(game.NumWeapons) || len(wel.Abilities) != game.NumAbilities || wel.Core.X == 0 {
 		t.Fatalf("welcome defs: %d weapons, %d abilities, core %+v", len(wel.Weapons), len(wel.Abilities), wel.Core)
 	}
 	op, p, err = ws.recv()
-	if err != nil || op != opBinary || p[0] != viewTerrain || len(p) != 1+320*200 {
+	if err != nil || op != opBinary || p[0] != viewTerrain || len(p) != 1+wel.W*wel.H {
 		t.Fatalf("terrain: op %d len %d err %v", op, len(p), err)
 	}
 	var x0 float32

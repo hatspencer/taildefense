@@ -63,6 +63,9 @@ it here along with the code.
 - **They grow faster the longer the game goes.** The budget (in walker equivalents) is
   `20 + 12f + 1.1f² + 0.015f³` for wave f, times the difficulty. The early waves are gentle,
   and by the 30s it is a flood.
+- **Walkers come at half price.** From wave 3 a walker takes half a unit of the budget, so the
+  waves bring twice the walkers for the same cost; wave 2 is between. Wave 1 is left as it was,
+  as many as the starting turrets can hold alone, since they have no more to spare.
 - **They scale with players who are actually playing.** Each player beyond the first adds
   `0.6 + 0.015·min(f, 30)` of a wave. A player who hasn't given a command for 90 s doesn't
   count, so an AFK friend doesn't make the game harder for the rest.
@@ -125,7 +128,7 @@ each wave, but Normal is the reference for timing.
   like the pumps when shot.
 - **Wanderers.** The dead roam the wastes between the sites, away from the base, in packs of
   three to six that keep together: walkers mostly, now and then a runner, spitter or brute
-  among them. About two dozen at the start, two more each wave (up to 150), more on harder
+  among them. About four dozen at the start, four more each wave (up to 300), more on harder
   settings. They come for a survivor who gets close or shoots them, and new packs turn up, out
   of sight, as they are killed. The way out is never quite empty.
 - **The chain.** A creep that goes for a survivor howls a moment later, and everything within

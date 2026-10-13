@@ -337,7 +337,7 @@ func New(seed uint64) *World { return NewGame(seed, DefaultDifficulty) }
 // NewGame builds a world from a seed: terrain, the base with its walls, gates and starting
 // turrets, the spawn points on the map edge, and the loot sites with their guards.
 func NewGame(seed uint64, diff Difficulty) *World {
-	const w, h = 320, 200
+	const w, h = 352, 220
 	if diff >= NumDifficulties {
 		diff = DefaultDifficulty
 	}

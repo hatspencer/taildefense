@@ -16,9 +16,9 @@ const (
 	rushEvery   = 10   // the waves the wanderers rush
 	rushFrom    = 15   // seconds into the wave, at the earliest, that they rush
 	rushSpread  = 25   // and at the latest, rushFrom later
-	wanderMost  = 150  // the most wanderers the map ever holds
-	wanderBase  = 24.0 // how many it holds before the first wave
-	wanderWave  = 2.0  // and how many more each wave
+	wanderMost  = 300  // the most wanderers the map ever holds
+	wanderBase  = 48.0 // how many it holds before the first wave
+	wanderWave  = 4.0  // and how many more each wave
 	packLo      = 3    // a pack is this many
 	packHi      = 6    // to this many
 	packSpread  = 2.5  // tiles round its middle
