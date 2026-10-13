@@ -61,6 +61,10 @@ type Session struct {
 	self       tailnet.Self
 	tailErr    error
 	tailLoaded bool
+	// The changelog, read once a launcher first opens it and again on r.
+	log        *cli.Changelog
+	logErr     error
+	logLoading bool
 }
 
 // NewSession starts a session. u may be nil.
@@ -92,6 +96,29 @@ func (s *Session) setTailnet(self tailnet.Self, err error) {
 	s.mu.Unlock()
 }
 
+func (s *Session) changelog() (*cli.Changelog, error, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.log, s.logErr, s.logLoading
+}
+
+func (s *Session) setChangelog(c *cli.Changelog, err error) {
+	s.mu.Lock()
+	s.log, s.logErr, s.logLoading = c, err, false
+	s.mu.Unlock()
+}
+
+// startChangelog marks the changelog as being read, and reports false when it already is.
+func (s *Session) startChangelog() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.logLoading {
+		return false
+	}
+	s.logLoading = true
+	return true
+}
+
 // Options are one launcher run.
 type Options struct {
 	Version string
@@ -111,6 +138,7 @@ const (
 	screenMenu screen = iota
 	screenJoin
 	screenSettings
+	screenChangelog
 )
 
 type menuItem int
@@ -119,6 +147,7 @@ const (
 	itemHost menuItem = iota
 	itemJoin
 	itemSettings
+	itemChangelog
 	itemUpdate
 	itemRestart
 	itemQuit
@@ -126,7 +155,8 @@ const (
 
 var itemLabels = map[menuItem]string{
 	itemHost: "Host a game", itemJoin: "Join a game", itemSettings: "Settings",
-	itemUpdate: "Check for updates", itemRestart: "Restart into the new td", itemQuit: "Quit",
+	itemChangelog: "Changelog",
+	itemUpdate:    "Check for updates", itemRestart: "Restart into the new td", itemQuit: "Quit",
 }
 
 // rescanEvery is how often the join screen looks again on its own.
@@ -162,6 +192,9 @@ type Model struct {
 	typing   bool
 	addr     lineInput
 
+	// changelog: the first row shown, -1 until the list first draws, to open on this td's own
+	lscroll int
+
 	// settings
 	scursor int
 	editing bool
@@ -180,8 +213,9 @@ type (
 		gen int
 		res cli.LsResult
 	}
-	rescanMsg   struct{ gen int }
-	fgUpdateMsg struct{ err error }
+	rescanMsg    struct{ gen int }
+	changelogMsg struct{}
+	fgUpdateMsg  struct{ err error }
 )
 
 func newModel(o Options) *Model {
@@ -294,7 +328,8 @@ func (m *Model) scan() tea.Cmd {
 // animating is whether anything on screen moves: a spinner while looking for games or while
 // an update runs. An idle launcher sends no frames.
 func (m *Model) animating() bool {
-	return m.splash || m.scanning || m.sess.Update().State == cli.UpdateUpdating
+	_, _, reading := m.sess.changelog()
+	return m.splash || m.scanning || reading || m.sess.Update().State == cli.UpdateUpdating
 }
 
 func (m *Model) ensureTick() tea.Cmd {
@@ -310,7 +345,7 @@ func (m *Model) ensureTick() tea.Cmd {
 }
 
 func (m *Model) menu() []menuItem {
-	items := []menuItem{itemHost, itemJoin, itemSettings}
+	items := []menuItem{itemHost, itemJoin, itemSettings, itemChangelog}
 	if m.sess.Update().State == cli.UpdateUpdated {
 		items = append(items, itemRestart)
 	} else {
@@ -354,7 +389,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.splash = false
 		}
 		return m, m.ensureTick()
-	case tailnetMsg, selfMsg:
+	case tailnetMsg, selfMsg, changelogMsg:
 		return m, m.ensureTick()
 	case scanMsg:
 		if msg.gen != m.scanGen {
@@ -434,6 +469,8 @@ func (m *Model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.joinKey(k)
 	case screenSettings:
 		return m.settingsKey(k)
+	case screenChangelog:
+		return m.changelogKey(k)
 	}
 	return m.menuKey(k)
 }
@@ -474,6 +511,11 @@ func (m *Model) menuKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, m.scan()
 		case itemSettings:
 			m.screen, m.notice = screenSettings, ""
+		case itemChangelog:
+			m.screen, m.notice, m.lscroll = screenChangelog, "", -1
+			if c, err, _ := m.sess.changelog(); c == nil && err == nil {
+				return m, m.readChangelog()
+			}
 		case itemUpdate:
 			if m.sess.Update().State == cli.UpdateUpdating {
 				m.say(false, "an update is already running in the background")
@@ -510,6 +552,46 @@ func (m *Model) joinKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m.quit(Action{Kind: ActionJoin, Addr: m.games[m.jcursor].Addr})
+	}
+	return m, nil
+}
+
+// readChangelog fetches the changelog into the session, so a later launcher opens it at once.
+func (m *Model) readChangelog() tea.Cmd {
+	sess := m.sess
+	if !sess.startChangelog() {
+		return nil
+	}
+	return tea.Batch(func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		c, err := cli.ReadChangelog(ctx)
+		if err != nil {
+			sess.setChangelog(nil, err)
+		} else {
+			sess.setChangelog(&c, nil)
+		}
+		return changelogMsg{}
+	}, m.ensureTick())
+}
+
+func (m *Model) changelogKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch k.String() {
+	case "up", "k":
+		m.lscroll = max(m.lscroll-1, 0)
+	case "down", "j", "tab":
+		m.lscroll++ // the view stops it at the end
+	case "pgup":
+		m.lscroll = max(m.lscroll-10, 0)
+	case "pgdown":
+		m.lscroll += 10
+	case "home", "g":
+		m.lscroll = 0
+	case "r":
+		m.lscroll = -1
+		return m, m.readChangelog()
+	case "q", "esc":
+		m.screen = screenMenu
 	}
 	return m, nil
 }
