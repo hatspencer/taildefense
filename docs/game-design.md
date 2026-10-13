@@ -224,7 +224,7 @@ the army trucks.
   went away with click-to-move; H still holds position.
 - **The camera follows while you walk.** Arrows and the screen edge still look away, and the
   next step brings it back. The minimap's right-click still walks you there by path.
-- **Numbers are the inventory.** 1–7 are the weapons, 8 the medkit. A weapon run dry reloads in
+- **Numbers are the inventory.** 1–6 are the weapons, 8 the medkit. A weapon run dry reloads in
   the background, so switching to a loaded one is the fast way out of an empty magazine and
   carrying two guns pays.
 - **Medkits are a decision, not a regen stat.** One heals 40% over 3 s, and a hit cuts it

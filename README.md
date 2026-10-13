@@ -100,7 +100,7 @@ faces, however the camera is turned, and the camera follows while you walk.
 | right-click | on a creep, focus fire on it; anywhere else, the equipped weapon's signature, at the cursor |
 | Shift / F / Q | abilities: grenade, dash, airstrike; aim with the cursor and left-click |
 | H | hold position |
-| 1-7, 0, R | equip a weapon (0 is the crowbar, on brutal), reload (or the reload button) |
+| 1-6, 0, R | equip a weapon (0 is the crowbar, on brutal), reload (or the reload button) |
 | 8 | use a medkit |
 | V | taunt: flip them off and shout; every creep around you comes for you for 5 s, sleeping guards too |
 | B | build: X wall, G gate, T gun turret, C cannon, F frost tower, L tesla coil; shift keeps placing |
@@ -215,7 +215,6 @@ Each weapon has its own signature ability on the right mouse button, stronger wi
 | Shotgun | concussion: a blast in front that throws back and slows |
 | SMG | bullet hose: double fire rate for 4 s |
 | Rifle | piercing shot: five times the damage through a whole line |
-| Flamethrower | napalm: a pool of fire for 6 s |
 | Minigun | overdrive: faster and piercing for 5 s |
 | Rocket launcher | barrage: six rockets round a point |
 | Crowbar (brutal) | haymaker: a swing all round that hurts and throws back |

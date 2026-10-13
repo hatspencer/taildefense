@@ -102,7 +102,6 @@ const (
 	WShotgun
 	WSMG
 	WRifle
-	WFlamer
 	WMinigun
 	WLauncher
 	WCrowbar // brutal's starting weapon, and only there: never sold or found
@@ -131,7 +130,6 @@ type Fire uint8
 
 const (
 	FireHitscan Fire = iota
-	FireCone
 	FireRocket
 	FireMelee // a swing at whatever is in front, in arm's reach; no ammo
 )
@@ -161,7 +159,6 @@ var Weapons = [NumWeapons]WeaponDef{
 	WShotgun:  {Name: "Shotgun", Short: "SHG", Price: 250, Damage: 9, Rate: 1.3, Range: 9, Mag: 6, Reload: 1.8, Pellets: 7, Spread: .4, Pierce: 1, Special: "+2 pellets"},
 	WSMG:      {Name: "SMG", Short: "SMG", Price: 400, Damage: 8, Rate: 11, Range: 12, Mag: 40, Reload: 1.6, Pellets: 1, Spread: .09, Special: "+1 pierce"},
 	WRifle:    {Name: "Rifle", Short: "RFL", Price: 650, Damage: 60, Rate: 1.4, Range: 28, Mag: 5, Reload: 2, Pellets: 1, Spread: .01, Pierce: 3, Special: "+2 pierce"},
-	WFlamer:   {Name: "Flamethrower", Short: "FLM", Price: 900, Damage: 6, Rate: 12, Range: 6.5, Mag: 80, Reload: 2.5, Pellets: 1, Spread: .38, Fire: FireCone, Burn: 6, Special: "+range, +burn"},
 	WMinigun:  {Name: "Minigun", Short: "MNG", Price: 1400, Damage: 9, Rate: 22, Range: 16, Mag: 150, Reload: 3.5, Pellets: 1, Spread: .12, Special: "+1 pierce, +burn"},
 	WLauncher: {Name: "Rocket launcher", Short: "RKT", Price: 2000, Damage: 140, Rate: .8, Range: 24, Mag: 4, Reload: 2.6, Pellets: 1, Spread: .02, Fire: FireRocket, Blast: 3, Special: "+blast radius"},
 	WCrowbar:  {Name: "Crowbar", Short: "BAR", Price: 0, Damage: 34, Rate: 1.8, Range: 1.9, Mag: 1, Reload: 0, Pellets: 1, Spread: .8, Fire: FireMelee, Special: "+wider swing"},
@@ -203,9 +200,6 @@ func WeaponStats(w WeaponKind, lv [NumTracks]uint8) Stats {
 		s.Pellets += 2 * sp
 	case WRifle:
 		s.Pierce += 2 * sp
-	case WFlamer:
-		s.Range *= 1 + .15*float32(sp)
-		s.Burn *= 1 + .4*float32(sp)
 	case WMinigun:
 		s.Pierce += sp / 2
 		s.Burn += 2 * float32(sp)
@@ -363,8 +357,6 @@ func TrackValue(w WeaponKind, t Track, level uint8) string {
 	switch w {
 	case WShotgun:
 		return fmt.Sprintf("%d pellets, %d pierce", st.Pellets, st.Pierce)
-	case WFlamer:
-		return fmt.Sprintf("%.1f range, %.0f burn/s", st.Range, st.Burn)
 	case WMinigun:
 		return fmt.Sprintf("%d pierce, %.0f burn/s", st.Pierce, st.Burn)
 	case WLauncher:

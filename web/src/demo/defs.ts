@@ -22,8 +22,6 @@ export const WEAPON_BASE: W0[] = [
     sig: { name: 'Bullet hose', desc: 'Double fire rate for 5 seconds.', cool: 18, range: 0, target: 'self' } },
   { name: 'Rifle', short: 'RFL', price: 650, range: 28, fire: 'hitscan', special: '+2 pierce', dmg: 60, rate: 1.4, mag: 5, reload: 2,
     sig: { name: 'Piercing shot', desc: 'One shot that pierces everything along its line.', cool: 12, range: 40, target: 'point' } },
-  { name: 'Flamethrower', short: 'FLM', price: 900, range: 6.5, fire: 'cone', special: '+range, +burn', dmg: 6, rate: 12, mag: 80, reload: 2.5,
-    sig: { name: 'Napalm', desc: 'Lays a pool of burning fuel at the target.', cool: 14, range: 9, target: 'point' } },
   { name: 'Minigun', short: 'MNG', price: 1400, range: 16, fire: 'hitscan', special: '+1 pierce, +burn', dmg: 9, rate: 22, mag: 150, reload: 3.5,
     sig: { name: 'Overdrive', desc: 'No spread and +50% damage for 6 seconds.', cool: 20, range: 0, target: 'self' } },
   { name: 'Rocket launcher', short: 'RKT', price: 2000, range: 24, fire: 'rocket', special: '+blast radius', dmg: 140, rate: 0.8, mag: 4, reload: 2.6,

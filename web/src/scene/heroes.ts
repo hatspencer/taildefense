@@ -6,13 +6,13 @@ import type { Game } from '../state';
 import { litMaterial } from './structs';
 import { Body, type Look, readLook, shade } from './look';
 import { ik2, Spring, turnTowards, wrapAngle } from './rig';
-import { box, cyl, merge, part, type Part, playerColor, sphere } from './util';
+import { box, merge, part, type Part, playerColor, sphere } from './util';
 
 interface Limb { upper: THREE.Group; lower: THREE.Group }
 interface Hero {
   group: THREE.Group; body: THREE.Group; hips: THREE.Group; torso: THREE.Group; head: THREE.Group; tail: THREE.Group | null; pack: THREE.Group;
   legL: Limb; legR: Limb; armL: Limb; armR: Limb;
-  gun: THREE.Group; gunMesh: THREE.Mesh | null; spin: THREE.Group | null; flash: THREE.Object3D; finger: THREE.Object3D; hand: THREE.Object3D; tank: THREE.Object3D;
+  gun: THREE.Group; gunMesh: THREE.Mesh | null; spin: THREE.Group | null; flash: THREE.Object3D; finger: THREE.Object3D; hand: THREE.Object3D;
   shout: THREE.Object3D; marker: THREE.Object3D; cross: THREE.Object3D; progress: THREE.Object3D;
   look: number; wd: number; ht: number; weapon: number; color: number;
   phase: number; seen: number; down: boolean; pop: number; shotAt: number; crouch: number; downAmt: number; taunt: number; reload: number;
@@ -37,7 +37,6 @@ const HOLDS: Hold[] = [
   { at: [0.16, 0.38, -0.15], grip: [0, -0.04, 0], fore: [0.42, -0.02, 0], muzzle: 0.64 },       // shotgun, shouldered
   { at: [0.24, 0.32, -0.12], grip: [0, -0.05, 0], fore: [0.13, -0.13, 0], muzzle: 0.42 },       // SMG
   { at: [0.15, 0.39, -0.15], grip: [0, -0.04, 0], fore: [0.36, -0.03, 0], muzzle: 0.74 },       // rifle
-  { at: [0.22, 0.16, -0.12], grip: [0, -0.06, 0], fore: [0.3, 0.0, 0.04], muzzle: 0.56 },       // flamer, at the hip
   { at: [0.24, 0.13, -0.1], grip: [-0.1, 0.02, -0.06], fore: [0.02, 0.15, 0.06], muzzle: 0.68 }, // minigun, braced at the hip
   { at: [0.0, 0.55, -0.2], grip: [0.06, -0.09, 0], fore: [0.32, -0.09, 0.02], muzzle: 0.62 },   // launcher, on the shoulder
   { at: [0.16, 0.24, -0.17], grip: [0, 0, 0], fore: [-0.09, 0, 0], muzzle: 0.6 },             // crowbar, both hands on the tape, up at the shoulder
@@ -61,14 +60,11 @@ function gunParts(w: number, c: number): { body: Part[]; spin: Part[] } {
       add(b, 0.5, 0.1, 0.08, D, 0.15, 0.04); add(b, 0.3, 0.04, 0.04, D, 0.56, 0.05); add(b, 0.26, 0.11, 0.07, W, -0.2, 0.0, 0, -0.08);
       add(b, 0.2, 0.06, 0.06, 0x1a1a1c, 0.12, 0.13); add(b, 0.07, 0.13, 0.06, M, 0.18, -0.08); add(b, 0.12, 0.03, 0.085, c, 0.3, 0.09); break;
     case 4:
-      add(b, 0.5, 0.08, 0.08, M, 0.25, 0.04); add(b, 0.07, 0.12, 0.12, 0x6a1a12, 0.52, 0.04); add(b, 0.07, 0.14, 0.06, D, 0, -0.05);
-      add(b, 0.18, 0.04, 0.09, c, 0.2, 0.09); break;
-    case 5:
       add(b, 0.3, 0.16, 0.16, D, 0.0, 0.02); add(b, 0.15, 0.04, 0.04, M, 0.0, 0.13); add(b, 0.16, 0.14, 0.12, O, -0.02, -0.12, 0.08);
       add(b, 0.1, 0.06, 0.18, c, 0.12, 0.02);
       for (const [y, z] of [[0.04, 0.04], [0.04, -0.04], [-0.03, 0], [0.09, 0]]) add(s, 0.56, 0.035, 0.035, M, 0.4, y - 0.02, z);
       break;
-    case 7:
+    case 6:
       // A bar, bent to a claw at the far end, and tape on the grip in the player's colour.
       add(b, 0.62, 0.035, 0.035, 0x4a4f57, 0.24, 0.0, 0, 0.12); add(b, 0.14, 0.035, 0.035, 0x4a4f57, 0.56, 0.1, 0, 1.2);
       add(b, 0.14, 0.05, 0.05, c, 0.0, -0.02, 0, 0.12); break;
@@ -162,11 +158,6 @@ export class Heroes {
     pack.position.set(0, 0, 0);
     torso.add(pack);
     this.mesh(F.pack, pack, 0, WAIST);
-    // A flamer's fuel tank rides on the back when that is what they carry.
-    const tank = new THREE.Mesh(merge([part(cyl(0.09, 0.09, 0.42, 8), 0x8a2418, -0.27, 0.32, 0.08), part(cyl(0.09, 0.09, 0.42, 8), 0x8a2418, -0.27, 0.32, -0.1),
-      part(box(0.06, 0.06, 0.3), 0x2a2a2a, -0.27, 0.55, 0)]), this.mat);
-    tank.visible = false;
-    torso.add(tank);
 
     // Legs: thigh from the hip, shin and boot from the knee.
     const legs = A.pcLegs ? shade(c, 0.85) : A.legs;
@@ -226,7 +217,7 @@ export class Heroes {
     g.scale.setScalar(1.15);
     this.group.add(g);
     const h: Hero = {
-      group: g, body, hips, torso, head, tail, pack, legL, legR, armL, armR, gun, gunMesh: null, spin: null, flash, finger, hand, tank,
+      group: g, body, hips, torso, head, tail, pack, legL, legR, armL, armR, gun, gunMesh: null, spin: null, flash, finger, hand,
       shout, marker, cross, progress, look, wd: L.width, ht: L.height, weapon: -1, color: c,
       phase: 0, seen: 0, down: false, pop: 0, shotAt: -1e9, crouch: 0, downAmt: 0, taunt: 0, reload: 0, sprint: 0, leap: 0, hurt: false,
       x: 0, y: 0, vx: 0, vy: 0, legYaw: 0, dirSign: 1, fresh: true,
@@ -253,7 +244,6 @@ export class Heroes {
     }
     const hold = HOLDS[w] ?? HOLDS[0];
     h.flash.position.x = hold.muzzle;
-    h.tank.visible = w === 4;
     h.group.traverse((c) => { c.userData.hl = h.group.userData.hl ?? 0; });
   }
 
@@ -309,7 +299,7 @@ export class Heroes {
       h.pop = Math.max(0, h.pop - dt * 2.2);
       // One kick and flash per shot, at the weapon's own rate: a shotgun booms, an SMG chatters.
       if (!firing) h.shotAt = -1e9;
-      else if (now - h.shotAt >= 1000 / (WEAPON_BASE[h.weapon]?.rate ?? 3)) { h.shotAt = now; h.kick.kick(h.weapon === 1 || h.weapon === 6 ? 9 : h.weapon === 7 ? -14 : 3); }
+      else if (now - h.shotAt >= 1000 / (WEAPON_BASE[h.weapon]?.rate ?? 3)) { h.shotAt = now; h.kick.kick(h.weapon === 1 || h.weapon === 5 ? 9 : h.weapon === 6 ? -14 : 3); }
       const hurt = (p.flags & PF_HURT) !== 0;
       if (hurt && !h.hurt && alive) { h.flinch.kick(7); h.tailS.kick(4); }
       h.hurt = hurt;
@@ -398,7 +388,7 @@ export class Heroes {
       // canted to the side for a reload.
       const hold = HOLDS[h.weapon] ?? HOLDS[0];
       const rl = h.reload, sp = h.sprint * (1 - rl);
-      if (h.weapon === 7) {
+      if (h.weapon === 6) {
         // The crowbar is held up at the right shoulder, ready, tipped out a little; each swing
         // chops it down and across in front, fast, then lifts it back.
         const u = (now - h.shotAt) / 420;
@@ -410,7 +400,7 @@ export class Heroes {
         h.gun.rotation.set(rl * 0.7, sp * 0.35, kick * 0.6 - sp * 0.55 - rl * 0.3);
       }
       h.gun.updateMatrix();
-      h.flash.visible = h.weapon !== 7 && now - h.shotAt < (h.weapon === 1 ? 70 : 45);
+      h.flash.visible = h.weapon !== 6 && now - h.shotAt < (h.weapon === 1 ? 70 : 45);
       if (h.spin) h.spin.rotation.x += dt * (firing ? 40 : 0);
 
       // Hands: on the gun, unless kneeling, taunting or down.

@@ -5,7 +5,7 @@ import { dispatch, type Handlers, type Transport } from '../net';
 import {
   type Command, MAX_CREEPS, Tile, Phase, Order, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_FIRING,
   PF_HURT, PF_MOVING, PF_READY, PF_RELOADING, CF_BURNING, CF_SLOWED, CF_GUARD, CF_HUNTING, CF_SIEGE, CF_ASLEEP,
-  CF_WINDUP, CF_STRIKE,
+  CF_WINDUP, CF_STRIKE, WEAPON_SLOTS,
   BlastKind, EffectKind, Emote, type SiteDef, SiteKind, TRACER_HELI, WET, Weather, type Welcome,
 } from '../protocol';
 import { ABILITY_RADIUS, CREEPS, STRUCTS, WEAPON_BASE, WEATHERS, demoWelcome } from './defs';
@@ -187,7 +187,7 @@ export class DemoHost implements Transport {
     this.addPlayer(1, 'mira', true, r.x0 + 3, cy + 1, 2);
     this.addPlayer(2, 'kofi', true, cx + 1, r.y1 - 3, 3);
     const me = this.players[0];
-    me.gold = this.opt.gold; me.owned = 0b1000101; me.levels[0] = 2; me.levels[1] = 1; me.levels[8] = 1;
+    me.gold = this.opt.gold; me.owned = 0b100101; me.levels[0] = 2; me.levels[1] = 1; me.levels[8] = 1;
     me.abLevel = [1, 1, 1, 0];
 
     // A few sites start picked over, to show both states.
@@ -228,7 +228,7 @@ export class DemoHost implements Transport {
     const p: DPlayer = {
       id, name, bot, x, y, aim: 0, hp: 100, maxHp: 100, cur, ammo: WEAPON_BASE[cur].mag, reloadLeft: 0, respawn: 0,
       gold: 400 + id * 150, kills: 40 + id * 17, damage: 9000 + id * 2100, owned: 1 | (1 << cur),
-      levels: new Uint8Array(32), gear: new Uint8Array(4), order: Order.Idle, tx: x, ty: y, target: -1, buildKind: 0,
+      levels: new Uint8Array(WEAPON_SLOTS * 4), gear: new Uint8Array(4), order: Order.Idle, tx: x, ty: y, target: -1, buildKind: 0,
       repairId: -1, buff: 0, buffLeft: 0, abLevel: [1, 0, 0, 0], abCool: [0, 0, 0, 0], ready: bot, fireCd: 0, shot: 0, hurt: 0, harm: 0,
       moving: false, wander: 2 + id, site: -1, searchT: 0, revTarget: -1, channel: 0, emoteLeft: 0, tauntCool: 0, downT: 0, medkits: 1, heal: 0, steerX: 0, steerY: 0, steerLeft: 0, st: [0, 0, 0, 0, 0, 0],
       // A random survivor, a different outfit for each.
@@ -719,7 +719,7 @@ export class DemoHost implements Transport {
     const tx = this.cX[target], ty = this.cY[target];
     p.aim = Math.atan2(ty - p.y, tx - p.x);
     const mx = p.x + Math.cos(p.aim) * 0.6, my = p.y + Math.sin(p.aim) * 0.6;
-    const dmg = w.dmg * (1 + 0.22 * p.levels[p.cur * 4]) * (p.buff === 5 ? 1.5 : 1);
+    const dmg = w.dmg * (1 + 0.22 * p.levels[p.cur * 4]) * (p.buff === 4 ? 1.5 : 1);
     if (p.cur === 1) {
       // Shotgun: a spread of pellets, each passing through the first creep into the next,
       // as the host's hitscan does.
@@ -742,14 +742,6 @@ export class DemoHost implements Transport {
         if (i1 >= 0) this.hurt(i1, dmg, p);
         if (i2 >= 0 && this.cAlive[i2]) this.hurt(i2, dmg, p);
       }
-    } else if (w.fire === 'cone') {
-      for (let i = 0; i < 2; i++) {
-        const a = p.aim + (this.rnd() - 0.5) * 0.7;
-        const r = w.range * (0.6 + this.rnd() * 0.4);
-        this.tracer(mx, my, p.x + Math.cos(a) * r, p.y + Math.sin(a) * r, p.cur);
-      }
-      const ids = this.q, n = this.query(tx, ty, 2, ids, 12);
-      for (let i = 0; i < n; i++) { this.cBurn[ids[i]] = 3; this.hurt(ids[i], dmg, p); }
     } else if (w.fire === 'rocket') {
       this.tracer(mx, my, tx, ty, p.cur);
       this.blast(tx, ty, 3, 0, dmg, p);
@@ -1007,8 +999,7 @@ export class DemoHost implements Transport {
         case 0: for (let i = 0; i < 6; i++) { const t = this.nearest(x, y, 3); if (t >= 0) this.fire(p, t); } p.fireCd = 0; break;
         case 1: this.blast(p.x + Math.cos(p.aim) * 2.5, p.y + Math.sin(p.aim) * 2.5, 4, 3, 40, p); break;
         case 3: this.tracer(p.x, p.y, p.x + Math.cos(p.aim) * 40, p.y + Math.sin(p.aim) * 40, 3); break;
-        case 4: this.effects.push({ kind: 2, x0: x, y0: y, x, y, r: 2.5, left: 50, total: 50, owner: p.id, dmg: 0 }); break;
-        case 6: for (let i = 0; i < 4; i++) this.blast(x + (this.rnd() - 0.5) * 6, y + (this.rnd() - 0.5) * 6, 3, 0, 120, p); break;
+        case 5: for (let i = 0; i < 4; i++) this.blast(x + (this.rnd() - 0.5) * 6, y + (this.rnd() - 0.5) * 6, 3, 0, 120, p); break;
         default: p.buff = p.cur; p.buffLeft = 6;
       }
     }

@@ -5,7 +5,7 @@ const S = (body: string, col: string) =>
 
 const ICONS: [RegExp, string][] = [
   [/grenade|frag/i, S('<circle cx="15" cy="19" r="8" fill="#3b4428"/><path d="M13 11h5v-3h-5zM18 9l6-3"/><path d="M11 18h8M15 14v10" stroke-width="1.5"/>', '#a8b874')],
-  [/napalm|fire|flame/i, S('<path d="M16 4c2 6 8 8 8 15a8 8 0 0 1-16 0c0-4 2-6 4-8 0 3 1 5 3 5-1-5 0-9 1-12z" fill="#5a2410"/><path d="M16 27a4 4 0 0 1-4-4c0-2 2-4 4-6 2 2 4 4 4 6a4 4 0 0 1-4 4z" fill="#e0a63a" stroke="none"/>', '#cf6a2c')],
+  [/fire/i, S('<path d="M16 4c2 6 8 8 8 15a8 8 0 0 1-16 0c0-4 2-6 4-8 0 3 1 5 3 5-1-5 0-9 1-12z" fill="#5a2410"/><path d="M16 27a4 4 0 0 1-4-4c0-2 2-4 4-6 2 2 4 4 4 6a4 4 0 0 1-4 4z" fill="#e0a63a" stroke="none"/>', '#cf6a2c')],
   [/air|strike|barrage/i, S('<path d="M16 3v12M10 9l6 6 6-6"/><circle cx="16" cy="23" r="6" fill="#4a1c12"/><path d="M8 23h-4M28 23h-4M16 31v-2"/>', '#c85a3c')],
   [/concuss|blast/i, S('<path d="M6 16h4M22 16h4M16 6v4M16 22v4M9 9l3 3M23 23l-3-3M23 9l-3 3M9 23l3-3"/><rect x="13" y="13" width="6" height="6" fill="#e6d29a" stroke="none"/>', '#e6d29a')],
   [/overdrive|spin|rate|hose/i, S('<path d="M8 22a10 10 0 1 1 16 0"/><path d="M16 16l6-6"/><rect x="14" y="14" width="4" height="4" fill="#86a2a6" stroke="none"/>', '#86a2a6')],

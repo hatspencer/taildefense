@@ -717,8 +717,6 @@ func (w *World) shoot(p *Player, st Stats, ang float32) {
 	owner := int8(p.ID)
 	kind := uint8(p.Cur)
 	switch Weapons[p.Cur].Fire {
-	case FireCone:
-		w.cone(owner, p.X, p.Y, ang, st.Range, st.Spread, st.Damage, st.Burn, kind)
 	case FireMelee:
 		w.melee(owner, p.X, p.Y, ang, st.Range, st.Spread, st.Damage, kind)
 	case FireRocket:
@@ -836,37 +834,6 @@ func (w *World) rayCells(x, y, dx, dy, length float32, fn func(i int32)) {
 		}
 	}
 	w.scratch = cs[:0]
-}
-
-func (w *World) cone(owner int8, x, y, ang, rng, half, dmg, burn float32, kind uint8) {
-	dx, dy := float32(math.Cos(float64(ang))), float32(math.Sin(float64(ang)))
-	cosHalf := float32(math.Cos(float64(half)))
-	w.pumpCone(owner, x, y, dx, dy, rng, cosHalf)
-	hits := 0
-	w.grid.each(x, y, rng, func(i int32) bool {
-		c := &w.Creeps[i]
-		if c.HP <= 0 || w.hidden(c) {
-			return true
-		}
-		ox, oy := c.X-x, c.Y-y
-		dd := ox*ox + oy*oy
-		if dd > rng*rng || dd < 1e-6 {
-			return true
-		}
-		d := sqrt32(dd)
-		if (ox*dx+oy*dy)/d < cosHalf {
-			return true
-		}
-		w.damage(i, dmg, owner)
-		w.ignite(i, burn)
-		hits++
-		return hits < 48
-	})
-	// Two tongues of flame either side of the aim, so the cone reads as a cone.
-	for _, s := range [...]float32{-half * .6, 0, half * .6} {
-		a := float64(ang + s)
-		w.tracer(x, y, x+float32(math.Cos(a))*rng, y+float32(math.Sin(a))*rng, kind)
-	}
 }
 
 // meleeHits is how many creeps one swing of a melee weapon goes through.
