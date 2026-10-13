@@ -283,18 +283,6 @@ func (w *World) pumpsIn(x, y, r float32, by int8, delay float32) {
 	}
 }
 
-// pumpCone sets off the standing pumps in a cone of fire.
-func (w *World) pumpCone(by int8, x, y, dx, dy, rng, cosHalf float32) {
-	for _, i := range w.pumps() {
-		s := &w.Sites[i]
-		ox, oy := s.SX-x, s.SY-y
-		d := sqrt32(ox*ox + oy*oy)
-		if d <= rng && d > 1e-3 && (ox*dx+oy*dy)/d >= cosHalf && w.clearShot(x, y, s.SX, s.SY) {
-			w.lightPump(i, by, Dt)
-		}
-	}
-}
-
 // lightPump sets pump i to go up in delay seconds, unless it is going already.
 func (w *World) lightPump(i int, by int8, delay float32) {
 	s := &w.Sites[i]

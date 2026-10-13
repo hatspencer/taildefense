@@ -74,7 +74,7 @@ everything it knows, a terrain message follows).
   "weapons": [                 // index = weapon kind
     {
       "name": "Pistol", "short": "PST", "price": 0, "range": 14,
-      "fire": "hitscan",       // hitscan | cone | rocket | melee (the crowbar: no ammo)
+      "fire": "hitscan",       // hitscan | rocket | melee (the crowbar: no ammo)
       "special": "+1 pierce",
       "costs": [[60, 93, 144, 223, 346], ...],      // [track][level] price to go level -> level+1
       "values": [["14 dmg", "17 dmg", ...], ...],   // [track][level 0..5] what the track gives
@@ -148,8 +148,8 @@ Every map has one gas station (kind 9), beside a road out near the edge: `x, y, 
 shop, a walled room searched at its counter, and its search always gives a weapon the
 searcher does not have yet. Its fuel pumps (kind 10, one tile each) stand on the concrete lot
 in front, under a canopy the client draws over them. They are sites only to share the list and
-the searched bit, which for a pump means blown up: they cannot be searched. A shot, a flame,
-a rocket or a blast that reaches a standing pump sets it off: a fireball (blast kind 0) that
+the searched bit, which for a pump means blown up: they cannot be searched. A shot, a
+rocket or a blast that reaches a standing pump sets it off: a fireball (blast kind 0) that
 hurts survivors as well as creeps, sets off the pumps beside it, and leaves burning fuel
 (effect kind 2). A standing pump blocks survivors like a wreck. The station's garrison sleeps
 round the pumps, and more creeps hide in the shop: they burst out at the first survivor on
@@ -216,7 +216,7 @@ u8   nPlayers
                       them where they fell
   u32  gold, u32 kills, u32 damage
   u8   owned          bit k set: weapon k owned
-  u8   levels[32]     weapon-major: levels[w*4 + track]
+  u8   levels[28]     weapon-major: levels[w*4 + track]
   u8   gear[4]        Armor, Boots, Vitamins, Scavenger
   u8   order          0 idle, 1 move, 2 attack-move, 3 attack, 4 hold, 5 build, 6 repair,
                       7 loot, 8 revive, 9 steer (walking with WASD)
@@ -278,7 +278,7 @@ u16  nCreeps
 
 u16  nTracers         shots fired this tick
   u16  x0, y0, x1, y1 q8
-  u8   kind           0..7 player weapon kind (7 the crowbar: a swing, the survivor to its
+  u8   kind           0..6 player weapon kind (6 the crowbar: a swing, the survivor to its
                       reach), 16+structKind turret shot, 32 spitter spit, 33 dash (the hero's leap, start to end), 34 the Huey's door gunner
                       (x0,y0 is the Huey over the ground; it fires from the air)
 u16  nBlasts          explosions and pulses this tick

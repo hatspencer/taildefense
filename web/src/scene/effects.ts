@@ -120,9 +120,9 @@ class FxPool {
   }
 }
 
-const TRACER: Record<number, number> = { 0: 0xffe9a0, 1: 0xffb060, 2: 0xfff0b0, 3: 0xa0f0ff, 4: 0xff7a20, 5: 0xffd860, 6: 0xffffff };
-// Muzzle flash size per player weapon: pistol, shotgun, SMG, rifle, flamer, minigun, rockets.
-const MUZZLE: Record<number, number> = { 0: 0.8, 1: 1.5, 2: 0.9, 3: 1.3, 4: 0, 5: 1.1, 6: 1.6 };
+const TRACER: Record<number, number> = { 0: 0xffe9a0, 1: 0xffb060, 2: 0xfff0b0, 3: 0xa0f0ff, 4: 0xffd860, 5: 0xffffff };
+// Muzzle flash size per player weapon: pistol, shotgun, SMG, rifle, minigun, rockets.
+const MUZZLE: Record<number, number> = { 0: 0.8, 1: 1.5, 2: 0.9, 3: 1.3, 4: 1.1, 5: 1.6 };
 const TURRET: Record<number, number> = { 5: 0xfff0a0, 6: 0xffa040, 7: 0x9fe4ff, 8: 0xd8b0ff };
 // Blood, dark and everywhere; the spitter bleeds bile.
 const CREEP_GORE = [0x4a0c0a, 0x56100c, 0x3e0a08, 0x5a1410, 0x4a5a14, 0x3a0808];
@@ -227,7 +227,7 @@ export class Effects {
       }
       // Player weapons, from gun height.
       const col = TRACER[k] ?? 0xffffff;
-      if (k === 7) {
+      if (k === 6) {
         // The crowbar: a pale sweep across the front, no muzzle, no smoke.
         const a = Math.atan2(y1 - y0, x1 - x0);
         for (let j = -2; j <= 2; j++) {
@@ -237,18 +237,10 @@ export class Effects {
         }
         continue;
       }
-      if (k === 4) {
-        // Flamethrower: a gout of fire particles rather than a line.
-        for (let j = 0; j < 3; j++) {
-          const s = 0.35 + Math.random() * 0.6, l = 0.25 + Math.random() * 0.2;
-          this.glow.add(t, x0, 1.0, y0, (x1 - x0) / l * s, 0.4, (y1 - y0) / l * s, l, j ? 0xff6a10 : 0xffc040, 0.25, 1.1, -1.5);
-        }
-        continue;
-      }
-      const w = k === 6 ? 0.16 : k === 3 ? 0.08 : 0.06;
-      const life = k === 6 ? 0.25 + dist * 0.01 : 0.06 + dist * 0.004;
-      this.streaks.add(t, x0, 1.12, y0, x1, 0.55, y1, life, col, w, 0, 0, k === 6 ? 0.25 : 0.4, 1, 1.4);
-      if (k === 6) this.smoke.add(t, x0, 1.1, y0, 0, 0.6, 0, 0.8, 0x9a9a9a, 0.4, 1.2, 0, 1, 0.5);
+      const w = k === 5 ? 0.16 : k === 3 ? 0.08 : 0.06;
+      const life = k === 5 ? 0.25 + dist * 0.01 : 0.06 + dist * 0.004;
+      this.streaks.add(t, x0, 1.12, y0, x1, 0.55, y1, life, col, w, 0, 0, k === 5 ? 0.25 : 0.4, 1, 1.4);
+      if (k === 5) this.smoke.add(t, x0, 1.1, y0, 0, 0.6, 0, 0.8, 0x9a9a9a, 0.4, 1.2, 0, 1, 0.5);
       if (flashes++ < 80) {
         const mx = x0 + (x1 - x0) / dist * 0.4, mz = y0 + (y1 - y0) / dist * 0.4;
         this.glow.add(t, mx, 1.12, mz, 0, 0, 0, 0.06, 0xffe0a0, 0.55, 0.2);

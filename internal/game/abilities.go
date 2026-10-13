@@ -56,7 +56,6 @@ var Signatures = [NumWeapons]SigDef{
 	WShotgun:  {Name: "Concussion", Desc: "A blast that hurts and throws back everything in front, slowing it.", Cool: 10, Range: 7, Radius: 7, Cone: .6},
 	WSMG:      {Name: "Bullet hose", Desc: "Twice the fire rate for 4 seconds.", Cool: 14, Self: true},
 	WRifle:    {Name: "Piercing shot", Desc: "One shot through everything in a long line, five times the damage.", Cool: 9, Range: 40},
-	WFlamer:   {Name: "Napalm", Desc: "A pool of fire at a point that burns for 6 seconds.", Cool: 14, Range: 9, Radius: 3},
 	WMinigun:  {Name: "Overdrive", Desc: "60% more fire rate and one more pierce for 5 seconds.", Cool: 16, Self: true},
 	WLauncher: {Name: "Barrage", Desc: "Six rockets scattered round a point.", Cool: 15, Range: 24, Radius: 2.5},
 	WCrowbar:  {Name: "Haymaker", Desc: "A full swing all round that hurts three times as much and throws everything back.", Cool: 8, Self: true, Radius: 2.6},
@@ -177,10 +176,6 @@ func (w *World) signature(p *Player, x, y, ang float32) {
 		}
 	case WRifle:
 		w.hitscan(owner, p.X, p.Y, ang, Signatures[WRifle].Range, st.Damage*5*pow, 1000, 0, kind)
-	case WFlamer:
-		const dur = 6
-		w.Effects = append(w.Effects, Effect{Kind: EffNapalm, X0: x, Y0: y, X: x, Y: y, R: Signatures[WFlamer].Radius,
-			Left: dur, Total: dur, Damage: (st.Burn*2 + st.Damage) * pow, Owner: owner})
 	case WLauncher:
 		const speed = 22
 		for i := 0; i < 6; i++ {

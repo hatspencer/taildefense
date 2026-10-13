@@ -165,7 +165,7 @@ export class Input {
     const slot = KEYS.indexOf(up);
     if (slot >= 0) { ctl.startAbility(slot); return; }
     if (k === '8') { ctl.medkit(); return; }
-    if (k >= '0' && k <= '7') { const w = k === '0' ? CROWBAR : Number(k) - 1; const me = ctl.me(); if (me && me.owned & (1 << w)) ctl.send({ op: 'select', w }); return; }
+    if (k >= '0' && k <= '6') { const w = k === '0' ? CROWBAR : Number(k) - 1; const me = ctl.me(); if (me && me.owned & (1 << w)) ctl.send({ op: 'select', w }); return; }
     switch (up) {
       case 'Z': ctl.setMode({ k: ctl.mode.k === 'ping' ? 'none' : 'ping' }); return;
       case 'H': ctl.cancel(); ctl.send({ op: 'hold' }); return;

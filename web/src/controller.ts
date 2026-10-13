@@ -12,7 +12,7 @@ export interface AbilityInfo { name: string; desc: string; key: string; range: n
 // Area radius per ability name; the protocol carries no radius (see the report), so the
 // preview falls back to these and draws nothing for unknown ones.
 const RADIUS: Record<string, number> = {
-  grenade: 3, napalm: 2.5, airstrike: 7, 'fan the hammer': 2.5, concussion: 4, firewall: 2.5, barrage: 4, railshot: 0.6, 'piercing shot': 0.6,
+  grenade: 3, airstrike: 7, 'fan the hammer': 2.5, concussion: 4, firewall: 2.5, barrage: 4, railshot: 0.6, 'piercing shot': 0.6,
 };
 
 // Ability slots: the weapon's signature on the right mouse button, Overwatch style, then the
