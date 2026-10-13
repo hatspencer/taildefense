@@ -73,6 +73,7 @@ func (w *World) Step() {
 	w.stepBell()
 	w.stepCrates()
 	w.stepCreeps()
+	w.stepBrood()
 	w.reap()
 	// Reaping moves creeps about in the slice; commands run between ticks query the grid
 	// too, so it must match what is left.
@@ -230,7 +231,7 @@ func cost(k CreepKind, wave int) float32 {
 }
 
 // groupSize is the range of a group's size per kind.
-var groupSize = [NumCreepKinds][2]int{CWalker: {4, 12}, CRunner: {3, 8}, CSwarmer: {12, 30}, CBrute: {1, 2}, CSpitter: {2, 4}, CBoss: {1, 1}, CHurler: {1, 3}}
+var groupSize = [NumCreepKinds][2]int{CWalker: {4, 12}, CRunner: {3, 8}, CSwarmer: {12, 30}, CBrute: {1, 2}, CSpitter: {2, 4}, CBoss: {1, 1}, CHurler: {1, 3}, CMother: {1, 1}}
 
 // plan lays out every spawn of a wave: groups of one kind at one place on one of the wave's
 // fronts, spread over the wave's opening seconds.
@@ -239,7 +240,7 @@ func (w *World) plan(wave, players int) []Spawn {
 	swarm := wave%5 == 0
 	var weights [NumCreepKinds]float32
 	for k := CreepKind(0); k < NumCreepKinds; k++ {
-		if Creeps[k].MinWave > wave || k == CBoss {
+		if Creeps[k].MinWave > wave || k.Boss() {
 			continue
 		}
 		weights[k] = mixWeight[k]
@@ -271,8 +272,9 @@ func (w *World) plan(wave, players int) []Spawn {
 	}
 	if wave%10 == 0 {
 		for i := 0; i < wave/10; i++ {
-			add(CBoss, dur*.5+float32(i)*3, at(), 0)
-			budget -= Creeps[CBoss].Cost * .5
+			k := bossKind(wave/10 - 1 + i)
+			add(k, dur*.5+float32(i)*3, at(), 0)
+			budget -= Creeps[k].Cost * .5
 		}
 	}
 	if wave%5 == 0 && wave >= hordeFrom {
@@ -384,7 +386,7 @@ func (w *World) stepCreeps() {
 		// a structure goes for it, and the rest follow the field to the generator.
 		tp := w.creepTarget(c, d)
 		w.rally(c, tp)
-		if w.bossSlam(c, tp) {
+		if w.bossSlam(c, tp) || w.motherLob(c, tp) {
 			continue
 		}
 		var mx, my float32
@@ -598,7 +600,7 @@ func (w *World) attackStruct(c *Creep, d *CreepDef, si int) {
 		return
 	}
 	dmg := d.Damage
-	if c.Kind == CBrute || c.Kind == CBoss {
+	if c.Kind == CBrute || c.Kind.Boss() {
 		dmg *= 1.5 // built for walls
 	}
 	s.HP -= dmg
@@ -1088,7 +1090,7 @@ func (w *World) reap() {
 			p := w.Players[c.LastHit]
 			p.Gold += int32(float32(Creeps[c.Kind].Bounty) * mult)
 			p.Kills++
-			if c.Kind == CBoss {
+			if c.Kind.Boss() {
 				p.Tally.Bosses++
 			}
 		}

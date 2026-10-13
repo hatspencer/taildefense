@@ -38,7 +38,7 @@ everything it knows, a terrain message follows).
 ```jsonc
 {
   "t": "welcome",
-  "proto": 13,
+  "proto": 14,
   "version": "a1b2c3d",
   "you": 0,                    // your player id
   "w": 352, "h": 220,          // map size in tiles
@@ -297,7 +297,8 @@ u16  nBlasts          explosions and pulses this tick
                       5 loot found (r: 8 = jackpot or rare, else common), 6 ambush (a nest wakes),
                       7 taunt (a ring the size of the pull), 8 lightning strike (storm),
                       9 revived (a survivor stands up), 10 guards wake (at the guard),
-                      11 the church bell rung (at its rope)
+                      11 the church bell rung (at its rope), 12 bile bursting (a broodmother's
+                      sac landing, or the broodmother splitting open)
 u16  nDeaths          creeps that died this tick
   u16  x, y q8
   u8   kind
@@ -305,7 +306,9 @@ u16  nEffects         lasting effects, the full current list every frame
   u8   kind           1 grenade in flight (x0,y0 -> x,y), 2 napalm pool, 3 airstrike target,
                       4 supply drop: a Huey flying in from x0,y0 to hover over x,y (eased in over
                       all but the last 3 s); the crate lands at x,y when it ends, 5 a warlord's
-                      slam coming down on every survivor within r of x,y when it ends
+                      slam coming down on every survivor within r of x,y when it ends,
+                      6 a broodmother's sac of bile: she rears back at x0,y0 for its first 0.7 s,
+                      then it arcs to x,y and bursts within r when it ends, 7 a pool of acid
   u16  x0, y0, x, y q8
   u8   r              radius * 8
   u8   left           deciseconds left

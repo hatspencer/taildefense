@@ -18,7 +18,7 @@ const (
 // keeps a swarm from holding a survivor slowed.
 
 // playerSlow is how long a blow from each kind of creep slows a survivor, in seconds.
-var playerSlow = [NumCreepKinds]float32{CWalker: .4, CRunner: .3, CSwarmer: .25, CBrute: 1, CSpitter: .4, CBoss: 1.5, CHurler: 2.2}
+var playerSlow = [NumCreepKinds]float32{CWalker: .4, CRunner: .3, CSwarmer: .25, CBrute: 1, CSpitter: .4, CBoss: 1.5, CHurler: 2.2, CMother: 1.2}
 
 // Seconds a fuel pump going up slows a survivor; how much of their speed a slowed survivor
 // keeps; the gap before they can be slowed again.
@@ -71,7 +71,7 @@ func (c *Creep) stun(slug bool) {
 	switch c.Kind {
 	case CBrute:
 		t = .15
-	case CBoss:
+	case CBoss, CMother:
 		t = .08
 	}
 	if slug {

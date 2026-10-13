@@ -81,7 +81,18 @@ it here along with the code.
 - **Hordes from wave 10.** On swarm waves from 10 on, a third of the budget pours out of every
   entry point on the wave's fronts at once, within 4–8 s, mostly swarmers. The HUD labels the wave "HORDE". This is
   the moment the base has to hold, and why the walls matter.
-- **Every tenth wave brings an abomination**, a boss to rally around.
+- **Every tenth wave brings a boss** to rally around: wave 10 an abomination, 20 one of each,
+  and so on, the abomination and the broodmother taking turns. Outposts' warlords are one or
+  the other too.
+- **The broodmother** is the boss that fights at range. Bloated and slow (she never breaks
+  into a run), 2600 health, armour 6. With a survivor 4–16 tiles off, every 4.5 s she rears
+  back for 0.7 s and lobs a sac of bile at where they stand, over walls and all; it lands
+  1.2 s later. The spot is ringed on the ground from the moment she rears, so a survivor who
+  keeps moving is clear of it. Whoever is still inside the 2.5-tile splash takes 45 (half at the
+  edge) and is slowed 1.4 s; structures there take 60. It leaves a pool of acid for 6 s that
+  burns survivors (14/s) and structures (20/s), though not the dead, and two swarmers crawl
+  out of the burst. Closer than 4 tiles she claws (60 a blow). Each quarter of her life lost
+  splits her open and spills six swarmers round her.
 - **The cap.** 16k creeps alive. Around wave 40 with 8 players the game reaches it.
 
 ## Difficulty
@@ -120,7 +131,7 @@ each wave, but Normal is the reference for timing.
   abomination, half that at the edge), thrown clear and stunned where they land: no walking,
   firing or abilities for 1.5 s (brute) or 2.5 s (abomination), with stars round their head.
   Turrets, walls and other buildings caught by the ring are hurt the same (the armory excepted).
-  Step out, or eat it.
+  Step out, or eat it. A broodmother warlord lobs bile instead (above).
 - **The gas station.** One per map, beside a road out near the edge. Its shop always gives a
   gun you don't have yet, so it is heavily held: a garrison round the pumps, and more hiding in
   the shop that burst out when you step onto the lot. The pumps blow up when shot, hurting

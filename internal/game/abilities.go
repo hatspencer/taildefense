@@ -215,8 +215,11 @@ const TracerDash = 33
 
 // stepEffects runs grenades, napalm and airstrikes.
 func (w *World) stepEffects() {
+	// A sac of bile bursting leaves a pool of acid behind: what is added while they run is
+	// kept for next tick.
+	n := len(w.Effects)
 	live := w.Effects[:0]
-	for _, e := range w.Effects {
+	for _, e := range w.Effects[:n] {
 		e.Left -= Dt
 		w.shooter = e.Owner
 		switch e.Kind {
@@ -243,6 +246,12 @@ func (w *World) stepEffects() {
 			if e.Left <= 0 {
 				w.slamLands(&e)
 			}
+		case EffBile:
+			if e.Left <= 0 {
+				w.bileLands(&e)
+			}
+		case EffAcid:
+			w.stepAcid(&e)
 		case EffAirstrike:
 			if e.Left <= 0 {
 				w.explode(e.X, e.Y, e.R, e.Damage, e.Owner, 4)
@@ -256,7 +265,7 @@ func (w *World) stepEffects() {
 			live = append(live, e)
 		}
 	}
-	w.Effects = live
+	w.Effects = append(live, w.Effects[n:]...)
 	w.shooter = -1
 }
 
@@ -297,7 +306,7 @@ func (w *World) knockBack(p *Player, owner int8, dx, dy, reach, cosHalf, dmg flo
 		c.Slow = 2
 		// Thrown back, less the bigger the creep and the further it was.
 		push := (3 - d*.3) / (1 + Creeps[c.Kind].Radius)
-		if c.Kind != CBoss && push > 0 {
+		if !c.Kind.Boss() && push > 0 {
 			for s := 0; s < 6; s++ {
 				nx, ny := c.X+ox/d*push/6, c.Y+oy/d*push/6
 				if ok, _ := w.creepFree(nx, ny); !ok {

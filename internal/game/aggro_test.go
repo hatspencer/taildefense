@@ -290,7 +290,7 @@ func TestOutpostsAreBigGarrisonedAndSpringAmbushes(t *testing.T) {
 	s := &w.Sites[si]
 	boss := false
 	for i := range w.Creeps {
-		if c := &w.Creeps[i]; c.Home == int16(si+1) && c.Kind == CBoss {
+		if c := &w.Creeps[i]; c.Home == int16(si+1) && c.Kind.Boss() {
 			boss = true
 		}
 	}
