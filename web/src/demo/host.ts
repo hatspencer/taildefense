@@ -25,11 +25,14 @@ const G_ASLEEP = 1, G_HUNT = 2, G_HOME = 3;
 const S_READY = 1, S_WINDUP = 2, S_STRIKE = 3;
 // Per kind: reach beyond the creep's radius (internal/game/defs.go), blows a second, windup,
 // and how hard a blow lands on a survivor relative to a walker's.
-const REACH = [0.5, 0.5, 0.4, 0.6, 6, 0.8, 13];
+const REACH = [0.5, 0.5, 0.4, 0.6, 6, 0.8, 13, 0.8];
 const RATE = CREEPS.map((c) => c.rate ?? 1), WINDUP = CREEPS.map((c) => c.windup ?? 0.4);
-const HEFT = [1, 1, 0.7, 2.5, 1, 5, 1];
+const HEFT = [1, 1, 0.7, 2.5, 1, 5, 1, 4];
 // A creep's blow on a structure, as the host's.
-const SDMG = [6, 4, 2, 39, 9, 105];
+const SDMG = [6, 4, 2, 39, 9, 105, 9, 90];
+// A broodmother's sac (internal/game/brood.go): every so many ticks, at a survivor this far.
+const LOB_EVERY = 90, LOB_MIN = 4, LOB_MAX = 16;
+const boss = (k: number) => k === 5 || k === 7;
 
 const W = 320, H = 200, DT = 0.05;
 
@@ -105,6 +108,8 @@ export class DemoHost implements Transport {
   private cBlows = new Uint8Array(MAX_CREEPS);
   private cCalm = new Float32Array(MAX_CREEPS);
   private bosses = 0;
+  // A broodmother's tick of her next sac, by creep id.
+  private lobAt = new Map<number, number>();
 
   // Per-tick events.
   private tr: number[] = [];
@@ -463,7 +468,7 @@ export class DemoHost implements Transport {
 
   private pickKind(): number {
     const r = this.rnd();
-    if (r < 0.002 && this.bosses < 3) { this.bosses++; return 5; }
+    if (r < 0.002 && this.bosses < 3) { this.bosses++; return this.bosses % 2 ? 5 : 7; }
     if (r < 0.06) return 3;
     if (r < 0.1) return 4;
     if (r < 0.12) return 6;
@@ -499,11 +504,11 @@ export class DemoHost implements Transport {
   private kill(id: number, by: DPlayer | null, bounty: boolean): void {
     if (!this.cAlive[id]) return;
     this.cAlive[id] = 0;
-    if (this.cKind[id] === 5) this.bosses--;
+    if (boss(this.cKind[id])) this.bosses--;
     this.de.push(this.cX[id], this.cY[id], this.cKind[id]);
     if (bounty) {
       this.totalKills++;
-      if (by) { by.kills++; by.gold += CREEPS[this.cKind[id]].bounty; if (this.cKind[id] === 5) by.st[4]++; }
+      if (by) { by.kills++; by.gold += CREEPS[this.cKind[id]].bounty; if (boss(this.cKind[id])) by.st[4]++; }
     }
     this.cRespawn[id] = this.pending > 0 && this.cSite[id] < 0 ? 0.5 + this.rnd() * 3 : -1;
   }
@@ -511,7 +516,7 @@ export class DemoHost implements Transport {
   private hurt(id: number, dmg: number, by: DPlayer | null): void {
     if (!this.cAlive[id]) return;
     const k = this.cKind[id];
-    const d = Math.max(1, dmg - (k === 3 ? 4 : k === 5 ? 9 : 0));
+    const d = Math.max(1, dmg - (k === 3 ? 4 : k === 5 ? 9 : k === 7 ? 6 : 0));
     this.cHp[id] -= d;
     if (by) by.damage += d;
     if (this.cSite[id] >= 0 && this.cState[id] !== G_HUNT) this.wakeSite(this.cSite[id]);
@@ -627,6 +632,7 @@ export class DemoHost implements Transport {
       this.cCool[id] = Math.max(-1, this.cCool[id] - DT);
       this.cSwung[id] = this.cSwing[id]; this.cSwing[id] = 0; this.cFace[id] = 255;
       if (this.cCalm[id] > 0) this.cCalm[id] -= DT;
+      if (k === 7 && this.cState[id] !== G_ASLEEP && this.lob(id)) continue;
       if (this.cState[id] !== G_ASLEEP && this.bite(id)) continue;
       if (this.cSite[id] >= 0) { this.moveGuard(id, sp); continue; }
       if (this.cHuntT[id] > 0) {
@@ -674,6 +680,24 @@ export class DemoHost implements Transport {
     return true;
   }
 
+  // A broodmother with a survivor in range rears back and lobs a sac of bile at them, as the
+  // host's; true while she stands rearing.
+  private lob(id: number): boolean {
+    const at = this.lobAt.get(id) ?? 0, x = this.cX[id], y = this.cY[id];
+    if (this.tick < at) {
+      // Rearing back for the first 14 ticks after she lobs.
+      const rear = this.tick < at - LOB_EVERY + 14;
+      if (rear) this.cSwing[id] = S_WINDUP;
+      return rear;
+    }
+    const p = this.players.find((o) => o.hp > 0 && Math.hypot(o.x - x, o.y - y) >= LOB_MIN && Math.hypot(o.x - x, o.y - y) <= LOB_MAX);
+    if (!p) return false;
+    this.lobAt.set(id, this.tick + LOB_EVERY);
+    this.cSwing[id] = S_WINDUP;
+    this.effects.push({ kind: EffectKind.Bile, x0: x, y0: y, x: p.x, y: p.y, r: 2.5, left: 19, total: 19, owner: -1, dmg: 0 });
+    return true;
+  }
+
   // A wave creep against the generator, or (some of them) a wall or turret it brushes, stops and
   // attacks it; true if so. Three blows spend a creep on the generator; elsewhere it then moves on.
   private siege(id: number, ccx: number, ccy: number): boolean {
@@ -694,7 +718,7 @@ export class DemoHost implements Transport {
     this.cFace[id] = 128 + ((Math.round(a / (2 * Math.PI) * 127) + 127) % 127);
     if (!this.swing(id)) return true;
     const core = s === this.structs[0];
-    s.hp = Math.max(core ? 1 : Math.round(s.maxHp * 0.3), s.hp - (core ? (k === 5 ? 40 : 2) : SDMG[k]));
+    s.hp = Math.max(core ? 1 : Math.round(s.maxHp * 0.3), s.hp - (core ? (boss(k) ? 40 : 2) : SDMG[k]));
     if (++this.cBlows[id] >= 3) {
       if (core) this.kill(id, null, false);
       else { this.cBlows[id] = 0; this.cCalm[id] = 4; }
@@ -1043,6 +1067,15 @@ export class DemoHost implements Transport {
         if (this.tick % 2 === 0) e.left--;
         if (e.left > 0) keep.push(e);
         else { this.crates.push({ x: e.x, y: e.y, open: 0 }); this.blast(e.x, e.y, 1.5, 5, 0, null); }
+        continue;
+      }
+      if (e.kind === EffectKind.Bile || e.kind === EffectKind.Acid) {
+        if (this.tick % 2 === 0) e.left--;
+        if (e.left > 0) { keep.push(e); continue; }
+        if (e.kind === EffectKind.Bile) {
+          keep.push({ kind: EffectKind.Acid, x0: e.x, y0: e.y, x: e.x, y: e.y, r: e.r, left: 60, total: 60, owner: -1, dmg: 0 });
+          this.blast(e.x, e.y, e.r, BlastKind.Bile, 0, null);
+        }
         continue;
       }
       const by = this.players[e.owner] ?? null;

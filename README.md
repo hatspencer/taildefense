@@ -196,7 +196,9 @@ Every hit you land stops one for a moment, though, which buys a step.
 
 Brutes and abominations slam the ground when you come near: a ring shows where it will land a
 moment before. Get out of it, and don't fight them next to your turrets: the slam wrecks those
-too.
+too. The broodmother, the other boss, fights from afar instead: she lobs sacs of bile over walls
+at where you stand. Keep moving when the ring shows under you; a sac leaves a pool of acid and
+a few swarmers behind, and every quarter of her life you shoot away spills a brood of them.
 
 Gunfire is loud. Shooting wakes guards nearby and pulls wave creeps in earshot towards you; rain
 and storms muffle it.
@@ -237,7 +239,7 @@ count). Each wave comes in from one side of the map, or from two or three later 
 from the side the last one did; the wave's notice says where ("incoming from the north and
 east"). Every fifth wave is a swarm that swells as the game goes on; from wave 10 they are
 hordes, a third of which pours out of every point on the wave's sides at once. Every tenth wave
-brings an abomination.
+brings a boss: an abomination or a broodmother, taking turns.
 
 A wave holds until it is dead: the break before the next one starts only once every creep of it
 is gone (sleeping guards don't count), so two waves never land on the base at once. Stragglers

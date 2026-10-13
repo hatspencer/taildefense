@@ -17,7 +17,7 @@ export const PF_CONNECTED = 1, PF_ALIVE = 2, PF_FIRING = 4, PF_READY = 8, PF_REL
 export const CF_BURNING = 1, CF_SLOWED = 2, CF_GUARD = 4, CF_HUNTING = 8, CF_SIEGE = 16, CF_ASLEEP = 32, CF_WINDUP = 64, CF_STRIKE = 128;
 
 export const enum Order { Idle = 0, Move, AMove, Attack, Hold, Build, Repair, Loot, Revive, Steer }
-export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake, Bell }
+export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake, Bell, Bile }
 export const enum Weather { Clear = 0, Fog, Rain, Storm, Snow, Drizzle, Thunder, HeavySnow }
 // How much each weather counts as rain (internal/game/weather.go wetness).
 export const WET = [0, 0, 1, 1, 0, 0.3, 0.5, 0];
@@ -46,7 +46,10 @@ export function wreck(k: number): boolean {
 export function lootable(k: number): boolean { return k !== SiteKind.Pump && k !== SiteKind.Tank; }
 // Drop: a Huey flying in from (x0, y0); its crate lands on (x, y) when left runs out.
 // Slam: a warlord's fists coming down on everything within r of (x, y) when left runs out.
-export const enum EffectKind { Grenade = 1, Napalm = 2, AirTarget = 3, Drop = 4, Slam = 5 }
+// Bile: a broodmother's sac, rearing back from (x0, y0) for LOB_WINDUP seconds, then in the
+// air; it bursts within r of (x, y) when left runs out. Acid: the pool it leaves.
+export const enum EffectKind { Grenade = 1, Napalm = 2, AirTarget = 3, Drop = 4, Slam = 5, Bile = 6, Acid = 7 }
+export const LOB_WINDUP = 0.7;
 // The door gunner's shots, from the Huey in the air.
 export const TRACER_HELI = 34, TRACER_SHARD = 35;
 

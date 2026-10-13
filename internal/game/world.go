@@ -42,7 +42,8 @@ type Creep struct {
 	// below zero the rest before the next.
 	Sprinter bool
 	sprint   float32
-	slam     float32 // a brute or an abomination: seconds until it can slam the ground again
+	slam     float32 // a brute or an abomination: seconds until it can slam the ground again; a broodmother: until her next sac
+	brood    uint8   // a broodmother: how many times she has split open (brood.go)
 	// The chain (chain.go): whether it has howled since it went for someone, and the seconds
 	// until it does.
 	shouted bool
@@ -170,7 +171,7 @@ const TracerTurret = 16
 // Blast is an explosion or pulse for one frame.
 type Blast struct {
 	X, Y, R float32
-	Kind    uint8 // 0 rocket/cannon, 1 frost, 2 tesla, … 11 the church bell
+	Kind    uint8 // 0 rocket/cannon, 1 frost, 2 tesla, … 11 the church bell, 12 a sac of bile bursting
 }
 
 // EffectKind is a lasting effect on the ground.
@@ -182,6 +183,8 @@ const (
 	EffAirstrike                       // a target marked, the strike lands when Left runs out
 	EffDrop                            // a Huey flying in from X0, Y0; its crate lands on X, Y when Left runs out
 	EffSlam                            // a brute's or an abomination's slam coming: it lands on everything within R when Left runs out
+	EffBile                            // a broodmother's sac, from X0, Y0: rearing for lobWindup, then in the air; it bursts on X, Y within R when Left runs out
+	EffAcid                            // a pool of acid where a sac burst, eating at survivors and structures
 )
 
 // Effect is something that lasts more than a tick: a grenade in the air, a pool of napalm.

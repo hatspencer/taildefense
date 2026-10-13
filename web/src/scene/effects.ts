@@ -3,7 +3,7 @@ import {
   cameraPosition, clamp, cross, float, instancedDynamicBufferAttribute, length, mix, normalize, positionGeometry,
   abs, exp, mrt, normalView, output, vec4, pow, sin, smoothstep, step, time, uniform, uv, vec3,
 } from 'three/tsl';
-import { BlastKind, EffectKind, TRACER_HELI, TRACER_SHARD, Tile } from '../protocol';
+import { BlastKind, EffectKind, LOB_WINDUP, TRACER_HELI, TRACER_SHARD, Tile } from '../protocol';
 import type { Game } from '../state';
 import { K_ARMORY, K_CORE, K_TESLA } from './structs';
 import { linInto, writeMatrix } from './util';
@@ -125,7 +125,7 @@ const TRACER: Record<number, number> = { 0: 0xffe9a0, 1: 0xffb060, 2: 0xfff0b0, 
 const MUZZLE: Record<number, number> = { 0: 0.8, 1: 1.5, 2: 0.9, 3: 1.3, 4: 1.1, 5: 1.6 };
 const TURRET: Record<number, number> = { 5: 0xfff0a0, 6: 0xffa040, 7: 0x9fe4ff, 8: 0xd8b0ff };
 // Blood, dark and everywhere; the spitter bleeds bile.
-const CREEP_GORE = [0x4a0c0a, 0x56100c, 0x3e0a08, 0x5a1410, 0x4a5a14, 0x3a0808, 0x4a0c0a];
+const CREEP_GORE = [0x4a0c0a, 0x56100c, 0x3e0a08, 0x5a1410, 0x4a5a14, 0x3a0808, 0x4a0c0a, 0x4a5a14];
 
 // Tracers, muzzle flashes, explosions, pulses, corpses and the lasting effects.
 export class Effects {
@@ -144,6 +144,7 @@ export class Effects {
   private lastSmoke = 0;
   private lastDamage = 0;
   private lasting: THREE.InstancedMesh; private lastingFire: THREE.InstancedMesh; private grenades: THREE.InstancedMesh;
+  private acid: THREE.InstancedMesh; private sacs: THREE.InstancedMesh;
   private t0 = performance.now();
   private sec = 0;
   private lastNapalm = 0;
@@ -184,10 +185,17 @@ export class Effects {
     this.lastingFire = new THREE.InstancedMesh(fd, fm, 64);
     const gm = new THREE.MeshLambertNodeMaterial({ color: 0x33402a });
     this.grenades = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.22, 0), gm, 64);
-    for (const m of [this.lasting, this.lastingFire, this.grenades]) {
+    // A broodmother's bile: the pool, sickly green and seething, and the sacs in the air.
+    const am = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+    am.colorNode = vec3(0.3, 0.62, 0.06).mul(sin(time.mul(7)).mul(0.04).add(0.16));
+    am.fog = false;
+    this.acid = new THREE.InstancedMesh(fd, am, 64);
+    const sm = new THREE.MeshLambertNodeMaterial({ color: 0x9ab83a, emissive: 0x2a4a08 });
+    this.sacs = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.42, 1), sm, 64);
+    for (const m of [this.lasting, this.lastingFire, this.grenades, this.acid, this.sacs]) {
       m.frustumCulled = false; m.count = 0; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); this.group.add(m);
     }
-    this.grenades.castShadow = true;
+    this.grenades.castShadow = true; this.sacs.castShadow = true;
   }
 
   private now(): number { return (performance.now() - this.t0) / 1000; }
@@ -388,6 +396,18 @@ export class Effects {
         }
         return;
       }
+      case BlastKind.Bile: {
+        // A sac of bile bursting, or a broodmother splitting open: a green splash thrown wide
+        // and a sour cloud.
+        this.spheres.add(t, x, 0.3, y, 0, 0, 0, 0.35, 0x8ac030, r * 0.2, r * 0.8, 0, 0.6, 1, 0.8);
+        this.rings.add(t, x, 0.12, y, 0, 0, 0, 0.5, 0xa8e040, r * 0.3, r * 1.1, 0, 1, 1, 1);
+        for (let j = 0; j < 18; j++) {
+          const a = Math.random() * 6.28, s = 1 + Math.random() * r * 1.4;
+          this.glow.add(t, x, 0.5, y, Math.cos(a) * s, 2 + Math.random() * 3, Math.sin(a) * s, 0.5 + Math.random() * 0.3, j % 3 ? 0x8ad020 : 0xd0ff70, 0.2, 0.08, 12);
+        }
+        for (let j = 0; j < 5; j++) this.smoke.add(t + Math.random() * 0.1, x + (Math.random() - 0.5) * r, 0.5, y + (Math.random() - 0.5) * r, 0, 0.6, 0, 1.6, 0x5a6a22, 0.7, 2, 0, 1, 0.4);
+        return;
+      }
       case BlastKind.Bell: {
         // The bell tolling: slow bronze rings rolling out over the land, one a stroke.
         for (let j = 0; j < 4; j++) {
@@ -501,8 +521,9 @@ export class Effects {
     this.uUp.value.setFromMatrixColumn(cam.matrixWorld, 1);
 
     const f = game.cur;
-    let nr = 0, nf = 0, ng = 0;
+    let nr = 0, nf = 0, ng = 0, na = 0, ns = 0;
     const ra = this.lasting.instanceMatrix.array as Float32Array, fa = this.lastingFire.instanceMatrix.array as Float32Array, ga = this.grenades.instanceMatrix.array as Float32Array;
+    const aa = this.acid.instanceMatrix.array as Float32Array, sa = this.sacs.instanceMatrix.array as Float32Array;
     const sinceFrame = Math.min(0.1, (performance.now() - game.frameAt) / 1000);
     const spawnFire = t - this.lastNapalm > 0.05;
     if (spawnFire) this.lastNapalm = t;
@@ -540,10 +561,32 @@ export class Effects {
           const a = Math.random() * 6.28, d = Math.sqrt(Math.random()) * r;
           this.dust.add(t, f.eX[i] + Math.cos(a) * d, 0.1, f.eY[i] + Math.sin(a) * d, 0, 0.8 + Math.random(), 0, 0.5, 0x6a5e48, 0.12, 0.05, 2, 1, 0.8);
         }
+      } else if (k === EffectKind.Bile) {
+        // A broodmother's sac: where it will burst marked from the moment she rears back, a ring
+        // closing in on it; then the sac itself, swollen and dripping, arcing high over to it.
+        writeMatrix(ra, nr++ * 16, f.eX[i], 0.12, f.eY[i], 0, r);
+        writeMatrix(ra, nr++ * 16, f.eX[i], 0.12, f.eY[i], 0, r * (left / total) * 0.95 + 0.2);
+        const flight = Math.max(0.1, total - LOB_WINDUP), p = 1 - left / flight;
+        if (p > 0) {
+          const d = Math.hypot(f.eX[i] - f.eX0[i], f.eY[i] - f.eY0[i]);
+          const x = f.eX0[i] + (f.eX[i] - f.eX0[i]) * p, z = f.eY0[i] + (f.eY[i] - f.eY0[i]) * p;
+          const y = 2.6 + 4 * p * (1 - p) * Math.max(2.5, d * 0.45) - p * 2.3;
+          writeMatrix(sa, ns++ * 16, x, y, z, t * 4, 1 + 0.12 * Math.sin(t * 17));
+          if (spawnFire) this.glow.add(t, x, y - 0.3, z, 0, -1.5, 0, 0.45, 0x9ad030, 0.18, 0.08, 6, 1, 0.8);
+        }
+      } else if (k === EffectKind.Acid) {
+        // The pool a sac leaves: seething green, bubbles bursting on it and a sour haze off it.
+        const s = r * Math.min(1, (total - left) * 5) * (left < 0.8 ? left / 0.8 : 1);
+        writeMatrix(aa, na++ * 16, f.eX[i], 0.07, f.eY[i], 0, s);
+        if (spawnFire) {
+          const a = Math.random() * 6.28, d = Math.sqrt(Math.random()) * s;
+          this.glow.add(t, f.eX[i] + Math.cos(a) * d, 0.12, f.eY[i] + Math.sin(a) * d, 0, 0.5 + Math.random() * 0.5, 0, 0.35, Math.random() < 0.5 ? 0xa8e040 : 0x6aa020, 0.14, 0.22, 0, 1, 0.8);
+          if (Math.random() < 0.25) this.smoke.add(t, f.eX[i] + (Math.random() - 0.5) * s, 0.4, f.eY[i] + (Math.random() - 0.5) * s, 0, 0.7, 0, 1.4, 0x6a7a2a, 0.5, 1.4, 0, 1, 0.25);
+        }
       }
     }
     const done = (m: THREE.InstancedMesh, n: number) => { m.count = n; if (n) m.instanceMatrix.needsUpdate = true; };
-    done(this.lasting, nr); done(this.lastingFire, nf); done(this.grenades, ng);
+    done(this.lasting, nr); done(this.lastingFire, nf); done(this.grenades, ng); done(this.acid, na); done(this.sacs, ns);
     for (const p of [this.glow, this.smoke, this.streaks, this.spheres, this.rings, this.decals, this.stars, this.dust]) p.flush();
   }
 

@@ -288,9 +288,54 @@ function abomination(): CreepRig {
   }, { stride: 1.4, bob: 0.06, drop: 0.25, turn: 2.5, flinch: 0.1 });
 }
 
-// The rig for a creep kind; the abomination is known by name, whatever its index.
+// A woman once, swollen past bursting: a hunched torso on long spindly legs, a vast sagging
+// belly sac veined and sickly, things moving in it, egg sacs clustered on her back. She rears
+// back, throat bulging, and heaves one up.
+function broodmother(): CreepRig {
+  const p: RigPart[] = [];
+  const SAC = 0x8a9a52, VEIN = 0x4a3a2a, EGG = 0xb8c070;
+  for (const s of [1, -1]) {
+    const z = 0.4 * s;
+    p.push(rp(s > 0 ? J.THIGH_L : J.THIGH_R, B(0.16, 0.62, 0.16, SKIN, 0, 0.98, z)));
+    p.push(rp(s > 0 ? J.SHIN_L : J.SHIN_R, B(0.13, 0.62, 0.13, SKIN, 0, 0.36, z)));
+    p.push(rp(s > 0 ? J.SHIN_L : J.SHIN_R, part(cone(0.07, 0.18, 4), BONE, 0.08, 0.03, z, 0, 0, -Math.PI / 2)));
+  }
+  // The belly: a great sac hanging low, veins over it, something pressing out of it.
+  p.push(rp(J.CHEST, part(sphere(0.8, 10, 8), SAC, 0.2, 1.05, 0, 0, 0, 0, 1.05, 0.85, 0.95)));
+  for (const a of [0.3, 1.5, 2.7, 4.1, 5.3]) p.push(rp(J.CHEST, B(0.04, 0.9, 0.03, VEIN, 0.2 + Math.cos(a) * 0.78, 1.05, Math.sin(a) * 0.74, Math.sin(a) * 0.3, 0, 0.2)));
+  p.push(rp(J.CHEST, B(0.14, 0.12, 0.2, SKIN, 0.95, 1.0, 0.18, 0, 0.4, 0)));
+  p.push(rp(J.CHEST, B(0.1, 0.16, 0.14, SKIN, 0.88, 1.2, -0.3, 0, -0.3, 0)));
+  // Hunched shoulders over it, the torn dress, the egg sacs on her back.
+  p.push(rp(J.CHEST, B(0.5, 0.5, 0.62, SHIRT, -0.05, 1.75, 0, 0, 0, -0.35)));
+  p.push(rp(J.CHEST, B(0.3, 0.2, 0.7, SKIN, 0.05, 2.0, 0, 0, 0, -0.35)));
+  for (const [x, y, z, r] of [[-0.45, 1.9, 0.18, 0.24], [-0.5, 1.65, -0.15, 0.28], [-0.32, 2.15, -0.1, 0.2], [-0.62, 1.4, 0.2, 0.18]]) {
+    p.push(rp(J.CHEST, part(sphere(r, 7, 5), EGG, x, y, z)));
+  }
+  p.push(rp(J.CHEST, part(cone(0.06, 0.4, 4), BONE, -0.2, 2.15, 0.3, 0.6, 0, 0.5)));
+  head(p, J.HEAD, 0.35, 2.12, 1.05);
+  p.push(rp(J.HEAD, B(0.2, 0.3, 0.26, HAIR, 0.22, 2.12, 0)));
+  p.push(rp(J.HEAD, part(sphere(0.13, 6, 4), SAC, 0.5, 1.98, 0)));
+  // Long thin arms, the hands all claw.
+  for (const s of [1, -1]) {
+    const z = 0.42 * s, u = s > 0 ? J.UARM_L : J.UARM_R, f = s > 0 ? J.FARM_L : J.FARM_R;
+    p.push(rp(u, B(0.12, 0.6, 0.12, SKIN, 0.1, 1.68, z)));
+    p.push(rp(f, B(0.1, 0.6, 0.1, SKIN, 0.1, 1.1, z)));
+    for (const dz of [-0.05, 0, 0.05]) p.push(rp(f, part(cone(0.025, 0.24, 4), BONE, 0.12, 0.72, z + dz, Math.PI, 0, 0)));
+  }
+  return rig(p, {
+    [J.CHEST]: { p: [0, 0.95, 0], walk: [0.05, 0, 0.15, -0.05], flex: [0, 0, 0.12, 0.05], wind: [0.55, 0, 0, 0], strike: [-0.55, 0, 0, 0], die: [-0.4, 0.5, 0, 0], misc: [0.06, 0.12, 0, 0] },
+    [J.HEAD]: { p: [0.35, 2.05, 0], walk: [0.1, 1, 0.15, -0.15], flex: [0, 0, 0, 0.08], wind: [0.6, 0, 0, 0], strike: [-0.8, 0, 0, 0], die: [-0.5, 0.3, 0, 0], misc: [0.1, 0.3, 0, 0] },
+    [J.UARM_L]: { p: [0.1, 1.98, 0.42], walk: [0.3, Math.PI, 0, 0.3], wind: [-1.6, -0.3, 0, 0], strike: [1.2, 0, 0, 0], die: [-0.6, -0.4, 0, 0], misc: [-0.1, 1.0, 0.5, 1] },
+    [J.FARM_L]: { p: [0.1, 1.4, 0.42], walk: [0.3, Math.PI + 0.6, 0, 0.5], wind: [0.8, 0, 0, 0], strike: [-0.2, 0, 0, 0], die: [0, 0, 0, 0], misc: [0, 0.8, 0.5, 1] },
+    [J.THIGH_L]: { p: [0, 1.3, 0.4], walk: [0.3, 0, 0, 0], wind: [-0.2, 0, 0, 0], strike: [0.2, 0, 0, 0], die: [1.1, 0, 0, 0], misc: [0, 0.3, 1, 2] },
+    [J.SHIN_L]: { p: [0, 0.68, 0.4], flex: [-0.7, Math.PI / 2, 0, 0], die: [-1.8, 0, 0, 0], misc: [0, 0.3, 1, 2] },
+  }, { stride: 1.6, bob: 0.07, drop: 0.2, turn: 2.2, flinch: 0.15 });
+}
+
+// The rig for a creep kind; the bosses are known by name, whatever their index.
 export function creepRig(kind: number, name: string): CreepRig {
   if (name === 'abomination') return abomination();
+  if (name === 'broodmother') return broodmother();
   switch (kind) {
     case 1: return runner();
     case 2: return swarmer();

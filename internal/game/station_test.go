@@ -21,7 +21,7 @@ func TestTheGasStationIsOutByTheEdgeAndHeldHard(t *testing.T) {
 			t.Errorf("seed %d: station guard %d with %d guards", seed, s.Guard, s.Guards)
 		}
 		for i := range w.Creeps {
-			if c := &w.Creeps[i]; c.Home == int16(si+1) && c.Kind == CBoss {
+			if c := &w.Creeps[i]; c.Home == int16(si+1) && c.Kind.Boss() {
 				t.Errorf("seed %d: the warlord guards the station", seed)
 			}
 		}

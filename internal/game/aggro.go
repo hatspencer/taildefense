@@ -39,8 +39,8 @@ func ReviveInfo() (reach, time, hp float32) { return reviveReach, reviveTime, re
 // thinks (every two seconds or so), to go for a structure or a survivor on its own. A hurler
 // never sieges: from its reach it would outrange the turrets.
 var (
-	siegeChance = [NumCreepKinds]float32{CWalker: .08, CRunner: .04, CSwarmer: .03, CBrute: .3, CSpitter: .2, CBoss: .25}
-	huntChance  = [NumCreepKinds]float32{CWalker: .05, CRunner: .12, CSwarmer: .06, CBrute: .03, CSpitter: .05, CBoss: .05, CHurler: .1}
+	siegeChance = [NumCreepKinds]float32{CWalker: .08, CRunner: .04, CSwarmer: .03, CBrute: .3, CSpitter: .2, CBoss: .25, CMother: .2}
+	huntChance  = [NumCreepKinds]float32{CWalker: .05, CRunner: .12, CSwarmer: .06, CBrute: .03, CSpitter: .05, CBoss: .05, CHurler: .1, CMother: .08}
 )
 
 // Taunt pulls every creep within reach onto the player, sleeping guards too.
@@ -308,7 +308,7 @@ func (w *World) spawnGuards(si int) {
 		r := w.rng.IntN(10)
 		switch {
 		case lv == 4 && j == 0 && s.Kind == SiteOutpost:
-			k = CBoss // the outpost's warlord, out of reach early on
+			k = bossKind(si) // the outpost's warlord, out of reach early on
 		case lv == 4 && j <= 2:
 			k = CBrute
 		case lv == 3 && j == 0:

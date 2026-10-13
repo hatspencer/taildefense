@@ -55,6 +55,7 @@ const (
 	CSpitter
 	CBoss
 	CHurler // throws bone from far off; a hit slows
+	CMother // the broodmother: the other boss, lobs bile and spills swarmers
 	NumCreepKinds
 )
 
@@ -88,6 +89,7 @@ var Creeps = [NumCreepKinds]CreepDef{
 	CSpitter: {Name: "spitter", HP: 55, Speed: 1.5, Damage: 11.2, Rate: .5, Radius: .45, Reach: 6, Bounty: 6, Cost: 2.5, Size: 1, MinWave: 6, Aggro: 9, Windup: .5, Ranged: true},
 	CBoss:    {Name: "abomination", HP: 3200, Speed: .95, Damage: 87.5, Rate: .6, Radius: 1.4, Reach: .8, Armor: 9, Bounty: 300, Cost: 60, Size: 3, MinWave: 10, Aggro: 8, Windup: .7},
 	CHurler:  {Name: "hurler", HP: 45, Speed: 1.4, Damage: 9, Rate: .4, Radius: .45, Reach: 13, Bounty: 8, Cost: 3, Size: 1, MinWave: 8, Aggro: 15, Windup: .8, Ranged: true},
+	CMother:  {Name: "broodmother", HP: 2600, Speed: 1.05, Damage: 60, Rate: .7, Radius: 1.3, Reach: .8, Armor: 6, Bounty: 300, Cost: 60, Size: 3, MinWave: 10, Aggro: 12, Windup: .6},
 }
 
 // HPScale is how much tougher creeps are on wave w.

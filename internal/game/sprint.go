@@ -16,8 +16,11 @@ const (
 // pursuit is how fast c goes after a survivor dist away this tick. Only one that can see
 // them, within its aggro, breaks into the chase; one pulled from further off (shot, heard,
 // taunted, called) closes in at a quickened walk until it does, rather than jumping straight
-// from a shamble to a run.
+// from a shamble to a run. A broodmother is too swollen to run at all.
 func (w *World) pursuit(c *Creep, d *CreepDef, speed, dist float32) float32 {
+	if c.Kind == CMother {
+		return speed
+	}
 	if dist > d.Aggro*w.aggroMul() {
 		return speed * pullPace
 	}
