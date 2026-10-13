@@ -41,7 +41,7 @@ everything it knows, a terrain message follows).
   "proto": 11,
   "version": "a1b2c3d",
   "you": 0,                    // your player id
-  "w": 320, "h": 200,          // map size in tiles
+  "w": 352, "h": 220,          // map size in tiles
   "seed": "1234567",           // string: it is a uint64
   "host": "box",               // the host machine
   "hosting": true,             // this td is the host (leaving ends the game for everyone)
