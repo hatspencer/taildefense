@@ -55,7 +55,7 @@ func (w *World) bossSlam(c *Creep, tp *Player) bool {
 }
 
 // slamLands is a slam coming down: survivors inside the ring are hurt, thrown out of it and
-// stunned.
+// stunned, and whatever is built inside it is hurt too.
 func (w *World) slamLands(e *Effect) {
 	sd := slams[CBrute]
 	if e.R >= slams[CBoss].radius {
@@ -85,6 +85,18 @@ func (w *World) slamLands(e *Effect) {
 			p.X, p.Y = Move(w, p.X, p.Y, dx/d*throw/8, dy/d*throw/8)
 		}
 		p.walk.reset()
+	}
+	for i := range w.Structs {
+		st := &w.Structs[i]
+		if !st.Alive || st.Kind == SArmory {
+			continue
+		}
+		// From the nearest point of its footprint, so a big building is caught by its edge.
+		dx := e.X - min(max(e.X, float32(st.X)), float32(st.X)+float32(st.W))
+		dy := e.Y - min(max(e.Y, float32(st.Y)), float32(st.Y)+float32(st.H))
+		if dd := dx*dx + dy*dy; dd <= e.R*e.R {
+			st.HP -= e.Damage * (1 - .5*sqrt32(dd)/e.R)
+		}
 	}
 	w.Blasts = append(w.Blasts, Blast{e.X, e.Y, e.R, 3})
 }

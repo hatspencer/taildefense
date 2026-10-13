@@ -169,3 +169,27 @@ func TestAHurlerSlowsFromFarOff(t *testing.T) {
 		t.Fatalf("after a hurler's throw: slowed %.2fs, hp %.0f, shard drawn %v", p.slowLeft, p.HP, shard)
 	}
 }
+
+func TestASlamHurtsWhatIsBuiltInsideIt(t *testing.T) {
+	w := newBare(4)
+	slam := func(x, y float32) {
+		w.slamLands(&Effect{Kind: EffSlam, X: x, Y: y, R: slams[CBrute].radius, Damage: slams[CBrute].hurt})
+	}
+	core := w.Structs[w.StructAt(int(w.CoreX), int(w.CoreY))]
+	x, y := int(core.X)-4, int(core.Y)+int(core.H)+3
+	gun := &w.Structs[w.place(STurretGun, x, y, 0)]
+	hp := gun.HP
+	slam(float32(x)-2, float32(y)+.5)
+	if gun.HP > hp-slams[CBrute].hurt*.5 {
+		t.Fatalf("the turret lost only %.0f", hp-gun.HP)
+	}
+	for i := range w.Structs {
+		if a := &w.Structs[i]; a.Kind == SArmory {
+			hp := a.HP
+			slam(a.CX(), a.CY())
+			if a.HP != hp {
+				t.Fatal("the armory was hurt")
+			}
+		}
+	}
+}
