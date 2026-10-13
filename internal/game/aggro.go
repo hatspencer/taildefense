@@ -221,7 +221,7 @@ func (w *World) nearestPlayer(x, y, r float32) *Player {
 
 // creepTarget is the survivor a creep goes for this tick, or nil.
 func (w *World) creepTarget(c *Creep, d *CreepDef) *Player {
-	if c.Home > 0 {
+	if c.Home > 0 && !c.lured {
 		if dx, dy := c.X-c.HX, c.Y-c.HY; dx*dx+dy*dy > guardLeash*guardLeash {
 			c.Returning, c.Hunt = true, -1
 		}

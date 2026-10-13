@@ -462,6 +462,12 @@ func (w *World) act(p *Player, st Stats) int32 {
 		return -1
 	case OrderLoot:
 		s := &w.Sites[o.Site]
+		if s.Searched && s.Kind == SiteChurch {
+			w.toast(p, 2, "someone rang the bell first")
+			o.Kind = OrderIdle
+			p.Search = 0
+			return -1
+		}
 		if s.Searched {
 			w.toast(p, 2, "someone searched the %s first", SiteDefs[s.Kind].lower())
 			o.Kind = OrderIdle

@@ -13,7 +13,7 @@ function hash(i: number, s: number): number {
 // Car paint, faded: tints over a light grey body.
 const PAINT = [0x7d8c99, 0x8f5a48, 0x6d7a58, 0xb2a88c, 0x9a9890, 0x5e6a78];
 const CAR_BODY = 0xc8c8c8;
-const GLINT_Y = [1.65, 1.35, 1.05, 1.35, 1.45, 1.8, 1.85, 1.85, 1.75, 0, 1.75, 1.55, 1.85, 0.9, 3.4, 0];
+const GLINT_Y = [1.65, 1.35, 1.05, 1.35, 1.45, 1.8, 1.85, 1.85, 1.75, 0, 1.75, 1.55, 1.85, 0.9, 3.4, 0, 12];
 
 // Props face +x and stand on y = 0. Each kind comes closed (still worth a search) and opened.
 function houseProp(open: boolean): Part[] {
@@ -612,8 +612,61 @@ function engineProp(open: boolean): Part[] {
   return p;
 }
 
+// How far the church's tower stands past the middle of its nave, towards its yaw: the nave is
+// 14 tiles long, the tower's three rows beyond its end wall (internal/game/church.go).
+const TOWER_OFF = 8.5;
+
+// The church's bell tower, +x the way it faces, with the nave behind it on -x: a stone shaft,
+// an open belfry with the bell hung in it, a slate spire and a cross. Inside the nave, the
+// rope hangs at its foot, the pews stand in rows and the altar at the far end. Rung (open),
+// the bell hangs swung over on its yoke and the rope is pulled taut.
+function churchProp(open: boolean): Part[] {
+  const stone = 0xb9b2a0, dark = 0x7a7466, slate = 0x4a4e58, bronze = 0xc08a30, wood = 0x5a4430;
+  const p: Part[] = [
+    part(box(3.3, 0.5, 3.3), dark, 0, 0.25, 0),
+    part(box(3, 5, 3), stone, 0, 2.75, 0),
+    ...[1.6, 3.2, 4.6].map((y) => part(box(3.06, 0.08, 3.06), 0xa49d8a, 0, y, 0)),
+    // A clock long stopped on its face, and a lancet window over the door that isn't there.
+    part(cyl(0.55, 0.55, 0.08, 14), 0xd8d2c0, 1.52, 4.0, 0, 0, 0, Math.PI / 2),
+    part(box(0.04, 0.4, 0.05), 0x26282a, 1.57, 4.1, 0, 0, 0, 0),
+    part(box(0.04, 0.3, 0.05), 0x26282a, 1.57, 3.98, 0.12, 0.9, 0, 0),
+    part(box(0.08, 1.1, 0.5), 0x2a2a30, 1.5, 2.3, 0),
+    // The belfry: a floor, a pillar at each corner, a cornice.
+    part(box(3.1, 0.2, 3.1), dark, 0, 5.3, 0),
+    ...[[-1, -1], [-1, 1], [1, -1], [1, 1]].map(([x, z]) => part(box(0.45, 1.7, 0.45), stone, x * 1.27, 6.25, z * 1.27)),
+    part(box(3.3, 0.3, 3.3), 0xa49d8a, 0, 7.2, 0),
+    // The spire, its corners to the corners of the tower, and the cross.
+    part(cyl(0.04, 2.1, 3.4, 4), slate, 0, 9.05, 0, 0, Math.PI / 4, 0),
+    part(box(0.1, 0.9, 0.1), 0x3a3a3e, 0, 11.1, 0),
+    part(box(0.1, 0.1, 0.5), 0x3a3a3e, 0, 11.25, 0),
+    // The yoke across the belfry.
+    part(box(0.18, 0.18, 2.6), wood, 0, 6.75, 0),
+    // The beam out of the tower's back wall that the rope comes down from, into the nave.
+    part(box(1.7, 0.18, 0.18), wood, -2.3, 3.55, 0),
+    // Pews in two rows either side of the aisle, a few knocked askew, and the altar.
+    ...[-5, -6.4, -7.8, -9.2, -10.6].flatMap((x, i) => [-1, 1].map((z) => part(box(0.45, 0.45, 2.2), wood, x, 0.23, z * 1.8, 0, i === 2 && z > 0 ? 0.4 : i === 4 && z < 0 ? -0.25 : 0, 0))),
+    part(box(1, 0.95, 2.4), 0xc8c0aa, -13.4, 0.48, 0),
+    part(box(1.1, 0.06, 2.6), 0x9a9280, -13.4, 0.97, 0),
+  ];
+  if (open) p.push(
+    // The bell swung up on its yoke, mouth out, the clapper against its lip; the rope taut.
+    part(cyl(0.38, 0.8, 0.95, 12), bronze, 0.3, 6.25, 0, 0, 0, -0.75),
+    part(cyl(0.24, 0.24, 0.15, 10), bronze, 0.05, 6.6, 0, 0, 0, -0.75),
+    part(box(0.1, 0.55, 0.1), 0x3a3428, 0.62, 6.15, 0, 0, 0, -1.1),
+    part(box(0.05, 3.1, 0.05), 0x9a8a66, -3.1, 2.0, 0, 0, 0, 0.1),
+  );
+  else p.push(
+    part(cyl(0.38, 0.8, 0.95, 12), bronze, 0, 6.1, 0),
+    part(cyl(0.24, 0.24, 0.15, 10), bronze, 0, 6.6, 0),
+    part(box(0.1, 0.55, 0.1), 0x3a3428, 0, 5.75, 0),
+    part(box(0.05, 3.0, 0.05), 0x9a8a66, -3, 2.05, 0),
+    part(cyl(0.1, 0.1, 0.08, 8), 0x9a8a66, -3, 0.55, 0, Math.PI / 2, 0, 0),
+  );
+  return p;
+}
+
 // Indexed by propKind.
-const PROPS = [houseProp, carProp, crateProp, pickupProp, policeProp, ambulanceProp, busProp, armyProp, counterProp, pumpProp, fireProp, armoredProp, camperProp, motoProp, planeProp, engineProp];
+const PROPS = [houseProp, carProp, crateProp, pickupProp, policeProp, ambulanceProp, busProp, armyProp, counterProp, pumpProp, fireProp, armoredProp, camperProp, motoProp, planeProp, engineProp, churchProp];
 // Wrecks that take a coat of faded paint.
 const PAINTED = new Set<number>([SiteKind.Car, SiteKind.Pickup, SiteKind.Moto]);
 
@@ -674,6 +727,12 @@ export class Loot {
       if (s.kind === SiteKind.Plane || s.kind === SiteKind.Tank) {
         this.px[i] = s.sx; this.pz[i] = s.sy;
         this.yaw[i] = (plane?.yaw ?? 0) + (s.kind === SiteKind.Tank ? (hash(i, 1) - 0.5) * 1.2 : 0);
+        return;
+      }
+      if (s.kind === SiteKind.Church) {
+        const y = s.yaw ?? 0;
+        this.px[i] = s.x + s.w / 2 + Math.cos(y) * TOWER_OFF; this.pz[i] = s.y + s.h / 2 + Math.sin(y) * TOWER_OFF;
+        this.yaw[i] = y;
         return;
       }
       if (!walled(s.kind)) {

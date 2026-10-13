@@ -29,6 +29,7 @@ const (
 	SiteMoto                      // a motorbike on its side: a quick look in the panniers
 	SitePlane                     // the crashed cargo plane out in the wilds, held hard
 	SiteTank                      // one of the plane's engines, leaking fuel: not loot, it blows up when shot
+	SiteChurch                    // the church on the outskirts: not loot, its bell draws every creep to it
 	NumSiteKinds
 )
 
@@ -74,6 +75,7 @@ var SiteDefs = [NumSiteKinds]SiteDef{
 	SiteMoto:      {Name: "Motorbike", Search: 1},
 	SitePlane:     {Name: "Crashed plane", Search: 6, Luck: 1.5, Favor: FavorGear, Guard: 4},
 	SiteTank:      {Name: "Engine"},
+	SiteChurch:    {Name: "Church", Search: 2.5},
 }
 
 // Wreck reports whether a site is a vehicle on a road.
@@ -101,7 +103,9 @@ var wreckOdds = [3][]struct {
 
 // Walled reports whether a site is a building searched from inside, rather than a thing in
 // the open.
-func (k SiteKind) Walled() bool { return k == SiteHouse || k == SiteOutpost || k == SiteStation }
+func (k SiteKind) Walled() bool {
+	return k == SiteHouse || k == SiteOutpost || k == SiteStation || k == SiteChurch
+}
 
 // outpostFinds is how many finds searching an outpost turns up; the first is rare or better,
 // the rest good or better.
@@ -190,6 +194,9 @@ func (w *World) OrderLoot(p *Player, si int) error {
 	if !s.Kind.Lootable() {
 		return errors.New("nothing to search there")
 	}
+	if s.Searched && s.Kind == SiteChurch {
+		return errBellRinging
+	}
 	if s.Searched {
 		return fmt.Errorf("the %s has been searched already", SiteDefs[s.Kind].lower())
 	}
@@ -201,6 +208,10 @@ func (w *World) OrderLoot(p *Player, si int) error {
 // handed over.
 func (w *World) search(p *Player, si int) {
 	s := &w.Sites[si]
+	if s.Kind == SiteChurch {
+		w.ringBell(p, si)
+		return
+	}
 	s.Searched = true
 	p.Tally.Searched++
 	d := SiteDefs[s.Kind]
@@ -326,7 +337,7 @@ func (w *World) ambush(si int, p *Player) {
 func (w *World) restock() int {
 	n := 0
 	for i := range w.Sites {
-		if w.Sites[i].Searched && w.Sites[i].Kind.Lootable() && w.rng.IntN(3) == 0 {
+		if w.Sites[i].Searched && w.Sites[i].Kind.Lootable() && w.Sites[i].Kind != SiteChurch && w.rng.IntN(3) == 0 {
 			w.Sites[i].Searched, w.Sites[i].Sprung = false, 0
 			if w.Sites[i].Guards == 0 {
 				w.spawnGuards(i)
@@ -588,8 +599,8 @@ func (w *World) placeSites(ruins []ruin) []Site {
 		switch k {
 		case SiteOutpost:
 			g = 4
-		case SitePump, SiteTank:
-			g = 0
+		case SitePump, SiteTank, SiteChurch:
+			g = 0 // the church is quiet; what its bell brings is danger enough
 		}
 		g = max(g, SiteDefs[k].Guard)
 		sites = append(sites, Site{Kind: k, X: int16(x), Y: int16(y), W: uint8(sw), H: uint8(sh), SX: sx, SY: sy, Tier: tier, Guard: g})
@@ -604,6 +615,15 @@ func (w *World) placeSites(ruins []ruin) []Site {
 				for _, p := range h.pumps {
 					add(SitePump, p[0], p[1], 1, 1, float32(p[0])+.5, float32(p[1])+.5)
 				}
+			}
+			continue
+		}
+		if h.church {
+			// The church is rung from the foot of its tower, inside.
+			sx, sy = float32(h.cx)+.5, float32(h.cy)+.5
+			if reach(sx, sy) {
+				add(SiteChurch, x, y, hw, hh, sx, sy)
+				sites[len(sites)-1].Yaw = h.yaw
 			}
 			continue
 		}

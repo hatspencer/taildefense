@@ -355,7 +355,7 @@ export class Terrain {
 
 // Ruined walls come in styles, each block of one built along +x, a tile long. lo..hi is how
 // tall a block of it stands, before the break.
-const enum Wall { Siding = 0, Brick, Stone, Cinder, Timber, Fort, Shop }
+const enum Wall { Siding = 0, Brick, Stone, Cinder, Timber, Fort, Shop, Chapel }
 const WALLS: { lo: number; hi: number; geo: () => THREE.BufferGeometry }[] = [
   // Siding: a brick footing, faded clapboard, a broken top.
   { lo: 0.8, hi: 1.6, geo: () => merge([
@@ -422,6 +422,15 @@ const WALLS: { lo: number; hi: number; geo: () => THREE.BufferGeometry }[] = [
     part(box(1.01, 0.15, 0.65), 0x2f7472, 0, 0.78, 0),
     part(box(1.02, 0.05, 0.7), 0x8a867a, 0, 1.0, 0),
   ]) },
+  // The church: tall pale ashlar on a dark plinth, a string course, the top broken off unevenly.
+  { lo: 1.7, hi: 2.4, geo: () => merge([
+    part(box(1, 1, 0.8), 0xb9b2a0, 0, 0.5, 0),
+    part(box(1.02, 0.22, 0.84), 0x6e6a5e, 0, 0.11, 0),
+    part(box(1.01, 0.03, 0.81), 0x9a9482, 0, 0.42, 0),
+    part(box(1.01, 0.03, 0.81), 0x9a9482, 0, 0.72, 0),
+    part(box(1.03, 0.07, 0.86), 0xa49d8a, 0, 0.98, 0),
+    part(box(0.4, 0.16, 0.8), 0xb0a996, -0.24, 1.06, 0),
+  ]) },
 ];
 
 // Which style each wall tile is built in: an outpost's and the gas station's their own, a
@@ -436,6 +445,12 @@ function wallStyles(tiles: Uint8Array, w: number, h: number, sites: SiteDef[]): 
   // Outposts and the station first: a house that overlaps one keeps to its own ground.
   for (const s of sites) if (s.kind === SiteKind.Outpost) paint(s.x, s.y, s.w, s.h, Wall.Fort);
   for (const s of sites) if (s.kind === SiteKind.Station) paint(s.x, s.y, s.w, s.h, Wall.Shop);
+  // The church's nave and the foot of its tower, which stands on past the nave towards yaw.
+  for (const s of sites) {
+    if (s.kind !== SiteKind.Church) continue;
+    const fx = Math.round(Math.cos(s.yaw ?? 0)), fy = Math.round(Math.sin(s.yaw ?? 0));
+    paint(Math.min(s.x, s.x + fx * 3), Math.min(s.y, s.y + fy * 3), s.w + Math.abs(fx) * 3, s.h + Math.abs(fy) * 3, Wall.Chapel);
+  }
   for (const s of sites) {
     if (s.kind !== SiteKind.House) continue;
     const r = hash(s.x, s.y, 51);

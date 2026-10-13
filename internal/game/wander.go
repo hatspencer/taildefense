@@ -74,7 +74,8 @@ func (w *World) spawnPack() int {
 		if !w.wanderSpot(x, y) {
 			continue
 		}
-		n, got := packLo+w.rng.IntN(packHi-packLo+1), 0
+		// Never past the map's share of them.
+		n, got := min(packLo+w.rng.IntN(packHi-packLo+1), w.wanderCap()-w.wanderers()), 0
 		for j := 0; j < n*3 && got < n; j++ {
 			px, py := x, y
 			if got > 0 {

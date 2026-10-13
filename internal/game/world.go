@@ -49,6 +49,8 @@ type Creep struct {
 	alarm   float32
 	// A stun (stun.go): seconds it is stopped for, and until another can land.
 	stunLeft, stunCool float32
+	// Drawn to the church bell while it rings (church.go).
+	lured bool
 }
 
 // Structure is a building. Index in World.Structs is its ID; dead slots are reused.
@@ -168,7 +170,7 @@ const TracerTurret = 16
 // Blast is an explosion or pulse for one frame.
 type Blast struct {
 	X, Y, R float32
-	Kind    uint8 // 0 rocket/cannon, 1 frost, 2 tesla
+	Kind    uint8 // 0 rocket/cannon, 1 frost, 2 tesla, … 11 the church bell
 }
 
 // EffectKind is a lasting effect on the ground.
@@ -319,6 +321,8 @@ type World struct {
 	structAt []int16 // per tile, structure index or -1
 	flow     flowField
 	flowDirt bool
+	goals    []int32
+	bell     bell // the church bell (church.go)
 	chase    [MaxPlayers]chaseField
 	grid     spatial
 	freeIDs  []uint16
@@ -500,6 +504,7 @@ type ruin struct {
 	pumps      [][2]int
 	plane      bool // the crashed plane, lying at yaw round cx, cy (plane.go)
 	yaw        float32
+	church     bool // the church, its tower towards yaw and its bell rope at cx, cy (church.go)
 }
 
 // generate is Generate, also returning the ruins it built.
@@ -571,6 +576,7 @@ func generate(seed uint64, w, h int) ([]Tile, []ruin) {
 	}
 	houses = gasStation(t, w, h, rng, roads, road, houses)
 	houses = planeCrash(t, w, h, rng, road, houses)
+	houses = church(t, w, h, rng, road, houses)
 	// A solid border, so nothing walks off the edge.
 	for x := 0; x < w; x++ {
 		t[x], t[(h-1)*w+x] = TRock, TRock

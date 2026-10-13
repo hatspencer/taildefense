@@ -388,6 +388,15 @@ export class Effects {
         }
         return;
       }
+      case BlastKind.Bell: {
+        // The bell tolling: slow bronze rings rolling out over the land, one a stroke.
+        for (let j = 0; j < 4; j++) {
+          this.rings.add(t + j * 0.9, x, 0.2, y, 0, 0, 0, 2.6, 0xe0b050, 0.5, r, 0, 0.9, 1, 1.4);
+          this.rings.add(t + j * 0.9 + 0.08, x, 0.2, y, 0, 0, 0, 2.2, 0xfff0c0, 0.4, r * 0.7, 0, 0.6, 1, 0.8);
+        }
+        this.spheres.add(t, x, 1.2, y, 0, 0, 0, 0.6, 0xffd070, 0.4, 2.5, 0, 0.5, 1, 0.6);
+        return;
+      }
       case BlastKind.Lightning: {
         // A bolt from the sky: a jagged trunk with a branch or two, a white flare, a scorch.
         let px = x + (Math.random() - 0.5) * 6, py = 34, pz = y - 6 + (Math.random() - 0.5) * 4;
