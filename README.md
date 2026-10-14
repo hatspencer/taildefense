@@ -30,18 +30,23 @@ WebGL 2 where WebGPU isn't available. Any current Chrome, Edge, Firefox or Safar
 
 | command | what it does |
 |---|---|
-| `td` | launcher: host (←/→ picks the difficulty), join (lists the games on your tailnet), settings, a changelog of the latest commits with yours marked, the doctor's checks, update status. It opens with a short splash (any key skips it, `--no-splash` or `--no-anim` turns it off) |
+| `td` | launcher: host (←/→ picks the difficulty, f turns fog of war on or off, y copies the join command for your friends), join (lists the games on your tailnet), settings, a changelog of the latest commits with yours marked, the doctor's checks, update status. It opens with a short splash (any key skips it, `--no-splash` or `--no-anim` turns it off) |
 | `td host [--port N] [--seed S] [--name NAME] [--difficulty D]` | host a game and play it in the browser |
 | `td join HOST[:PORT] [--name NAME]` | join a game by tailnet name or address |
 | `td serve [--port N] [--seed S] [--difficulty D]` | headless dedicated host; logs to stdout until interrupted |
-| `td ls [--json]` | games running on your tailnet |
-| `td bench [--wave N] [--players P] [--seconds S]` | time a busy wave offline: simulation, encoding, relay |
-| `td frame [--view menu\|join\|settings\|changelog\|doctor\|help\|splash] [--at S]` | render one launcher frame from demo data; `--at` is seconds into the splash |
+| `td ls [--json] [--port N]` | games running on your tailnet |
+| `td bench [--wave N] [--players P] [--seconds S] [--seed S]` | time a busy wave offline: simulation, encoding, relay |
+| `td frame [--width W] [--height H] [--view menu\|join\|settings\|changelog\|doctor\|help\|splash] [--at S]` | render one launcher frame from demo data, 160×48 unless told otherwise; `--at` is seconds into the splash |
 | `td doctor` | check tailscale, the browser, container engine, install |
-| `td config [KEY [VALUE]]` | show or change settings: NAME, PORT, DIFFICULTY, BROWSER, AUTOUPDATE |
+| `td config [KEY [VALUE]]` | show or change settings: NAME, PORT, DIFFICULTY, FOG, BROWSER, AUTOUPDATE; `td config KEY --reset` returns one to its default |
 | `td update [-f] [-b BRANCH]` | rebuild from the repo's main (or a branch) and reinstall |
 | `td install [-f]` | install this build |
 | `td version [--offline] [--json]` | this build and whether a newer one exists |
+
+Every setting can also come from the environment (`TAILDEFENSE_NAME`, `TAILDEFENSE_PORT`,
+`TAILDEFENSE_DIFFICULTY`, `TAILDEFENSE_FOG`, `TAILDEFENSE_BROWSER`), and `td config` says where
+each value in force came from. `--theme NAME` (or `TAILDEFENSE_THEME`) picks the colour theme of the
+launcher and td's output, and `--no-color` turns colour off.
 
 `DIFFICULTY` is `easy`, `normal` (the default), `hard` or `brutal`, for the games you host. It
 scales creep health and wave size, gold, the time between waves, how tough the loot guards are
@@ -51,6 +56,9 @@ been there, the dead come out of the dark, and nobody
 tells you how many guards a site has left. On brutal
 you start with only a crowbar. A restart keeps the game's difficulty. The host can also change it
 mid-game by clicking the difficulty chip at the top left.
+
+`FOG` is `off` by default. On, the games you host hide whatever the team cannot see, on any
+difficulty; at night (hard and brutal) that is always so.
 
 `BROWSER` is `auto` by default: td finds the browsers installed (Chrome, Chromium, Brave, Edge,
 Vivaldi, Firefox, and Safari on macOS) and starts the best one full screen, as an app window with
@@ -119,7 +127,8 @@ faces, however the camera is turned, and the camera follows while you walk.
 | wheel | zoom |
 | arrows, screen edges | look around; walking brings the camera back, tapping Space recenters on your hero, a double tap locks the camera to it |
 | Enter | chat with the team; in the chat, Tab adds where you are ("NE of the base, 40 m") |
-| Tab, F1, F3, Esc | scoreboard, help, stats, cancel / menu |
+| Tab, F1 (or ?), F3, F4 | scoreboard, help, performance readout, the pixel view on or off |
+| Esc, F10 | cancel the current mode or window, else the menu |
 
 The top bar always shows the base's health, the generator's, next to the wave. Click it to look at
 the base.
@@ -166,6 +175,12 @@ sites hold better loot, and the quiet ones near the base only ever give gold, sm
 now and then something more. Guards wake when you get close or shoot one, and give up and walk
 home if you lead them too far away. In fog they notice you later.
 
+Out by the edge, beside a road, stands a gas station. Its counter always gives a weapon you
+don't have yet, and it is held hard: a garrison sleeps round the pumps and more of the dead hide
+in the shop, bursting out when you step onto the lot and again when you start on the counter. A
+shot or a blast that reaches a fuel pump sets it off: a fireball that hurts survivors too, sets
+off the pumps beside it and leaves the ground burning.
+
 Far out are three overrun outposts: walled forts with a keep, held by a garrison and its
 warlord. They are hard going early on, and the stash inside is worth it: three finds, the first
 rare at least. The hardest sites spring ambushes, with creeps that burst out as you walk in or
@@ -193,6 +208,11 @@ on while it slows, or turning to fight. They call to each other, too: one that c
 brings everything round it, and that brings everything round it. Hiding in a ruin doesn't help
 for long; they find the door.
 Every hit you land stops one for a moment, though, which buys a step.
+
+The dead come in kinds, and new ones join the waves as the game goes on: walkers from the
+start, runners from wave 2, swarmers (small, fast, weak, many) from wave 3, brutes from wave 4,
+spitters, which spit from a few steps off, from wave 6, and hurlers, which throw shards of bone
+from twice as far, from wave 8. From wave 10 the bosses come.
 
 Brutes and abominations slam the ground when you come near: a ring shows where it will land a
 moment before. Get out of it, and don't fight them next to your turrets: the slam wrecks those
@@ -251,13 +271,92 @@ a minute on Normal, to go out exploring and looting; ten seconds before it ends 
 called home. The last seconds of every break count down in the middle of the screen. When
 everyone is ready the countdown jumps to 3 s.
 
+## Architecture
+
+```
+            the host's machine                                    a friend's machine
+┌────────────────────────────────────────────┐        ┌────────────────────────────────────┐
+│  td host                                   │        │  td join box                       │
+│                                            │        │                                    │
+│  ┌──────────────────────────────────────┐  │        │                                    │
+│  │  netplay.Server · tailnet IP + lo    │  │        │                                    │
+│  │  :7787, nothing else                 │  │        │                                    │
+│  │                                      │  │  TCP   │                                    │
+│  │  game.World ── Step() at 20 Hz       │◀─┼────────┼── commands (orders, not keys)      │
+│  │  flow field · spatial hash · A*      │  │tailnet │                                    │
+│  │  waves · loot · aggro · weather      │──┼────────┼─▶ deltas, deflated; a keyframe     │
+│  │                                      │  │        │   to catch up                      │
+│  │  Encoder: one delta for all, a       │  │        │                                    │
+│  │  keyframe for whoever fell behind    │  │        │                                    │
+│  └──────────────┬───────────────────────┘  │        │                                    │
+│      loopback   │ ▲  same protocol         │        │                                    │
+│                 ▼ │                        │        │                                    │
+│  ┌──────────────────────────────────────┐  │        │  ┌──────────────────────────────┐  │
+│  │  web.Session                         │  │        │  │  web.Session                 │  │
+│  │  netplay.Client ─▶ Replica           │  │        │  │  netplay.Client ─▶ Replica   │  │
+│  │  view encoder: the whole world,      │  │        │  │  view encoder                │  │
+│  │  every tick                          │  │        │  │                              │  │
+│  │  HTTP + WebSocket, 127.0.0.1 only,   │  │        │  │  127.0.0.1:random #token     │  │
+│  │  random port, #token                 │  │        │  │                              │  │
+│  └──────────────┬───────────────────────┘  │        │  └──────────────┬───────────────┘  │
+│                 │ ▲  JSON commands         │        │                 │ ▲                │
+│  binary frames  ▼ │                        │        │                 ▼ │                │
+│  ┌──────────────────────────────────────┐  │        │  ┌──────────────────────────────┐  │
+│  │  Browser (TypeScript, three.js)      │  │        │  │  Browser                     │  │
+│  │  state: decode, interpolate          │  │        │  │                              │  │
+│  │  scene: WebGPU (WebGL 2 fallback),   │  │        │  │                              │  │
+│  │  instanced creeps, TSL materials     │  │        │  │                              │  │
+│  │  HUD · minimap · input → controller  │  │        │  │                              │  │
+│  └──────────────────────────────────────┘  │        │  └──────────────────────────────┘  │
+└────────────────────────────────────────────┘        └────────────────────────────────────┘
+                     │                                                  │
+                     └────────────── tailscaled (whois, peers) ─────────┘
+```
+
+The host plays its own game the way everyone else does, through a client over loopback. `td
+serve` is the same host without that client. The launcher (`td`) finds games by probing every
+tailnet peer on the game port; a probe gets the host's `Info` (players, wave, difficulty,
+version) and hangs up.
+
+One tick, from a key press to the screen:
+
+```
+Browser                   local td (web.Session)               host td (netplay.Server)
+  │                                │                                    │
+  │  {"op":"move","x":…,"y":…}     │                                    │
+  │ ──────────────────────────────▶│  Cmd: op, a, b, x/y to 1/8 tile,   │
+  │                                │  t, text                           │
+  │                                │ ──────────────────────────────────▶│  netplay.Exec on the World,
+  │                                │                                    │  between ticks
+  │                                │                                    │  every 50 ms: World.Step,
+  │                                │                                    │  Encoder.Delta, shared by
+  │                                │  frame: delta (or keyframe)        │  every player's queue
+  │                                │ ◀──────────────────────────────────│
+  │                                │  Replica.Apply                     │
+  │  frame: the whole world        │                                    │
+  │ ◀──────────────────────────────│                                    │
+  │  interpolate, draw             │                                    │
+```
+
+| package | what it holds |
+|---|---|
+| `internal/game` | the simulation: world, creeps, waves, loot, abilities, weather. No I/O |
+| `internal/netplay` | host and client: handshake, commands, delta/keyframe codec, the replica |
+| `internal/web` | the local web server: page, WebSocket, the browser's frame, browser launching |
+| `internal/playtest` | bots, the invariant checker, the fuzzer, the golden game |
+| `internal/tui`, `internal/ui` | the launcher (Bubble Tea) and td's terminal output |
+| `internal/cli` | the commands: host, serve, ls, doctor, config, bench, install, update |
+| `internal/tailnet` | talks to the installed tailscale: this machine, peers, whois |
+| `web/src` | the browser client: `net`, `state`, `scene/`, `hud/`, `input`, `controller` |
+
 ## Why it's built this way
 
 - **The host is authoritative.** It simulates at 20 Hz, and each player's `td` keeps a replica fed
-  by compressed delta frames over one TCP connection. Players send orders, not keystrokes, and the
-  host walks heroes along A* paths, so there's nothing to predict and nothing to cheat with.
+  by compressed delta frames over one TCP connection. Players send orders, not keystrokes: a
+  spot to walk to (the host finds the A* path), a heading for WASD, a target, a purchase. Every
+  rule runs on the host, so there's nothing to cheat with.
 - **The browser only draws.** Your local `td` turns its replica into one compact binary frame per
-  tick and sends it to the page over a localhost WebSocket. The page interpolates between frames.
+  tick and sends it to the page over a localhost WebSocket, so the page keeps no delta state. The page interpolates between frames.
   The WebSocket is a small stdlib implementation, so the Go side adds no modules for it.
 - **Lots of creeps, cheaply.**
   - **Simulation.** Creeps live in a dense array with stable ids. They path with a single
@@ -267,8 +366,9 @@ everyone is ready the countdown jumps to 3 s.
     in id order, then new arrivals, all deflated.
   - **Rendering.** Creeps of each kind are one instanced mesh, animated (bob, sway, burn, slow,
     hit flash) in TSL node materials on the GPU.
-  - **Numbers.** At wave 40 with 8 players the game hits its 16k creep cap, and the host spends
-    about 0.7 ms per tick simulating and 0.1 ms encoding (`td bench`).
+  - **Numbers.** At wave 40 with 8 players the game hits its 16k creep cap. The host then spends
+    about 2 ms per tick simulating and 0.3 ms encoding, and each player gets about 135 KiB/s
+    over the tailnet (`td bench --wave 40 --players 8`).
 - **Generated art.** Everything is low-poly geometry built in code with three.js: no asset files.
 - **The launcher is Bubble Tea.** It hosts, finds games and holds settings, then opens the browser
   and shows the game's status until it ends.
@@ -279,12 +379,16 @@ everyone is ready the countdown jumps to 3 s.
 
 ```
 ./build.sh check   # gofmt, vet, Go tests, client typecheck (in containers)
+./build.sh build   # build ./td for this machine, client included
+./build.sh install # build and install it
+./build.sh test …  # go test ./..., with any flags given
 ./build.sh web     # build only the browser client into internal/web/dist
 ./build.sh dist    # cross-compile linux/darwin × amd64/arm64 into dist/
 ./build.sh npm …   # run npm in the node container, inside web/
 ./build.sh soak 12 # bots play 12 more games to late waves (the short set runs in check)
 ./build.sh fuzz 2m # fuzz the commands players give
-./build.sh golden  # rewrite the golden game's record after a deliberate rule change
+./build.sh golden  # rewrite the golden game and the launcher's golden frames after a deliberate change
+./build.sh go …    # any go command in the container; fmt, tidy and shell too
 ```
 
 `internal/playtest` plays whole games with nobody at the keys. Bots shop, build, loot, fight,
@@ -302,5 +406,5 @@ camera-controls, esbuild). `web/PROTOCOL.md` is the contract between `td` and th
 `internal/web/dist/index.html#demo` straight from disk for a self-running demo with a fake host;
 `#demo&webgl` forces the WebGL 2 path, and `#demo&creeps=8000` stresses it.
 `#lab` is the animation bench: every creep kind walking, idle, attacking, hit, burning, asleep
-and dying, beside the survivors' poses; `#lab=0`…`#lab=5` looks at one creep row, `#lab=h` at the
-survivors, and `&dist=11` brings the camera in.
+and dying, beside the survivors' poses; `#lab=0`…`#lab=7` looks at one creep row, `#lab=h` at the
+survivors (`#lab=h0`…`#lab=h7` at one of them), and `&dist=11` brings the camera in.
