@@ -1,0 +1,24 @@
+
+  ▄▄▄▄▄▄  ▄▄▄▄  ▄▄ ▄▄     ▄▄▄▄▄  ▄▄▄▄▄▄ ▄▄▄▄▄▄ ▄▄▄▄▄▄ ▄▄  ▄▄  ▄▄▄▄▄ ▄▄▄▄▄▄
+  ▀▀▀▀▀▀ ▀█  ▀▀ ▀▀ ▀▀     ▀▀  ▀▀ ▀▀     ▀▀     ▀▀     ▀▀▀▄▀▀ ▀▀     ▀▀
+    ▀▀   ▀▀▀▀▀▀ ▀▀ ▀▀     ▀▀  ▀▀ ▀▀▀▀▀  ▀▀▀▀▀  ▀▀▀▀▀  ▀▀ ▀▀▀  ▀▀▀▀▄ ▀▀▀▀▀
+    ▀▀   ▀▀  ▀▀ ▀▀ ▀▀▀▀▀▀ ▀▀▄▄▀▀ ▀▀▄▄▄▄ ▀▀     ▀▀▄▄▄▄ ▀▀  ▀▀ ▄▄▄▄▀▀ ▀▀▄▄▄▄
+  co-op wave defense over your tailnet
+
+  td abc1234  ✔ updated abc1234 → def5678 · R restart now
+  ● box  100.64.0.7  ada@example.com
+  ✘ could not join pal: this host runs game protocol 2 and you run 1; whoever i…
+
+  Settings  saved to <config>/prefs
+
+  ▶ name        tester  (default)
+      your name in games, as the others see it
+    port        7787  (default)
+    difficulty  normal  (default)
+    fog         off  (default)
+    browser     auto  (default)
+    autoupdate  on  (default)
+
+
+
+  ↑↓ move · enter edit · esc back · ? help

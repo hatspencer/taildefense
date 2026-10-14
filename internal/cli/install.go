@@ -57,6 +57,9 @@ func Install(w io.Writer, force bool) int {
 		}
 	}
 	p.OK("installed %s", tilde(paths.BinaryPath()))
+	if err := paths.RecordSum(); err != nil {
+		p.Warn("could not record the installed binary's hash: %v", err)
+	}
 	if err := os.WriteFile(paths.VersionFile(), []byte(source+"\n"), 0o644); err != nil {
 		p.Fail("%v", err)
 		return 1

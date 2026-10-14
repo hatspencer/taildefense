@@ -1,0 +1,24 @@
+
+  ▄▄▄▄▄▄  ▄▄▄▄  ▄▄ ▄▄     ▄▄▄▄▄  ▄▄▄▄▄▄ ▄▄▄▄▄▄ ▄▄▄▄▄▄ ▄▄  ▄▄  ▄▄▄▄▄ ▄▄▄▄▄▄
+  ▀▀▀▀▀▀ ▀█  ▀▀ ▀▀ ▀▀     ▀▀  ▀▀ ▀▀     ▀▀     ▀▀     ▀▀▀▄▀▀ ▀▀     ▀▀
+    ▀▀   ▀▀▀▀▀▀ ▀▀ ▀▀     ▀▀  ▀▀ ▀▀▀▀▀  ▀▀▀▀▀  ▀▀▀▀▀  ▀▀ ▀▀▀  ▀▀▀▀▄ ▀▀▀▀▀
+    ▀▀   ▀▀  ▀▀ ▀▀ ▀▀▀▀▀▀ ▀▀▄▄▀▀ ▀▀▄▄▄▄ ▀▀     ▀▀▄▄▄▄ ▀▀  ▀▀ ▄▄▄▄▀▀ ▀▀▄▄▄▄
+  co-op wave defense over your tailnet
+
+  td abc1234  ✔ updated abc1234 → def5678 · R restart now
+  ● box  100.64.0.7  ada@example.com
+  ✘ could not join pal: this host runs game protocol 2 and you run 1; whoever i…
+
+  Changelog  latest 24 commits on main
+
+  td abc1234 is 3 commits behind · u update
+
+    abc2237  2026-10-28  The 24-th change, said in one line
+    abc323a  2026-10-27  The 23-th change, said in one line
+    abc423d  2026-10-26  The 22-th change, said in one line
+  ▶ abc1234  2026-10-25  The 21-th change, said in one line  ◀ this td
+    abc6243  2026-10-24  The 20-th change, said in one line
+    abc7246  2026-10-23  The 19-th change, said in one line
+    abc8249  2026-10-22  The 18-th change, said in one line
+    1–7 of 24
+  ↑↓ scroll · r read again · esc back · ? help

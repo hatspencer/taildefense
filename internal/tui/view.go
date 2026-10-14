@@ -206,13 +206,8 @@ func (m *Model) menuView(w int) []string {
 func (m *Model) itemHint(it menuItem) string {
 	switch it {
 	case itemHost:
-		self, err, loaded := m.sess.tailnet()
-		if loaded && err == nil && self.Running && self.IPv4() != "" {
-			host, _, _ := strings.Cut(self.DNSName, ".")
-			if host == "" {
-				host = self.Host
-			}
-			return "←/→ difficulty · f fog of war · friends join with: " + cli.JoinCommand(host, m.prefs.Port())
+		if cmd, ok := m.joinCommand(); ok {
+			return "←/→ difficulty · f fog of war · y copies: " + cmd
 		}
 		return fmt.Sprintf("←/→ difficulty · f fog of war · on port %d, this machine only until tailscale is up", m.prefs.Port())
 	case itemJoin:

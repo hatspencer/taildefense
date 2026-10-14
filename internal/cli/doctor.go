@@ -142,6 +142,9 @@ func checkUpdates(p *ui.Printer) {
 			line += ", following " + b
 		}
 		p.Pass("%s", line)
+		if paths.Replaced() {
+			p.Info("the installed binary is not the one td installed: it was replaced by hand since; td update puts a clean build back")
+		}
 		if !install.InPath(paths.BinDir) {
 			p.Warn("%s is not on your PATH", tilde(paths.BinDir))
 		}
