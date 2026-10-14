@@ -257,7 +257,7 @@ and gates slow them down, but don't seal the base. The waves grow every time, fa
 the game goes, and with every player who is actually playing (anyone idle for 90 s doesn't
 count). Each wave comes in from one side of the map, or from two or three later on, and seldom
 from the side the last one did; the wave's notice says where ("incoming from the north and
-east"). Every fifth wave is a swarm that swells as the game goes on; from wave 10 they are
+east"), except on hard and brutal, where you find out when they arrive. Every fifth wave is a swarm that swells as the game goes on; from wave 10 they are
 hordes, a third of which pours out of every point on the wave's sides at once. Every tenth wave
 brings a boss: an abomination or a broodmother, taking turns.
 

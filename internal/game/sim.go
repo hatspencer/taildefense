@@ -127,7 +127,7 @@ func (w *World) startWave() {
 		label = "  ·  SWARM"
 	}
 	from := ""
-	if f := w.frontsSaid(); f != "" {
+	if f := w.frontsSaid(); f != "" && !w.diff().Unsaid {
 		from = " from " + f
 	}
 	w.note(2, "wave %d: %d creeps incoming%s%s", w.Wave, len(w.Queue), from, label)
