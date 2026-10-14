@@ -33,7 +33,7 @@ cd "$(dirname "$0")"
 # its registry because Podman enforcing short names would otherwise ask which registry
 # "golang" means, and `taildefense update` runs this with no terminal to answer on.
 IMAGE=${TAILDEFENSE_GO_IMAGE:-docker.io/library/golang:1.27-alpine}
-NODE_IMAGE=${TAILDEFENSE_NODE_IMAGE:-docker.io/library/node:24-alpine}
+NODE_IMAGE=${TAILDEFENSE_NODE_IMAGE:-docker.io/library/node:26-alpine}
 BINARY=td
 PLATFORMS="darwin/arm64 darwin/amd64 linux/amd64 linux/arm64"
 
