@@ -100,7 +100,7 @@ func (w *World) resetPlayer(p *Player) {
 	}
 	w.respawn(p)
 	n := float32(p.ID)
-	p.X, p.Y = w.CoreX-3+n, w.CoreY+3.8
+	p.X, p.Y = w.standNear(w.CoreX-3+n, w.CoreY+3.8)
 }
 
 // Leave marks a player gone. They stay in the roster so a reconnect picks up where they were.

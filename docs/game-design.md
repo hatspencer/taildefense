@@ -53,7 +53,10 @@ it here along with the code.
 - **A wave holds until it is dead.** The next break only starts once every creep of the wave
   is gone (sleeping guards don't count), so two waves never stack up on the base.
 - **Stragglers don't stall the game.** If nothing of a wave has died for 30 s and at most 10 are
-  left, they give up. A real fight is never cut short.
+  left, they give up. A real fight is never cut short. Nothing of a wave is put down
+  where it could never get out, such as a sealed room of a ruin by the edge. A creep that has
+  got nowhere for a second stops being pushed by the crowd, so two can't pin each other against
+  water for good.
 - **Pause.** Any player can pause, and any player can resume; the banner names who paused. If
   the pauser leaves, the game resumes. Friends playing together decide among themselves; no
   votes, no host privilege.

@@ -52,6 +52,8 @@ type Creep struct {
 	stunLeft, stunCool float32
 	// Drawn to the church bell while it rings (church.go).
 	lured bool
+	// Seconds it has tried to move and got nowhere; past jamAfter the crowd stops pushing it.
+	jam float32
 }
 
 // Structure is a building. Index in World.Structs is its ID; dead slots are reused.
@@ -329,6 +331,10 @@ type World struct {
 	chase    [MaxPlayers]chaseField
 	grid     spatial
 	freeIDs  []uint16
+	// Ids of creeps gone this tick, free from the next. A client diffs one tick against the
+	// last, so an id dying and spawning again within a tick would look like the old creep
+	// moving: it would keep its kind and slide across the map to the new one.
+	freed []uint16
 	// Wanderers: seconds until the next one may appear, and when into this wave they rush, 0 none.
 	wanderCool float32
 	rushAt     float32
