@@ -78,7 +78,8 @@ it here along with the code.
   every few tiles. Each wave picks its fronts: one side for waves 1–3, one or two up to wave 9,
   two or three after. Its groups come in at the points within about 25° of each front, and the
   first front is at least 60° from the last wave's, so the pressure moves round the walls. The
-  wave's notice names the sides, so the team knows where to stand.
+  wave's notice names the sides, so the team knows where to stand; on Hard and Brutal it
+  doesn't, and the team has to spread out or scout.
 - **Every fifth wave is a swarm.** Its budget is multiplied by `1.5 + 0.05·min(f, 40)`, so the
   swarms swell as the game goes on.
 - **Hordes from wave 10.** On swarm waves from 10 on, a third of the budget pours out of every

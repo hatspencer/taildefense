@@ -41,4 +41,12 @@ func TestWavesComeFromDifferentSides(t *testing.T) {
 	if n := w.Notes[len(w.Notes)-1].Text; !strings.Contains(n, "incoming from the ") {
 		t.Fatalf("the wave's notice doesn't say where: %q", n)
 	}
+	for _, d := range []Difficulty{DiffHard, DiffBrutal} {
+		w := NewGame(3, d)
+		w.Join("ana", "ana@example")
+		w.startWave()
+		if n := w.Notes[len(w.Notes)-1].Text; strings.Contains(n, " from ") {
+			t.Fatalf("on %s the wave's notice says where: %q", d, n)
+		}
+	}
 }
