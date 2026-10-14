@@ -20,6 +20,7 @@ var Keys = []KeyHelp{
 	{"a", "type an address: host, host:port or a tailnet IP", "join"},
 	{"↑↓ pgup pgdn", "scroll", "changelog"},
 	{"r", "read the changelog again", "changelog"},
+	{"r", "run the checks again", "doctor"},
 	{"enter", "edit a setting, or flip an on/off one", "settings"},
 	{"esc", "cancel an edit", "settings"},
 	{"ctrl+c", "quit", "everywhere"},

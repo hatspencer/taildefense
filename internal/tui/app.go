@@ -65,6 +65,10 @@ type Session struct {
 	log        *cli.Changelog
 	logErr     error
 	logLoading bool
+	// td doctor's report, as lines, run each time the doctor screen opens.
+	doc        []string
+	docOK      bool
+	docRunning bool
 }
 
 // NewSession starts a session. u may be nil.
@@ -119,6 +123,29 @@ func (s *Session) startChangelog() bool {
 	return true
 }
 
+func (s *Session) doctor() ([]string, bool, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.doc, s.docOK, s.docRunning
+}
+
+func (s *Session) setDoctor(lines []string, ok bool) {
+	s.mu.Lock()
+	s.doc, s.docOK, s.docRunning = lines, ok, false
+	s.mu.Unlock()
+}
+
+// startDoctor marks the checks as running, and reports false when they already are.
+func (s *Session) startDoctor() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.docRunning {
+		return false
+	}
+	s.docRunning = true
+	return true
+}
+
 // Options are one launcher run.
 type Options struct {
 	Version string
@@ -139,6 +166,7 @@ const (
 	screenJoin
 	screenSettings
 	screenChangelog
+	screenDoctor
 )
 
 type menuItem int
@@ -148,6 +176,7 @@ const (
 	itemJoin
 	itemSettings
 	itemChangelog
+	itemDoctor
 	itemUpdate
 	itemRestart
 	itemQuit
@@ -155,8 +184,8 @@ const (
 
 var itemLabels = map[menuItem]string{
 	itemHost: "Host a game", itemJoin: "Join a game", itemSettings: "Settings",
-	itemChangelog: "Changelog",
-	itemUpdate:    "Check for updates", itemRestart: "Restart into the new td", itemQuit: "Quit",
+	itemChangelog: "Changelog", itemDoctor: "Doctor",
+	itemUpdate: "Check for updates", itemRestart: "Restart into the new td", itemQuit: "Quit",
 }
 
 // rescanEvery is how often the join screen looks again on its own.
@@ -194,6 +223,8 @@ type Model struct {
 
 	// changelog: the first row shown, -1 until the list first draws, to open on this td's own
 	lscroll int
+	// doctor: the first row shown
+	dscroll int
 
 	// settings
 	scursor int
@@ -215,6 +246,7 @@ type (
 	}
 	rescanMsg    struct{ gen int }
 	changelogMsg struct{}
+	doctorMsg    struct{}
 	fgUpdateMsg  struct{ err error }
 )
 
@@ -329,7 +361,8 @@ func (m *Model) scan() tea.Cmd {
 // an update runs. An idle launcher sends no frames.
 func (m *Model) animating() bool {
 	_, _, reading := m.sess.changelog()
-	return m.splash || m.scanning || reading || m.sess.Update().State == cli.UpdateUpdating
+	_, _, checking := m.sess.doctor()
+	return m.splash || m.scanning || reading || checking || m.sess.Update().State == cli.UpdateUpdating
 }
 
 func (m *Model) ensureTick() tea.Cmd {
@@ -345,7 +378,7 @@ func (m *Model) ensureTick() tea.Cmd {
 }
 
 func (m *Model) menu() []menuItem {
-	items := []menuItem{itemHost, itemJoin, itemSettings, itemChangelog}
+	items := []menuItem{itemHost, itemJoin, itemSettings, itemChangelog, itemDoctor}
 	if m.sess.Update().State == cli.UpdateUpdated {
 		items = append(items, itemRestart)
 	} else {
@@ -389,7 +422,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.splash = false
 		}
 		return m, m.ensureTick()
-	case tailnetMsg, selfMsg, changelogMsg:
+	case tailnetMsg, selfMsg, changelogMsg, doctorMsg:
 		return m, m.ensureTick()
 	case scanMsg:
 		if msg.gen != m.scanGen {
@@ -471,6 +504,8 @@ func (m *Model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.settingsKey(k)
 	case screenChangelog:
 		return m.changelogKey(k)
+	case screenDoctor:
+		return m.doctorKey(k)
 	}
 	return m.menuKey(k)
 }
@@ -516,6 +551,9 @@ func (m *Model) menuKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if c, err, _ := m.sess.changelog(); c == nil && err == nil {
 				return m, m.readChangelog()
 			}
+		case itemDoctor:
+			m.screen, m.notice, m.dscroll = screenDoctor, "", 0
+			return m, m.runDoctor()
 		case itemUpdate:
 			if m.sess.Update().State == cli.UpdateUpdating {
 				m.say(false, "an update is already running in the background")
@@ -590,6 +628,40 @@ func (m *Model) changelogKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "r":
 		m.lscroll = -1
 		return m, m.readChangelog()
+	case "q", "esc":
+		m.screen = screenMenu
+	}
+	return m, nil
+}
+
+// runDoctor runs td doctor's checks into the session; tailscale may take seconds to answer.
+func (m *Model) runDoctor() tea.Cmd {
+	sess := m.sess
+	if !sess.startDoctor() {
+		return nil
+	}
+	return tea.Batch(func() tea.Msg {
+		var b strings.Builder
+		code := cli.DoctorReport(ui.New(&b))
+		sess.setDoctor(strings.Split(strings.TrimRight(b.String(), "\n"), "\n"), code == 0)
+		return doctorMsg{}
+	}, m.ensureTick())
+}
+
+func (m *Model) doctorKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch k.String() {
+	case "up", "k":
+		m.dscroll = max(m.dscroll-1, 0)
+	case "down", "j", "tab":
+		m.dscroll++ // the view stops it at the end
+	case "pgup":
+		m.dscroll = max(m.dscroll-10, 0)
+	case "pgdown":
+		m.dscroll += 10
+	case "home", "g":
+		m.dscroll = 0
+	case "r":
+		return m, m.runDoctor()
 	case "q", "esc":
 		m.screen = screenMenu
 	}

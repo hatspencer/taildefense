@@ -7,7 +7,7 @@ turrets and walls. During a wave, hordes come in from every side of the map. The
 survive as many waves as you can.
 
 ```
-td            # launcher: host a game, find games on your tailnet, settings, changelog
+td            # launcher: host a game, find games on your tailnet, settings, changelog, doctor
 td host       # host a game and open it in your browser
 td join box   # join the game hosted on the machine "box"
 ```
@@ -30,13 +30,13 @@ WebGL 2 where WebGPU isn't available. Any current Chrome, Edge, Firefox or Safar
 
 | command | what it does |
 |---|---|
-| `td` | launcher: host (←/→ picks the difficulty), join (lists the games on your tailnet), settings, a changelog of the latest commits with yours marked, update status. It opens with a short splash (any key skips it, `--no-splash` or `--no-anim` turns it off) |
+| `td` | launcher: host (←/→ picks the difficulty), join (lists the games on your tailnet), settings, a changelog of the latest commits with yours marked, the doctor's checks, update status. It opens with a short splash (any key skips it, `--no-splash` or `--no-anim` turns it off) |
 | `td host [--port N] [--seed S] [--name NAME] [--difficulty D]` | host a game and play it in the browser |
 | `td join HOST[:PORT] [--name NAME]` | join a game by tailnet name or address |
 | `td serve [--port N] [--seed S] [--difficulty D]` | headless dedicated host; logs to stdout until interrupted |
 | `td ls [--json]` | games running on your tailnet |
 | `td bench [--wave N] [--players P] [--seconds S]` | time a busy wave offline: simulation, encoding, relay |
-| `td frame [--view menu\|join\|settings\|changelog\|help\|splash] [--at S]` | render one launcher frame from demo data; `--at` is seconds into the splash |
+| `td frame [--view menu\|join\|settings\|changelog\|doctor\|help\|splash] [--at S]` | render one launcher frame from demo data; `--at` is seconds into the splash |
 | `td doctor` | check tailscale, the browser, container engine, install |
 | `td config [KEY [VALUE]]` | show or change settings: NAME, PORT, DIFFICULTY, BROWSER, AUTOUPDATE |
 | `td update [-f] [-b BRANCH]` | rebuild from the repo's main (or a branch) and reinstall |

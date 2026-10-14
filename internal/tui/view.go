@@ -36,6 +36,8 @@ func (m *Model) View() string {
 		body = m.settingsView()
 	case m.screen == screenChangelog:
 		body = m.changelogView(elapsed, h-len(head)-1)
+	case m.screen == screenDoctor:
+		body = m.doctorView(elapsed, h-len(head)-1)
 	default:
 		body = m.menuView(w)
 	}
@@ -229,6 +231,8 @@ func (m *Model) itemHint(it menuItem) string {
 		return "td update: gets and installs a newer td if there is one, then back here"
 	case itemChangelog:
 		return "the latest commits, and which of them this td is"
+	case itemDoctor:
+		return "check tailscale, the browser and what updates need"
 	case itemRestart:
 		return "start the updated td in place of this one"
 	}
@@ -361,6 +365,32 @@ func (m *Model) changelogView(elapsed time.Duration, room int) []string {
 	return out
 }
 
+// doctorView shows td doctor's report, scrolled to dscroll. room is the lines it has.
+func (m *Model) doctorView(elapsed time.Duration, room int) []string {
+	lines, ok, running := m.sess.doctor()
+	title := ui.StyleBold.Render("Doctor")
+	switch {
+	case running:
+		title += "  " + ui.StyleCyan.Render(spinner(elapsed)+" checking this machine")
+	case lines != nil && ok:
+		title += "  " + ui.StyleGreen.Render("✔ ready to host and join")
+	case lines != nil:
+		title += "  " + ui.StyleYellow.Render("friends cannot join until the failures are fixed")
+	}
+	out := []string{gutter + title, ""}
+	if lines == nil {
+		return out
+	}
+	shown := max(room-len(out)-1, 1)
+	m.dscroll = min(m.dscroll, max(len(lines)-shown, 0))
+	end := min(m.dscroll+shown, len(lines))
+	out = append(out, lines[m.dscroll:end]...)
+	if m.dscroll > 0 || end < len(lines) {
+		out = append(out, gutter+"  "+ui.StyleDim.Render(fmt.Sprintf("%d–%d of %d", m.dscroll+1, end, len(lines))))
+	}
+	return out
+}
+
 func (m *Model) settingsView() []string {
 	out := []string{gutter + ui.StyleBold.Render("Settings") + "  " + ui.StyleDim.Render("saved to "+prefsPath()), ""}
 	for i, k := range config.Keys {
@@ -414,6 +444,8 @@ func (m *Model) footer() []string {
 		keys = "↑↓ move · enter edit · esc back · ? help"
 	case m.screen == screenChangelog:
 		keys = "↑↓ scroll · r read again · esc back · ? help"
+	case m.screen == screenDoctor:
+		keys = "↑↓ scroll · r check again · esc back · ? help"
 	default:
 		keys = "↑↓ move · enter choose · q quit · ? help"
 	}
@@ -459,6 +491,7 @@ const (
 	FrameSettings  = "settings"
 	FrameHelp      = "help"
 	FrameChangelog = "changelog"
+	FrameDoctor    = "doctor"
 	FrameSplash    = "splash"
 )
 
@@ -504,6 +537,21 @@ func Frame(o Options, width, height int, view string) string {
 			}
 			log.Commits[3].Hash = o.Version
 			m.sess.setChangelog(log, nil)
+		}
+	case FrameDoctor:
+		m.screen = screenDoctor
+		if l, _, _ := m.sess.doctor(); l == nil {
+			var b strings.Builder
+			p := ui.New(&b)
+			p.Pass("tailscale 100.64.0.7  box  ada@example.com")
+			p.Detail("2 peers online on example.com; friends join you with: td join box")
+			p.Warn("browser: none td knows is installed; the game opens in the system's browser")
+			p.Pass("container engine podman, for td update")
+			p.Pass("git, for td update")
+			p.Info("autoupdate on (default)")
+			p.Plain("")
+			p.OK("ready: td opens the launcher, td host starts a game")
+			m.sess.setDoctor(strings.Split(strings.TrimRight(b.String(), "\n"), "\n"), true)
 		}
 	case FrameSplash:
 		at := o.SplashAt

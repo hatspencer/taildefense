@@ -35,7 +35,7 @@ usage:
   td doctor                      check tailscale, the browser and what updates need
   td config [KEY [VALUE]]        show, read or set name, port, difficulty, browser, autoupdate
                                  (td config KEY --reset returns one to its default)
-  td frame [--width W] [--height H] [--view menu|join|settings|help|splash] [--at S]
+  td frame [--width W] [--height H] [--view menu|join|settings|changelog|doctor|help|splash] [--at S]
                                  render one launcher frame from demo data (--at: seconds
                                  into the splash)
   td bench [--wave N] [--players P] [--seconds S] [--seed S]
