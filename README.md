@@ -282,7 +282,19 @@ everyone is ready the countdown jumps to 3 s.
 ./build.sh web     # build only the browser client into internal/web/dist
 ./build.sh dist    # cross-compile linux/darwin × amd64/arm64 into dist/
 ./build.sh npm …   # run npm in the node container, inside web/
+./build.sh soak 12 # bots play 12 more games to late waves (the short set runs in check)
+./build.sh fuzz 2m # fuzz the commands players give
+./build.sh golden  # rewrite the golden game's record after a deliberate rule change
 ```
+
+`internal/playtest` plays whole games with nobody at the keys. Bots shop, build, loot, fight,
+revive and taunt through the host's own command path (`netplay.Exec`). After every tick it
+checks the world's invariants (`game.World.Check`), rebuilds a client replica from the wire to
+see it agrees, and fails a wave that won't end. A game is its seed and its command log, so it
+replays tick for tick. The golden game's world hash is kept in
+`internal/playtest/testdata/golden.txt`: any change to how the game plays fails it until it is
+rewritten with `./build.sh golden`, so the diff shows the change was intended. A soak failure
+prints a `TD_SOAK_ONE=…` line that plays that game again.
 
 The client source is in `web/` (TypeScript, three.js 0.186 with `three/webgpu` and TSL,
 camera-controls, esbuild). `web/PROTOCOL.md` is the contract between `td` and the page, and
