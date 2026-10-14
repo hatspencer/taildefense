@@ -1,0 +1,36 @@
+
+  ▄▄▄▄▄▄  ▄▄▄▄  ▄▄ ▄▄     ▄▄▄▄▄  ▄▄▄▄▄▄ ▄▄▄▄▄▄ ▄▄▄▄▄▄ ▄▄  ▄▄  ▄▄▄▄▄ ▄▄▄▄▄▄
+  ▀▀▀▀▀▀ ▀█  ▀▀ ▀▀ ▀▀     ▀▀  ▀▀ ▀▀     ▀▀     ▀▀     ▀▀▀▄▀▀ ▀▀     ▀▀
+    ▀▀   ▀▀▀▀▀▀ ▀▀ ▀▀     ▀▀  ▀▀ ▀▀▀▀▀  ▀▀▀▀▀  ▀▀▀▀▀  ▀▀ ▀▀▀  ▀▀▀▀▄ ▀▀▀▀▀
+    ▀▀   ▀▀  ▀▀ ▀▀ ▀▀▀▀▀▀ ▀▀▄▄▀▀ ▀▀▄▄▄▄ ▀▀     ▀▀▄▄▄▄ ▀▀  ▀▀ ▄▄▄▄▀▀ ▀▀▄▄▄▄
+  co-op wave defense over your tailnet
+
+  td abc1234  ✔ updated abc1234 → def5678 · R restart now
+  ● box  100.64.0.7  ada@example.com
+  ✘ could not join pal: this host runs game protocol 2 and you run 1; whoever is older: td update
+
+  Doctor  ✔ ready to host and join
+
+  PASS tailscale 100.64.0.7  box  ada@example.com
+      2 peers online on example.com; friends join you with: td join box
+  ▲ browser: none td knows is installed; the game opens in the system's browser
+  PASS container engine podman, for td update
+  PASS git, for td update
+  INFO autoupdate on (default)
+
+  ✔ ready: td opens the launcher, td host starts a game
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  ↑↓ scroll · r check again · esc back · ? help

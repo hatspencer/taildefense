@@ -8,7 +8,8 @@
 #   ./build.sh test       go test only, extra arguments go to go test
 #   ./build.sh soak [n]   bots play n more games (default 12) to late waves, checking every tick
 #   ./build.sh fuzz [t]   fuzz the commands players give, for t (default 2m)
-#   ./build.sh golden     rewrite the golden game's record after a deliberate rule change
+#   ./build.sh golden     rewrite the golden game's record and the launcher's golden frames
+#                         after a deliberate change
 #   ./build.sh web        the browser client only, into internal/web/dist
 #   ./build.sh go <args>  one off go command, e.g. go test ./internal/ui
 #   ./build.sh npm <args> one off npm command in web/, e.g. npm install three@0.170.0
@@ -37,7 +38,7 @@ BINARY=td
 PLATFORMS="darwin/arm64 darwin/amd64 linux/amd64 linux/arm64"
 
 usage() {
-  sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
@@ -283,8 +284,8 @@ case "$cmd" in
   golden)
     need_engine
     export TD_GOLDEN=update
-    run "$IMAGE" go test -mod=readonly -run Golden ./internal/playtest
-    git diff --stat -- internal/playtest/testdata 2>/dev/null || true
+    run "$IMAGE" go test -mod=readonly -run Golden ./internal/playtest ./internal/tui
+    git status --short -- internal/playtest/testdata internal/tui/testdata 2>/dev/null || true
     ;;
   go)
     need_engine

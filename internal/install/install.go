@@ -4,6 +4,8 @@ package install
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -47,6 +49,7 @@ func (p *Paths) BinaryPath() string  { return filepath.Join(p.Prefix, Binary) }
 func (p *Paths) SymlinkPath() string { return filepath.Join(p.BinDir, Binary) }
 func (p *Paths) RepoFile() string    { return filepath.Join(p.Prefix, ".repo") }
 func (p *Paths) BranchFile() string  { return filepath.Join(p.Prefix, ".branch") }
+func (p *Paths) SumFile() string     { return filepath.Join(p.Prefix, ".sha256") }
 func (p *Paths) VersionFile() string { return filepath.Join(p.Prefix, version.RecordFile) }
 
 // Branch is the branch the install follows, or "" for the default.
@@ -256,3 +259,42 @@ func envOr(key, def string) string {
 // Binary is the command's name: the file in the prefix, the link on PATH, and what build.sh
 // writes. The tool is taildefense; typing it is td.
 const Binary = "td"
+
+// FileSum is the sha256 of a file, in hex.
+func FileSum(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// RecordSum remembers the hash of the binary an install put in place, so a later look can
+// tell the binary td installed from one somebody copied over it by hand.
+func (p *Paths) RecordSum() error {
+	sum, err := FileSum(p.BinaryPath())
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(p.SumFile(), []byte(sum+"\n"), 0o644)
+}
+
+// Replaced reports whether the installed binary is no longer the one the install recorded.
+// An install from before the record, or a record that cannot be read, is not "replaced":
+// there is nothing to compare with.
+func (p *Paths) Replaced() bool {
+	want, err := os.ReadFile(p.SumFile())
+	if err != nil {
+		return false
+	}
+	got, err := FileSum(p.BinaryPath())
+	if err != nil {
+		return false
+	}
+	return got != strings.TrimSpace(string(want))
+}

@@ -398,6 +398,19 @@ func (m *Model) updateOffered() bool {
 	return m.o.Last != nil && cli.NeedsUpdate(m.o.Last.Err) && m.sess.Update().State != cli.UpdateUpdated
 }
 
+// joinCommand is what a friend types to join this machine's game, once tailscale is up.
+func (m *Model) joinCommand() (string, bool) {
+	self, err, loaded := m.sess.tailnet()
+	if !loaded || err != nil || !self.Running || self.IPv4() == "" {
+		return "", false
+	}
+	host, _, _ := strings.Cut(self.DNSName, ".")
+	if host == "" {
+		host = self.Host
+	}
+	return cli.JoinCommand(host, m.prefs.Port()), true
+}
+
 func (m *Model) say(bad bool, format string, a ...any) {
 	m.notice, m.bad = fmt.Sprintf(format, a...), bad
 }
@@ -527,6 +540,13 @@ func (m *Model) menuKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "left", "right", "h", "l":
 		if m.cursor < len(items) && items[m.cursor] == itemHost {
 			m.cycleDifficulty(k.String() == "right" || k.String() == "l")
+		}
+	case "y":
+		if m.cursor < len(items) && items[m.cursor] == itemHost {
+			if cmd, ok := m.joinCommand(); ok {
+				ui.CopyToClipboard(cmd)
+				m.say(false, "copied: %s", cmd)
+			}
 		}
 	case "f":
 		if m.cursor < len(items) && items[m.cursor] == itemHost {

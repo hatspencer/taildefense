@@ -1,0 +1,36 @@
+
+  ▄▄▄▄▄▄  ▄▄▄▄  ▄▄ ▄▄     ▄▄▄▄▄  ▄▄▄▄▄▄ ▄▄▄▄▄▄ ▄▄▄▄▄▄ ▄▄  ▄▄  ▄▄▄▄▄ ▄▄▄▄▄▄
+  ▀▀▀▀▀▀ ▀█  ▀▀ ▀▀ ▀▀     ▀▀  ▀▀ ▀▀     ▀▀     ▀▀     ▀▀▀▄▀▀ ▀▀     ▀▀
+    ▀▀   ▀▀▀▀▀▀ ▀▀ ▀▀     ▀▀  ▀▀ ▀▀▀▀▀  ▀▀▀▀▀  ▀▀▀▀▀  ▀▀ ▀▀▀  ▀▀▀▀▄ ▀▀▀▀▀
+    ▀▀   ▀▀  ▀▀ ▀▀ ▀▀▀▀▀▀ ▀▀▄▄▀▀ ▀▀▄▄▄▄ ▀▀     ▀▀▄▄▄▄ ▀▀  ▀▀ ▄▄▄▄▀▀ ▀▀▄▄▄▄
+  co-op wave defense over your tailnet
+
+  td abc1234  ✔ updated abc1234 → def5678 · R restart now
+  ● box  100.64.0.7  ada@example.com
+  ✘ could not join pal: this host runs game protocol 2 and you run 1; whoever is older: td update
+
+  Changelog  latest 24 commits on main
+
+  td abc1234 is 3 commits behind · u update
+
+    abc2237  2026-10-28  The 24-th change, said in one line
+    abc323a  2026-10-27  The 23-th change, said in one line
+    abc423d  2026-10-26  The 22-th change, said in one line
+  ▶ abc1234  2026-10-25  The 21-th change, said in one line  ◀ this td
+    abc6243  2026-10-24  The 20-th change, said in one line
+    abc7246  2026-10-23  The 19-th change, said in one line
+    abc8249  2026-10-22  The 18-th change, said in one line
+    abc924c  2026-10-21  The 17-th change, said in one line
+    abca24f  2026-10-20  The 16-th change, said in one line
+    abcb252  2026-10-19  The 15-th change, said in one line
+    abcc255  2026-10-18  The 14-th change, said in one line
+    abcd258  2026-10-17  The 13-th change, said in one line
+    abce25b  2026-10-16  The 12-th change, said in one line
+    abcf25e  2026-10-15  The 11-th change, said in one line
+    abd0261  2026-10-14  The 10-th change, said in one line
+    abd1264  2026-10-13  The 9-th change, said in one line
+    abd2267  2026-10-12  The 8-th change, said in one line
+    abd326a  2026-10-11  The 7-th change, said in one line
+    abd426d  2026-10-10  The 6-th change, said in one line
+    1–19 of 24
+  ↑↓ scroll · r read again · esc back · ? help
