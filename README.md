@@ -15,7 +15,7 @@ td join box   # join the game hosted on the machine "box"
 ## Setup
 
 You need Tailscale running on every player's machine, and podman or docker to build. The build
-always runs in containers: `golang:1.27-alpine` for the Go side, `node:24-alpine` for the browser
+always runs in containers: `golang:1.27-alpine` for the Go side, `node:26-alpine` for the browser
 client. Neither Go nor Node is installed on the host.
 
 ```
