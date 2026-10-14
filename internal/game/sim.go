@@ -19,6 +19,8 @@ func (w *World) Step() {
 	w.Toasts = append(w.Toasts[:0], w.Toasts[w.sentToasts:]...)
 	w.Pings = append(w.Pings[:0], w.Pings[w.sentPings:]...)
 	defer func() { w.sentNotes, w.sentToasts, w.sentPings = len(w.Notes), len(w.Toasts), len(w.Pings) }()
+	w.freeIDs = append(w.freeIDs, w.freed...)
+	w.freed = w.freed[:0]
 	if w.Paused >= 0 {
 		return
 	}
@@ -147,7 +149,7 @@ func (w *World) dropStragglers() {
 			i++
 			continue
 		}
-		w.freeIDs = append(w.freeIDs, w.Creeps[i].ID)
+		w.freed = append(w.freed, w.Creeps[i].ID)
 		last := len(w.Creeps) - 1
 		w.Creeps[i] = w.Creeps[last]
 		w.Creeps = w.Creeps[:last]
@@ -265,7 +267,9 @@ func (w *World) plan(wave, players int) []Spawn {
 	add := func(k CreepKind, at float32, sp [2]float32, j int) {
 		x := sp[0] + (w.rng.Float32()-.5)*4
 		y := sp[1] + (w.rng.Float32()-.5)*4
-		if w.At(int(x), int(y)).Solid() {
+		// Not on solid ground, nor in a sealed room of a ruin by the edge, which no creep
+		// could leave and no survivor get into, holding the wave for good.
+		if w.At(int(x), int(y)).Solid() || !w.reachable(x, y) {
 			x, y = sp[0], sp[1]
 		}
 		q = append(q, Spawn{At: at + float32(j)*.12, Kind: k, X: x, Y: y})
@@ -492,12 +496,17 @@ func (w *World) stepCreeps() {
 			}
 		}
 
-		// Separation: a crowd spreads out instead of stacking into one cell.
+		// Separation: a crowd spreads out instead of stacking into one cell. A creep that has
+		// got nowhere for a while is let through: two pressed together against water or a
+		// wall can hold each other in place for good, the push cancelling the step.
 		var px, py float32
 		seen := 0
 		cx, cy, cr := c.X, c.Y, d.Radius
 		id := c.ID
 		w.grid.each(cx, cy, cr+1, func(j int32) bool {
+			if c.jam > jamAfter {
+				return false
+			}
 			o := &w.Creeps[j]
 			if o.ID == id {
 				return true
@@ -521,7 +530,13 @@ func (w *World) stepCreeps() {
 		step := speed * Dt
 		nxp := c.X + mx*step + px*.6
 		nyp := c.Y + my*step + py*.6
+		ox, oy := c.X, c.Y
 		w.moveCreep(c, d, nxp, nyp)
+		if moved := abs32(c.X-ox) + abs32(c.Y-oy); moved < step*.1 {
+			c.jam += Dt
+		} else {
+			c.jam = 0
+		}
 	}
 }
 
@@ -573,6 +588,15 @@ func (w *World) moveCreep(c *Creep, d *CreepDef, nx, ny float32) {
 	} else if si >= 0 {
 		w.attackStruct(c, d, si)
 	}
+}
+
+// jamAfter is how long a creep gets nowhere before the crowd stops pushing it about.
+const jamAfter = 1
+
+// reachable reports whether the generator's field reaches the tile under x, y.
+func (w *World) reachable(x, y float32) bool {
+	tx, ty := int(x), int(y)
+	return tx >= 0 && ty >= 0 && tx < w.W && ty < w.H && w.flow.dist[ty*w.W+tx] < unreachable
 }
 
 // creepFree reports whether a creep may stand at x, y, and the structure in the way if not.
@@ -635,10 +659,28 @@ func (w *World) hurtPlayer(p *Player, dmg float32) {
 
 // ---- players ---------------------------------------------------------------------------
 
+// standNear is the nearest place to x, y a survivor fits, so one put back at the base is never
+// put inside a wall or turret built on the spot, where they could not move.
+func (w *World) standNear(x, y float32) (float32, float32) {
+	for r := 0; r <= 24; r++ {
+		for dy := -r; dy <= r; dy++ {
+			for dx := -r; dx <= r; dx++ {
+				if max(abs(dx), abs(dy)) != r {
+					continue
+				}
+				if qx, qy := x+float32(dx)*.5, y+float32(dy)*.5; CanStand(w, qx, qy) {
+					return qx, qy
+				}
+			}
+		}
+	}
+	return x, y
+}
+
 func (w *World) respawn(p *Player) {
 	p.Alive = true
 	p.HP = p.MaxHP
-	p.X, p.Y = w.CoreX+.5, w.CoreY+3.8
+	p.X, p.Y = w.standNear(w.CoreX+.5, w.CoreY+3.8)
 	p.Order = Order{}
 	p.Search, p.Revived = 0, 0
 	p.slowLeft, p.slowCool, p.stunLeft = 0, 0, 0
@@ -1095,7 +1137,7 @@ func (w *World) reap() {
 			}
 		}
 		w.TotalKills++
-		w.freeIDs = append(w.freeIDs, c.ID)
+		w.freed = append(w.freed, c.ID)
 		last := len(w.Creeps) - 1
 		w.Creeps[i] = w.Creeps[last]
 		w.Creeps = w.Creeps[:last]
