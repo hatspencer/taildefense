@@ -27,7 +27,7 @@ func isolate(t *testing.T) {
 
 func TestEveryScreenFitsTheWindow(t *testing.T) {
 	isolate(t)
-	for _, view := range []string{FrameMenu, FrameJoin, FrameSettings, FrameChangelog, FrameHelp, FrameSplash} {
+	for _, view := range []string{FrameMenu, FrameJoin, FrameSettings, FrameChangelog, FrameDoctor, FrameHelp, FrameSplash} {
 		for _, size := range [][2]int{{80, 24}, {160, 48}, {80, 12}, {40, 20}} {
 			out := Frame(Options{}, size[0], size[1], view)
 			lines := strings.Split(out, "\n")
@@ -73,6 +73,12 @@ func TestFramesSayWhatMatters(t *testing.T) {
 	for _, want := range []string{"Changelog", "latest 24 commits on main", "3 commits behind", "abc1234", "◀ this td", "of 24"} {
 		if !strings.Contains(log, want) {
 			t.Errorf("changelog lacks %q:\n%s", want, log)
+		}
+	}
+	doc := ansi.Strip(Frame(Options{}, 80, 24, FrameDoctor))
+	for _, want := range []string{"Doctor", "ready to host and join", "tailscale 100.64.0.7", "r check again"} {
+		if !strings.Contains(doc, want) {
+			t.Errorf("doctor lacks %q:\n%s", want, doc)
 		}
 	}
 	set := ansi.Strip(Frame(Options{}, 80, 24, FrameSettings))

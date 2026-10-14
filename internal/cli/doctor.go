@@ -25,6 +25,12 @@ func Doctor(w io.Writer) int {
 	p := ui.New(w)
 	p.Banner("")
 	p.Step("td doctor")
+	return DoctorReport(p)
+}
+
+// DoctorReport runs the checks without the banner and heading, as the launcher shows them,
+// and returns Doctor's exit code.
+func DoctorReport(p *ui.Printer) int {
 	checkTailscale(p)
 	checkBrowser(p)
 	checkUpdates(p)
