@@ -439,7 +439,7 @@ export class Hud {
       ['<kbd>Alt</kbd> + left-click, or <kbd>Z</kbd> then click', 'ping the spot for the whole team, in the world or on the map: on a creep it warns, on a loot site it marks loot, on a structure it calls to defend it'],
       ['<kbd>H</kbd>', 'hold position'],
       ['<kbd>V</kbd>', 'taunt: flip them off and shout, pulling every creep nearby onto you, then a cooldown'],
-      ['<kbd>1</kbd>–<kbd>7</kbd>', 'equip an owned weapon'],
+      ['<kbd>1</kbd>–<kbd>6</kbd>, <kbd>0</kbd>', 'equip an owned weapon (0 is the crowbar, on brutal)'],
       ['<kbd>8</kbd>', 'use a medkit: heals over a few seconds unless a hit cuts it short; buy more at the armory'],
       ['<kbd>R</kbd> or Reload', 'reload now (the button sits next to your ammo)'],
       ['<kbd>B</kbd>', 'build card; its hotkeys pick a structure, left-click places, Shift keeps placing'],
