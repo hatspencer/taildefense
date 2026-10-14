@@ -422,6 +422,47 @@ func (s *Server) command(p *peer, c Cmd) {
 	}
 	w, pl := s.world, p.player
 	w.Touch(pl)
+	var msg string
+	var err error
+	switch c.Op {
+	case OpRestart:
+		if w.Phase != game.PhaseOver {
+			err = errors.New("the game is still running")
+			break
+		}
+		s.restart()
+	case OpDifficulty:
+		if s.cfg.Owner == "" || p.id.Login != s.cfg.Owner {
+			err = errors.New("only the host can change the difficulty")
+			break
+		}
+		if err = w.SetDifficulty(pl, game.Difficulty(c.A)); err == nil {
+			for _, q := range s.peers {
+				if q.gone {
+					continue
+				}
+				select {
+				case q.out <- outMsg{MsgDiff, []byte{uint8(w.Diff)}}:
+				default:
+				}
+			}
+		}
+	default:
+		msg, err = Exec(w, pl, c)
+	}
+	if msg != "" {
+		s.toast(p, 1, "%s", msg)
+	}
+	if err != nil {
+		s.toast(p, 2, "%v", err)
+	}
+}
+
+// Exec carries out a player's command on the world, all but a restart and a change of
+// difficulty, which need the server. It returns what to tell the player on success. The
+// playtests drive the world through it, so bots and fuzzers take the path a client does.
+func Exec(w *game.World, pl *game.Player, c Cmd) (string, error) {
+	var msg string
 	var err error
 	switch c.Op {
 	case OpMove, OpAttackMove:
@@ -438,19 +479,19 @@ func (s *Server) command(p *peer, c Cmd) {
 		err = w.Cast(pl, int(c.A), c.X, c.Y)
 	case OpBuyAbility:
 		if err = w.BuyAbility(pl, int(c.A)); err == nil {
-			s.toast(p, 1, "%s → level %d", game.Abilities[c.A].Name, pl.Abil[c.A].Lv)
+			msg = fmt.Sprintf("%s → level %d", game.Abilities[c.A].Name, pl.Abil[c.A].Lv)
 		}
 	case OpBuyWeapon:
 		if err = w.BuyWeapon(pl, game.WeaponKind(c.A)); err == nil {
-			s.toast(p, 1, "bought the %s", game.Weapons[c.A].Name)
+			msg = fmt.Sprintf("bought the %s", game.Weapons[c.A].Name)
 		}
 	case OpUpgrade:
 		if err = w.Upgrade(pl, game.WeaponKind(c.A), game.Track(c.B)); err == nil {
-			s.toast(p, 1, "%s %s → level %d", game.Weapons[c.A].Name, game.TrackNames[c.B], pl.Weapons[c.A].Lv[c.B])
+			msg = fmt.Sprintf("%s %s → level %d", game.Weapons[c.A].Name, game.TrackNames[c.B], pl.Weapons[c.A].Lv[c.B])
 		}
 	case OpGear:
 		if err = w.BuyGear(pl, game.Gear(c.A)); err == nil {
-			s.toast(p, 1, "%s → level %d", game.GearNames[c.A], pl.Gear[c.A])
+			msg = fmt.Sprintf("%s → level %d", game.GearNames[c.A], pl.Gear[c.A])
 		}
 	case OpSelect:
 		err = w.Select(pl, game.WeaponKind(c.A))
@@ -488,7 +529,7 @@ func (s *Server) command(p *peer, c Cmd) {
 		err = w.UseMedkit(pl)
 	case OpBuyMedkit:
 		if err = w.BuyMedkit(pl); err == nil {
-			s.toast(p, 1, "bought a medkit · %d carried", pl.Medkits)
+			msg = fmt.Sprintf("bought a medkit · %d carried", pl.Medkits)
 		}
 	case OpRevive:
 		err = w.OrderRevive(pl, int(c.T))
@@ -496,43 +537,19 @@ func (s *Server) command(p *peer, c Cmd) {
 		si := int(c.T)
 		if err = w.UpgradeStruct(pl, si); err == nil {
 			st := &w.Structs[si]
-			s.toast(p, 1, "%s → level %d", game.Structs[st.Kind].Name, st.Level)
+			msg = fmt.Sprintf("%s → level %d", game.Structs[st.Kind].Name, st.Level)
 		}
 	case OpSell:
 		var g int32
 		if g, err = w.Sell(pl, int(c.T)); err == nil {
-			s.toast(p, 1, "sold for %d gold", g)
-		}
-	case OpRestart:
-		if w.Phase != game.PhaseOver {
-			err = errors.New("the game is still running")
-			break
-		}
-		s.restart()
-	case OpDifficulty:
-		if s.cfg.Owner == "" || p.id.Login != s.cfg.Owner {
-			err = errors.New("only the host can change the difficulty")
-			break
-		}
-		if err = w.SetDifficulty(pl, game.Difficulty(c.A)); err == nil {
-			for _, q := range s.peers {
-				if q.gone {
-					continue
-				}
-				select {
-				case q.out <- outMsg{MsgDiff, []byte{uint8(w.Diff)}}:
-				default:
-				}
-			}
+			msg = fmt.Sprintf("sold for %d gold", g)
 		}
 	case OpChat:
 		if t := strings.TrimSpace(c.Text); t != "" {
 			w.Notes = append(w.Notes, game.Note{Text: pl.Name + ": " + t, Level: game.NoteChat})
 		}
 	}
-	if err != nil {
-		s.toast(p, 2, "%v", err)
-	}
+	return msg, err
 }
 
 func (s *Server) restart() {

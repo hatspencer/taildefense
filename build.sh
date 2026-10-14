@@ -6,6 +6,9 @@
 #   ./build.sh dist       cross-compile dist/td-<os>-<arch> for macOS and Linux
 #   ./build.sh check      gofmt verification, go vet, go test, and the client's type check
 #   ./build.sh test       go test only, extra arguments go to go test
+#   ./build.sh soak [n]   bots play n more games (default 12) to late waves, checking every tick
+#   ./build.sh fuzz [t]   fuzz the commands players give, for t (default 2m)
+#   ./build.sh golden     rewrite the golden game's record after a deliberate rule change
 #   ./build.sh web        the browser client only, into internal/web/dist
 #   ./build.sh go <args>  one off go command, e.g. go test ./internal/ui
 #   ./build.sh npm <args> one off npm command in web/, e.g. npm install three@0.170.0
@@ -34,7 +37,7 @@ BINARY=td
 PLATFORMS="darwin/arm64 darwin/amd64 linux/amd64 linux/arm64"
 
 usage() {
-  sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
@@ -187,6 +190,7 @@ run() {
     -e GOFLAGS=-mod=readonly \
     -e GOCACHE=/gobuild \
     -e GOMODCACHE=/gomodcache \
+    -e TD_SOAK -e TD_SOAK_ONE -e TD_GOLDEN \
     -v "$PWD:/src$z" \
     -v "$GOCACHE_DIR/build:/gobuild$z" \
     -v "$GOCACHE_DIR/home:/gohome$z" \
@@ -266,6 +270,21 @@ case "$cmd" in
   test)
     need_engine
     run "$IMAGE" go test -mod=readonly "$@" ./...
+    ;;
+  soak)
+    need_engine
+    export TD_SOAK="${1:-12}"
+    run "$IMAGE" go test -mod=readonly -timeout 60m -run Soak -v ./internal/playtest
+    ;;
+  fuzz)
+    need_engine
+    run "$IMAGE" go test -mod=readonly -run '^$' -fuzz FuzzCommands -fuzztime "${1:-2m}" ./internal/playtest
+    ;;
+  golden)
+    need_engine
+    export TD_GOLDEN=update
+    run "$IMAGE" go test -mod=readonly -run Golden ./internal/playtest
+    git diff --stat -- internal/playtest/testdata 2>/dev/null || true
     ;;
   go)
     need_engine
