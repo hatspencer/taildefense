@@ -18,6 +18,7 @@ import { Loot } from './scene/loot';
 import { Overlays } from './scene/overlays';
 import { K_CANNON, K_FROST, K_GUN, K_MISSILE, K_SNIPER, K_TESLA, Structs } from './scene/structs';
 import { FogOfWar } from './scene/fow';
+import { Glow } from './scene/glow';
 import { Terrain } from './scene/terrain';
 import { Weather } from './scene/weather';
 import { playerColor } from './scene/util';
@@ -102,7 +103,9 @@ async function main(): Promise<void> {
   const guns = new Guns(world.scene);
   const effects = new Effects(world.scene);
   const helis = new Helis(world.scene, effects);
-  const fow = new FogOfWar(world.scene);
+  const glow = new Glow();
+  effects.air = glow;
+  const fow = new FogOfWar(world.scene, glow);
   creeps.onBlow = (x, y, k, h, r) => effects.blow(x, y, k, h, r);
   creeps.onGib = (x, y) => effects.gib(x, y);
   const weather = new Weather(world.scene);
@@ -313,6 +316,8 @@ async function main(): Promise<void> {
       const alive = !!me && (me.flags & PF_ALIVE) !== 0;
       world.setMood(m, me ? game.prx[me.id] : 0, me ? game.pry[me.id] : 0, me ? game.paim[me.id] : 0, alive, wd.core.x, wd.core.y);
       effects.dark = Math.min(1, Math.max(m, weather.look.dark));
+      effects.fog = weather.look.fog;
+      glow.update(dt, weather.look.fog, weather.look.rain, m);
     }
     ctl.updateMouse(W, H);
 
