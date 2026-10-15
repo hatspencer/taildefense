@@ -538,6 +538,15 @@ choice, not a cheat guard.
   hulk: an arm swollen to a club, another torso sunk in its back with its own head and arm,
   a fourth arm out of its ribs. The broodmother is a starved woman on long legs, her belly a
   vast veined sac bursting out of her gown, egg sacs on her back, lank hair over her face.
+- **Guns and turrets are scavenged kit.** Each weapon is a real one a survivor would pick up
+  (a service pistol, a pump shotgun with a wooden stock, a compact SMG, a scoped hunting
+  rifle, a minigun fed from an ammo can, a tube launcher, a red crowbar), modelled a little
+  chunky so it reads in the hand, with tape and paint in the carrier's colour so a dropped
+  gun still says whose it was. Turrets are built from what lies about: a machine gun behind a
+  steel shield in a sandbag nest, a mortar in a horseshoe of sandbags, cryo tanks piped up to
+  prongs that hold the frost crystal, car batteries wired to a coil on stacked insulators, a
+  plank watchtower with a rifle on a bipod, a gunship's rocket pod on a turntable. The
+  crystal and the coil's ball stay glowing, open to the sky, so they read from the camera.
 - **Size stays the rules'.** A creep stands about as tall for its collision radius as before, so how
   big it looks is still how big it is to hit.
 

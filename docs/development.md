@@ -30,8 +30,9 @@ A real game cancels the browser's shortcuts, DevTools' among them, and asks befo
 left; add `&dev` after the token in its URL to keep them (td's own Firefox profile has DevTools
 off whatever the URL says).
 
-The survivors and creeps are modelled in Blender by `tools/blender/figures.py`, which writes
-`web/src/scene/figures.gen.ts` (every piece's vertices, joints, colour codes and tones, and the
-pivots the page animates them about). Run the file in Blender to rewrite the module; it also
-lays the survivors and creeps out in the scene to look at, and `show_heads()` puts two big
+The survivors, creeps, guns and turrets are modelled in Blender by `tools/blender/figures.py`,
+which writes `web/src/scene/figures.gen.ts` (every piece's vertices, joints, colour codes and
+tones, and the pivots the page animates them about). Run the file in Blender to rewrite the
+module; it also lays them all out in the scene to look at (the guns at twice their size, the
+turrets with their heads on), and `show_heads()` puts two big
 heads beside them to study the face. Commit the script and the module together.
