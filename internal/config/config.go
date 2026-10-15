@@ -43,7 +43,11 @@ const (
 	KeyDifficulty = "DIFFICULTY"
 	KeyFog        = "FOG"
 	KeyWaves      = "WAVES"
+	KeyVolume     = "VOLUME"
 )
+
+// DefaultVolume is VOLUME with nothing set: loud enough to hear, not so loud it startles.
+const DefaultVolume = 70
 
 // DefaultPort is netplay.DefaultPort, repeated here so the prefs do not import the network
 // code. A test pins the two together.
@@ -96,6 +100,8 @@ var Keys = []Key{
 		Parse: parseOnOff, Default: func() string { return "off" }, Bool: true},
 	{Name: KeyWaves, Env: "TAILDEFENSE_WAVES", Help: "how long the games you host are: 20, 30 or 40 waves, then the evac; or endless",
 		Parse: parseWaves, Default: func() string { return FormatWaves(game.DefaultLastWave) }},
+	{Name: KeyVolume, Env: "TAILDEFENSE_VOLUME", Help: "sound in the game, 0 to 100; 0 turns it off",
+		Parse: parseVolume, Default: func() string { return strconv.Itoa(DefaultVolume) }},
 	{Name: KeyBrowser, Env: "TAILDEFENSE_BROWSER", Help: "what opens the game: auto (best browser, full screen), default, chrome, firefox…, none or a command",
 		Parse: parseBrowser, Default: func() string { return BrowserAuto }},
 	{Name: KeyAutoUpdate, Env: "TAILDEFENSE_NO_AUTOUPDATE", Help: "update td in the background when main moves on",
@@ -283,6 +289,15 @@ func (p *Prefs) Waves() int {
 	n, err := ParseWaves(p.Get(KeyWaves).Value)
 	if err != nil {
 		return game.DefaultLastWave
+	}
+	return n
+}
+
+// Volume is the game's sound, 0 (off) to 100.
+func (p *Prefs) Volume() int {
+	n, err := strconv.Atoi(p.Get(KeyVolume).Value)
+	if err != nil {
+		return DefaultVolume
 	}
 	return n
 }
@@ -495,6 +510,22 @@ func parseBrowser(s string) (string, error) {
 		return "", fmt.Errorf("%q is not a command", s)
 	}
 	return s, nil
+}
+
+// parseVolume takes 0 to 100, with or without a %, and off and on for 0 and the default.
+func parseVolume(s string) (string, error) {
+	v := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(s)), "%")
+	switch v {
+	case "off", "mute", "no":
+		return "0", nil
+	case "on", "yes":
+		return strconv.Itoa(DefaultVolume), nil
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(v))
+	if err != nil || n < 0 || n > 100 {
+		return "", fmt.Errorf("%q is not a volume: 0 (off) to 100", s)
+	}
+	return strconv.Itoa(n), nil
 }
 
 func parseOnOff(s string) (string, error) {
