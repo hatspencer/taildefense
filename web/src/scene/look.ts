@@ -34,19 +34,20 @@ export interface Archetype {
   back: Back;
   chest?: 'cross' | 'tie' | 'lanyard' | 'pocket';
   pcLegs?: boolean;     // overalls and scrubs: the trousers are the player's colour too
+  sleeve: 'short' | 'rolled' | 'long';
 }
 
 export const ARCHETYPES: Archetype[] = [
-  { name: 'paramedic', legs: 0x272b38, boots: 0x16161a, stripe: 0xe8e8d8, hat: 'none', hatColor: 0, back: 'medbag', chest: 'cross' },
-  { name: 'mechanic', legs: 0, boots: 0x2a2018, hat: 'bandana', hatColor: 0x8a2a20, back: 'wrench', chest: 'pocket', pcLegs: true },
-  { name: 'hunter', legs: 0x585638, boots: 0x3e2c1c, stripe: 0x1c1a16, hat: 'cap', hatColor: 0xe0681c, back: 'bedroll' },
-  { name: 'student', legs: 0x34445e, boots: 0xd8d4c8, hat: 'beanie', hatColor: 0x2c2c34, back: 'bigpack' },
-  { name: 'builder', legs: 0x4a4036, boots: 0x6a4a22, over: 0xd6e03c, overKind: 'vest', stripe: 0xeeeee0, hat: 'hardhat', hatColor: 0xe8b818, back: 'toolbelt' },
-  { name: 'nurse', legs: 0, boots: 0xe0dcd0, hat: 'nursecap', hatColor: 0xeeeae0, back: 'none', chest: 'lanyard', pcLegs: true },
-  { name: 'biker', legs: 0x1e2128, boots: 0x141210, over: 0x221c1a, overKind: 'open', hat: 'bandana', hatColor: 0x1c1c22, back: 'none' },
-  { name: 'farmer', legs: 0x3e5680, boots: 0x4a3420, over: 0x3e5680, overKind: 'bib', hat: 'straw', hatColor: 0xd4b868, back: 'none' },
-  { name: 'ex-soldier', legs: 0x4e5238, boots: 0x22201a, over: 0x4a4e34, overKind: 'plate', hat: 'helmet', hatColor: 0x4a4e32, back: 'pack' },
-  { name: 'office worker', legs: 0x262830, boots: 0x18140f, hat: 'none', hatColor: 0, back: 'satchel', chest: 'tie' },
+  { name: 'paramedic', legs: 0x272b38, boots: 0x16161a, stripe: 0xe8e8d8, hat: 'none', hatColor: 0, back: 'medbag', chest: 'cross' , sleeve: 'rolled' },
+  { name: 'mechanic', legs: 0, boots: 0x2a2018, hat: 'bandana', hatColor: 0x8a2a20, back: 'wrench', chest: 'pocket', pcLegs: true , sleeve: 'rolled' },
+  { name: 'hunter', legs: 0x585638, boots: 0x3e2c1c, stripe: 0x1c1a16, hat: 'cap', hatColor: 0xe0681c, back: 'bedroll' , sleeve: 'long' },
+  { name: 'student', legs: 0x34445e, boots: 0xd8d4c8, hat: 'beanie', hatColor: 0x2c2c34, back: 'bigpack' , sleeve: 'long' },
+  { name: 'builder', legs: 0x4a4036, boots: 0x6a4a22, over: 0xd6e03c, overKind: 'vest', stripe: 0xeeeee0, hat: 'hardhat', hatColor: 0xe8b818, back: 'toolbelt' , sleeve: 'short' },
+  { name: 'nurse', legs: 0, boots: 0xe0dcd0, hat: 'nursecap', hatColor: 0xeeeae0, back: 'none', chest: 'lanyard', pcLegs: true , sleeve: 'short' },
+  { name: 'biker', legs: 0x1e2128, boots: 0x141210, over: 0x221c1a, overKind: 'open', hat: 'bandana', hatColor: 0x1c1c22, back: 'none' , sleeve: 'long' },
+  { name: 'farmer', legs: 0x3e5680, boots: 0x4a3420, over: 0x3e5680, overKind: 'bib', hat: 'straw', hatColor: 0xd4b868, back: 'none' , sleeve: 'rolled' },
+  { name: 'ex-soldier', legs: 0x4e5238, boots: 0x22201a, over: 0x4a4e34, overKind: 'plate', hat: 'helmet', hatColor: 0x4a4e32, back: 'pack' , sleeve: 'long' },
+  { name: 'office worker', legs: 0x262830, boots: 0x18140f, hat: 'none', hatColor: 0, back: 'satchel', chest: 'tie' , sleeve: 'long' },
 ];
 
 export interface Look {
