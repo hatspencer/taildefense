@@ -7,8 +7,8 @@ import {
   CF_ASLEEP, CF_BURNING, CF_HUNTING, CF_SIEGE, CF_SLOWED, CF_STRIKE, CF_WINDUP, type CreepDef, MAX_CREEPS, PF_ALIVE,
 } from '../protocol';
 import type { Game } from '../state';
-import { type CreepRig, creepRig } from './creepModels';
-import { J, JOINTS, mergeRig, turnTowards } from './rig';
+import { type CreepRig, creepGeometry, creepRig } from './creepModels';
+import { J, JOINTS, turnTowards } from './rig';
 import { box, lin, merge, part, setEmissive, writeMatrix } from './util';
 
 type F = THREE.Node<'float'>;
@@ -140,6 +140,8 @@ function material(r: CreepRig, scale: number, buf: THREE.InstancedInterleavedBuf
   col = mix(col, pick(PANTS, va.w), lo.mul(gHi).mul(bLo));
   col = mix(col, skin, lo.mul(gHi).mul(bHi));
   col = mix(col, pick(HAIRS, fract(seed.mul(13.7)), skin.mul(0.92)), hi.mul(gHi).mul(bLo));
+  // Each triangle's tone, kept out of the colour so the swaps above could find their keys.
+  col = col.mul(attribute<'float'>('tone', 'float'));
   col = mix(col, col.mul(vec3(1.5, 0.75, 0.35)).add(vec3(0.15, 0.04, 0)), st.x.mul(0.8));
   col = mix(col, col.mul(vec3(0.6, 0.85, 1.25)).add(vec3(0.01, 0.04, 0.1)), st.y.mul(0.7));
   col = mix(col, vec3(1, 0.95, 0.85), st.z.mul(0.45));
@@ -220,13 +222,12 @@ export class Creeps {
     defs.forEach((d, i) => {
       const cap = MAX_CREEPS + CORPSES;
       const r = creepRig(i, d.name);
-      const geo = mergeRig(r.parts);
-      // Fit the model's footprint to the creep's diameter, a little larger so crowds read as solid.
-      // Its length counts for less than its breadth, or a crawler would shrink to a rat.
+      const geo = creepGeometry(r.model);
+      // As tall as the creep's diameter (a little over, so crowds read as solid) times how tall
+      // the kind stands for its footprint.
       geo.computeBoundingBox();
       const bb = geo.boundingBox!;
-      const foot = Math.max((bb.max.x - bb.min.x) * 0.6, bb.max.z - bb.min.z, 0.3);
-      const scale = (d.radius * 2.3) / foot;
+      const scale = (d.radius * 2.3 * r.aspect) / bb.max.y;
       const fx = new Float32Array(cap * STRIDE);
       const buf = new THREE.InstancedInterleavedBuffer(fx, STRIDE, 1);
       buf.setUsage(THREE.DynamicDrawUsage);
