@@ -16,7 +16,7 @@ export const PF_CONNECTED = 1, PF_ALIVE = 2, PF_FIRING = 4, PF_READY = 8, PF_REL
   PF_HURT = 32, PF_ARMORY = 64, PF_MOVING = 128;
 export const CF_BURNING = 1, CF_SLOWED = 2, CF_GUARD = 4, CF_HUNTING = 8, CF_SIEGE = 16, CF_ASLEEP = 32, CF_WINDUP = 64, CF_STRIKE = 128;
 
-export const enum Order { Idle = 0, Move, AMove, Attack, Hold, Build, Repair, Loot, Revive, Steer }
+export const enum Order { Idle = 0, Move, AMove, Attack, Hold, Build, Repair, Loot, Revive, Steer, Pickup }
 export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake, Bell, Bile }
 export const enum Weather { Clear = 0, Fog, Rain, Storm, Snow, Drizzle, Thunder, HeavySnow }
 // How much each weather counts as rain (internal/game/weather.go wetness).
@@ -152,7 +152,10 @@ export type Command =
   | { op: 'ping'; x: number; y: number; kind: number }
   // x: the walking direction in radians, in map coordinates; on false lets go.
   | { op: 'steer'; x: number; on: boolean }
-  | { op: 'medkit' } | { op: 'buyMedkit' };
+  | { op: 'medkit' } | { op: 'buyMedkit' }
+  // Puts weapon w down for a teammate; pickup walks to the weapon on the ground with that id.
+  | { op: 'drop'; w: number }
+  | { op: 'pickup'; id: number };
 
 export class Player {
   id = 0; flags = 0; x = 0; y = 0; aim = 0; hp = 0; maxHp = 1; cur = 0; ammo = 0; mag = 0;
@@ -205,6 +208,9 @@ function grow<T extends Uint8Array | Uint16Array | Int8Array | Float32Array>(a: 
   return b;
 }
 
+// A weapon on the ground, upgrades and all; id names it in a pickup.
+export interface Gun { id: number; kind: number; x: number; y: number; lv: number[]; by: number }
+
 export class Frame {
   tick = 0; phase = 0; wave = 0; phaseLeft = 0; pending = 0; totalKills = 0; best = 0;
   // weatherAmt: 0..1, how strongly the weather shows right now.
@@ -252,6 +258,8 @@ export class Frame {
   notes: { level: number; text: string }[] = [];
   // Supply crates down and not yet opened; open is how far opening one is, 0..1.
   crates: { x: number; y: number; open: number }[] = [];
+  // Weapons survivors dropped: what it is, its track levels, and who dropped it.
+  guns: Gun[] = [];
   pings: { player: number; x: number; y: number; kind: number }[] = [];
 
   constructor() {
@@ -328,6 +336,12 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
   const ncr = bytes[o]; o += 1;
   f.crates.length = 0;
   for (let i = 0; i < ncr; i++, o += 5) f.crates.push({ x: d.getUint16(o, true) * Q, y: d.getUint16(o + 2, true) * Q, open: bytes[o + 4] / 255 });
+  const ngun = bytes[o]; o += 1;
+  f.guns.length = 0;
+  for (let i = 0; i < ngun; i++, o += 12) {
+    f.guns.push({ id: d.getUint16(o, true), kind: bytes[o + 2], x: d.getUint16(o + 3, true) * Q, y: d.getUint16(o + 5, true) * Q,
+      lv: [bytes[o + 7], bytes[o + 8], bytes[o + 9], bytes[o + 10]], by: bytes[o + 11] });
+  }
 
   const ns = d.getUint16(o, true); o += 2;
   if (f.sAlive.length < ns) {

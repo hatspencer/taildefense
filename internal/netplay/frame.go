@@ -349,6 +349,16 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 		b.u16(qpos(c.Y))
 		b.u8(uint8(min(c.Open/game.CrateOpenTime(), 1) * 255))
 	}
+	b.uv(uint64(len(w.Guns)))
+	for i := range w.Guns {
+		g := &w.Guns[i]
+		b.u16(g.ID)
+		b.u8(uint8(g.Kind))
+		b.u16(qpos(g.X))
+		b.u16(qpos(g.Y))
+		b.b = append(b.b, g.Lv[:]...)
+		b.u8(g.By)
+	}
 	b.u8(uint8(len(w.Players)))
 	for _, p := range w.Players {
 		var f uint8
@@ -393,6 +403,8 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 		case p.Order.Kind == game.OrderRevive:
 			_, t, _ := game.ReviveInfo()
 			channel = uint8(min(p.Search/t, 1) * 255)
+		case p.Order.Kind == game.OrderPickup:
+			channel = uint8(min(p.Search/game.GunPickupTime(), 1) * 255)
 		}
 		b.u8(channel)
 		b.u8(uint8(min(p.Revived, 1) * 255))

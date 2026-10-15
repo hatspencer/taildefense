@@ -20,6 +20,7 @@ const (
 	OrderLoot                        // walk to a loot site and search it
 	OrderRevive                      // walk to a downed teammate and revive them
 	OrderSteer                       // walk along X, Y (a unit vector) while the client holds a key
+	OrderPickup                      // walk to a weapon on the ground and pick it up
 )
 
 // Order is a survivor's current order.
@@ -31,6 +32,7 @@ type Order struct {
 	Site    int        // OrderLoot: site index
 	Started bool       // OrderLoot: the search has begun (an ambush may have sprung)
 	Mate    int        // OrderRevive: player index
+	Gun     uint16     // OrderPickup: the weapon's id
 	Build   StructKind // OrderBuild
 	TX, TY  int        // OrderBuild: tile
 }
@@ -117,7 +119,7 @@ func (w *World) order(p *Player, o Order) {
 	p.Order = o
 	p.Search = 0
 	p.walk.reset()
-	if o.Kind == OrderMove || o.Kind == OrderAttackMove || o.Kind == OrderBuild || o.Kind == OrderRepair || o.Kind == OrderLoot || o.Kind == OrderRevive {
+	if o.Kind == OrderMove || o.Kind == OrderAttackMove || o.Kind == OrderBuild || o.Kind == OrderRepair || o.Kind == OrderLoot || o.Kind == OrderRevive || o.Kind == OrderPickup {
 		w.route(p, o.X, o.Y)
 	}
 }
@@ -501,6 +503,12 @@ func (w *World) act(p *Player, st Stats) int32 {
 	case OrderRevive:
 		if !w.actRevive(p, o) {
 			o.Kind = OrderIdle
+		}
+		return -1
+	case OrderPickup:
+		if !w.actPickup(p, o, walk) {
+			o.Kind = OrderIdle
+			p.Search = 0
 		}
 		return -1
 	}

@@ -158,6 +158,15 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 		e.pos(c.Y)
 		e.u8(uint8(min(max(c.Open, 0), 1) * 255))
 	}
+	e.u8(uint8(min(len(r.Guns), 255)))
+	for _, g := range r.Guns[:min(len(r.Guns), 255)] {
+		e.u16(g.ID)
+		e.u8(uint8(g.Kind))
+		e.pos(g.X)
+		e.pos(g.Y)
+		e.b = append(e.b, g.Lv[:]...)
+		e.u8(g.By)
+	}
 
 	e.u16(uint16(len(r.Structs)))
 	for i := range r.Structs {

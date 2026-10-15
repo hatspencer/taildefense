@@ -10,7 +10,7 @@ import (
 )
 
 // numOps is one past the last op a client can send.
-const numOps = netplay.OpDifficulty + 1
+const numOps = netplay.OpPickup + 1
 
 // commandSize is how many fuzz bytes make one command: player, op, A, B, X, Y, T, and how many
 // ticks to play after it.

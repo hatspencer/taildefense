@@ -97,6 +97,12 @@ a chute and marks itself with green smoke. Stand by it for a few seconds, unhurt
 gold and full medkits for everyone, and a rare find for the one who opened it. E walks you to a
 crate nearby.
 
+A weapon can change hands. C drops the one you hold, with every upgrade on it, in front of you;
+it lies there with a glint over it, taped in your colour, until someone walks up and picks it up
+with E, which takes a fifth of a second. The rifle you sank your gold into can go to whoever
+holds the back line, and come back when you want it. You always keep one weapon, and you can't
+pick up a kind you already carry.
+
 ## The dead
 
 The dead wander the wastes on their own, in small packs, shambling about away from the base.

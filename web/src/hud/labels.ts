@@ -3,7 +3,7 @@ import { EffectKind, Order, PF_ALIVE, PingKind, siteX, siteY, walled } from '../
 import { type Game, PING_LIFE } from '../state';
 import { cssHex, playerColor } from '../scene/util';
 
-export interface LabelFocus { hoverStruct: number; selStruct: number; hoverCreep: number; selCreep: number; showAllBars: boolean; hoverSite: number; siteHint: string }
+export interface LabelFocus { hoverStruct: number; selStruct: number; hoverCreep: number; selCreep: number; showAllBars: boolean; hoverSite: number; siteHint: string; hoverGun?: number; gunHint?: string }
 
 // The HUD's palette and faces, for the canvas (see app.css).
 // Labels are small print, so they use the crisp face, not Pixelify (see --small).
@@ -223,6 +223,7 @@ export class Labels {
         this.bar(x, y + 1, 46 * zoom, p.hp / Math.max(1, p.maxHp));
         if (p.order === Order.Loot && p.channel > 0) rings.push({ x, y: y - lift, frac: p.channel, col: AMBER, caption: 'searching…' });
         else if (p.order === Order.Revive && p.channel > 0) rings.push({ x, y: y - lift, frac: p.channel, col: MOSS, caption: 'reviving…' });
+        else if (p.order === Order.Pickup && p.channel > 0) rings.push({ x, y: y - lift, frac: p.channel, col: AMBER, caption: 'picking up…' });
       } else {
         // A blinking cross over the body, the name and the seconds left to reach them; a
         // revive in progress rings the cross.
@@ -253,6 +254,14 @@ export class Labels {
       c.font = `600 ${fs}px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'bottom';
       if (k.open > 0) this.ring(this.v.x, this.v.y - 16, k.open, MOSS, 'opening…');
       else this.text('supply crate', this.v.x, this.v.y, MOSS);
+    }
+
+    // Weapons on the ground: the name, with its upgrades and whose it was when hovered.
+    for (const g of f.guns) {
+      if (!this.project(cam, g.x, 0.95, g.y)) continue;
+      c.font = `600 ${fs}px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'bottom';
+      const hot = g.id === focus.hoverGun && focus.gunHint;
+      this.text(hot ? focus.gunHint! : wd.weapons[g.kind]?.name ?? 'weapon', this.v.x, this.v.y, AMBER);
     }
 
     // Airstrike countdowns.

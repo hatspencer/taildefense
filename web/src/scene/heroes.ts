@@ -43,7 +43,7 @@ const HOLDS: Hold[] = [
 ];
 
 // The gun in the hand, facing +x from the grip, dressed in the player's colour.
-function gunParts(w: number, c: number): { body: Part[]; spin: Part[] } {
+export function gunParts(w: number, c: number): { body: Part[]; spin: Part[] } {
   const D = 0x2b2b2b, M = 0x3e3e40, W = 0x5a3e24, O = 0x4e5236;
   const b: Part[] = [], s: Part[] = [];
   const add = (to: Part[], wd: number, h: number, d: number, col: number, x: number, y: number, z = 0, rz = 0) => to.push(part(box(wd, h, d), col, x, y, z, 0, 0, rz));

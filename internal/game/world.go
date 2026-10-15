@@ -277,6 +277,8 @@ type World struct {
 	Rockets    []Projectile
 	Effects    []Effect
 	Crates     []Crate // supply crates down and not yet opened
+	Guns       []Gun   // weapons survivors dropped, for anyone to pick up (handoff.go)
+	gunSerial  uint16  // the last weapon dropped's id
 	Sites      []Site
 	wrecks     []int16 // wreckGrid's tiles
 	wrecksFor  int     // len(Sites) when wrecks was built

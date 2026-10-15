@@ -13,6 +13,7 @@ import { Effects } from './scene/effects';
 import { Helis } from './scene/heli';
 import { Heroes } from './scene/heroes';
 import { Portraits } from './scene/portraits';
+import { Guns } from './scene/guns';
 import { Loot } from './scene/loot';
 import { Overlays } from './scene/overlays';
 import { K_CANNON, K_FROST, K_GUN, K_MISSILE, K_SNIPER, K_TESLA, Structs } from './scene/structs';
@@ -98,6 +99,7 @@ async function main(): Promise<void> {
   const creeps = new Creeps(world.scene);
   const heroes = new Heroes(world.scene);
   const loot = new Loot(world.scene);
+  const guns = new Guns(world.scene);
   const effects = new Effects(world.scene);
   const helis = new Helis(world.scene, effects);
   const fow = new FogOfWar(world.scene);
@@ -143,6 +145,7 @@ async function main(): Promise<void> {
       structs.setup(w.structs);
       loot.setup(w.sites);
       heroes.clear();
+      guns.clear();
       rig.setMap(w.w, w.h);
       rig.center(w.core.x, w.core.y);
       centredOnHero = false;
@@ -320,7 +323,8 @@ async function main(): Promise<void> {
       if (hs !== hoverStruct) { structs.setHover(hoverStruct, false); structs.setHover(hs, true); hoverStruct = hs; }
       if (hh !== hoverHero) { heroes.setHover(hoverHero, false); heroes.setHover(hh, true); hoverHero = hh; }
       creeps.hovered = h?.t === 'creep' ? h.id : -1;
-      const loots = h?.t === 'site' && ctl.mode.k === 'none' && !game.cur.siteSearched(h.id);
+      const loots = ((h?.t === 'site' && !game.cur.siteSearched(h.id)) || h?.t === 'gun') && ctl.mode.k === 'none';
+      guns.hovered = h?.t === 'gun' ? h.id : -1;
       if (loots !== hoverLoot) { document.body.classList.toggle('cur-loot', loots); hoverLoot = loots; }
       const revives = ctl.reviveTarget() >= 0;
       if (revives !== hoverRevive) { document.body.classList.toggle('cur-revive', revives); canvas.style.cursor = revives ? REVIVE_CURSOR : ''; hoverRevive = revives; }
@@ -329,6 +333,7 @@ async function main(): Promise<void> {
       structs.update(game, now, dt);
       heroes.update(game, now, dt, world.camera);
       loot.update(game, now);
+      guns.update(game, now);
       effects.update(game, world.camera, dt);
       helis.update(game, now, dt);
       fow.update(game, dt, rig.tx, rig.tz);
@@ -354,6 +359,7 @@ async function main(): Promise<void> {
         hoverCreep: ctl.hover?.t === 'creep' ? ctl.hover.id : -1, selCreep: sel?.t === 'creep' ? sel.id : -1,
         showAllBars: ctl.mode.k === 'build',
         hoverSite: ctl.hover?.t === 'site' ? ctl.hover.id : -1, siteHint: ctl.hover?.t === 'site' ? ctl.siteHint(ctl.hover.id) : '',
+        hoverGun: ctl.hover?.t === 'gun' ? ctl.hover.id : -1, gunHint: ctl.hover?.t === 'gun' ? ctl.gunHint(ctl.hover.id) : '',
       }, now, rig.dist, (x, z) => fow.clarity(x, z));
       hud.minimap.draw(now, W, H);
       // The portraits share the renderer, which the shader warm-up has to itself.
@@ -407,6 +413,10 @@ async function main(): Promise<void> {
       } else if (p.t === 'site') {
         const s = wd.sites[p.id];
         x = siteX(s); y = siteY(s); r = s.kind === SiteKind.Plane ? 6.2 : s.kind === SiteKind.Bus ? 1.7 : s.kind === SiteKind.Army || s.kind === SiteKind.Ambulance || s.kind === SiteKind.Fire || s.kind === SiteKind.Camper ? 1.3 : s.kind === SiteKind.Moto ? 0.7 : wreck(s.kind) ? 1.05 : 0.85; col = f.siteSearched(p.id) ? 0xa0a098 : 0xffd040;
+      } else if (p.t === 'gun') {
+        const k = f.guns.find((g) => g.id === p.id);
+        if (!k) { overlays.ring(name, false); return; }
+        x = k.x; y = k.y; r = 0.7; col = 0xffd040;
       } else if (p.t === 'hero') {
         x = game.prx[p.id]; y = game.pry[p.id]; r = 0.75; col = p.id === wd.you ? 0x50ff70 : 0x50c0ff;
       } else {

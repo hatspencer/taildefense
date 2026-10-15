@@ -234,8 +234,9 @@ u8   nPlayers
   u8   levels[28]     weapon-major: levels[w*4 + track]
   u8   gear[4]        Armor, Boots, Vitamins, Scavenger
   u8   order          0 idle, 1 move, 2 attack-move, 3 attack, 4 hold, 5 build, 6 repair,
-                      7 loot, 8 revive, 9 steer (walking with WASD)
-  u8   channel        how far the current search (order 7) or revive (order 8) is, 0..255;
+                      7 loot, 8 revive, 9 steer (walking with WASD), 10 pick up a weapon
+  u8   channel        how far the current search (order 7), revive (order 8) or pickup
+                      (order 10, 0.2 s) is, 0..255;
                       0 while walking there
   u8   revived        for a downed survivor: how far the best revive on them is, 0..255
   u8   emote          0 none, 1 taunting
@@ -267,6 +268,13 @@ u16  nSites           same as the welcome's site list
 u8   nCrates          supply crates down and not yet opened (at most 3)
   u16  x, y q8
   u8   open           how far opening it is, 0..255
+
+u8   nGuns            weapons survivors dropped, lying on the ground (at most 32)
+  u16  id             names it in a pickup; never reused within a game
+  u8   kind           weapon kind
+  u16  x, y q8
+  u8   lv[4]          its track levels, kept from the hands that dropped it
+  u8   by             the player id who dropped it
 
 u16  nStructs         the whole list; the index is the struct id used in commands
   u8   alive          dead slots are kept (alive 0) so ids stay stable
@@ -369,6 +377,9 @@ integers. The host checks everything; a refusal comes back as a `toast` with lev
 {"op": "reload"}                             // reload the equipped weapon now
 {"op": "taunt"}                              // pull every creep within taunt.radius onto you
 {"op": "revive",  "p": 2}                    // walk to downed player 2 and revive them
+{"op": "drop",    "w": 3}                    // put owned weapon 3 on the ground, upgrades and all
+                                             // (refused for the last weapon carried)
+{"op": "pickup",  "id": 17}                  // walk to weapon 17 on the ground and pick it up
 {"op": "ready",   "on": true}                // ready for the next wave (all ready: starts in 3 s)
 {"op": "restart"}                            // a new map, only once the game is over
 {"op": "difficulty", "kind": 2}              // the host only: change the difficulty from here on
