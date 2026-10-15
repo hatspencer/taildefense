@@ -5,7 +5,8 @@ import type { Effects } from './scene/effects';
 import type { Game } from './state';
 
 export type Mode = { k: 'none' } | { k: 'ping' } | { k: 'ability'; slot: number } | { k: 'build'; kind: number };
-export type Pick = { t: 'creep' | 'struct' | 'hero' | 'site'; id: number } | null;
+// gun: a weapon on the ground, by its id.
+export type Pick = { t: 'creep' | 'struct' | 'hero' | 'site' | 'gun'; id: number } | null;
 
 export interface AbilityInfo { name: string; desc: string; key: string; range: number; radius: number; cool: number; target: string; level: number; maxLevel: number; left: number; nextCost: number }
 
@@ -109,6 +110,13 @@ export class Controller {
       const sid = g.structAtTile(Math.floor(ax + dx * t), Math.floor(az + dz * t));
       if (sid >= 0) return { t: 'struct', id: sid };
     }
+    // Weapons on the ground, then loot sites; either gives way to a creep almost under the cursor.
+    let gun = -1, gd = 0.8;
+    for (const k of f.guns) {
+      const d = segDist(k.x, k.y);
+      if (d < gd) { gd = d; gun = k.id; }
+    }
+    if (gun >= 0) return near && nd < 1.6 ? near : { t: 'gun', id: gun };
     // Loot sites: anywhere inside a house, or near a car or crate along the ray.
     let site = -1, sd = 0.9;
     for (let i = 0; i < wd.sites.length; i++) {
@@ -137,6 +145,7 @@ export class Controller {
     if (s.t === 'creep' && this.game.indexById[s.id] < 0) this.sel = null;
     else if (s.t === 'struct' && (s.id >= f.nStructs || !f.sAlive[s.id])) this.sel = null;
     else if (s.t === 'hero' && !f.player(s.id)) this.sel = null;
+    else if (s.t === 'gun' && !f.guns.some((g) => g.id === s.id)) this.sel = null;
   }
 
   // What hovering a loot site says: its name and whether it can be searched yet (the HUD's
@@ -183,7 +192,7 @@ export class Controller {
         this.placeBuild(this.mode.kind, this.shift);
         return;
     }
-    this.sel = this.hover?.t === 'site' ? null : this.hover;
+    this.sel = this.hover?.t === 'site' || this.hover?.t === 'gun' ? null : this.hover;
     if (this.sel?.t === 'struct' && this.game.cur.sKind[this.sel.id] === 2) this.openArmory(true);
   }
 
@@ -200,7 +209,26 @@ export class Controller {
     if (this.groundOk) this.castAt(0, this.ground.x, this.ground.z);
   }
 
-  // E: whatever is right at hand comes first (a downed teammate, a loot site, a supply crate),
+  // What hovering a weapon on the ground says: what it is, its upgrades, who dropped it, and
+  // whether E picks it up.
+  gunHint(id: number): string {
+    const g = this.game.cur.guns.find((k) => k.id === id), wd = this.game.welcome, me = this.me();
+    if (!g || !wd) return '';
+    const name = wd.weapons[g.kind]?.name ?? 'Weapon';
+    const lv = g.lv.some((l) => l > 0) ? ' ' + g.lv.join('/') : '';
+    const by = this.game.cur.player(g.by)?.name;
+    const mine = me && me.owned & (1 << g.kind);
+    return `${name}${lv}${by ? ` · ${by}'s` : ''} · ${mine ? 'you carry one' : 'pick up'}`;
+  }
+
+  // Puts the weapon in hand on the ground for a teammate, upgrades and all.
+  dropWeapon(): void {
+    const me = this.me();
+    if (me && me.flags & PF_ALIVE) this.send({ op: 'drop', w: me.cur });
+  }
+
+  // E: whatever is right at hand comes first (a downed teammate, a weapon on the ground, a
+  // loot site, a supply crate),
   // so a hero out looting searches the wreck beside them whatever is selected or under the
   // cursor. Then what is under the cursor (walking there first), then the nearest usable
   // thing (a damaged structure, the armory), then a supply crate further off. On a creep under
@@ -252,6 +280,8 @@ export class Controller {
       if (f.siteSearched(i) || !lootable(s.kind)) continue;
       take({ t: 'site', id: i }, siteX(s), siteY(s));
     }
+    // A weapon on the ground comes before a site beside it: it is the quicker grab.
+    for (const k of f.guns) if (!(me.owned & (1 << k.kind))) take({ t: 'gun', id: k.id }, k.x, k.y, 0.5);
     if (atHand) return best;
     for (let s = 0; s < f.nStructs; s++) {
       if (!f.sAlive[s]) continue;
@@ -293,6 +323,15 @@ export class Controller {
       this.fx.ping(f.sX[s] + f.sW[s] / 2, f.sY[s] + f.sH[s] / 2, 0x40c0ff);
       return true;
     }
+    if (h.t === 'gun') {
+      const k = f.guns.find((g) => g.id === h.id);
+      if (!k) return false;
+      if (me.owned & (1 << k.kind)) { this.onToast(`you already carry a ${g.welcome?.weapons[k.kind]?.name ?? 'weapon'} like it`, 2); return true; }
+      this.toArmory = false;
+      this.send({ op: 'pickup', id: h.id });
+      this.fx.ping(k.x, k.y, 0xffd040);
+      return true;
+    }
     if (h.t === 'site' && !f.siteSearched(h.id)) {
       const s = g.welcome!.sites[h.id];
       this.toArmory = false;
@@ -321,6 +360,9 @@ export class Controller {
       kind = PingKind.Loot;
       const s = this.game.welcome!.sites[h.id];
       x = siteX(s); y = siteY(s);
+    } else if (h?.t === 'gun') {
+      const k = f.guns.find((g) => g.id === h.id);
+      if (k) { kind = PingKind.Loot; x = k.x; y = k.y; }
     } else if (h?.t === 'struct') {
       kind = PingKind.Defend;
       x = f.sX[h.id] + f.sW[h.id] / 2; y = f.sY[h.id] + f.sH[h.id] / 2;

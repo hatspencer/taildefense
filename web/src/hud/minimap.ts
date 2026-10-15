@@ -214,6 +214,12 @@ export class Minimap {
       c.fillStyle = '#000'; c.fillRect(x - cr - dpr, y - cr - dpr, 2 * cr + 2 * dpr, 2 * cr + 2 * dpr);
       c.fillStyle = cb ? '#6ee05a' : '#3d8a32'; c.fillRect(x - cr, y - cr, 2 * cr, 2 * cr);
     }
+    // Weapons on the ground: a small amber pip.
+    for (const k of f.guns) {
+      const x = Math.round(k.x * sx), y = Math.round(k.y * sy);
+      c.fillStyle = '#000'; c.fillRect(x - 2 * dpr, y - 2 * dpr, 4 * dpr, 4 * dpr);
+      c.fillStyle = '#e8b444'; c.fillRect(x - dpr, y - dpr, 2 * dpr, 2 * dpr);
+    }
     for (let i = 0; i < f.nEffects; i++) {
       if (f.eKind[i] !== EffectKind.Drop) continue;
       const left = f.eLeft[i] / 10, total = Math.max(4, f.eTotal[i] / 10);

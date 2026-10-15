@@ -12,6 +12,15 @@ type CrateView struct {
 	X, Y, Open float32
 }
 
+// GunView is a weapon a survivor dropped, lying on the ground with its upgrades.
+type GunView struct {
+	ID   uint16
+	Kind game.WeaponKind
+	X, Y float32
+	Lv   [game.NumTracks]uint8
+	By   uint8 // who dropped it
+}
+
 // PlayerView is a player as a client sees them.
 type PlayerView struct {
 	ID                                         uint8
@@ -117,6 +126,7 @@ type Replica struct {
 	Searched   []bool  // per loot site, from the welcome's list
 	Guards     []uint8 // per loot site, its living guards
 	Crates     []CrateView
+	Guns       []GunView // weapons on the ground
 	Seen       game.Seen // the ground the team has found, at night; nil otherwise
 
 	Alive  bitset
@@ -415,6 +425,20 @@ func (r *Replica) header(d *dec) {
 	r.Crates = r.Crates[:0]
 	for i := 0; i < nc; i++ {
 		r.Crates = append(r.Crates, CrateView{X: unq(d.u16()), Y: unq(d.u16()), Open: float32(d.u8()) / 255})
+	}
+	ng := int(d.uv())
+	if ng > 255 {
+		d.err = fmt.Errorf("%d weapons on the ground", ng)
+		return
+	}
+	r.Guns = r.Guns[:0]
+	for i := 0; i < ng; i++ {
+		g := GunView{ID: d.u16(), Kind: game.WeaponKind(d.u8()), X: unq(d.u16()), Y: unq(d.u16())}
+		for t := range g.Lv {
+			g.Lv[t] = d.u8()
+		}
+		g.By = d.u8()
+		r.Guns = append(r.Guns, g)
 	}
 	n := int(d.u8())
 	old := r.Players

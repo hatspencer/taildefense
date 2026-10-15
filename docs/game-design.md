@@ -220,6 +220,12 @@ each wave, but Normal is the reference for timing.
   where the creeps are. The door gunner thins them on the way in. Opening it takes 2.5 s of
   standing by it unhurt, and it pays the whole team (gold, full medkits) plus a rare find for the
   opener. Up to three wait unopened. The surfboards on the Huey's side are for Kilgore.
+- **Weapons change hands.** A survivor can drop a weapon they carry and a teammate pick it up,
+  every upgrade track as it was, its magazine too. Gold is personal, so this is how a team pools
+  it: one player buys and upgrades a rifle, another uses it. Picking up takes 0.2 s, a token
+  channel like a search's (a hit restarts it), so it is a deliberate act and not something you
+  walk over by accident. A survivor keeps at least one weapon, a kind they already carry can't
+  be picked up (one of each, as in the armory), and at most 32 lie about at once.
 
 ### Ruined houses
 

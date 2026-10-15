@@ -187,6 +187,7 @@ export class Input {
       case 'X': ctl.sellSel(); return;
       case 'E': ctl.interact(); return;
       case 'V': ctl.taunt(); return;
+      case 'C': ctl.dropWeapon(); return;
     }
   }
 

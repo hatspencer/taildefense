@@ -110,6 +110,20 @@ func (w *World) Check() error {
 		}
 	}
 
+	if len(w.Guns) > gunMax {
+		return fmt.Errorf("%d weapons on the ground, more than %d", len(w.Guns), gunMax)
+	}
+	for _, g := range w.Guns {
+		if g.Kind >= NumWeapons || !w.inside(g.X, g.Y) || g.Ammo < 0 {
+			return fmt.Errorf("weapon %d on the ground: kind %d at %v,%v ammo %d", g.ID, g.Kind, g.X, g.Y, g.Ammo)
+		}
+		for _, l := range g.Lv {
+			if l > MaxLevel {
+				return fmt.Errorf("weapon %d on the ground at level %d", g.ID, l)
+			}
+		}
+	}
+
 	for _, r := range w.Rockets {
 		if !finite(r.X) || !finite(r.Y) || !finite(r.VX) || !finite(r.VY) {
 			return fmt.Errorf("rocket at %v,%v moving %v,%v", r.X, r.Y, r.VX, r.VY)
@@ -173,6 +187,11 @@ func (w *World) Hash() uint64 {
 		f(e.X)
 		f(e.Y)
 		f(e.Left)
+	}
+	for _, g := range w.Guns {
+		u(uint64(g.ID)<<8 | uint64(g.Kind))
+		f(g.X)
+		f(g.Y)
 	}
 	for _, s := range w.Sites {
 		u(uint64(s.Guards)<<1 | uint64(btou(s.Searched)))

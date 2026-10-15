@@ -1235,6 +1235,7 @@ export class DemoHost implements Transport {
     for (let i = 0; i < this.sites.length; i++) w.u8((this.searched[i] ? 0x80 : 0) | Math.min(127, this.guardsLeft(i)));
     w.u8(this.crates.length);
     for (const c of this.crates) { w.q8(c.x); w.q8(c.y); w.u8(Math.min(255, c.open / 2.5 * 255)); }
+    w.u8(0); // no weapons on the ground: the demo's survivors keep theirs
     w.u16(this.structs.length);
     for (const s of this.structs) {
       w.u8(s.alive ? 1 : 0); w.u8(s.kind); w.u16(s.x); w.u16(s.y); w.u8(s.w); w.u8(s.h);

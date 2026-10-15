@@ -533,6 +533,12 @@ func Exec(w *game.World, pl *game.Player, c Cmd) (string, error) {
 		}
 	case OpRevive:
 		err = w.OrderRevive(pl, int(c.T))
+	case OpDropWeapon:
+		err = w.DropWeapon(pl, game.WeaponKind(c.A))
+	case OpPickup:
+		if pl.Alive {
+			err = w.OrderPickup(pl, c.T)
+		}
 	case OpUpgradeStruct:
 		si := int(c.T)
 		if err = w.UpgradeStruct(pl, si, game.Track(c.A)); err == nil {
@@ -655,6 +661,8 @@ const (
 	OpMedkit // use one
 	OpBuyMedkit
 	OpDifficulty // A difficulty; the host only
+	OpDropWeapon // A weapon kind
+	OpPickup     // T the weapon on the ground's id
 )
 
 // Cmd is a discrete request from a player. X and Y are tiles, sent to 1/8; T names a creep
