@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, float, luminance, mix, output, positionWorld, rangeFogFactor, reference, smoothstep, texture, uniform, vec3, vec4 } from 'three/tsl';
 import { DAY_SIGHT, PF_ALIVE, RIFLE, RIFLE_SIGHT, sightMul } from '../protocol';
 import type { Game } from '../state';
+import type { Glow } from './glow';
 
 // Fog of war on screen, and the weather's haze: the scene's fog node, which every lit material runs, darkens what
 // the team cannot see by a per-tile texture (red: in sight now, green: seen before), eased
@@ -28,11 +29,12 @@ export class FogOfWar {
   private uNear = uniform(8);
   private uFar = uniform(14);
 
-  constructor(scene: THREE.Scene) {
+  constructor(scene: THREE.Scene, glow: Glow) {
     this.tex = this.node.value as THREE.DataTexture;
     const f = scene.fog as THREE.Fog;
     const color = reference('color', 'color', f), near = reference('near', 'float', f), far = reference('far', 'float', f);
     const t = this.node.sample(positionWorld.xz.div(this.uSize));
+    const air = glow.node();
     scene.fogNode = Fn(() => {
       const lit = t.r, mem = t.g;
       // Never seen: near black. Seen before: dim and drained of colour, the way a map
@@ -43,7 +45,8 @@ export class FogOfWar {
       const d = mix(output.rgb, color, rangeFogFactor(near, far));
       const c = mix(d, color, smoothstep(this.uNear, this.uFar, positionWorld.xz.sub(this.uEye).length()).mul(this.uHaze));
       const dark = mix(vec3(luminance(c)), c, sat).mul(shade);
-      return vec4(mix(c, dark, this.uOn), output.a);
+      // Gun flashes light the haze after it has hidden the ground: they glow through it.
+      return vec4(mix(c, dark, this.uOn).add(air), output.a);
     })();
   }
 

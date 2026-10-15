@@ -5,6 +5,7 @@ import {
 } from 'three/tsl';
 import { BlastKind, EffectKind, LOB_WINDUP, TRACER_HELI, TRACER_SHARD, TRACER_ULT, Tile } from '../protocol';
 import type { Game } from '../state';
+import type { Glow } from './glow';
 import { K_ARMORY, K_CORE, K_MISSILE, K_SNIPER, K_TESLA } from './structs';
 import { linInto, writeMatrix } from './util';
 
@@ -137,6 +138,10 @@ export class Effects {
   private spheres: FxPool; private rings: FxPool; private decals: FxPool; private stars: FxPool; private dust: FxPool;
   // How dark it is (dusk, heavy weather), 0..1: muzzle flashes grow with it.
   dark = 0;
+  // How thick the fog is, 0..1: flashes bloom wider in it.
+  fog = 0;
+  // The flashes' light in the air, read by the fog node.
+  air: Glow | null = null;
   private lights: THREE.PointLight[] = [];
   private lightLeft = new Float32Array(LIGHTS);
   private lightPeak = new Float32Array(LIGHTS);
@@ -323,7 +328,8 @@ export class Effects {
   private muzzle(t: number, x: number, y: number, z: number, dx: number, dz: number, size: number, i: number): void {
     const d = this.dark;
     if (d < 0.05 && i % 3) return;
-    const s = size * (0.5 + 0.9 * d);
+    this.air?.add(x + dx * 0.3, y + 0.1, z + dz * 0.3, size * (0.6 + 0.9 * d), 0xffa850);
+    const s = size * (0.5 + 0.9 * d + 0.4 * this.fog);
     this.stars.add(t, x + dx * 0.15, y, z + dz * 0.15, 0, 0, 0, 0.05 + 0.02 * Math.random(), 0xffd890, s * (0.8 + Math.random() * 0.5), s * 0.4, 0, 1, 1, 0.5 + d);
     this.streaks.add(t, x, y, z, x + dx * 0.9 * s, y, z + dz * 0.9 * s, 0.05, 0xffa040, 0.16 * s, 0, 0, 1.3, 1, 0.5 + d);
     if (t - this.lastSmoke > 0.04) {
@@ -452,6 +458,7 @@ export class Effects {
         for (let j = 0; j < 4; j++) this.smoke.add(t + 0.15, x + (Math.random() - 0.5), 0.4, y + (Math.random() - 0.5), 0, 0.8, 0, 1.8, 0x3a3a3c, 0.5, 1.6, 0, 1, 0.5);
         this.decals.add(t, x, 0.066, y, 0, 0, 0, 20, 0x141414, r * 0.7, r * 0.75, 0, 1, 0.85);
         this.flashLight(x, 3, y, 120);
+        this.air?.add(x, 2, y, 8, 0xc8d8ff, 0.3);
         return;
       }
       case BlastKind.Revived:
@@ -488,6 +495,7 @@ export class Effects {
           this.smoke.add(t + 0.1, x + (Math.random() - 0.5) * r * 0.6, 0.6, y + (Math.random() - 0.5) * r * 0.6, (Math.random() - 0.5) * 0.6, 1.2, (Math.random() - 0.5) * 0.6, 1.6 + Math.random(), big ? 0x2a2622 : 0x4a4440, r * 0.5, r * 1.3, 0, 1, 0.55);
         }
         this.decals.add(t, x, 0.065, y, 0, 0, 0, 14, 0x1e1a16, r * 0.8, r * 0.8, 0, 1, 0.75);
+        this.air?.add(x, 1.2, y, big ? 9 : 5, 0xff9a40, big ? 0.35 : 0.25);
       }
     }
   }
