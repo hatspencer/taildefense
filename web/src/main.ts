@@ -139,7 +139,7 @@ async function main(): Promise<void> {
   const turretHeight = (x: number, y: number) => {
     const s = game.structAtTile(Math.floor(x), Math.floor(y));
     const k = s >= 0 ? game.cur.sKind[s] : 0;
-    return k === K_GUN ? 0.75 : k === K_CANNON ? 0.86 : k === K_FROST ? 1.5 : k === K_TESLA ? 1.6 : k === K_SNIPER ? 2.02 : k === K_MISSILE ? 0.95 : 1.0;
+    return k === K_GUN ? 0.75 : k === K_CANNON ? 0.72 : k === K_FROST ? 1.5 : k === K_TESLA ? 1.6 : k === K_SNIPER ? 2.02 : k === K_MISSILE ? 0.95 : 1.0;
   };
 
   const handlers: Handlers = {

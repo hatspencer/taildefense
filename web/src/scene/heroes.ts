@@ -4,12 +4,12 @@ import { WEAPON_BASE } from '../demo/defs';
 import { Emote, Order, PF_ALIVE, PF_FIRING, PF_HURT, PF_RELOADING } from '../protocol';
 import type { Game } from '../state';
 import { litMaterial } from './structs';
-import { build, piece } from './figures';
+import { build, fixedColor, piece, type Use } from './figures';
 import { SURVIVOR } from './figures.gen';
 import { Body, readLook } from './look';
 import { ik2, J, Spring, turnTowards, wrapAngle } from './rig';
 import { survivor } from './survivor';
-import { box, merge, part, type Part, playerColor, sphere } from './util';
+import { box, merge, part, playerColor, sphere } from './util';
 
 interface Limb { upper: THREE.Object3D; lower: THREE.Object3D }
 interface Hero {
@@ -47,37 +47,16 @@ const HOLDS: Hold[] = [
   { at: [0.16, 0.24, -0.17], grip: [0, 0, 0], fore: [-0.09, 0, 0], muzzle: 0.6 },             // crowbar, both hands on the tape, up at the shoulder
 ];
 
-// The gun in the hand, facing +x from the grip, dressed in the player's colour.
-export function gunParts(w: number, c: number): { body: Part[]; spin: Part[] } {
-  const D = 0x2b2b2b, M = 0x3e3e40, W = 0x5a3e24, O = 0x4e5236;
-  const b: Part[] = [], s: Part[] = [];
-  const add = (to: Part[], wd: number, h: number, d: number, col: number, x: number, y: number, z = 0, rz = 0) => to.push(part(box(wd, h, d), col, x, y, z, 0, 0, rz));
-  switch (w) {
-    case 0:
-      add(b, 0.3, 0.09, 0.07, D, 0.1, 0.05); add(b, 0.08, 0.15, 0.07, W, 0, -0.03, 0, 0.25); add(b, 0.08, 0.03, 0.075, c, 0.12, 0.1); break;
-    case 1:
-      add(b, 0.62, 0.06, 0.06, D, 0.3, 0.06); add(b, 0.18, 0.07, 0.09, W, 0.42, 0.0); add(b, 0.22, 0.1, 0.08, M, 0.03, 0.04);
-      add(b, 0.28, 0.09, 0.07, W, -0.21, 0.0, 0, -0.12); add(b, 0.1, 0.035, 0.085, c, 0.02, 0.1); break;
-    case 2:
-      add(b, 0.36, 0.11, 0.08, D, 0.1, 0.04); add(b, 0.06, 0.18, 0.06, M, 0.13, -0.1); add(b, 0.12, 0.04, 0.04, D, 0.34, 0.06);
-      add(b, 0.18, 0.035, 0.035, M, -0.16, 0.02); add(b, 0.06, 0.12, 0.06, D, 0, -0.06, 0, 0.2); add(b, 0.12, 0.03, 0.085, c, 0.08, 0.1); break;
-    case 3:
-      add(b, 0.5, 0.1, 0.08, D, 0.15, 0.04); add(b, 0.3, 0.04, 0.04, D, 0.56, 0.05); add(b, 0.26, 0.11, 0.07, W, -0.2, 0.0, 0, -0.08);
-      add(b, 0.2, 0.06, 0.06, 0x1a1a1c, 0.12, 0.13); add(b, 0.07, 0.13, 0.06, M, 0.18, -0.08); add(b, 0.12, 0.03, 0.085, c, 0.3, 0.09); break;
-    case 4:
-      add(b, 0.3, 0.16, 0.16, D, 0.0, 0.02); add(b, 0.15, 0.04, 0.04, M, 0.0, 0.13); add(b, 0.16, 0.14, 0.12, O, -0.02, -0.12, 0.08);
-      add(b, 0.1, 0.06, 0.18, c, 0.12, 0.02);
-      for (const [y, z] of [[0.04, 0.04], [0.04, -0.04], [-0.03, 0], [0.09, 0]]) add(s, 0.56, 0.035, 0.035, M, 0.4, y - 0.02, z);
-      break;
-    case 6:
-      // A bar, bent to a claw at the far end, and tape on the grip in the player's colour.
-      add(b, 0.62, 0.035, 0.035, 0x4a4f57, 0.24, 0.0, 0, 0.12); add(b, 0.14, 0.035, 0.035, 0x4a4f57, 0.56, 0.1, 0, 1.2);
-      add(b, 0.14, 0.05, 0.05, c, 0.0, -0.02, 0, 0.12); break;
-    default:
-      add(b, 0.8, 0.13, 0.13, O, 0.15, 0.03); add(b, 0.08, 0.17, 0.17, 0x3a3e28, 0.56, 0.03); add(b, 0.06, 0.14, 0.06, D, 0.05, -0.08);
-      add(b, 0.06, 0.08, 0.02, D, 0.0, 0.12, 0.06); add(b, 0.1, 0.135, 0.135, c, -0.2, 0.03);
-  }
-  return { body: b, spin: s };
+// The gun in the hand, modelled in Blender (tools/blender/figures.py): facing +x from the
+// grip, taped in the player's colour. 'spin' is the minigun's barrels, turning about y = 0.02;
+// 'all' is both, for a gun on the ground. Null when the weapon has no such piece.
+export function gunGeometry(w: number, c: number, which: 'body' | 'spin' | 'all' = 'body'): THREE.BufferGeometry | null {
+  const k = w >= 0 && w < HOLDS.length ? w : 5;
+  const uses: Use[] = [];
+  const body = piece(`gun_${k}`), spin = piece(`gun_${k}_spin`);
+  if (body && which !== 'spin') uses.push({ p: body });
+  if (spin && which !== 'body') uses.push({ p: spin });
+  return uses.length ? build(uses, (code) => (code >= 64 ? fixedColor(code) : c)) : null;
 }
 
 const V = new THREE.Vector3(), TR = new THREE.Vector3(), TL = new THREE.Vector3(), PR = new THREE.Vector3(-0.4, -1, -0.6), PL = new THREE.Vector3(-0.2, -1, 0.8);
@@ -123,16 +102,6 @@ export class Heroes {
   }
 
   clear(): void { this.group.clear(); this.heroes.clear(); }
-
-  private mesh(parts: Part[], parent: THREE.Object3D, x = 0, y = 0, z = 0): THREE.Mesh | null {
-    if (!parts.length) return null;
-    const geo = merge(parts);
-    geo.translate(-x, -y, -z);
-    const m = new THREE.Mesh(geo, this.mat);
-    m.castShadow = true;
-    parent.add(m);
-    return m;
-  }
 
   private make(id: number, look: number, weapon: number): Hero {
     // A survivor: the player's colour as the main garment (a little faded), the rest from the
@@ -237,14 +206,20 @@ export class Heroes {
     h.weapon = w;
     if (h.gunMesh) { h.gun.remove(h.gunMesh); h.gunMesh.geometry.dispose(); }
     if (h.spin) { h.gun.remove(h.spin); }
-    const g = gunParts(w, h.color);
-    h.gunMesh = this.mesh(g.body, h.gun);
+    const body = gunGeometry(w, h.color)!;
+    h.gunMesh = new THREE.Mesh(body, this.mat);
+    h.gunMesh.castShadow = true;
+    h.gun.add(h.gunMesh);
     h.spin = null;
-    if (g.spin.length) {
+    const spin = gunGeometry(w, h.color, 'spin');
+    if (spin) {
       h.spin = new THREE.Group();
       h.spin.position.set(0, 0.02, 0);
       h.gun.add(h.spin);
-      this.mesh(g.spin, h.spin, 0, 0.02);
+      spin.translate(0, -0.02, 0);
+      const m = new THREE.Mesh(spin, this.mat);
+      m.castShadow = true;
+      h.spin.add(m);
     }
     const hold = HOLDS[w] ?? HOLDS[0];
     h.flash.position.x = hold.muzzle;
