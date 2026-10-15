@@ -2,9 +2,9 @@ import * as THREE from 'three/webgpu';
 import { color, positionWorld, sin, time } from 'three/tsl';
 import type { Gun } from '../protocol';
 import type { Game } from '../state';
-import { gunParts } from './heroes';
+import { gunGeometry } from './heroes';
 import { litMaterial } from './structs';
-import { merge, octa, playerColor, writeMatrix } from './util';
+import { octa, playerColor, writeMatrix } from './util';
 
 // How much bigger than in the hand a weapon on the ground is drawn, so it reads from the
 // camera's height.
@@ -44,8 +44,7 @@ export class Guns {
     const key = `${kind}:${by}`;
     let g = this.geos.get(key);
     if (!g) {
-      const p = gunParts(kind, playerColor(by));
-      g = merge([...p.body, ...p.spin]);
+      g = gunGeometry(kind, playerColor(by), 'all')!;
       this.geos.set(key, g);
     }
     return g;

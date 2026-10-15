@@ -1,4 +1,4 @@
-# The survivors' and creeps' meshes, built in Blender and written out as
+# The survivors', creeps', guns' and turrets' meshes, built in Blender and written out as
 # web/src/scene/figures.gen.ts. Run it in Blender (Text editor, or blender -b -P this file);
 # it rebuilds a preview of every piece in the open scene and rewrites the module.
 #
@@ -7,8 +7,8 @@
 # (voxel remeshed, smoothed, cut down), so torso, neck, hips and legs are one skin; boots,
 # hands, hair, hats, packs and the clothes over the shirt are their own pieces laid on it.
 #
-# In Blender: run the file to rewrite the module and lay out a row of dressed survivors and
-# the creeps;
+# In Blender: run the file to rewrite the module and lay out a row of dressed survivors, the
+# creeps, the guns (twice their size) and the turrets;
 # show_heads() puts two big heads beside them to study the face.
 #
 # Each triangle carries a code: a slot the page colours per player or per creep (skin, shirt,
@@ -1669,11 +1669,471 @@ def show_creeps(names=None):
             p_.use_smooth = True
 
 
+# ---- Weapons and turrets --------------------------------------------------------------------
+#
+# Hard-surface kit in the figures' style: real, worn objects a survivor would find, a little
+# chunky so they read from the camera. Guns face +x from the right hand's grip, as heroes.ts
+# holds them (its HOLDS put the off hand and the muzzle on these models); the player's colour
+# is the tape and paint on them (the shirt slot). Turrets stand on y = 0 centred on their tile,
+# facing +x; a turning head is its own piece about its pivot.
+
+ACC = S['shirt']
+BLACK, GUNMETAL, STEEL, BARE = 0x252526, 0x36383b, 0x4f5357, 0x7a7e80
+WOOD, WOOD_DK, OLIVE, OLIVE_DK, BRASS = 0x7a4c2a, 0x4e3018, 0x535a38, 0x3a4028, 0xb08a3a
+BAG, BAG_DK, PLANK, PLANK_DK, CONC, HAZ = 0x9a8c66, 0x7e7252, 0x7a5c3a, 0x55402a, 0x77746c, 0xc89a2a
+RUSTY, COPPER, WHITE, ICE = 0x7a4a2a, 0xb06a34, 0xc8ccc8, 0x6aa8d0
+
+
+def col(bm, c):
+    """Paint bm a fixed colour, or a slot when c < 64."""
+    paint(bm, c if c < 64 else fixed(c))
+    return bm
+
+
+def hard(bm, angle=0.9):
+    """Edges sharper than angle split, so smooth shading keeps a hard surface's corners."""
+    bm.normal_update()
+    es = [e for e in bm.edges if len(e.link_faces) == 2 and e.calc_face_angle(0) > angle]
+    bmesh.ops.split_edges(bm, edges=es)
+    return bm
+
+
+def kit(*parts):
+    return hard(join(*parts))
+
+
+def bx(c, size, color, bevel=0.0, rot=(0, 0, 0)):
+    return col(box(c, size, bevel, rot), color)
+
+
+def cy(a, b, r1, color, r2=None, seg=10):
+    return col(cylinder(a, b, r1, r2, seg), color)
+
+
+def rod(pts, r, color, seg=6):
+    """A bent bar through pts, with a knuckle at each bend."""
+    out = [cy(pts[i], pts[i + 1], r, color, seg=seg) for i in range(len(pts) - 1)]
+    out += [col(sphere(p, (r, r, r), seg, 4), color) for p in pts[1:-1]]
+    return out
+
+
+def lump(c, r, color, rot=(0, 0, 0), seed=0):
+    """Something soft and sagging: a sandbag or a sack, its ends pinched in."""
+    bm = ellipsoid(c, r, rot, seg=10, rings=6)
+    C = G(*c)
+    for v in bm.verts:
+        d = v.co - C
+        v.co = C + d * (0.92 + 0.12 * noise(*back(v.co), f=14, seed=seed))
+    return col(bm, color)
+
+
+def sandbags(n, rad, y, color_a=BAG, color_b=BAG_DK, arc=(0, 2 * math.pi), size=(0.17, 0.09, 0.11), seed=0):
+    out = []
+    for i in range(n):
+        a = arc[0] + (arc[1] - arc[0]) * (i + 0.5) / n
+        c = (math.cos(a) * rad, y, -math.sin(a) * rad)
+        out.append(lump(c, size, color_a if (i + seed) % 2 else color_b, (0, a + math.pi / 2 + 0.15 * (rnd(i, seed) - 0.5), 0), seed + i))
+    return out
+
+
+# -- Guns ---------------------------------------------------------------------------------
+
+def pistol():
+    t = -0.22  # the grip's rake
+    return kit(
+        bx((0.11, 0.062, 0), (0.31, 0.055, 0.044), STEEL, 0.008),
+        bx((0.1, 0.024, 0), (0.27, 0.028, 0.04), BLACK, 0.005),
+        cy((0.255, 0.06, 0), (0.29, 0.06, 0), 0.012, BLACK, seg=8),
+        bx((-0.008, -0.022, 0), (0.058, 0.13, 0.042), BLACK, 0.008, (0, 0, t)),
+        bx((-0.012, -0.03, 0), (0.064, 0.06, 0.048), ACC, 0.006, (0, 0, t)),
+        bx((-0.025, -0.088, 0), (0.064, 0.016, 0.046), BLACK, 0.004, (0, 0, t)),
+        bx((0.058, -0.006, 0), (0.06, 0.008, 0.014), BLACK),
+        bx((0.086, 0.004, 0), (0.008, 0.03, 0.014), BLACK),
+        bx((0.05, 0.0, 0), (0.008, 0.022, 0.008), BLACK),
+        bx((-0.03, 0.096, 0), (0.014, 0.014, 0.032), BLACK),
+        bx((0.25, 0.094, 0), (0.012, 0.01, 0.008), BLACK),
+        *[bx((-0.02 + i * 0.012, 0.064, 0), (0.005, 0.045, 0.047), BLACK) for i in range(3)],
+    )
+
+
+def shotgun():
+    return kit(
+        cy((0.04, 0.066, 0), (0.64, 0.066, 0), 0.017, BLACK),
+        cy((0.06, 0.032, 0), (0.58, 0.032, 0), 0.014, GUNMETAL, seg=8),
+        bx((0.57, 0.05, 0), (0.025, 0.05, 0.03), BLACK),
+        col(sphere((0.625, 0.088, 0), (0.006, 0.006, 0.006), 6, 4), BARE),
+        bx((-0.005, 0.045, 0), (0.2, 0.08, 0.052), GUNMETAL, 0.008),
+        bx((0.0, 0.05, 0.027), (0.08, 0.03, 0.004), BLACK),
+        cy((0.33, 0.032, 0), (0.5, 0.032, 0), 0.029, WOOD),
+        *[cy((x, 0.032, 0), (x + 0.008, 0.032, 0), 0.031, WOOD_DK) for x in (0.36, 0.4, 0.44, 0.48)],
+        bx((0.005, -0.004, 0), (0.07, 0.008, 0.014), BLACK),
+        bx((0.035, 0.008, 0), (0.008, 0.03, 0.014), BLACK),
+        col(hull(ellipsoid((-0.09, 0.02, 0), (0.045, 0.034, 0.022)), ellipsoid((-0.19, 0.02, 0), (0.04, 0.035, 0.024)),
+                 ellipsoid((-0.34, 0.0, 0), (0.02, 0.07, 0.026))), WOOD),
+        col(hull(ellipsoid((-0.36, 0.0, 0), (0.012, 0.072, 0.027)), ellipsoid((-0.375, 0.0, 0), (0.012, 0.072, 0.027))), BLACK),
+        bx((-0.14, 0.022, 0), (0.05, 0.078, 0.054), ACC, 0.008, (0, 0, -0.08)),
+    )
+
+
+def smg():
+    return kit(
+        bx((0.1, 0.045, 0), (0.34, 0.085, 0.056), BLACK, 0.012),
+        bx((0.12, 0.096, 0), (0.22, 0.014, 0.022), GUNMETAL),
+        bx((0.005, 0.045, 0), (0.045, 0.092, 0.062), ACC, 0.006),
+        cy((0.27, 0.045, 0), (0.37, 0.045, 0), 0.024, GUNMETAL),
+        *[cy((x, 0.045, 0), (x + 0.01, 0.045, 0), 0.026, BLACK) for x in (0.29, 0.33)],
+        cy((0.37, 0.045, 0), (0.425, 0.045, 0), 0.011, BLACK, seg=8),
+        bx((0.36, 0.088, 0), (0.012, 0.03, 0.01), BLACK),
+        bx((0.13, -0.065, 0), (0.042, 0.15, 0.03), GUNMETAL, 0.006, (0, 0, -0.14)),
+        bx((0.0, -0.05, 0), (0.046, 0.1, 0.036), BLACK, 0.008, (0, 0, -0.22)),
+        bx((0.05, -0.012, 0), (0.05, 0.008, 0.014), BLACK),
+        *rod([(-0.07, 0.065, 0.022), (-0.25, 0.045, 0.022)], 0.007, GUNMETAL),
+        *rod([(-0.07, 0.025, -0.022), (-0.25, 0.045, -0.022)], 0.007, GUNMETAL),
+        bx((-0.255, 0.03, 0), (0.016, 0.1, 0.056), BLACK, 0.005),
+    )
+
+
+def rifle():
+    return kit(
+        col(hull(ellipsoid((0.1, 0.022, 0), (0.06, 0.03, 0.026)), ellipsoid((0.5, 0.034, 0), (0.035, 0.022, 0.02))), WOOD),
+        col(hull(ellipsoid((-0.04, 0.012, 0), (0.05, 0.032, 0.022)), ellipsoid((-0.2, 0.036, 0), (0.04, 0.03, 0.024)),
+                 ellipsoid((-0.33, 0.0, 0), (0.02, 0.07, 0.026))), WOOD),
+        col(hull(ellipsoid((-0.35, 0.0, 0), (0.012, 0.072, 0.027)), ellipsoid((-0.365, 0.0, 0), (0.012, 0.072, 0.027))), BLACK),
+        bx((-0.25, 0.012, 0), (0.05, 0.1, 0.056), ACC, 0.008),
+        cy((-0.06, 0.058, 0), (0.17, 0.058, 0), 0.021, STEEL),
+        cy((0.17, 0.06, 0), (0.75, 0.06, 0), 0.013, BLACK, 0.009),
+        *rod([(0.0, 0.058, -0.02), (0.0, 0.05, -0.055)], 0.005, STEEL),
+        col(sphere((0.0, 0.05, -0.06), (0.011, 0.011, 0.011), 6, 4), BLACK),
+        cy((-0.04, 0.122, 0), (0.0, 0.122, 0), 0.021, BLACK, 0.017),
+        cy((0.0, 0.122, 0), (0.24, 0.122, 0), 0.016, BLACK),
+        cy((0.24, 0.122, 0), (0.31, 0.122, 0), 0.016, BLACK, 0.026),
+        cy((0.12, 0.136, 0), (0.12, 0.152, 0), 0.01, BLACK, seg=8),
+        cy((0.12, 0.122, -0.012), (0.12, 0.122, -0.03), 0.009, BLACK, seg=8),
+        bx((0.03, 0.09, 0), (0.02, 0.04, 0.02), BLACK), bx((0.2, 0.09, 0), (0.02, 0.04, 0.02), BLACK),
+        bx((0.03, -0.012, 0), (0.07, 0.008, 0.014), BLACK),
+        bx((0.06, -0.0, 0), (0.008, 0.03, 0.014), BLACK),
+        *rod([(0.45, 0.012, 0.024), (0.3, -0.035, 0.03), (0.0, -0.05, 0.03), (-0.26, -0.02, 0.028)], 0.005, ACC),
+    )
+
+
+def minigun():
+    """The body; the barrels are minigun_spin."""
+    return kit(
+        bx((-0.02, 0.02, 0), (0.26, 0.15, 0.14), GUNMETAL, 0.02),
+        cy((-0.22, 0.02, 0), (-0.15, 0.02, 0), 0.062, BLACK),
+        cy((-0.15, 0.02, 0), (-0.14, 0.02, 0), 0.068, STEEL),
+        cy((0.11, 0.02, 0), (0.14, 0.02, 0), 0.07, BLACK, seg=12),
+        bx((0.06, 0.02, 0), (0.04, 0.156, 0.146), ACC, 0.01),
+        *rod([(-0.1, -0.04, -0.09), (-0.1, 0.08, -0.09)], 0.016, BLACK, seg=8),
+        bx((-0.1, 0.02, -0.075), (0.03, 0.03, 0.02), BLACK),
+        *rod([(-0.08, 0.09, 0.05), (-0.06, 0.15, 0.06), (0.1, 0.15, 0.06), (0.12, 0.09, 0.05)], 0.013, BLACK, seg=8),
+        bx((-0.03, -0.13, 0.09), (0.17, 0.13, 0.12), OLIVE, 0.01),
+        bx((-0.03, -0.062, 0.09), (0.18, 0.014, 0.13), OLIVE_DK),
+        bx((0.054, -0.13, 0.09), (0.004, 0.06, 0.06), 0xd8d0a8),
+        *rod([(0.0, -0.06, 0.08), (0.03, -0.02, 0.085), (0.05, 0.02, 0.075)], 0.016, BRASS),
+    )
+
+
+def minigun_spin():
+    out = []
+    for i in range(6):
+        a = i * math.pi / 3
+        y, z = 0.02 + math.cos(a) * 0.036, math.sin(a) * 0.036
+        out.append(cy((0.13, y, z), (0.69, y, z), 0.011, BLACK if i % 2 else STEEL, seg=6))
+    out += [cy((x, 0.02, 0), (x + 0.02, 0.02, 0), 0.054, GUNMETAL, seg=12) for x in (0.3, 0.6)]
+    out.append(cy((0.13, 0.02, 0), (0.69, 0.02, 0), 0.016, GUNMETAL, seg=6))
+    return kit(*out)
+
+
+def launcher():
+    return kit(
+        cy((-0.32, 0.03, 0), (0.5, 0.03, 0), 0.045, OLIVE, seg=12),
+        cy((-0.44, 0.03, 0), (-0.32, 0.03, 0), 0.064, BLACK, 0.045, seg=12),
+        cy((-0.02, 0.03, 0), (0.22, 0.03, 0), 0.053, WOOD, seg=12),
+        cy((-0.22, 0.03, 0), (-0.16, 0.03, 0), 0.049, ACC, seg=12),
+        cy((0.42, 0.03, 0), (0.5, 0.03, 0), 0.05, OLIVE_DK, seg=12),
+        cy((0.5, 0.03, 0), (0.56, 0.03, 0), 0.03, OLIVE_DK, 0.07, seg=12),
+        cy((0.56, 0.03, 0), (0.67, 0.03, 0), 0.07, OLIVE_DK, 0.022, seg=12),
+        cy((0.67, 0.03, 0), (0.69, 0.03, 0), 0.022, RUSTY, 0.01, seg=8),
+        bx((0.06, -0.05, 0), (0.042, 0.095, 0.036), BLACK, 0.008, (0, 0, -0.2)),
+        bx((0.32, -0.05, 0), (0.04, 0.09, 0.034), BLACK, 0.008, (0, 0, -0.1)),
+        bx((0.1, -0.012, 0), (0.06, 0.008, 0.014), BLACK),
+        bx((0.26, 0.105, 0.035), (0.05, 0.06, 0.014), BLACK, 0.004),
+        bx((0.26, 0.08, 0.03), (0.03, 0.02, 0.03), BLACK),
+    )
+
+
+def crowbar():
+    pts = [(-0.17, -0.025, 0), (0.44, 0.0, 0), (0.52, 0.03, 0), (0.565, 0.085, 0), (0.55, 0.14, 0), (0.505, 0.155, 0)]
+    out = rod(pts, 0.015, 0x4a2220, seg=6)
+    out.append(bx((-0.18, -0.03, 0), (0.03, 0.012, 0.034), 0x4a2220, 0, (0, 0, 0.3)))
+    out.append(bx((0.49, 0.15, 0.009), (0.03, 0.012, 0.008), 0x4a2220, 0, (0, 0, 0.3)))
+    out.append(bx((0.49, 0.15, -0.009), (0.03, 0.012, 0.008), 0x4a2220, 0, (0, 0, 0.3)))
+    out.append(cy((-0.14, -0.022, 0), (0.05, -0.014, 0), 0.02, ACC, seg=8))
+    out += [cy((x, -0.022 + (x + 0.14) * 0.04, 0), (x + 0.008, -0.022 + (x + 0.148) * 0.04, 0), 0.022, BLACK, seg=8) for x in (-0.13, -0.04, 0.035)]
+    return kit(*out)
+
+
+GUNS = [pistol, shotgun, smg, rifle, minigun, launcher, crowbar]
+
+
+# -- Turrets ------------------------------------------------------------------------------
+
+def mg_body():
+    """A sandbag nest round a tripod."""
+    out = sandbags(9, 0.37, 0.09, seed=1) + sandbags(9, 0.35, 0.25, seed=2, size=(0.16, 0.085, 0.105))
+    out = [o for o in out]
+    for a in (0.3, 2.4, 4.4):
+        out += rod([(0, 0.6, 0), (math.cos(a) * 0.24, 0.02, -math.sin(a) * 0.24)], 0.018, BLACK)
+    out.append(cy((0, 0.42, 0), (0, 0.66, 0), 0.03, GUNMETAL))
+    out.append(bx((-0.18, 0.08, 0.12), (0.18, 0.14, 0.1), OLIVE, 0.01, (0, 0.4, 0)))
+    out.append(bx((-0.12, 0.08, -0.16), (0.16, 0.12, 0.09), OLIVE_DK, 0.01, (0, -0.3, 0)))
+    return kit(*out)
+
+
+def mg_head():
+    return kit(
+        bx((-0.04, 0.0, 0), (0.36, 0.13, 0.11), GUNMETAL, 0.015),
+        bx((-0.26, -0.01, 0), (0.12, 0.09, 0.07), BLACK, 0.01),
+        *rod([(-0.2, -0.05, 0.0), (-0.32, -0.08, 0.0)], 0.02, BLACK),
+        cy((0.14, 0.0, 0), (0.42, 0.0, 0), 0.032, BLACK, seg=8),
+        cy((0.42, 0.0, 0), (0.62, 0.0, 0), 0.016, BLACK, seg=8),
+        cy((0.62, 0.0, 0), (0.67, 0.0, 0), 0.024, BLACK, seg=8),
+        *rod([(0.0, 0.07, 0.0), (0.04, 0.12, 0.0), (0.16, 0.12, 0.0), (0.19, 0.07, 0.0)], 0.012, BLACK),
+        bx((0.02, -0.06, 0.1), (0.14, 0.12, 0.08), OLIVE, 0.01),
+        *rod([(0.04, 0.0, 0.07), (0.06, 0.02, 0.04)], 0.012, BRASS),
+        # The shield: a bent steel plate with a slot to shoot through.
+        bx((0.24, 0.02, 0.13), (0.03, 0.3, 0.16), STEEL, 0.006, (0, -0.35, 0)),
+        bx((0.24, 0.02, -0.13), (0.03, 0.3, 0.16), STEEL, 0.006, (0, 0.35, 0)),
+        bx((0.27, 0.12, 0), (0.03, 0.1, 0.12), STEEL, 0.006),
+        bx((0.27, -0.1, 0), (0.03, 0.1, 0.12), STEEL, 0.006),
+        bx((0.27, 0.17, 0), (0.034, 0.016, 0.4), HAZ, 0.0),
+    )
+
+
+def mortar_body():
+    out = sandbags(7, 0.38, 0.09, arc=(0.9, 2 * math.pi - 0.9), seed=3)
+    out += sandbags(5, 0.36, 0.25, arc=(1.3, 2 * math.pi - 1.3), seed=4, size=(0.16, 0.085, 0.105))
+    out.append(cy((0, 0.0, 0), (0, 0.05, 0), 0.24, GUNMETAL, seg=10))
+    out.append(cy((0, 0.05, 0), (0, 0.09, 0), 0.12, BLACK, seg=10))
+    for i, (x, z) in enumerate([(-0.22, 0.24), (-0.3, 0.12)]):
+        out.append(bx((x, 0.08, z), (0.18, 0.16, 0.13), OLIVE, 0.01, (0, 0.5 * i, 0)))
+    for z in (-0.06, 0.0, 0.06):
+        out.append(cy((-0.24, 0.16, 0.24 + z), (-0.24, 0.27, 0.24 + z), 0.022, OLIVE_DK, seg=8))
+        out.append(cy((-0.24, 0.27, 0.24 + z), (-0.24, 0.31, 0.24 + z), 0.022, BRASS, 0.006, seg=8))
+    return kit(*out)
+
+
+def mortar_head():
+    """Pivots at the baseplate's ball; the tube up at 55 degrees, its bipod to the ground."""
+    a = 0.96
+    d = (math.cos(a), math.sin(a), 0)
+    tip = (d[0] * 0.74, d[1] * 0.74, 0)
+    return kit(
+        cy((-0.02, -0.02, 0), tip, 0.066, OLIVE_DK, 0.06, seg=12),
+        cy((tip[0], tip[1], 0), (tip[0] + d[0] * 0.03, tip[1] + d[1] * 0.03, 0), 0.054, BLACK, seg=12),
+        col(sphere((0, 0, 0), (0.06, 0.05, 0.06), 8, 5), BLACK),
+        cy((d[0] * 0.3, d[1] * 0.3, 0), (d[0] * 0.36, d[1] * 0.36, 0), 0.062, GUNMETAL, seg=12),
+        *rod([(d[0] * 0.33, d[1] * 0.33, 0.04), (0.42, -0.11, 0.2)], 0.014, BLACK),
+        *rod([(d[0] * 0.33, d[1] * 0.33, -0.04), (0.42, -0.11, -0.2)], 0.014, BLACK),
+        *rod([(0.38, -0.02, 0.15), (0.38, -0.02, -0.15)], 0.01, BLACK),
+        bx((d[0] * 0.33, d[1] * 0.33 + 0.07, 0.07), (0.04, 0.05, 0.03), BLACK, 0.004),
+        bx((d[0] * 0.2, d[1] * 0.2, 0), (0.06, 0.04, 0.104), ACC, 0.0, (0, 0, a)),
+    )
+
+
+def frost_body():
+    """Cryo tanks strapped round a pipe up to a vent that holds the crystal."""
+    out = [bx((0, 0.05, 0), (0.86, 0.1, 0.86), CONC, 0.02)]
+    for i, a in enumerate((0.6, 2.7, 4.8)):
+        c = (math.cos(a) * 0.22, 0, -math.sin(a) * 0.22)
+        out.append(cy((c[0], 0.1, c[2]), (c[0], 0.78, c[2]), 0.13, WHITE, seg=12))
+        out.append(col(sphere((c[0], 0.78, c[2]), (0.13, 0.07, 0.13), 12, 5), WHITE))
+        out.append(cy((c[0], 0.3, c[2]), (c[0], 0.36, c[2]), 0.134, ICE, seg=12))
+        out.append(cy((c[0], 0.6, c[2]), (c[0], 0.64, c[2]), 0.134, ICE, seg=12))
+        out.append(cy((c[0], 0.85, c[2]), (c[0], 0.9, c[2]), 0.03, STEEL, seg=8))
+        out += rod([(c[0], 0.9, c[2]), (c[0] * 0.4, 1.0, c[2] * 0.4), (0, 1.02, 0)], 0.018, COPPER)
+    out.append(cy((0, 0.1, 0), (0, 1.16, 0), 0.05, STEEL, seg=8))
+    out.append(cy((0, 1.08, 0), (0, 1.16, 0), 0.2, GUNMETAL, 0.24, seg=12))
+    # Prongs up and out round the crystal, open at the top so it shows from above.
+    for k in range(5):
+        a = k * 2 * math.pi / 5
+        c, s_ = math.cos(a), -math.sin(a)
+        out += rod([(c * 0.18, 1.16, s_ * 0.18), (c * 0.26, 1.36, s_ * 0.26), (c * 0.2, 1.56, s_ * 0.2)], 0.02, STEEL)
+        out.append(col(sphere((c * 0.2, 1.57, s_ * 0.2), (0.03, 0.03, 0.03), 6, 4), ICE))
+    out.append(col(bmesh_torus(0.25, 0.025, 1.3), GUNMETAL))
+    for k in range(4):
+        a = k * math.pi / 2 + 0.4
+        out.append(bx((math.cos(a) * 0.36, 0.14, -math.sin(a) * 0.36), (0.1, 0.04, 0.1), ICE, 0.01, (0, a, 0)))
+    out.append(cy((0.2, 0.42, 0.3), (0.2, 0.52, 0.3), 0.04, 0xc03020, seg=8))
+    return kit(*out)
+
+
+def tesla_body():
+    """Car batteries wired to a transformer, insulators stacked up to a copper coil."""
+    out = [bx((0, 0.05, 0), (0.86, 0.1, 0.86), CONC, 0.02)]
+    for i, (x, z) in enumerate([(0.22, 0.24), (0.22, -0.24), (-0.24, 0.26)]):
+        out.append(bx((x, 0.2, z), (0.22, 0.2, 0.14), 0x2a2c2e, 0.01, (0, 0.2 * i, 0)))
+        out.append(bx((x, 0.31, z), (0.22, 0.02, 0.14), 0x3a5a8a if i % 2 else 0x8a3a2a, 0, (0, 0.2 * i, 0)))
+        out.append(cy((x + 0.06, 0.31, z), (x + 0.06, 0.34, z), 0.018, 0xc03020, seg=6))
+        out += rod([(x + 0.06, 0.34, z), (x * 0.4, 0.42, z * 0.4), (0, 0.5, 0)], 0.01, 0x8a2a20)
+    out.append(bx((-0.22, 0.3, -0.18), (0.26, 0.4, 0.24), GUNMETAL, 0.02))
+    for k in range(4):
+        out.append(bx((-0.22, 0.2 + k * 0.08, -0.05), (0.2, 0.03, 0.02), BLACK))
+    out.append(cy((0, 0.1, 0), (0, 0.5, 0), 0.12, GUNMETAL, 0.1, seg=10))
+    for k in range(5):
+        y = 0.5 + k * 0.1
+        out.append(cy((0, y, 0), (0, y + 0.06, 0), 0.06, 0xd8d4c4, seg=8))
+        out.append(cy((0, y + 0.06, 0), (0, y + 0.1, 0), 0.1, 0xb8b4a4, 0.06, seg=8))
+    out.append(cy((0, 1.0, 0), (0, 1.32, 0), 0.07, BLACK, seg=10))
+    for k in range(7):
+        y = 1.02 + k * 0.042
+        out.append(col(bmesh_torus(0.09, 0.019, y, seg=10, ring=4), COPPER))
+    out.append(col(bmesh_torus(0.2, 0.04, 1.38), BARE))
+    out += rod([(0, 1.32, 0), (0, 1.48, 0)], 0.02, BARE)
+    return kit(*out)
+
+
+def bmesh_torus(R, r, y, seg=14, ring=6):
+    bm = bmesh.new()
+    vs = []
+    for i in range(seg):
+        a = 2 * math.pi * i / seg
+        row = []
+        for j in range(ring):
+            b = 2 * math.pi * j / ring
+            rr = R + r * math.cos(b)
+            row.append(bm.verts.new(G(math.cos(a) * rr, y + r * math.sin(b), -math.sin(a) * rr)))
+        vs.append(row)
+    for i in range(seg):
+        for j in range(ring):
+            bm.faces.new((vs[i][j], vs[(i + 1) % seg][j], vs[(i + 1) % seg][(j + 1) % ring], vs[i][(j + 1) % ring]))
+    bm.normal_update()
+    return bm
+
+
+def sniper_body():
+    """A watchtower of scavenged planks: four legs, braces, a ladder, a sandbagged deck."""
+    out = [bx((0, 0.03, 0), (0.9, 0.06, 0.9), CONC, 0.02)]
+    for x, z in ((-1, -1), (-1, 1), (1, -1), (1, 1)):
+        out.append(bx((x * 0.34, 0.85, z * 0.34), (0.09, 1.7, 0.09), PLANK_DK, 0.01, (0, 0, -x * 0.03)))
+    for y in (0.45, 1.15):
+        out += [bx((0, y, 0.35), (0.72, 0.06, 0.04), PLANK), bx((0, y, -0.35), (0.72, 0.06, 0.04), PLANK)]
+        out += [bx((0.35, y, 0), (0.04, 0.06, 0.72), PLANK), bx((-0.35, y, 0), (0.04, 0.06, 0.72), PLANK)]
+    out += [bx((0, 0.8, 0.36), (0.06, 0.92, 0.035), PLANK, 0, (0, 0, 0.66)), bx((0, 0.8, -0.36), (0.06, 0.92, 0.035), PLANK, 0, (0, 0, -0.66))]
+    for i in range(6):
+        out.append(bx(((i - 2.5) * 0.155, 1.72, 0), (0.15, 0.05, 0.92), PLANK if i % 2 else 0x6a5034, 0.005))
+    out += sandbags(4, 0.36, 1.84, arc=(0.75, 2.4), seed=5, size=(0.14, 0.08, 0.1))
+    out += sandbags(4, 0.36, 1.84, arc=(3.9, 5.55), seed=6, size=(0.14, 0.08, 0.1))
+    out += sandbags(2, 0.38, 1.84, arc=(2.75, 3.55), seed=7, size=(0.14, 0.08, 0.1))
+    out += [bx((-0.5, 0.86, 0.13), (0.04, 1.72, 0.04), PLANK_DK), bx((-0.5, 0.86, -0.13), (0.04, 1.72, 0.04), PLANK_DK)]
+    out += [bx((-0.5, 0.2 + i * 0.26, 0), (0.035, 0.035, 0.3), PLANK) for i in range(6)]
+    out.append(lump((0.25, 1.82, 0.25), (0.08, 0.05, 0.06), OLIVE, seed=8))
+    return kit(*out)
+
+
+def sniper_head():
+    """A hunting rifle on a bipod, a scope and a sandbag rest."""
+    out = [
+        col(hull(ellipsoid((0.1, 0.0, 0), (0.08, 0.04, 0.035)), ellipsoid((0.5, 0.01, 0), (0.04, 0.03, 0.028))), WOOD),
+        col(hull(ellipsoid((-0.08, -0.005, 0), (0.06, 0.04, 0.03)), ellipsoid((-0.42, -0.03, 0), (0.03, 0.09, 0.034))), WOOD),
+        cy((-0.06, 0.045, 0), (0.2, 0.045, 0), 0.028, STEEL),
+        cy((0.2, 0.048, 0), (1.05, 0.048, 0), 0.018, BLACK, 0.013),
+        cy((1.0, 0.048, 0), (1.07, 0.048, 0), 0.025, BLACK, seg=8),
+        cy((-0.02, 0.13, 0), (0.3, 0.13, 0), 0.022, BLACK),
+        cy((0.3, 0.13, 0), (0.38, 0.13, 0), 0.022, BLACK, 0.034),
+        cy((-0.07, 0.13, 0), (-0.02, 0.13, 0), 0.028, BLACK, 0.022),
+        bx((0.06, 0.09, 0), (0.025, 0.05, 0.025), BLACK), bx((0.24, 0.09, 0), (0.025, 0.05, 0.025), BLACK),
+        *rod([(0.0, 0.045, -0.03), (0.0, 0.03, -0.08)], 0.007, STEEL),
+        *rod([(0.6, 0.03, 0.0), (0.68, -0.16, 0.1)], 0.01, BLACK),
+        *rod([(0.6, 0.03, 0.0), (0.68, -0.16, -0.1)], 0.01, BLACK),
+        lump((-0.3, -0.1, 0), (0.12, 0.06, 0.08), BAG, seed=9),
+    ]
+    return kit(*out)
+
+
+def missile_body():
+    out = [bx((0, 0.1, 0), (0.88, 0.2, 0.88), 0x4a4e44, 0.02)]
+    for i in range(8):
+        u = -0.44 + 0.11 * (i + 0.5)
+        c = HAZ if i % 2 else BLACK
+        out += [bx((u, 0.2, 0.43), (0.11, 0.02, 0.03), c), bx((u, 0.2, -0.43), (0.11, 0.02, 0.03), c)]
+        out += [bx((0.43, 0.2, u), (0.03, 0.02, 0.11), c), bx((-0.43, 0.2, u), (0.03, 0.02, 0.11), c)]
+    out.append(cy((0, 0.2, 0), (0, 0.6, 0), 0.24, STEEL, 0.18, seg=10))
+    out.append(cy((0, 0.6, 0), (0, 0.66, 0), 0.26, GUNMETAL, seg=12))
+    for a in (0.8, 2.4, 3.9, 5.5):
+        out.append(bx((math.cos(a) * 0.36, 0.24, -math.sin(a) * 0.36), (0.08, 0.06, 0.08), BLACK, 0.005))
+    out.append(bx((-0.3, 0.3, 0.3), (0.2, 0.18, 0.14), OLIVE, 0.01, (0, 0.6, 0)))
+    return kit(*out)
+
+
+def missile_head():
+    """A rocket pod off a gunship, bolted to the turntable: six tubes, red noses showing."""
+    out = [
+        bx((0, 0.14, 0), (0.6, 0.46, 0.6), OLIVE, 0.03),
+        bx((0, 0.14, 0), (0.56, 0.5, 0.5), OLIVE_DK, 0.01),
+        bx((0.0, 0.39, 0), (0.42, 0.04, 0.3), OLIVE_DK, 0.01),
+        bx((-0.32, 0.14, 0), (0.06, 0.4, 0.5), GUNMETAL, 0.01),
+        bx((-0.1, -0.06, 0.32), (0.22, 0.2, 0.06), BLACK, 0.01),
+        bx((0.1, 0.38, 0.2), (0.08, 0.04, 0.06), WHITE),
+        bx((0.302, 0.14, 0), (0.008, 0.08, 0.6), HAZ),
+    ]
+    for y in (0.04, 0.24):
+        for z in (-0.19, 0, 0.19):
+            out.append(cy((0.28, y, z), (0.31, y, z), 0.08, BLACK, seg=10))
+            out.append(cy((0.24, y, z), (0.36, y, z), 0.05, 0xb03a2a, 0.008, seg=8))
+    return kit(*out)
+
+
+TURRETS = {'gun': (mg_body, mg_head), 'cannon': (mortar_body, mortar_head), 'frost': (frost_body, None),
+           'tesla': (tesla_body, None), 'sniper': (sniper_body, sniper_head), 'missile': (missile_body, missile_head)}
+
+
+def kit_pieces():
+    tone = weathered(dirt=0.15, grain=0.1)
+    out = {}
+    for i, make in enumerate(GUNS):
+        out['gun_%d' % i] = encode(make(), joint=0, tone=tone)
+    out['gun_4_spin'] = encode(minigun_spin(), joint=0, tone=tone)
+    for name, (body, head) in TURRETS.items():
+        out['turret_%s' % name] = encode(body(), joint=0, tone=weathered(dirt=0.3, grain=0.12))
+        if head:
+            out['turret_%s_head' % name] = encode(head(), joint=0, tone=tone)
+    return out
+
+
+def show_kit():
+    """The guns, big, and the turrets in a row behind the creeps."""
+    for o in list(bpy.data.objects):
+        if o.name.startswith('kit_'):
+            bpy.data.objects.remove(o)
+    for i, make in enumerate(GUNS):
+        bm = make()
+        if i == 4:
+            bm = join(bm, minigun_spin())
+        for v in bm.verts:
+            v.co *= 2.0
+        preview('kit_gun_%d' % i, bm, at=(5 + (i % 2) * 2.2, 2.6 - (i // 2) * 0.5, 0))
+    heads = {'gun': 0.66, 'cannon': 0.12, 'sniper': 2.0, 'missile': 0.76}
+    for i, (name, (body, head)) in enumerate(TURRETS.items()):
+        bm = body()
+        if head:
+            h = head()
+            for v in h.verts:
+                v.co += G(0, heads[name], 0)
+            bm = join(bm, h)
+        preview('kit_turret_' + name, bm, at=(7, 0, (i - 2.5) * 1.3))
+    for o in bpy.data.objects:
+        if o.name.startswith('kit_'):
+            for p_ in o.data.polygons:
+                p_.use_smooth = True
+
 def main():
     creeps, rig = creep_pieces()
-    write({**survivor_pieces(), **creeps}, {'SURVIVOR': survivor_rig(), 'CREEPS': rig})
+    write({**survivor_pieces(), **creeps, **kit_pieces()}, {'SURVIVOR': survivor_rig(), 'CREEPS': rig})
     show_survivors()
     show_creeps()
+    show_kit()
 
 
 if __name__ == '__main__':
