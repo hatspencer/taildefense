@@ -35,6 +35,8 @@ const LOB_EVERY = 90, LOB_MIN = 4, LOB_MAX = 16;
 const boss = (k: number) => k === 5 || k === 7;
 
 const W = 320, H = 200, DT = 0.05;
+// Seconds picking up a dropped weapon takes: the host's gunPickup.
+const GUN_PICKUP = 0.2;
 
 interface DPlayer {
   id: number; name: string; bot: boolean; x: number; y: number; aim: number; hp: number; maxHp: number;
@@ -44,6 +46,7 @@ interface DPlayer {
   ready: boolean; fireCd: number; shot: number; hurt: number; harm: number; moving: boolean; wander: number;
   site: number; searchT: number; revTarget: number; channel: number; emoteLeft: number; tauntCool: number; downT: number; look: number;
   medkits: number; heal: number; steerX: number; steerY: number; steerLeft: number;
+  gunId: number; // Order.Pickup: the weapon on the ground's id
   // The scoreboard's tally: downs, revives, built, searched, bosses, damage taken.
   st: number[];
 }
@@ -72,6 +75,9 @@ export class DemoHost implements Transport {
   private structs: DStruct[] = [];
   private effects: DEffect[] = [];
   private crates: { x: number; y: number; open: number }[] = [];
+  // Weapons dropped for a teammate, as the host keeps them (internal/game/handoff.go).
+  private guns: { id: number; kind: number; x: number; y: number; lv: number[]; by: number }[] = [];
+  private gunSerial = 0;
   private notes: { level: number; text: string }[] = [];
   private pings: { player: number; x: number; y: number; kind: number }[] = [];
   private sites: SiteDef[] = [];
@@ -211,6 +217,7 @@ export class DemoHost implements Transport {
     this.weatherAmt = this.weather ? 1 : 0; this.nextWeather = this.weather; this.weatherT = 30;
     this.effects = [];
     this.crates = [];
+    this.guns = [];
     if (this.opt.drop) this.callDrop();
     this.wave = this.opt.wave;
     this.totalKills = 1234;
@@ -239,7 +246,7 @@ export class DemoHost implements Transport {
       gold: 400 + id * 150, kills: 40 + id * 17, damage: 9000 + id * 2100, owned: 1 | (1 << cur),
       levels: new Uint8Array(WEAPON_SLOTS * 4), gear: new Uint8Array(4), order: Order.Idle, tx: x, ty: y, target: -1, buildKind: 0,
       repairId: -1, buff: 0, buffLeft: 0, abLevel: [1, 0, 0, 0], abCool: [0, 0, 0, 0], ready: bot, fireCd: 0, shot: 0, hurt: 0, harm: 0,
-      moving: false, wander: 2 + id, site: -1, searchT: 0, revTarget: -1, channel: 0, emoteLeft: 0, tauntCool: 0, downT: 0, medkits: 1, heal: 0, steerX: 0, steerY: 0, steerLeft: 0, st: [0, 0, 0, 0, 0, 0],
+      moving: false, wander: 2 + id, site: -1, searchT: 0, revTarget: -1, channel: 0, emoteLeft: 0, tauntCool: 0, downT: 0, medkits: 1, heal: 0, steerX: 0, steerY: 0, steerLeft: 0, gunId: 0, st: [0, 0, 0, 0, 0, 0],
       // A random survivor, a different outfit for each.
       look: ((Math.floor(this.rnd() * 0x10000000) << 4) | (id * 3 % 10)) >>> 0,
     };
@@ -883,6 +890,22 @@ export class DemoHost implements Transport {
       case Order.Loot:
         if (!this.stepLoot(p)) { p.order = Order.Idle; p.searchT = 0; }
         break;
+      case Order.Pickup: {
+        const g = this.guns.find((k) => k.id === p.gunId);
+        if (!g || p.owned & (1 << g.kind)) { if (!g) this.toast('someone picked that weapon up first'); p.order = Order.Idle; p.channel = 0; break; }
+        if (!this.walk(p, g.x, g.y, 1.1)) { p.channel = 0; break; }
+        if (p.hurt > 0.2) { p.channel = 0; break; }
+        p.channel += DT / GUN_PICKUP;
+        if (p.channel >= 1) {
+          this.guns.splice(this.guns.indexOf(g), 1);
+          p.owned |= 1 << g.kind; p.levels.set(g.lv, g.kind * 4);
+          p.cur = g.kind; p.ammo = this.mag(p); p.reloadLeft = 0;
+          const whose = g.by === p.id ? 'their' : `${this.players[g.by]?.name ?? 'someone'}'s`;
+          this.notes.push({ level: 0, text: `${p.name} picked up ${whose} ${this.welcome.weapons[g.kind].name}` });
+          p.order = Order.Idle; p.channel = 0;
+        }
+        break;
+      }
       case Order.Revive: {
         const o = this.players[p.revTarget];
         if (!o || o.hp > 0 || o.respawn <= 0) { p.order = Order.Idle; p.channel = 0; break; }
@@ -907,7 +930,7 @@ export class DemoHost implements Transport {
         break;
       }
     }
-    if (target < 0 && p.order !== Order.Move && p.order !== Order.Build && p.order !== Order.Repair && p.order !== Order.Loot && p.order !== Order.Revive) {
+    if (target < 0 && p.order !== Order.Move && p.order !== Order.Build && p.order !== Order.Repair && p.order !== Order.Loot && p.order !== Order.Revive && p.order !== Order.Pickup) {
       target = this.nearest(p.x, p.y, w.range);
     }
     if (p.order === Order.AMove) {
@@ -1217,7 +1240,7 @@ export class DemoHost implements Transport {
       w.bytes(p.levels); w.bytes(p.gear);
       w.u8(p.order);
       const kind = p.order === Order.Loot ? this.welcome.siteKinds[this.sites[p.site]?.kind] : undefined;
-      w.u8(kind ? Math.min(255, (p.searchT / kind.search) * 255) : p.order === Order.Revive ? Math.min(255, p.channel * 255) : 0);
+      w.u8(kind ? Math.min(255, (p.searchT / kind.search) * 255) : p.order === Order.Revive || p.order === Order.Pickup ? Math.min(255, p.channel * 255) : 0);
       let rev = 0;
       if (!alive) for (const o of this.players) if (o.order === Order.Revive && o.revTarget === p.id) rev = Math.max(rev, o.channel);
       w.u8(Math.min(255, rev * 255));
@@ -1235,7 +1258,8 @@ export class DemoHost implements Transport {
     for (let i = 0; i < this.sites.length; i++) w.u8((this.searched[i] ? 0x80 : 0) | Math.min(127, this.guardsLeft(i)));
     w.u8(this.crates.length);
     for (const c of this.crates) { w.q8(c.x); w.q8(c.y); w.u8(Math.min(255, c.open / 2.5 * 255)); }
-    w.u8(0); // no weapons on the ground: the demo's survivors keep theirs
+    w.u8(this.guns.length);
+    for (const g of this.guns) { w.u16(g.id); w.u8(g.kind); w.q8(g.x); w.q8(g.y); for (const l of g.lv) w.u8(l); w.u8(g.by); }
     w.u16(this.structs.length);
     for (const s of this.structs) {
       w.u8(s.alive ? 1 : 0); w.u8(s.kind); w.u16(s.x); w.u16(s.y); w.u8(s.w); w.u8(s.h);
@@ -1382,6 +1406,33 @@ export class DemoHost implements Transport {
       case 'select':
         if (p.owned & (1 << cmd.w) && p.cur !== cmd.w) { p.cur = cmd.w; p.ammo = this.mag(p); p.reloadLeft = 0; }
         break;
+      case 'drop': {
+        const k = cmd.w;
+        if (p.hp <= 0 || !(p.owned & (1 << k))) { this.toast('you do not carry that weapon'); break; }
+        const rest = p.owned & ~(1 << k);
+        if (!rest) { this.toast(`the ${wd.weapons[k].name} is the only weapon you have`); break; }
+        if (this.guns.length >= 32) { this.toast('too many weapons lying about already; pick some up first'); break; }
+        const lv = Array.from(p.levels.subarray(k * 4, k * 4 + 4));
+        const ax = p.x + Math.cos(p.aim) * 0.9, ay = p.y + Math.sin(p.aim) * 0.9;
+        const open = !this.blocked(Math.floor(ax), Math.floor(ay));
+        this.guns.push({ id: ++this.gunSerial, kind: k, x: open ? ax : p.x, y: open ? ay : p.y, lv, by: p.id });
+        p.owned = rest; p.levels.fill(0, k * 4, k * 4 + 4);
+        if (p.cur === k) {
+          let best = -1;
+          for (let o = 0; o < WEAPON_SLOTS; o++) if (rest & (1 << o) && (best < 0 || wd.weapons[o].price > wd.weapons[best].price)) best = o;
+          p.cur = best; p.ammo = this.mag(p); p.reloadLeft = 0;
+        }
+        const ups = lv.map((l, t) => (l ? `${wd.tracks[t]} ${l}` : '')).filter(Boolean).join(', ');
+        this.notes.push({ level: 0, text: `${p.name} dropped a ${wd.weapons[k].name}${ups ? ` (${ups})` : ''}` });
+        break;
+      }
+      case 'pickup': {
+        const g = this.guns.find((k) => k.id === cmd.id);
+        if (!g) { this.toast('that weapon is gone'); break; }
+        if (p.owned & (1 << g.kind)) { this.toast(`you already carry a ${wd.weapons[g.kind].name}`); break; }
+        p.order = Order.Pickup; p.gunId = g.id; p.channel = 0;
+        break;
+      }
       case 'ready': p.ready = cmd.on; break;
       case 'taunt': this.taunt(p); break;
       case 'revive': {
