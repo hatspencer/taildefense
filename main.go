@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -284,6 +285,11 @@ func play(p *ui.Printer, prefs *config.Prefs, o web.Options) (web.Result, error)
 	defer stop()
 	o.Name, o.Version = prefs.Name(), version.Current()
 	o.Browser = prefs.Browser()
+	o.Volume = prefs.Volume()
+	o.SaveVolume = func(v int) error {
+		_, err := config.Set(config.KeyVolume, strconv.Itoa(v))
+		return err
+	}
 	if o.Browser == config.BrowserNone {
 		o.Browser = ""
 	}

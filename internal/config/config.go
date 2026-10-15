@@ -42,7 +42,11 @@ const (
 	KeyAutoUpdate = "AUTOUPDATE"
 	KeyDifficulty = "DIFFICULTY"
 	KeyFog        = "FOG"
+	KeyVolume     = "VOLUME"
 )
+
+// DefaultVolume is VOLUME with nothing set: loud enough to hear, not so loud it startles.
+const DefaultVolume = 70
 
 // DefaultPort is netplay.DefaultPort, repeated here so the prefs do not import the network
 // code. A test pins the two together.
@@ -93,6 +97,8 @@ var Keys = []Key{
 		Parse: parseDifficulty, Default: func() string { return strings.ToLower(game.DefaultDifficulty.String()) }},
 	{Name: KeyFog, Env: "TAILDEFENSE_FOG", Help: "fog of war in the games you host: only what the team can see is shown",
 		Parse: parseOnOff, Default: func() string { return "off" }, Bool: true},
+	{Name: KeyVolume, Env: "TAILDEFENSE_VOLUME", Help: "sound in the game, 0 to 100; 0 turns it off",
+		Parse: parseVolume, Default: func() string { return strconv.Itoa(DefaultVolume) }},
 	{Name: KeyBrowser, Env: "TAILDEFENSE_BROWSER", Help: "what opens the game: auto (best browser, full screen), default, chrome, firefox…, none or a command",
 		Parse: parseBrowser, Default: func() string { return BrowserAuto }},
 	{Name: KeyAutoUpdate, Env: "TAILDEFENSE_NO_AUTOUPDATE", Help: "update td in the background when main moves on",
@@ -275,6 +281,15 @@ func (p *Prefs) Difficulty() game.Difficulty {
 // Fog is whether games are hosted with fog of war.
 func (p *Prefs) Fog() bool { return ParseOnOff(p.Get(KeyFog).Value, false) }
 
+// Volume is the game's sound, 0 (off) to 100.
+func (p *Prefs) Volume() int {
+	n, err := strconv.Atoi(p.Get(KeyVolume).Value)
+	if err != nil {
+		return DefaultVolume
+	}
+	return n
+}
+
 // AutoUpdate is whether td may update itself in the background.
 func (p *Prefs) AutoUpdate() bool { return ParseOnOff(p.Get(KeyAutoUpdate).Value, true) }
 
@@ -454,6 +469,22 @@ func parseBrowser(s string) (string, error) {
 		return "", fmt.Errorf("%q is not a command", s)
 	}
 	return s, nil
+}
+
+// parseVolume takes 0 to 100, with or without a %, and off and on for 0 and the default.
+func parseVolume(s string) (string, error) {
+	v := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(s)), "%")
+	switch v {
+	case "off", "mute", "no":
+		return "0", nil
+	case "on", "yes":
+		return strconv.Itoa(DefaultVolume), nil
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(v))
+	if err != nil || n < 0 || n > 100 {
+		return "", fmt.Errorf("%q is not a volume: 0 (off) to 100", s)
+	}
+	return strconv.Itoa(n), nil
 }
 
 func parseOnOff(s string) (string, error) {

@@ -53,6 +53,10 @@ type Options struct {
 	Ready func(Page)
 	// Notice is shown in the page once it is up, such as that td is out of date.
 	Notice string
+	// Volume is the page's sound, 0 (off) to 100, the VOLUME setting. SaveVolume, when set,
+	// keeps a volume the player chose in the page's menu, so the next game starts with it.
+	Volume     int
+	SaveVolume func(int) error
 	// Listen overrides where the page is served, for tests.
 	Listen string
 }
@@ -267,6 +271,7 @@ func (s *session) greet() {
 	}
 	m := welcome(s.wel, s.core, s.o.Host, s.o.Hint, s.o.Hosting)
 	m.Seen = seenBytes(s.r.Seen)
+	m.Volume = s.o.Volume
 	s.text(b, m)
 	s.send(b, terrainMsg(s.wel.Terrain))
 	b.ready = true
@@ -331,6 +336,7 @@ type cmd struct {
 	Track int     `json:"track"`
 	G     int     `json:"g"`
 	On    bool    `json:"on"`
+	V     int     `json:"v"`
 	Text  string  `json:"text"`
 }
 
@@ -347,6 +353,13 @@ func (s *session) command(p []byte) bool {
 	switch c.Op {
 	case "leave":
 		return true
+	case "volume":
+		// This machine's own setting: kept here, never sent to the host.
+		s.o.Volume = min(max(c.V, 0), 100)
+		if s.o.SaveVolume != nil {
+			_ = s.o.SaveVolume(s.o.Volume)
+		}
+		return false
 	case "move":
 		nc = netplay.Cmd{Op: netplay.OpMove, X: c.X, Y: c.Y}
 	case "amove":

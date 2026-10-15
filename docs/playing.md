@@ -3,6 +3,21 @@
 The player's guide: what is out there, what comes for you and how a game runs. The keys are in
 the README; `docs/game-design.md` says why things work the way they do.
 
+## Sound
+
+The fight is heard round where the camera looks: closer is louder, off to the side is to that
+side, and far away is quieter, darker and more echo. Some sounds are there to warn you:
+
+- **A siren winds up** when a wave starts and a lower one sounds the all-clear; three beeps count
+  down the last seconds before a wave.
+- **A klaxon** means the generator is taking hits.
+- **The radio** chirps for a chat line, a ping (three quick beeps for danger) and the game's news.
+- **A shriek and a crowd of groans** is a nest waking; a single growl is a site's guards.
+- **A ringing in your ears** is a slam that knocked you flat.
+
+Sound starts with your first click or key press (browsers insist). `VOLUME` in
+`docs/settings.md` sets it, and so does the slider in the menu (F10); 0 is off.
+
 ## The screen
 
 The top bar always shows the base's health, the generator's, next to the wave. Click it to look at

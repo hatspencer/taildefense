@@ -97,9 +97,11 @@ func TestTheBrowserPlaysThroughTheBridge(t *testing.T) {
 		err error
 	}
 	done := make(chan ended, 1)
+	saved := make(chan int, 1)
 	go func() {
 		res, err := Run(context.Background(), Options{Addr: srv.Addrs()[0], Name: "ana", Version: "test", Host: "box",
-			Hosting: true, Ready: func(p Page) { urls <- p.URL }})
+			Hosting: true, Ready: func(p Page) { urls <- p.URL },
+			Volume: 55, SaveVolume: func(v int) error { saved <- v; return nil }})
 		done <- ended{res, err}
 	}()
 	var url string
@@ -132,6 +134,9 @@ func TestTheBrowserPlaysThroughTheBridge(t *testing.T) {
 	if err := json.Unmarshal(p, &wel); err != nil || wel.T != "welcome" || wel.W != 352 || !wel.Hosting {
 		t.Fatalf("welcome: %v %+v", err, wel)
 	}
+	if wel.Volume != 55 {
+		t.Errorf("welcome volume %d, want this machine's 55", wel.Volume)
+	}
 	if len(wel.Weapons) != int(game.NumWeapons) || len(wel.Abilities) != game.NumAbilities || wel.Core.X == 0 {
 		t.Fatalf("welcome defs: %d weapons, %d abilities, core %+v", len(wel.Weapons), len(wel.Abilities), wel.Core)
 	}
@@ -162,6 +167,16 @@ func TestTheBrowserPlaysThroughTheBridge(t *testing.T) {
 	}
 	if !moved {
 		t.Fatal("the hero never walked")
+	}
+	// The menu's volume is this machine's setting, saved here, clamped to 0..100.
+	_ = ws.send(opText, []byte(`{"op":"volume","v":130}`))
+	select {
+	case v := <-saved:
+		if v != 100 {
+			t.Errorf("saved volume %d, want 100", v)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the volume was not saved")
 	}
 	_ = ws.send(opText, []byte(`{"op":"leave"}`))
 	select {
