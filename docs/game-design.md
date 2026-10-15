@@ -224,7 +224,8 @@ each wave, but Normal is the reference for timing.
   every upgrade track as it was, its magazine too. Gold is personal, so this is how a team pools
   it: one player buys and upgrades a rifle, another uses it. Picking up takes 0.2 s, a token
   channel like a search's (a hit restarts it), so it is a deliberate act and not something you
-  walk over by accident. A survivor keeps at least one weapon, a kind they already carry can't
+  walk over by accident. Dropping is the reverse: G held for a second, so a stray tap mid-fight
+  doesn't throw a gun away. A survivor keeps at least one weapon, a kind they already carry can't
   be picked up (one of each, as in the armory), and at most 32 lie about at once.
 
 ### Ruined houses

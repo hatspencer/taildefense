@@ -1,11 +1,13 @@
 import type { CameraRig } from './camera';
 import { type Controller, KEYS } from './controller';
 import type { Hud } from './hud/hud';
-import { CROWBAR } from './protocol';
+import { CROWBAR, PF_ALIVE } from './protocol';
 
 // Edge-pan band in CSS pixels; wide enough for fractional display scaling, where the last
 // device pixel can land a pixel or more inside the reported edge.
 const EDGE = 12;
+// How long G is held to drop the weapon in hand, in ms.
+export const DROP_HOLD = 1000;
 // Full screen however it came about: the Fullscreen API (F11 in the page), or a browser
 // started full screen or as a kiosk, which td does and which the API knows nothing of.
 function fullScreen(): boolean {
@@ -34,6 +36,7 @@ export class Input {
   // The pointer anywhere in the window (the HUD covers the screen edges), for edge panning.
   private ex = -1; private ey = -1; private inWin = false;
   onRetroToggle: () => void = () => {};
+  private dropTimer = 0; // G held: drops the weapon in hand when it fires
 
   constructor(canvas: HTMLCanvasElement, private ctl: Controller, private rig: CameraRig, private hud: Hud) {
     canvas.addEventListener('pointermove', (e) => { ctl.mx = e.clientX; ctl.my = e.clientY; ctl.mouseIn = true; this.moved = true; });
@@ -60,7 +63,7 @@ export class Input {
       if (fullScreen() && atEdge) { this.ex = x; this.ey = y; return; }
       this.inWin = false;
     });
-    window.addEventListener('blur', () => { this.keys.clear(); this.steer.clear(); this.spaceUp(false); this.holdCore(false); });
+    window.addEventListener('blur', () => { this.keys.clear(); this.steer.clear(); this.spaceUp(false); this.holdCore(false); this.holdDrop(false); });
     window.addEventListener('keydown', (e) => this.down(e));
     window.addEventListener('keyup', (e) => {
       this.keys.delete(e.key);
@@ -69,6 +72,7 @@ export class Input {
       ctl.shift = e.shiftKey;
       if (e.key === 'Tab') this.hud.showScore(false);
       if (e.key === 'n' || e.key === 'N') this.holdCore(false);
+      if (e.key === 'g' || e.key === 'G') this.holdDrop(false);
     });
   }
 
@@ -104,6 +108,20 @@ export class Input {
     this.coreHeld = null;
     const me = this.ctl.me();
     if (rig.follow && me) rig.center(me.x, me.y, true);
+  }
+
+  // G, held for DROP_HOLD ms: the weapon in hand goes on the ground for a teammate. Let go
+  // sooner and nothing happens; the controller's dropAt drives the ring over the hero.
+  private holdDrop(on: boolean): void {
+    const ctl = this.ctl;
+    clearTimeout(this.dropTimer);
+    this.dropTimer = 0;
+    ctl.dropAt = 0;
+    if (!on) return;
+    const me = ctl.me();
+    if (!me || !(me.flags & PF_ALIVE)) return;
+    ctl.dropAt = performance.now();
+    this.dropTimer = window.setTimeout(() => { this.dropTimer = 0; ctl.dropAt = 0; ctl.dropWeapon(); }, DROP_HOLD);
   }
 
   private spaceUp(tap: boolean): void {
@@ -172,7 +190,8 @@ export class Input {
       case 'T': this.nextTurret(); return;
       case 'R': ctl.send({ op: 'reload' }); return;
       case 'B': hud.buildCard = !hud.buildCard; if (!hud.buildCard) ctl.cancel(); return;
-      case 'G': ctl.openArmory(!ctl.armoryOpen); return;
+      case 'C': ctl.openArmory(!ctl.armoryOpen); return;
+      case 'G': this.holdDrop(true); return;
       case 'N': {
         // Twice quickly: the hero walks back to the generator.
         const now = performance.now();
@@ -187,7 +206,6 @@ export class Input {
       case 'X': ctl.sellSel(); return;
       case 'E': ctl.interact(); return;
       case 'V': ctl.taunt(); return;
-      case 'C': ctl.dropWeapon(); return;
     }
   }
 

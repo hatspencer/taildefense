@@ -18,7 +18,7 @@ export class Armory {
     const h = el('h2', '', this.root);
     this.title = el('span', '', h);
     const x = el('button', 'x', h);
-    x.innerHTML = 'Close <kbd>G</kbd>';
+    x.innerHTML = 'Close <kbd>C</kbd>';
     x.onclick = () => ctl.openArmory(false);
     const tabs = el('div', 'tabs', this.root);
     for (const t of ['weapons', 'gear', 'abilities'] as Tab[]) {
