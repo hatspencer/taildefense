@@ -493,6 +493,32 @@ choice, not a cheat guard.
   fills as someone revives them. Clicking a frame looks at that teammate, or revives them if
   they are down.
 
+## Sound
+
+- **Synthesized, not recorded.** Every sound is rendered by code in the page
+  (`web/src/sound/bank.ts`): no audio files, no licences, nothing to download, and like the
+  art, it is all generated. The bank is made once sound starts, in a worker so no frame waits
+  on it (about 1.3 s of work, guns first; a sound not made yet is skipped), and the long, low
+  sounds (explosions, voices, sirens) at 24 kHz, which they lose nothing by and which halves
+  their memory: about 38 MB in all. Each sound has a few variants from different seeds,
+  played at a slightly different speed each time, so fire never sounds like a loop.
+- **Guns are built like real shots,** because they are most of what is heard. Six layers: a
+  crack of a millisecond, the muzzle blast overdriven into distortion with its top end dying
+  first, a resonant body in the mids where the bang is, a low boom falling in pitch, a tail
+  rolling away and echoes off the treeline. Then the action: the shotgun's pump, the rifle's
+  bolt, the pistol's brass bouncing. Each gun has its own numbers, so a pistol, an SMG and a
+  sniper tower are told apart by ear.
+- **Heard round the camera, outdoors.** Distance makes a sound quieter, darker (low-passed)
+  and wetter, and the screen position pans it. One shared reverb is open ground with buildings
+  round it, not a hall.
+- **Cues over noise.** A tick's events are thinned to the nearest few of each sound and spread
+  across the tick, so twenty turrets and five thousand creeps stay readable. What needs
+  attention gets its own sound that cuts through: the siren, the generator's klaxon, the
+  radio for pings and chat, a nest waking.
+- **Effects only, no music or ambience,** so the game's own sounds carry the mood and the
+  warnings.
+- **Each player's own volume,** a setting like any other, saved from the menu.
+
 ## Boot splash
 
 The page opens on a short splash (about 1.5 s, any key or click skips it, reduced motion shows

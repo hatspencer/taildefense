@@ -113,6 +113,8 @@ export interface Welcome {
   medkit?: { heal: number; time: number; max: number; cost: number };
   // Night vision goggles' price: daytime sight at night, worn instead of the flashlight.
   goggles?: number;
+  // This machine's VOLUME setting, 0..100; 0 is no sound. Absent from a td too old to say.
+  volume?: number;
 }
 // A turret's tracks, as they sit in a frame's sLv: four to a structure.
 export const enum TTrack { Damage = 0, Rate, Range, Special }
@@ -183,7 +185,9 @@ export type Command =
   | { op: 'medkit' } | { op: 'buyMedkit' } | { op: 'buyGoggles' }
   // Puts weapon w down for a teammate; pickup walks to the weapon on the ground with that id.
   | { op: 'drop'; w: number }
-  | { op: 'pickup'; id: number };
+  | { op: 'pickup'; id: number }
+  // To this machine's td only, never the host: save the VOLUME setting.
+  | { op: 'volume'; v: number };
 
 export class Player {
   id = 0; flags = 0; x = 0; y = 0; aim = 0; hp = 0; maxHp = 1; cur = 0; ammo = 0; mag = 0;

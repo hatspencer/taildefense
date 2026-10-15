@@ -61,6 +61,7 @@ everything it knows, a terrain message follows).
   "revive": {"reach": 1.6, "time": 2.5, "hp": 0.4}, // stand within reach for time seconds; up with hp*maxHp
   "medkit": {"heal": 0.4, "time": 3, "max": 3, "cost": 60}, // one heals heal*maxHp over time s; carry max; cost gold
   "goggles": 3000,             // night vision goggles' price: daytime sight at night, instead of the flashlight
+  "volume": 70,                // this machine's VOLUME setting, 0 (no sound) to 100; not the host's
   "core": {"x": 160, "y": 100},// generator centre, tiles
   "buildRadius": 40,           // building only within this distance of core
   "shopRadius": 4.5,           // shop only within this distance of the armory centre
@@ -414,4 +415,5 @@ integers. The host checks everything; a refusal comes back as a `toast` with lev
 {"op": "chat",    "text": "gg"}
 {"op": "ping",    "x": 150, "y": 98, "kind": 1}  // mark a spot for everyone; 3 back to back, then one a second
 {"op": "leave"}                              // back to the terminal; ends the game if hosting
+{"op": "volume",  "v": 40}                   // this td only, never relayed: save VOLUME (0..100)
 ```

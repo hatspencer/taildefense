@@ -413,6 +413,15 @@ export class Hud {
     if (on) this.renderScore();
   }
   toggleHelp(): void { show(this.help, this.help.classList.contains('hidden')); }
+  // onVolume hears the menu's volume slider; save is set once the player lets go of it.
+  onVolume: (v: number, save: boolean) => void = () => {};
+  private volEl!: HTMLInputElement;
+  private volOut!: HTMLElement;
+  setVolume(v: number): void {
+    this.volEl.value = String(v);
+    this.volOut.textContent = v === 0 ? 'off' : String(v);
+  }
+
   toggleMenu(): void { show(this.menu, this.menu.classList.contains('hidden')); }
   toggleStats(): void { show(this.statsEl, this.statsEl.classList.contains('hidden')); }
   statsVisible(): boolean { return !this.statsEl.classList.contains('hidden'); }
@@ -490,6 +499,14 @@ export class Hud {
     resume.onclick = () => show(m, false);
     const help = el('button', '', m, 'Controls (F1)');
     help.onclick = () => { show(m, false); this.toggleHelp(); };
+    // The VOLUME setting: heard while dragging, saved to td's settings when let go.
+    const vol = el('label', 'volume', m);
+    el('span', '', vol, 'Volume');
+    this.volEl = el('input', '', vol);
+    Object.assign(this.volEl, { type: 'range', min: '0', max: '100', step: '5' });
+    this.volOut = el('b', '', vol, '');
+    this.volEl.oninput = () => { const v = Number(this.volEl.value); this.setVolume(v); this.onVolume(v, false); };
+    this.volEl.onchange = () => this.onVolume(Number(this.volEl.value), true);
     const leave = el('button', 'danger', m, 'Leave game');
     leave.onclick = () => this.leave();
     el('div', 'muted', m, '').id = 'menu-hint';
