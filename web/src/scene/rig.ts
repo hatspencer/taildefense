@@ -1,5 +1,4 @@
 import * as THREE from 'three/webgpu';
-import { merge, type Part } from './util';
 
 // The puppets' skeleton, shared by heroes and creeps. Heroes pose a tree of groups on the CPU;
 // creeps are posed in the vertex shader, each vertex tagged with the chain of joints it hangs
@@ -19,26 +18,6 @@ const PARENT = [J.CHEST, -1, J.CHEST, J.CHEST, J.UARM_L, J.CHEST, J.UARM_R, -1, 
 export function chain(j: number): [number, number, number] {
   const p = j < 0 ? -1 : PARENT[j], g = p < 0 ? -1 : PARENT[p];
   return [j, p, g];
-}
-
-// A part that moves with joint j (-1: with the pelvis only).
-export interface RigPart extends Part { j: number }
-export function rp(j: number, p: Part): RigPart { return { ...p, j }; }
-
-// Merges rig parts into one flat geometry with a `rj` attribute: the chain of joints each
-// vertex hangs from, as floats (-1 for none).
-export function mergeRig(parts: RigPart[]): THREE.BufferGeometry {
-  const geo = merge(parts);
-  const n = geo.getAttribute('position').count;
-  const rj = new Float32Array(n * 3);
-  let o = 0;
-  for (const p of parts) {
-    const c = chain(p.j);
-    const g = p.geo.index ? p.geo.index.count : p.geo.getAttribute('position').count;
-    for (let i = 0; i < g; i++, o++) { rj[o * 3] = c[0]; rj[o * 3 + 1] = c[1]; rj[o * 3 + 2] = c[2]; }
-  }
-  geo.setAttribute('rj', new THREE.BufferAttribute(rj, 3));
-  return geo;
 }
 
 // Critically damped-ish second-order motion towards a goal (after t3ssel8r): f is how fast it

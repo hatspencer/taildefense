@@ -438,6 +438,28 @@ choice, not a cheat guard.
   looking the way they aim, flinching red when hit, cut and bloodied as health drops, a plaster
   while a medkit works, eyes down to reload or search, mouth open in a taunt, slumped when down.
 
+## Models
+
+- **Organic, not boxes.** Survivors and creeps are modelled in Blender in the spirit of Project
+  Zomboid (`docs/artdirection.png`): bodies of fused ellipsoids, one skin from hips to neck,
+  sculpted heads with faces that read from the camera. Low-poly and flat-coloured so they
+  keep the pixelated look and a horde still draws in one call per kind.
+- **Survivors** are one skinned body each, with clothes, hair, hats and gear laid on it as
+  pieces, so ten archetypes and every random look come from one set of parts.
+- **The dead look like the people they were.** Creeps are posed as zombies in the model
+  itself: hunched, heads pushed forward, knees bent, hands hooked. Their clothes are torn and
+  bloodied but stay in the colours the page swaps per creep, so a horde is still a crowd. A
+  walker in a torn short-sleeved shirt; a runner lunging with its shirt hanging open; a bald
+  crawler on its knees and hands; the brute a builder in an orange hi-vis vest and a hardhat;
+  the spitter's belly swollen out of its shirt with boils that swell as it fills; the hurler
+  gaunt and barefoot in a tank top and shorts, bone through its back.
+- **The bosses are made of people.** The abomination is several bodies fused into one hunched
+  hulk: an arm swollen to a club, another torso sunk in its back with its own head and arm,
+  a fourth arm out of its ribs. The broodmother is a starved woman on long legs, her belly a
+  vast veined sac bursting out of her gown, egg sacs on her back, lank hair over her face.
+- **Size stays the rules'.** A creep stands about as tall for its collision radius as before, so how
+  big it looks is still how big it is to hit.
+
 ## Puppets: how bodies move
 
 - **Every body is a puppet** on one 12-joint skeleton (chest, head, two arms and two legs of two
