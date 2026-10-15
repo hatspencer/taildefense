@@ -548,7 +548,9 @@ func generate(seed uint64, w, h int) ([]Tile, []ruin) {
 		sz := ruinSize[k]
 		bw, bh := sz[0]+rng.IntN(sz[1]+1), sz[2]+rng.IntN(sz[3]+1)
 		bx, by := 2+rng.IntN(w-bw-4), 2+rng.IntN(h-bh-4)
-		if abs(bx+bw/2-w/2) < 34 && abs(by+bh/2-h/2) < 30 {
+		// None stand on ground the team can build on.
+		nx, ny := max(bx, min(w/2, bx+bw)), max(by, min(h/2, by+bh))
+		if dx, dy := nx-w/2, ny-h/2; dx*dx+dy*dy < (BuildRadius+3)*(BuildRadius+3) {
 			continue
 		}
 		houses = append(houses, ruin{x: bx, y: by, w: bw, h: bh, kind: k})

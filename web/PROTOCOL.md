@@ -60,7 +60,7 @@ everything it knows, a terrain message follows).
   "revive": {"reach": 1.6, "time": 2.5, "hp": 0.4}, // stand within reach for time seconds; up with hp*maxHp
   "medkit": {"heal": 0.4, "time": 3, "max": 3, "cost": 60}, // one heals heal*maxHp over time s; carry max; cost gold
   "core": {"x": 160, "y": 100},// generator centre, tiles
-  "buildRadius": 24,           // building only within this distance of core
+  "buildRadius": 40,           // building only within this distance of core
   "shopRadius": 4.5,           // shop only within this distance of the armory centre
   "maxLevel": 5,               // weapon track and gear max level
   "maxStructLevel": 5,

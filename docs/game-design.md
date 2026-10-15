@@ -14,6 +14,10 @@ it here along with the code.
   even with thousands of creeps on screen.
 - **Risk for reward.** The good stuff is far out, guarded and noisy to get. Staying home is safe
   and poor.
+- **Room to build.** Building is allowed within 40 tiles of the generator, well past the
+  starting walls (14 out), so the team can push a second ring of walls and turrets out toward
+  the fronts. No ruin, loot crate or wrecked car stands on that ground, and the generator
+  keeps all of it in sight.
 
 ## Pacing
 

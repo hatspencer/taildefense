@@ -317,7 +317,7 @@ func TurretStats(k StructKind, level uint8) (dmg, rng, rate float32) {
 const RepairCostPerHP = .1
 
 // BuildRadius is how far from the generator's centre building is allowed.
-const BuildRadius = 28
+const BuildRadius = 40
 
 // ShopRadius is how close to the armory a player must stand to buy.
 const ShopRadius = 5

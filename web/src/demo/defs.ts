@@ -93,7 +93,7 @@ export const WEATHERS = [
 export function demoWelcome(w: number, h: number): Welcome {
   return {
     t: 'welcome', proto: 4, version: 'demo', you: 0, w, h, seed: '424242', host: 'demo',
-    hosting: true, hint: '', tickRate: 20, core: { x: w / 2, y: h / 2 }, buildRadius: 28,
+    hosting: true, hint: '', tickRate: 20, core: { x: w / 2, y: h / 2 }, buildRadius: 40,
     shopRadius: 4.5, maxLevel: 5, maxStructLevel: 5, repairCostPerHP: 0.1,
     tracks: ['damage', 'fire rate', 'handling', 'special'],
     creeps: CREEPS, weapons: weaponDefs(),

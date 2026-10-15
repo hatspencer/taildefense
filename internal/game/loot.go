@@ -657,7 +657,7 @@ func (w *World) placeSites(ruins []ruin) []Site {
 	for try := 0; try < 4000 && (want[SiteCar] > 0 || want[SiteCrate] > 0); try++ {
 		x, y := 3+rng.IntN(w.W-6), 3+rng.IntN(w.H-6)
 		sx, sy := float32(x)+.5, float32(y)+.5
-		if dx, dy := sx-w.CoreX, sy-w.CoreY; dx*dx+dy*dy < 30*30 {
+		if dx, dy := sx-w.CoreX, sy-w.CoreY; dx*dx+dy*dy < (BuildRadius+2)*(BuildRadius+2) {
 			continue
 		}
 		k := SiteCrate
