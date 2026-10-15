@@ -20,7 +20,8 @@ The client source is in `web/` (TypeScript, three.js 0.186 with `three/webgpu` a
 camera-controls, esbuild). `web/PROTOCOL.md` is the contract between `td` and the page, and
 `docs/game-design.md` records the game design decisions and why they were made. Open
 `internal/web/dist/index.html#demo` straight from disk for a self-running demo with a fake host;
-`#demo&webgl` forces the WebGL 2 path, and `#demo&creeps=8000` stresses it.
+`#demo&webgl` forces the WebGL 2 path, and `#demo&creeps=8000` stresses it. The demo plays sound
+at 70 after the first click; `#demo&vol=0` silences it, `#demo&vol=40` sets it.
 `#lab` is the animation bench: every creep kind walking, idle, attacking, hit, burning, asleep
 and dying, beside the survivors' poses; `#lab=0`…`#lab=7` looks at one creep row, `#lab=h` at the
 survivors (`#lab=h0`…`#lab=h7` at one of them), and `&dist=11` brings the camera in.

@@ -172,6 +172,7 @@ type welcomeMsg struct {
 	Revive          reviveDef     `json:"revive"`
 	Medkit          medkitDef     `json:"medkit"`
 	Goggles         int32         `json:"goggles"` // night vision goggles' price
+	Volume          int           `json:"volume"`  // this machine's VOLUME setting, 0 (off) to 100
 }
 
 var fireNames = map[game.Fire]string{game.FireHitscan: "hitscan", game.FireRocket: "rocket", game.FireMelee: "melee"}

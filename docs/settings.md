@@ -18,6 +18,11 @@ mid-game by clicking the difficulty chip at the top left.
 `FOG` is `off` by default. On, the games you host hide whatever the team cannot see, on any
 difficulty; at night (hard and brutal) that is always so.
 
+`VOLUME` is the game's sound, `0` to `100`, `70` by default; `0` (or `off`) turns sound off
+altogether. It is this machine's own: everyone in a game sets their own. The slider in the
+game's menu (F10) changes it as you drag and saves it when you let go, so the next game starts
+where you left it.
+
 `BROWSER` is `auto` by default: td finds the browsers installed (Chrome, Chromium, Brave, Edge,
 Vivaldi, Firefox, and Safari on macOS) and starts the best one full screen, as an app window with
 a profile of its own that keeps the GPU busy even unfocused, and closes it when the game ends. It
