@@ -8,7 +8,7 @@ import {
   CF_WINDUP, CF_STRIKE, WEAPON_SLOTS,
   BlastKind, EffectKind, Emote, type SiteDef, SiteKind, TRACER_HELI, WET, Weather, type Welcome,
 } from '../protocol';
-import { ABILITY_RADIUS, CREEPS, STRUCTS, WEAPON_BASE, WEATHERS, demoWelcome } from './defs';
+import { ABILITY_RADIUS, CREEPS, STRUCTS, WEAPON_BASE, WEATHERS, demoWelcome, turretStats } from './defs';
 import { Writer } from './encode';
 import { type DemoMap, generateMap, rng } from './map';
 
@@ -47,7 +47,7 @@ interface DPlayer {
   // The scoreboard's tally: downs, revives, built, searched, bosses, damage taken.
   st: number[];
 }
-interface DStruct { alive: boolean; kind: number; x: number; y: number; w: number; h: number; hp: number; maxHp: number; level: number; owner: number; cd: number }
+interface DStruct { alive: boolean; kind: number; x: number; y: number; w: number; h: number; hp: number; maxHp: number; level: number; lv: number[]; owner: number; cd: number }
 interface DEffect { kind: number; x0: number; y0: number; x: number; y: number; r: number; left: number; total: number; owner: number; dmg: number }
 
 export class DemoHost implements Transport {
@@ -176,11 +176,15 @@ export class DemoHost implements Transport {
       ((y === r.y0 || y === r.y1) && Math.abs(x - cx) <= 1) || ((x === r.x0 || x === r.x1) && Math.abs(y - cy) <= 1);
     for (let x = r.x0; x <= r.x1; x++) for (const y of [r.y0, r.y1]) this.addStruct(gate(x, y) ? 4 : 3, x, y, -1);
     for (let y = r.y0 + 1; y < r.y1; y++) for (const x of [r.x0, r.x1]) this.addStruct(gate(x, y) ? 4 : 3, x, y, -1);
-    const t = (k: number, x: number, y: number, lvl: number, owner = -1) => { const s = this.addStruct(k, x, y, owner); s.level = lvl; };
+    const t = (k: number, x: number, y: number, lv = [0, 0, 0, 0], owner = -1) => {
+      const s = this.addStruct(k, x, y, owner);
+      s.lv = lv; s.level = 1 + lv.reduce((a, b) => a + b, 0);
+      s.maxHp = s.hp = Math.round(STRUCTS[k].hp * (1 + 0.06 * (s.level - 1)));
+    };
     // The base's own four turrets, then some the players built.
-    t(5, cx - 3, cy - 12, 1); t(5, cx + 3, cy + 12, 1); t(5, cx - 12, cy + 3, 1); t(5, cx + 12, cy - 3, 1);
-    t(6, r.x0 + 2, r.y0 + 2, 2, 0); t(7, r.x1 - 2, r.y0 + 2, 1, 1); t(8, r.x0 + 2, r.y1 - 2, 3, 2); t(5, r.x1 - 2, r.y1 - 2, 3, 0);
-    t(6, cx + 6, r.y0 + 3, 1, 1); t(8, cx - 7, r.y1 - 3, 4, 1); t(7, r.x0 + 4, cy - 5, 2, 2);
+    t(5, cx - 3, cy - 12); t(5, cx + 3, cy + 12); t(5, cx - 12, cy + 3); t(5, cx + 12, cy - 3);
+    t(6, r.x0 + 2, r.y0 + 2, [1, 0, 0, 1], 0); t(7, r.x1 - 2, r.y0 + 2, [0, 0, 0, 0], 1); t(8, r.x0 + 2, r.y1 - 2, [2, 1, 0, 2], 2); t(5, r.x1 - 2, r.y1 - 2, [2, 3, 1, 1], 0);
+    t(9, cx + 6, r.y0 + 3, [1, 0, 2, 0], 1); t(10, cx - 7, r.y1 - 3, [2, 1, 1, 3], 1); t(7, r.x0 + 4, cy - 5, [0, 1, 0, 2], 2);
     // A broken wall to show damage bars, and the generator as the options say.
     this.structs[5].hp = 140;
     const core = this.structs[0];
@@ -222,7 +226,7 @@ export class DemoHost implements Transport {
 
   private addStruct(kind: number, x: number, y: number, owner: number): DStruct {
     const d = STRUCTS[kind];
-    const s: DStruct = { alive: true, kind, x, y, w: d.w, h: d.h, hp: d.hp, maxHp: d.hp, level: 1, owner, cd: this.rnd() };
+    const s: DStruct = { alive: true, kind, x, y, w: d.w, h: d.h, hp: d.hp, maxHp: d.hp, level: 1, lv: [0, 0, 0, 0], owner, cd: this.rnd() };
     // Reuse a dead slot so ids stay small, the way the host keeps them stable.
     const i = this.structs.findIndex((o) => !o.alive);
     if (i >= 0) this.structs[i] = s; else this.structs.push(s);
@@ -963,29 +967,44 @@ export class DemoHost implements Transport {
       if (!d.turret) continue;
       s.cd -= DT;
       if (s.cd > 0) continue;
-      const cx = s.x + 0.5, cy = s.y + 0.5, lv = s.level - 1;
-      const range = d.range * (1 + 0.08 * lv);
-      const t = this.nearest(cx, cy, range);
+      const cx = s.x + 0.5, cy = s.y + 0.5, st = turretStats(s.kind, s.lv);
+      const range = st.range, dmg = st.dmg;
+      const t = s.kind === 9 ? this.toughest(cx, cy, range) : this.nearest(cx, cy, range);
       if (t < 0) { s.cd = 0.1; continue; }
-      const rate = [0, 0, 0, 0, 0, 4, 0.7, 1, 1.2][s.kind] * (1 + 0.1 * lv);
-      s.cd += 1 / rate;
-      const dmg = [0, 0, 0, 0, 0, 11, 60, 3, 32][s.kind] * (1 + 0.4 * lv);
+      s.cd += 1 / st.rate;
       if (s.kind === 7) { this.blast(cx, cy, range, 1, dmg, null); continue; }
+      if (s.kind === 10) {
+        // A salvo: a missile at the target and at the next few, landing at once.
+        const ids = this.q, n = this.query(cx, cy, range, ids, 32);
+        this.tracer(cx, cy, cx + Math.sign(this.cX[t] - cx), cy + Math.sign(this.cY[t] - cy), 16 + s.kind);
+        for (let k = 0; k < st.salvo; k++) {
+          const m = k === 0 || n === 0 ? t : ids[k % n];
+          this.tracer(cx, cy, this.cX[m], this.cY[m], 5);
+          this.blast(this.cX[m], this.cY[m], st.blast, 0, dmg, null);
+        }
+        continue;
+      }
       this.tracer(cx, cy, this.cX[t], this.cY[t], 16 + s.kind);
-      if (s.kind === 6) this.blast(this.cX[t], this.cY[t], 2.2, 0, dmg, null);
+      if (s.kind === 6) this.blast(this.cX[t], this.cY[t], st.blast, 0, dmg, null);
       else if (s.kind === 8) {
         let px = this.cX[t], py = this.cY[t], cur = t;
         this.bl.push(px, py, 0.8, 2);
-        // Two creeps at level 1, two more every level, and longer jumps.
-        for (let c = 0, d = dmg; c < 2 + 2 * lv; c++, d *= 0.85) {
+        for (let c = 0, d = dmg; c <= st.chains; c++, d *= 0.85) {
           this.hurt(cur, d, null);
-          cur = this.nearestExcept(px, py, 3.5 + 0.5 * lv, cur);
+          cur = this.nearestExcept(px, py, st.hop, cur);
           if (cur < 0) break;
           this.tracer(px, py, this.cX[cur], this.cY[cur], 16 + 8);
           px = this.cX[cur]; py = this.cY[cur];
         }
       } else this.hurt(t, dmg, null);
     }
+  }
+
+  private toughest(x: number, y: number, r: number): number {
+    const ids = this.q, n = this.query(x, y, r, ids, 400);
+    let best = -1, most = 0;
+    for (let i = 0; i < n; i++) if (this.cState[ids[i]] !== G_ASLEEP && this.cHp[ids[i]] > most) { most = this.cHp[ids[i]]; best = ids[i]; }
+    return best;
   }
 
   private nearestExcept(x: number, y: number, r: number, not: number): number {
@@ -1219,7 +1238,7 @@ export class DemoHost implements Transport {
     w.u16(this.structs.length);
     for (const s of this.structs) {
       w.u8(s.alive ? 1 : 0); w.u8(s.kind); w.u16(s.x); w.u16(s.y); w.u8(s.w); w.u8(s.h);
-      w.u16(s.hp); w.u16(s.maxHp); w.u8(s.level); w.i8(s.owner);
+      w.u16(s.hp); w.u16(s.maxHp); w.u8(s.level); for (const l of s.lv) w.u8(l); w.i8(s.owner);
     }
     let n = 0;
     for (let id = 0; id < MAX_CREEPS; id++) n += this.cAlive[id];
@@ -1308,10 +1327,12 @@ export class DemoHost implements Transport {
       case 'upgradeStruct': {
         const s = this.structs[cmd.s];
         if (!s || !s.alive || !STRUCTS[s.kind].upgradable) { this.toast('cannot upgrade that'); break; }
-        if (s.level >= wd.maxStructLevel) { this.toast('already at max level'); break; }
-        const c = STRUCTS[s.kind].upgrade[s.level];
+        const turret = STRUCTS[s.kind].turret, tr = cmd.track & 3;
+        if (turret ? s.lv[tr] >= wd.maxLevel : s.level >= wd.maxStructLevel) { this.toast('already at max level'); break; }
+        const c = STRUCTS[s.kind].upgrade[turret ? s.lv[tr] : s.level];
         if (p.gold < c) { this.toast(`not enough gold: need ${c}, have ${p.gold}`); break; }
-        p.gold -= c; s.level++; s.maxHp = Math.round(STRUCTS[s.kind].hp * (1 + (STRUCTS[s.kind].turret ? 0.25 : 0.6) * (s.level - 1))); s.hp = s.maxHp;
+        p.gold -= c; s.level++; if (turret) s.lv[tr]++;
+        s.maxHp = Math.round(STRUCTS[s.kind].hp * (1 + (turret ? 0.06 : 0.6) * (s.level - 1))); s.hp = s.maxHp;
         break;
       }
       case 'sell': {

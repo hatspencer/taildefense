@@ -63,18 +63,20 @@ type abilityDef struct {
 }
 
 type structDef struct {
-	Name       string    `json:"name"`
-	Price      int32     `json:"price"`
-	HP         float32   `json:"hp"`
-	W          uint8     `json:"w"`
-	H          uint8     `json:"h"`
-	Range      float32   `json:"range"`
-	Ranges     []float32 `json:"ranges,omitempty"`
-	Turret     bool      `json:"turret"`
-	Key        string    `json:"key"`
-	Desc       string    `json:"desc"`
-	Upgrade    []int32   `json:"upgrade"`
-	Upgradable bool      `json:"upgradable"`
+	Name       string     `json:"name"`
+	Price      int32      `json:"price"`
+	HP         float32    `json:"hp"`
+	W          uint8      `json:"w"`
+	H          uint8      `json:"h"`
+	Range      float32    `json:"range"`
+	Ranges     []float32  `json:"ranges,omitempty"` // a turret's reach at each range track level
+	Turret     bool       `json:"turret"`
+	Key        string     `json:"key"`
+	Desc       string     `json:"desc"`
+	Upgrade    []int32    `json:"upgrade"`
+	Upgradable bool       `json:"upgradable"`
+	Special    string     `json:"special,omitempty"`
+	Values     [][]string `json:"values,omitempty"` // a turret's [track][level] what the track gives
 }
 
 type siteKindDef struct {
@@ -150,6 +152,7 @@ type welcomeMsg struct {
 	RepairCostPerHP float32       `json:"repairCostPerHP"`
 	SellFraction    float32       `json:"sellFraction"`
 	Tracks          []string      `json:"tracks"`
+	TurretTracks    []string      `json:"turretTracks"`
 	Creeps          []creepDef    `json:"creeps"`
 	Weapons         []weaponDef   `json:"weapons"`
 	Gear            []gearDef     `json:"gear"`
@@ -180,6 +183,7 @@ func welcome(wel netplay.Welcome, core point, host, hint string, hosting bool) w
 		MaxLevel: game.MaxLevel, MaxStructLevel: game.MaxStructLevel, RepairCostPerHP: game.RepairCostPerHP,
 		SellFraction: game.SellFraction,
 		Tracks:       game.TrackNames[:],
+		TurretTracks: game.TurretTrackNames[:],
 	}
 	for _, c := range game.Creeps {
 		m.Creeps = append(m.Creeps, creepDef{c.Name, c.HP, c.Speed, c.Radius, c.Size, c.Ranged, c.Bounty, c.Rate, c.Windup})
@@ -219,20 +223,36 @@ func welcome(wel netplay.Welcome, core point, host, hint string, hosting bool) w
 			Range: a.Range, Radius: a.Radius[:], Cool: a.Cool[:], Costs: a.Costs[:], Always: a.Always})
 	}
 	for k, d := range game.Structs {
-		sd := structDef{Name: d.Name, Price: d.Price, HP: d.HP, W: d.W, H: d.H, Range: d.Range, Turret: d.Turret, Desc: d.Desc}
+		sk := game.StructKind(k)
+		sd := structDef{Name: d.Name, Price: d.Price, HP: d.HP, W: d.W, H: d.H, Range: d.Range, Turret: d.Turret, Desc: d.Desc, Special: d.Special}
 		if d.Key != 0 {
 			sd.Key = string(d.Key)
 		}
-		sd.Upgradable = game.Upgradable(game.StructKind(k))
-		for l := uint8(0); l < game.MaxStructLevel; l++ {
-			if d.Turret {
-				_, r, _ := game.TurretStats(game.StructKind(k), l+1)
-				sd.Ranges = append(sd.Ranges, r)
+		sd.Upgradable = game.Upgradable(sk)
+		if d.Turret {
+			// A turret: what a track costs and gives at each level, the same for every track.
+			for l := uint8(0); l <= game.MaxLevel; l++ {
+				var lv [game.NumTracks]uint8
+				lv[game.TrackRange] = l
+				sd.Ranges = append(sd.Ranges, game.TurretStats(sk, lv).Range)
+				if l < game.MaxLevel {
+					sd.Upgrade = append(sd.Upgrade, game.TurretUpgradeCost(sk, l))
+				}
 			}
-			if game.Upgradable(game.StructKind(k)) && l > 0 {
-				sd.Upgrade = append(sd.Upgrade, game.StructUpgradeCost(game.StructKind(k), l))
-			} else {
-				sd.Upgrade = append(sd.Upgrade, 0)
+			for t := game.Track(0); t < game.NumTracks; t++ {
+				var values []string
+				for l := uint8(0); l <= game.MaxLevel; l++ {
+					values = append(values, game.TurretTrackValue(sk, t, l))
+				}
+				sd.Values = append(sd.Values, values)
+			}
+		} else {
+			for l := uint8(0); l < game.MaxStructLevel; l++ {
+				if sd.Upgradable && l > 0 {
+					sd.Upgrade = append(sd.Upgrade, game.StructUpgradeCost(sk, l))
+				} else {
+					sd.Upgrade = append(sd.Upgrade, 0)
+				}
 			}
 		}
 		m.Structs = append(m.Structs, sd)

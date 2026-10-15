@@ -348,8 +348,8 @@ func (w *World) Nearest(p *Player, r float32, turretsOnly bool) int {
 	return bi
 }
 
-// UpgradeStruct raises a turret's or a wall's level.
-func (w *World) UpgradeStruct(p *Player, si int) error {
+// UpgradeStruct raises one of a turret's tracks, or a wall's or gate's level (t unused).
+func (w *World) UpgradeStruct(p *Player, si int, t Track) error {
 	if si < 0 || si >= len(w.Structs) || !w.Structs[si].Alive {
 		return errors.New("nothing to upgrade there")
 	}
@@ -357,11 +357,24 @@ func (w *World) UpgradeStruct(p *Player, si int) error {
 	if !Upgradable(s.Kind) {
 		return fmt.Errorf("a %s cannot be upgraded; right-click it to repair", Structs[s.Kind].Name)
 	}
-	if s.Level >= MaxStructLevel {
-		return errMaxed
-	}
-	if err := w.pay(p, StructUpgradeCost(s.Kind, s.Level)); err != nil {
-		return err
+	if Structs[s.Kind].Turret {
+		if t >= NumTracks {
+			return errors.New("no such track")
+		}
+		if s.Lv[t] >= MaxLevel {
+			return errMaxed
+		}
+		if err := w.pay(p, TurretUpgradeCost(s.Kind, s.Lv[t])); err != nil {
+			return err
+		}
+		s.Lv[t]++
+	} else {
+		if s.Level >= MaxStructLevel {
+			return errMaxed
+		}
+		if err := w.pay(p, StructUpgradeCost(s.Kind, s.Level)); err != nil {
+			return err
+		}
 	}
 	s.Level++
 	grow := Structs[s.Kind].HP * StructGrowth(s.Kind)
@@ -377,8 +390,16 @@ const SellFraction = .5
 // SellValue is what selling s would return.
 func SellValue(s *Structure) int32 {
 	spent := Structs[s.Kind].Price
-	for l := uint8(1); l < s.Level; l++ {
-		spent += StructUpgradeCost(s.Kind, l)
+	if Structs[s.Kind].Turret {
+		for _, lv := range s.Lv {
+			for l := range lv {
+				spent += TurretUpgradeCost(s.Kind, l)
+			}
+		}
+	} else {
+		for l := uint8(1); l < s.Level; l++ {
+			spent += StructUpgradeCost(s.Kind, l)
+		}
 	}
 	return int32(float32(spent) * SellFraction * s.HP / s.MaxHP)
 }

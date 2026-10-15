@@ -7,7 +7,7 @@ import { Splash } from './hud/splash';
 import { Input } from './input';
 import { Lab } from './lab';
 import { type Handlers, type Transport, WsTransport } from './net';
-import { PF_ALIVE, PF_ARMORY, Phase, PingKind, SiteKind, siteX, siteY, turretRange, type Welcome, wreck } from './protocol';
+import { PF_ALIVE, PF_ARMORY, Phase, PingKind, SiteKind, siteX, siteY, TTrack, TURRET_TRACKS, turretRange, type Welcome, wreck } from './protocol';
 import { Creeps } from './scene/creeps';
 import { Effects } from './scene/effects';
 import { Helis } from './scene/heli';
@@ -15,7 +15,7 @@ import { Heroes } from './scene/heroes';
 import { Portraits } from './scene/portraits';
 import { Loot } from './scene/loot';
 import { Overlays } from './scene/overlays';
-import { K_CANNON, K_FROST, K_GUN, K_TESLA, Structs } from './scene/structs';
+import { K_CANNON, K_FROST, K_GUN, K_MISSILE, K_SNIPER, K_TESLA, Structs } from './scene/structs';
 import { FogOfWar } from './scene/fow';
 import { Terrain } from './scene/terrain';
 import { Weather } from './scene/weather';
@@ -132,7 +132,7 @@ async function main(): Promise<void> {
   const turretHeight = (x: number, y: number) => {
     const s = game.structAtTile(Math.floor(x), Math.floor(y));
     const k = s >= 0 ? game.cur.sKind[s] : 0;
-    return k === K_GUN ? 0.75 : k === K_CANNON ? 0.86 : k === K_FROST ? 1.5 : k === K_TESLA ? 1.6 : 1.0;
+    return k === K_GUN ? 0.75 : k === K_CANNON ? 0.86 : k === K_FROST ? 1.5 : k === K_TESLA ? 1.6 : k === K_SNIPER ? 2.02 : k === K_MISSILE ? 0.95 : 1.0;
   };
 
   const handlers: Handlers = {
@@ -234,6 +234,16 @@ async function main(): Promise<void> {
       if (t === 'turret') {
         const f = game.cur;
         for (let i = 0; i < f.nStructs; i++) if (f.sAlive[i] && f.sKind[i] >= K_GUN) { ctl.sel = { t: 'struct', id: i }; break; }
+      }
+      // kind:N, the first structure of kind N, with the view on it unless cam says otherwise.
+      if (t === 'kind') {
+        const f = game.cur;
+        for (let i = 0; i < f.nStructs; i++) {
+          if (!f.sAlive[i] || f.sKind[i] !== Number(id)) continue;
+          ctl.sel = { t: 'struct', id: i };
+          if (!cam) { rig.follow = false; rig.center(f.sX[i] + f.sW[i] / 2, f.sY[i] + f.sH[i] / 2); rig.setDist(14); }
+          break;
+        }
       }
     }
   };
@@ -414,7 +424,7 @@ async function main(): Promise<void> {
     if (gd?.turret && ctl.groundOk) {
       const t = ctl.buildTile(bk);
       overlays.ring('turret', true, t.tx + t.w / 2, t.ty + t.h / 2, gd.range, 0xffffff, 0.45);
-    } else if (td?.turret) overlays.ring('turret', true, f.sX[tsel] + 0.5 * f.sW[tsel], f.sY[tsel] + 0.5 * f.sH[tsel], turretRange(td, f.sLevel[tsel]), 0xffffff, 0.45);
+    } else if (td?.turret) overlays.ring('turret', true, f.sX[tsel] + 0.5 * f.sW[tsel], f.sY[tsel] + 0.5 * f.sH[tsel], turretRange(td, f.sLv[tsel * TURRET_TRACKS + TTrack.Range]), 0xffffff, 0.45);
     else overlays.ring('turret', false);
     const arm = ctl.armoryCenter();
     overlays.ring('shop', !!arm && ctl.armoryOpen && !!me && !(me.flags & PF_ARMORY), arm?.x ?? 0, arm?.y ?? 0, wd.shopRadius, 0xe0b030, 0.6);

@@ -366,7 +366,7 @@ func (s *session) command(p []byte) bool {
 	case "loot":
 		nc = netplay.Cmd{Op: netplay.OpLoot, T: u16(c.Site)}
 	case "upgradeStruct":
-		nc = netplay.Cmd{Op: netplay.OpUpgradeStruct, T: u16(c.S)}
+		nc = netplay.Cmd{Op: netplay.OpUpgradeStruct, T: u16(c.S), A: u8(c.Track)}
 	case "sell":
 		nc = netplay.Cmd{Op: netplay.OpSell, T: u16(c.S)}
 	case "buyWeapon":

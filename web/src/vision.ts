@@ -1,4 +1,4 @@
-import { PF_ALIVE, RIFLE, RIFLE_SIGHT, type Frame, type Welcome, Weather, sightMul, turretRange, walled } from './protocol';
+import { PF_ALIVE, RIFLE, RIFLE_SIGHT, type Frame, TTrack, TURRET_TRACKS, type Welcome, Weather, sightMul, turretRange, walled } from './protocol';
 
 // Fog of war: what the team sees right now, and what it has ever seen, per tile. Vision is
 // shared: every survivor and every structure lights a disc around itself. The host sends
@@ -78,7 +78,7 @@ export class Vision {
       // little past what they shoot, night or day; walls and gates see just over themselves.
       // At night these follow the host's (discover.go), which decides what a shot can find.
       const r = f.sKind[i] === 1 ? wd.buildRadius
-        : d?.turret ? turretRange(d, f.sLevel[i]) * mul + 2
+        : d?.turret ? turretRange(d, f.sLv[i * TURRET_TRACKS + TTrack.Range]) * mul + 2
         : f.sKind[i] === 2 ? (dark ? 7 : 9) : dark ? 2 : 3;
       this.disc(f.sX[i] + f.sW[i] / 2, f.sY[i] + f.sH[i] / 2, r, -1);
     }

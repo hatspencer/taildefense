@@ -81,13 +81,14 @@ type structRec struct {
 	w, h                uint8
 	hp, max             uint16
 	level               uint8
+	lv                  [game.NumTracks]uint8
 	owner               int8
 	hpDirty, shapeDirty bool
 }
 
 func structOf(s *game.Structure) structRec {
 	return structRec{alive: s.Alive, kind: s.Kind, x: uint16(s.X), y: uint16(s.Y), w: s.W, h: s.H,
-		hp: uint16(max(math.Ceil(float64(s.HP)), 0)), max: uint16(s.MaxHP), level: s.Level, owner: s.Owner}
+		hp: uint16(max(math.Ceil(float64(s.HP)), 0)), max: uint16(s.MaxHP), level: s.Level, lv: s.Lv, owner: s.Owner}
 }
 
 func hp8(hp, maxHP float32) uint8 {
@@ -224,7 +225,7 @@ func (e *Encoder) Delta(w *game.World, atArmory func(*game.Player) bool) []byte 
 	for i := range w.Structs {
 		r := structOf(&w.Structs[i])
 		o := &e.structs[i]
-		o.shapeDirty = r.alive != o.alive || r.kind != o.kind || r.level != o.level || r.max != o.max || r.x != o.x || r.y != o.y
+		o.shapeDirty = r.alive != o.alive || r.kind != o.kind || r.level != o.level || r.lv != o.lv || r.max != o.max || r.x != o.x || r.y != o.y
 		o.hpDirty = !o.shapeDirty && r.hp != o.hp
 		if o.shapeDirty {
 			nShape++
@@ -318,6 +319,7 @@ func structRecord(b *enc, r *structRec) {
 	b.u16(r.hp)
 	b.u16(r.max)
 	b.u8(r.level)
+	b.b = append(b.b, r.lv[:]...)
 	b.i8(r.owner)
 }
 

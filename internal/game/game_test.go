@@ -117,22 +117,44 @@ func TestShopAndBuild(t *testing.T) {
 	if w.StructKindAt(x, y) != STurretTesla {
 		t.Fatal("no tesla coil")
 	}
+	// A turret goes up track by track, each as far as a weapon's.
 	si := w.StructAt(x, y)
-	if err := w.UpgradeStruct(p, si); err != nil || w.Structs[si].Level != 2 {
+	p.Gold = 1e6
+	for i := 0; i < MaxLevel; i++ {
+		if err := w.UpgradeStruct(p, si, TrackSpecial); err != nil {
+			t.Fatalf("upgrade: %v", err)
+		}
+	}
+	if err := w.UpgradeStruct(p, si, TrackSpecial); err == nil {
+		t.Fatal("upgraded a turret's track past the maximum")
+	}
+	if err := w.UpgradeStruct(p, si, TrackRate); err != nil {
 		t.Fatalf("upgrade: %v", err)
 	}
-	if _, err := w.Sell(p, si); err != nil || w.StructAt(x, y) >= 0 {
-		t.Fatalf("sell: %v", err)
+	s := &w.Structs[si]
+	if s.Lv != [NumTracks]uint8{0, 1, 0, MaxLevel} || s.Level != 7 {
+		t.Fatalf("tracks %v, level %d", s.Lv, s.Level)
+	}
+	if st := TurretStats(STurretTesla, s.Lv); st.Chains != 11 || st.Rate <= Structs[STurretTesla].Rate {
+		t.Errorf("tesla at %v: %+v", s.Lv, st)
+	}
+	spent := Structs[STurretTesla].Price + TurretUpgradeCost(STurretTesla, 0)
+	for l := uint8(0); l < MaxLevel; l++ {
+		spent += TurretUpgradeCost(STurretTesla, l)
+	}
+	gold := p.Gold
+	if _, err := w.Sell(p, si); err != nil || w.StructAt(x, y) >= 0 || p.Gold-gold != spent/2 {
+		t.Fatalf("sell: %v, got %d for %d spent", err, p.Gold-gold, spent)
 	}
 	// Walls go up levels too, and only get tougher; the generator does not.
 	if err := w.Build(p, SWall, x, y); err != nil {
 		t.Fatal(err)
 	}
 	si = w.StructAt(x, y)
-	if err := w.UpgradeStruct(p, si); err != nil || w.Structs[si].Level != 2 || w.Structs[si].MaxHP != Structs[SWall].HP*1.6 {
+	if err := w.UpgradeStruct(p, si, 0); err != nil || w.Structs[si].Level != 2 || w.Structs[si].MaxHP != Structs[SWall].HP*1.6 {
 		t.Fatalf("wall upgrade: %v, %+v", err, w.Structs[si])
 	}
-	if err := w.UpgradeStruct(p, w.Core); err == nil {
+	if err := w.UpgradeStruct(p, w.Core, 0); err == nil {
 		t.Fatal("upgraded the generator")
 	}
 }

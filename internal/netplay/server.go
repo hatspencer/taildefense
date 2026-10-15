@@ -535,9 +535,13 @@ func Exec(w *game.World, pl *game.Player, c Cmd) (string, error) {
 		err = w.OrderRevive(pl, int(c.T))
 	case OpUpgradeStruct:
 		si := int(c.T)
-		if err = w.UpgradeStruct(pl, si); err == nil {
+		if err = w.UpgradeStruct(pl, si, game.Track(c.A)); err == nil {
 			st := &w.Structs[si]
-			msg = fmt.Sprintf("%s → level %d", game.Structs[st.Kind].Name, st.Level)
+			if game.Structs[st.Kind].Turret {
+				msg = fmt.Sprintf("%s: %s → %d", game.Structs[st.Kind].Name, game.TurretTrackNames[c.A], st.Lv[c.A])
+			} else {
+				msg = fmt.Sprintf("%s → level %d", game.Structs[st.Kind].Name, st.Level)
+			}
 		}
 	case OpSell:
 		var g int32

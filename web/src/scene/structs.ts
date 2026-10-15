@@ -1,10 +1,10 @@
 import * as THREE from 'three/webgpu';
 import { color, float, fract, max, mix, positionLocal, sin, step, time, uniform, vertexColor, vec3 } from 'three/tsl';
-import type { StructDef } from '../protocol';
+import { type StructDef, TURRET_TRACKS } from '../protocol';
 import type { Game } from '../state';
 import { box, cone, cyl, dodeca, ico, merge, octa, part, playerColor, setEmissive, torus, writeMatrix, type Part } from './util';
 
-export const K_CORE = 1, K_ARMORY = 2, K_WALL = 3, K_GATE = 4, K_GUN = 5, K_CANNON = 6, K_FROST = 7, K_TESLA = 8;
+export const K_CORE = 1, K_ARMORY = 2, K_WALL = 3, K_GATE = 4, K_GUN = 5, K_CANNON = 6, K_FROST = 7, K_TESLA = 8, K_SNIPER = 9, K_MISSILE = 10;
 
 // Highlight of what is under the cursor, set per object through userData.hl.
 const hl = uniform(0).onObjectUpdate((frame) => (frame.object?.userData.hl as number | undefined) ?? 0);
@@ -38,6 +38,9 @@ function glowMaterial(hex: number, pulse = 0): THREE.MeshBasicNodeMaterial {
 
 // dmg: extra wreckage shown below 60% and 30% hp.
 interface Model { body: Part[]; head?: Part[]; headY?: number; glow?: { parts: Part[]; color: number; pulse: number }; spin?: Part[]; spinY?: number; dmg?: [Part[], Part[]] }
+
+// The colours of a turret's tracks: damage, fire rate, range, special.
+const PIP = [0xc8502a, 0xd8b040, 0x5aa0c8, 0xb070d0];
 
 const STEEL = 0x5a5f63, DARK = 0x26282a, HAZARD = 0xc89a2a, CONCRETE = 0x7a776e, RUST = 0x7a4a2a, PIPE = 0x5e625e;
 
@@ -235,6 +238,51 @@ function modelFor(kind: number): Model {
       ],
       glow: { parts: [part(ico(0.2, 1), 0, 0, 1.6, 0)], color: 0xd8b0ff, pulse: 9 },
     };
+    case K_SNIPER: {
+      // A plank watchtower on four legs, a sandbagged platform up top and a long rifle on it.
+      const wood = 0x5a4430, wd2 = 0x6a5034, bag = 0x9a8c66;
+      const body: Part[] = [part(box(0.9, 0.06, 0.9), 0x5a5850, 0, 0.03, 0)];
+      for (const [x, z] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) body.push(part(box(0.09, 1.66, 0.09), wood, x * 0.33, 0.83, z * 0.33));
+      for (const y of [0.45, 1.1]) {
+        body.push(part(box(0.66, 0.05, 0.05), wd2, 0, y, 0.33), part(box(0.66, 0.05, 0.05), wd2, 0, y, -0.33));
+        body.push(part(box(0.05, 0.05, 0.66), wd2, 0.33, y, 0), part(box(0.05, 0.05, 0.66), wd2, -0.33, y, 0));
+      }
+      body.push(part(box(0.06, 0.9, 0.04), wd2, 0, 0.78, 0.34, 0, 0, 0.62), part(box(0.06, 0.9, 0.04), wd2, 0, 0.78, -0.34, 0, 0, -0.62));
+      body.push(part(box(0.92, 0.08, 0.92), wd2, 0, 1.68, 0));
+      body.push(part(box(0.9, 0.16, 0.12), bag, 0, 1.8, 0.4), part(box(0.9, 0.16, 0.12), bag, 0, 1.8, -0.4), part(box(0.12, 0.16, 0.66), bag, -0.4, 1.8, 0));
+      // A ladder up the back.
+      body.push(part(box(0.04, 1.7, 0.04), wood, -0.5, 0.85, 0.12), part(box(0.04, 1.7, 0.04), wood, -0.5, 0.85, -0.12));
+      for (let i = 0; i < 6; i++) body.push(part(box(0.03, 0.03, 0.26), wd2, -0.5, 0.2 + i * 0.27, 0));
+      return {
+        body,
+        head: [
+          part(box(0.34, 0.1, 0.1), 0x3a3428, 0, 0, 0),
+          part(cyl(0.025, 0.03, 0.9, 5), 0x1e1e1c, 0.6, 0.02, 0, 0, 0, Math.PI / 2),
+          part(cyl(0.04, 0.04, 0.26, 6), 0x2a2c2a, 0.08, 0.1, 0, 0, 0, Math.PI / 2),
+          part(box(0.06, 0.04, 0.12), 0x1e1e1c, 1.03, 0.02, 0),
+          part(box(0.03, 0.18, 0.03), 0x2a2a28, 0.4, -0.08, 0.06, 0.4, 0, 0), part(box(0.03, 0.18, 0.03), 0x2a2a28, 0.4, -0.08, -0.06, -0.4, 0, 0),
+        ],
+        headY: 2.0,
+      };
+    }
+    case K_MISSILE: {
+      // A steel plinth with a box of six rockets on a turntable, red noses showing.
+      const body: Part[] = [
+        part(box(0.9, 0.22, 0.9), 0x4a4e44, 0, 0.11, 0),
+        part(cyl(0.2, 0.28, 0.4, 8), STEEL, 0, 0.42, 0),
+      ];
+      stripes(body, 0.45, 0.23, 4);
+      const head: Part[] = [
+        part(box(0.56, 0.44, 0.62), 0x4e5636, 0, 0.12, 0),
+        part(box(0.5, 0.06, 0.66), 0x3e4430, -0.02, 0.36, 0),
+        part(box(0.2, 0.3, 0.12), DARK, -0.1, -0.02, 0.36),
+      ];
+      for (const y of [0.02, 0.22]) for (const z of [-0.19, 0, 0.19]) {
+        head.push(part(cyl(0.075, 0.075, 0.04, 8), 0x1a1a18, 0.28, y, z, 0, 0, Math.PI / 2));
+        head.push(part(cone(0.055, 0.1, 6), 0xb03a2a, 0.32, y, z, 0, 0, -Math.PI / 2));
+      }
+      return { body, head, headY: 0.68 };
+    }
   }
   return { body: [part(box(0.9, 0.8, 0.9), 0x888888, 0, 0.4, 0)] };
 }
@@ -317,7 +365,7 @@ export class Structs {
   private walls: WallSet;
   private version = -1;
   private defs: StructDef[] = [];
-  private pipGeo: THREE.BufferGeometry[] = [];
+  private pipGeo = new Map<number, THREE.BufferGeometry>();
   private ringGeo = new Map<number, THREE.BufferGeometry>();
 
   constructor(scene: THREE.Scene) {
@@ -345,13 +393,20 @@ export class Structs {
     return b;
   }
 
-  private pips(level: number): THREE.BufferGeometry {
-    if (!this.pipGeo[level]) {
+  // A turret's upgrades: a column of pips on its side for each track, in the track's colour.
+  private pips(f: Game['cur'], i: number): THREE.BufferGeometry {
+    let key = 0;
+    for (let t = 0; t < TURRET_TRACKS; t++) key = key * 8 + f.sLv[i * TURRET_TRACKS + t];
+    let g = this.pipGeo.get(key);
+    if (!g) {
       const p: Part[] = [];
-      for (let i = 0; i < level; i++) p.push(part(box(0.11, 0.11, 0.11), 0xd8b040, 0.47, 0.12 + i * 0.14, 0));
-      this.pipGeo[level] = merge(p.length ? p : [part(box(0.001, 0.001, 0.001), 0)]);
+      for (let t = 0; t < TURRET_TRACKS; t++) {
+        for (let l = 0; l < f.sLv[i * TURRET_TRACKS + t]; l++) p.push(part(box(0.09, 0.09, 0.09), PIP[t], 0.47, 0.1 + l * 0.12, -0.21 + t * 0.14));
+      }
+      g = merge(p.length ? p : [part(box(0.001, 0.001, 0.001), 0)]);
+      this.pipGeo.set(key, g);
     }
-    return this.pipGeo[level];
+    return g;
   }
 
   private ring(owner: number, w: number): THREE.BufferGeometry {
@@ -394,7 +449,7 @@ export class Structs {
     for (const d of b.dmg ?? []) { const m = new THREE.Mesh(d, this.mat); m.visible = false; m.castShadow = true; g.add(m); dmg.push(m); }
     const def = this.defs[kind];
     if (def?.turret) {
-      const pm = new THREE.Mesh(this.pips(f.sLevel[i]), this.pipMat);
+      const pm = new THREE.Mesh(this.pips(f, i), this.pipMat);
       g.add(pm);
     }
     if (kind !== K_WALL && kind !== K_GATE) g.add(new THREE.Mesh(this.ring(f.sOwner[i], w), this.mat));

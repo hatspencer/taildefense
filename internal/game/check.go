@@ -157,6 +157,7 @@ func (w *World) Hash() uint64 {
 			continue
 		}
 		u(uint64(i)<<32 | uint64(s.Kind)<<8 | uint64(s.Level))
+		u(uint64(s.Lv[0]) | uint64(s.Lv[1])<<8 | uint64(s.Lv[2])<<16 | uint64(s.Lv[3])<<24)
 		f(s.HP)
 	}
 	for _, p := range w.Players {

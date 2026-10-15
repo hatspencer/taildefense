@@ -59,8 +59,7 @@ func (w *World) discover() {
 		case s.Kind == SArmory:
 			r = 7
 		case Structs[s.Kind].Turret:
-			_, rng, _ := TurretStats(s.Kind, s.Level)
-			r = rng*mul + 2
+			r = TurretStats(s.Kind, s.Lv).Range*mul + 2
 		}
 		w.lightDisc(s.CX(), s.CY(), r, -1)
 	}

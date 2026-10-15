@@ -66,9 +66,12 @@ export interface AbilityDef {
 }
 export interface StructDef {
   name: string; price: number; hp: number; w: number; h: number; range: number; ranges?: number[]; turret: boolean;
+  // upgrade: a wall's price per level; a turret's price to raise any track from each level.
   key: string; desc: string; upgrade: number[];
   // Whether it can be raised a level: turrets, and walls and gates (tougher only).
   upgradable?: boolean;
+  // A turret's special track, and what each track gives at each level, [track][level 0..5].
+  special?: string; values?: string[][];
 }
 export interface SiteKindDef { name: string; search: number }
 // A loot site: the tiles it covers, the spot it is searched from, how far out it is, and how
@@ -85,7 +88,7 @@ export interface Welcome {
   t: 'welcome'; proto: number; version: string; you: number; w: number; h: number; seed: string;
   host: string; hosting: boolean; hint: string; tickRate: number; core: { x: number; y: number };
   buildRadius: number; shopRadius: number; maxLevel: number; maxStructLevel: number;
-  repairCostPerHP: number; sellFraction?: number; tracks: string[]; creeps: CreepDef[]; weapons: WeaponDef[];
+  repairCostPerHP: number; sellFraction?: number; tracks: string[]; turretTracks?: string[]; creeps: CreepDef[]; weapons: WeaponDef[];
   gear: GearDef[]; abilities: AbilityDef[]; structs: StructDef[]; buildable: number[];
   siteKinds: SiteKindDef[]; sites: SiteDef[];
   difficulty: { id: number; name: string }; difficulties: string[]; weathers: WeatherDef[];
@@ -99,16 +102,25 @@ export interface Welcome {
   // heal: the share of max HP one medkit gives back over time seconds; max carried; cost each.
   medkit?: { heal: number; time: number; max: number; cost: number };
 }
-// turretRange is a turret's reach at a level (1-based), from the per-level table when the
-// host sends one.
-export function turretRange(d: StructDef, level: number): number {
-  return d.ranges?.[level - 1] ?? d.range;
+// A turret's tracks, as they sit in a frame's sLv: four to a structure.
+export const enum TTrack { Damage = 0, Rate, Range, Special }
+export const TURRET_TRACKS = 4;
+
+// turretRange is a turret's reach at its range track's level, from the per-level table when
+// the host sends one.
+export function turretRange(d: StructDef, rangeLevel: number): number {
+  return d.ranges?.[rangeLevel] ?? d.range;
 }
 
-// sellValue is what selling a structure returns, as the host works it out.
-export function sellValue(d: StructDef, level: number, hp: number, maxHp: number, frac = 0.5): number {
+// sellValue is what selling structure i of frame f returns, as the host works it out.
+export function sellValue(d: StructDef, f: Frame, i: number, frac = 0.5): number {
   let spent = d.price;
-  for (let l = 1; l < level; l++) spent += d.upgrade[l] ?? 0;
+  if (d.turret) {
+    for (let t = 0; t < TURRET_TRACKS; t++) for (let l = 0; l < f.sLv[i * TURRET_TRACKS + t]; l++) spent += d.upgrade[l] ?? 0;
+  } else {
+    for (let l = 1; l < f.sLevel[i]; l++) spent += d.upgrade[l] ?? 0;
+  }
+  const hp = f.sHp[i], maxHp = f.sMaxHp[i];
   return Math.floor(spent * frac * (maxHp > 0 ? hp / maxHp : 1));
 }
 
@@ -127,7 +139,9 @@ export type Command =
   | { op: 'difficulty'; kind: number }
   | { op: 'ability'; slot: number; x: number; y: number }
   | { op: 'build'; kind: number; tx: number; ty: number }
-  | { op: 'repair' | 'upgradeStruct' | 'sell'; s: number }
+  | { op: 'repair' | 'sell'; s: number }
+  // track: which of a turret's tracks (TTrack); a wall or gate ignores it.
+  | { op: 'upgradeStruct'; s: number; track: number }
   | { op: 'loot'; site: number }
   | { op: 'buyWeapon' | 'select'; w: number }
   | { op: 'upgrade'; w: number; track: number }
@@ -211,6 +225,8 @@ export class Frame {
   sW = new Uint8Array(256); sH = new Uint8Array(256);
   sHp = new Uint16Array(256); sMaxHp = new Uint16Array(256);
   sLevel = new Uint8Array(256); sOwner = new Int8Array(256);
+  // A turret's track levels, TURRET_TRACKS to a structure.
+  sLv = new Uint8Array(256 * TURRET_TRACKS);
 
   nCreeps = 0;
   cId = new Uint16Array(MAX_CREEPS); cX = new Float32Array(MAX_CREEPS); cY = new Float32Array(MAX_CREEPS);
@@ -319,14 +335,17 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
     f.sW = grow(f.sW, ns); f.sH = grow(f.sH, ns); f.sHp = grow(f.sHp, ns); f.sMaxHp = grow(f.sMaxHp, ns);
     f.sLevel = grow(f.sLevel, ns); f.sOwner = grow(f.sOwner, ns);
   }
+  if (f.sLv.length < ns * TURRET_TRACKS) f.sLv = grow(f.sLv, ns * TURRET_TRACKS);
   f.nStructs = ns;
   for (let i = 0; i < ns; i++) {
     f.sAlive[i] = d.getUint8(o); f.sKind[i] = d.getUint8(o + 1);
     f.sX[i] = d.getUint16(o + 2, true); f.sY[i] = d.getUint16(o + 4, true);
     f.sW[i] = d.getUint8(o + 6); f.sH[i] = d.getUint8(o + 7);
     f.sHp[i] = d.getUint16(o + 8, true); f.sMaxHp[i] = d.getUint16(o + 10, true);
-    f.sLevel[i] = d.getUint8(o + 12); f.sOwner[i] = d.getInt8(o + 13);
-    o += 14;
+    f.sLevel[i] = d.getUint8(o + 12);
+    for (let t = 0; t < TURRET_TRACKS; t++) f.sLv[i * TURRET_TRACKS + t] = d.getUint8(o + 13 + t);
+    f.sOwner[i] = d.getInt8(o + 13 + TURRET_TRACKS);
+    o += 14 + TURRET_TRACKS;
   }
 
   let nc = d.getUint16(o, true); o += 2;

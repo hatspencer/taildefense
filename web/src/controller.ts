@@ -446,9 +446,15 @@ export class Controller {
 
   selectedStruct(): number { return this.sel?.t === 'struct' ? this.sel.id : -1; }
 
-  upgradeSel(): void {
+  // Upgrades the selected wall or gate, or one track of the selected turret.
+  upgradeSel(track?: number): void {
     const s = this.selectedStruct();
-    if (s >= 0) this.send({ op: 'upgradeStruct', s });
+    if (s < 0) return;
+    if (track === undefined && this.game.welcome?.structs[this.game.cur.sKind[s]]?.turret) {
+      this.onToast('a turret goes up a track at a time: pick one on its card', 0);
+      return;
+    }
+    this.send({ op: 'upgradeStruct', s, track: track ?? 0 });
   }
 
   sellSel(): void {

@@ -175,6 +175,7 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 		e.u16(s.HP)
 		e.u16(s.MaxHP)
 		e.u8(s.Level)
+		e.b = append(e.b, s.Lv[:]...)
 		e.u8(uint8(s.Owner))
 	}
 

@@ -5,7 +5,7 @@ import {
 } from 'three/tsl';
 import { BlastKind, EffectKind, LOB_WINDUP, TRACER_HELI, TRACER_SHARD, Tile } from '../protocol';
 import type { Game } from '../state';
-import { K_ARMORY, K_CORE, K_TESLA } from './structs';
+import { K_ARMORY, K_CORE, K_MISSILE, K_SNIPER, K_TESLA } from './structs';
 import { linInto, writeMatrix } from './util';
 
 const STRIDE = 16;
@@ -123,7 +123,7 @@ class FxPool {
 const TRACER: Record<number, number> = { 0: 0xffe9a0, 1: 0xffb060, 2: 0xfff0b0, 3: 0xa0f0ff, 4: 0xffd860, 5: 0xffffff };
 // Muzzle flash size per player weapon: pistol, shotgun, SMG, rifle, minigun, rockets.
 const MUZZLE: Record<number, number> = { 0: 0.8, 1: 1.5, 2: 0.9, 3: 1.3, 4: 1.1, 5: 1.6 };
-const TURRET: Record<number, number> = { 5: 0xfff0a0, 6: 0xffa040, 7: 0x9fe4ff, 8: 0xd8b0ff };
+const TURRET: Record<number, number> = { 5: 0xfff0a0, 6: 0xffa040, 7: 0x9fe4ff, 8: 0xd8b0ff, 9: 0xfff8e0, 10: 0xffb060 };
 // Blood, dark and everywhere; the spitter bleeds bile.
 const CREEP_GORE = [0x4a0c0a, 0x56100c, 0x3e0a08, 0x5a1410, 0x4a5a14, 0x3a0808, 0x4a0c0a, 0x4a5a14];
 
@@ -232,11 +232,20 @@ export class Effects {
         onTurretShot(x0, y0, x1, y1);
         if (sk === K_TESLA) { this.arc(t, x0, h, y0, x1, 0.6, y1); continue; }
         const col = TURRET[sk] ?? 0xffffff;
-        this.streaks.add(t, x0, h, y0, x1, 0.55, y1, 0.08 + dist * 0.006, col, 0.09, 0, 0, 0.45);
+        const ux = (x1 - x0) / dist, uz = (y1 - y0) / dist;
+        if (sk === K_MISSILE) {
+          // A battery's launch: a flash at the tubes and a gout of smoke back off them; the
+          // missiles themselves fly as rockets do.
+          this.glow.add(t, x0 + ux * 0.4, h, y0 + uz * 0.4, 0, 0, 0, 0.1, 0xffc070, 0.9, 0.3);
+          this.smoke.add(t, x0 - ux * 0.3, h, y0 - uz * 0.3, -ux * 1.2, 0.5, -uz * 1.2, 0.9, 0x9a9a9a, 0.3, 1.1, 0, 1, 0.5);
+          continue;
+        }
+        const sniper = sk === K_SNIPER;
+        this.streaks.add(t, x0, h, y0, x1, 0.55, y1, sniper ? 0.3 + dist * 0.01 : 0.08 + dist * 0.006, col, sniper ? 0.06 : 0.09, 0, 0, 0.45);
         if (flashes++ < 60) {
-          const mx = x0 + (x1 - x0) / dist * 0.6, mz = y0 + (y1 - y0) / dist * 0.6;
+          const mx = x0 + ux * 0.6, mz = y0 + uz * 0.6;
           this.glow.add(t, mx, h, mz, 0, 0, 0, 0.07, 0xffd070, sk === 6 ? 1.2 : 0.6, 0.3);
-          if (sk !== 7) this.muzzle(t, mx, h, mz, (x1 - x0) / dist, (y1 - y0) / dist, sk === 6 ? 1.6 : 1, i);
+          if (sk !== 7) this.muzzle(t, mx, h, mz, ux, uz, sk === 6 ? 1.6 : sniper ? 1.4 : 1, i);
         }
         continue;
       }

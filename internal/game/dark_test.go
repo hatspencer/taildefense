@@ -16,7 +16,7 @@ func TestWhatIsInSightAtNight(t *testing.T) {
 		}
 	}
 	tur.X, tur.Y = int16(w.CoreX)-80, int16(w.CoreY)
-	_, rng, _ := TurretStats(tur.Kind, tur.Level)
+	rng := TurretStats(tur.Kind, tur.Lv).Range
 	w.Weather, w.WeatherAmt = WClear, 0
 	w.discover()
 	lit := func(x, y float32) bool {

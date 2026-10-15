@@ -67,16 +67,64 @@ export const ABILITY_RADIUS = [0, 3, 0, 7];
 
 const up = (price: number) => [0, 1, 2, 3, 4].map((l) => Math.round(price * 0.8 * l));
 
+// A turret's base numbers, as in internal/game/defs.go, and what its special track does.
+export interface TurretBase { dmg: number; rate: number; range: number; blast: number; slow: number; chains: number; pierce: number; salvo: number }
+export const TURRET_BASE: Record<number, TurretBase> = {
+  5: { dmg: 11, rate: 4, range: 9, blast: 0, slow: 0, chains: 0, pierce: 0, salvo: 0 },
+  6: { dmg: 60, rate: 0.7, range: 11, blast: 2.2, slow: 0, chains: 0, pierce: 0, salvo: 0 },
+  7: { dmg: 3, rate: 1, range: 6, blast: 0, slow: 1.6, chains: 0, pierce: 0, salvo: 0 },
+  8: { dmg: 32, rate: 1.2, range: 8, blast: 0, slow: 0, chains: 1, pierce: 0, salvo: 0 },
+  9: { dmg: 150, rate: 0.35, range: 22, blast: 0, slow: 0, chains: 0, pierce: 1, salvo: 0 },
+  10: { dmg: 45, rate: 0.5, range: 14, blast: 1.5, slow: 0, chains: 0, pierce: 0, salvo: 3 },
+};
+
+// turretStats applies track levels (damage, rate, range, special) the way the host does.
+export function turretStats(kind: number, lv: ArrayLike<number>): TurretBase & { hop: number } {
+  const b = TURRET_BASE[kind], sp = lv[3];
+  const s = { ...b, dmg: b.dmg * (1 + 0.3 * lv[0]), rate: b.rate * (1 + 0.15 * lv[1]), range: b.range * (1 + 0.08 * lv[2]), hop: 3.5 };
+  if (kind === 5 || kind === 9) s.pierce += sp;
+  else if (kind === 6) s.blast += 0.35 * sp;
+  else if (kind === 7) s.slow += 0.4 * sp;
+  else if (kind === 8) { s.chains += 2 * sp; s.hop += 0.5 * sp; }
+  else if (kind === 10) s.salvo += sp;
+  return s;
+}
+
+function turretValue(kind: number, t: number, l: number): string {
+  const lv = [0, 0, 0, 0]; lv[t] = l;
+  const s = turretStats(kind, lv);
+  if (t === 0) return `${Math.round(s.dmg)} dmg`;
+  if (t === 1) return s.rate < 1 ? `every ${(1 / s.rate).toFixed(1)}s` : `${s.rate.toFixed(1)}/s`;
+  if (t === 2) return `${s.range.toFixed(1)} range`;
+  if (kind === 6) return `${s.blast.toFixed(1)} blast`;
+  if (kind === 7) return `${s.slow.toFixed(1)}s slow`;
+  if (kind === 8) return `${s.chains + 1} creeps, ${s.hop.toFixed(1)} jump`;
+  if (kind === 10) return `${s.salvo} missiles`;
+  return `${s.pierce} pierce`;
+}
+
+function turret(kind: number, d: Omit<StructDef, 'turret' | 'upgrade' | 'upgradable' | 'w' | 'h' | 'range'>): StructDef {
+  const lvls = [0, 1, 2, 3, 4, 5];
+  return {
+    ...d, w: 1, h: 1, turret: true, upgradable: true, range: TURRET_BASE[kind].range,
+    upgrade: lvls.slice(0, 5).map((l) => Math.round(d.price * 0.3 * Math.pow(1.5, l))),
+    ranges: lvls.map((l) => turretStats(kind, [0, 0, l, 0]).range),
+    values: [0, 1, 2, 3].map((t) => lvls.map((l) => turretValue(kind, t, l))),
+  };
+}
+
 export const STRUCTS: StructDef[] = [
   { name: 'none', price: 0, hp: 0, w: 1, h: 1, range: 0, turret: false, key: '', desc: '', upgrade: [] },
   { name: 'Generator', price: 0, hp: 2500, w: 5, h: 5, range: 0, turret: false, key: '', desc: 'Powers the base. If it falls, the game is over.', upgrade: [] },
   { name: 'Armory', price: 0, hp: 1200, w: 3, h: 3, range: 0, turret: false, key: '', desc: 'Buy and upgrade weapons, gear and abilities here.', upgrade: [] },
   { name: 'Wall', price: 20, hp: 320, w: 1, h: 1, range: 0, turret: false, key: 'X', desc: 'Blocks creeps; they have to break through.', upgrade: up(20), upgradable: true },
   { name: 'Gate', price: 45, hp: 320, w: 1, h: 1, range: 0, turret: false, key: 'G', desc: 'Players walk through, creeps break it down.', upgrade: up(45), upgradable: true },
-  { name: 'Gun turret', price: 120, hp: 220, w: 1, h: 1, range: 9, turret: true, key: 'T', desc: 'Fast, cheap single-target fire.', upgrade: up(120), upgradable: true },
-  { name: 'Cannon', price: 240, hp: 280, w: 1, h: 1, range: 11, turret: true, key: 'C', desc: 'Slow shells that explode in an area.', upgrade: up(240), upgradable: true },
-  { name: 'Frost tower', price: 180, hp: 220, w: 1, h: 1, range: 6, turret: true, key: 'F', desc: 'Pulses cold that slows everything around it.', upgrade: up(180), upgradable: true },
-  { name: 'Tesla coil', price: 320, hp: 220, w: 1, h: 1, range: 8, turret: true, key: 'L', desc: 'Lightning that chains between creeps, reaching two more every level.', upgrade: up(320), upgradable: true },
+  turret(5, { name: 'Gun turret', price: 120, hp: 220, key: 'T', desc: 'Fast single shots at the nearest creep.', special: '+1 pierce' }),
+  turret(6, { name: 'Cannon', price: 240, hp: 280, key: 'C', desc: 'Slow shells that burst on a crowd.', special: '+blast radius' }),
+  turret(7, { name: 'Frost tower', price: 180, hp: 220, key: 'F', desc: 'Pulses cold, slowing everything around it.', special: '+slow time' }),
+  turret(8, { name: 'Tesla coil', price: 320, hp: 220, key: 'L', desc: 'Lightning that jumps from creep to creep.', special: '+2 jumps, further' }),
+  turret(9, { name: 'Sniper tower', price: 380, hp: 200, key: 'N', desc: 'A slow, heavy round from far off at the toughest creep it can see.', special: '+1 pierce' }),
+  turret(10, { name: 'Missile battery', price: 420, hp: 260, key: 'M', desc: 'A salvo of small rockets, each at a different creep.', special: '+1 missile' }),
 ];
 
 export const WEATHERS = [
@@ -96,6 +144,7 @@ export function demoWelcome(w: number, h: number): Welcome {
     hosting: true, hint: '', tickRate: 20, core: { x: w / 2, y: h / 2 }, buildRadius: 40,
     shopRadius: 4.5, maxLevel: 5, maxStructLevel: 5, repairCostPerHP: 0.1,
     tracks: ['damage', 'fire rate', 'handling', 'special'],
+    turretTracks: ['damage', 'fire rate', 'range', 'special'],
     creeps: CREEPS, weapons: weaponDefs(),
     gear: [
       { name: 'Armor', info: '+25 max HP', costs: [90, 153, 260, 442, 752] },
@@ -103,7 +152,7 @@ export function demoWelcome(w: number, h: number): Welcome {
       { name: 'Vitamins', info: '+1.5 HP/s regen', costs: [130, 221, 376, 639, 1086] },
       { name: 'Scavenger', info: '+luck when searching', costs: [100, 170, 289, 491, 835] },
     ],
-    abilities: ABILITIES, structs: STRUCTS, buildable: [3, 4, 5, 6, 7, 8],
+    abilities: ABILITIES, structs: STRUCTS, buildable: [3, 4, 5, 6, 7, 8, 9, 10],
     siteKinds: [{ name: 'Ruined house', search: 3 }, { name: 'Car wreck', search: 2 }, { name: 'Supply crate', search: 1.5 }, { name: 'Overrun outpost', search: 6 },
       { name: 'Pickup truck', search: 2.5 }, { name: 'Police cruiser', search: 2.5 }, { name: 'Ambulance', search: 3 }, { name: 'School bus', search: 4 }, { name: 'Army truck', search: 3.5 },
       { name: 'Gas station', search: 5 }, { name: 'Fuel pump', search: 0 }, { name: 'Fire engine', search: 3 }, { name: 'Armoured van', search: 4.5 },

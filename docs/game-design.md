@@ -112,6 +112,24 @@ their health, and a survivor keeps the weapon they started with. Night falls or 
 Harder modes get a little longer short breaks than Normal, since there is more to build against
 each wave, but Normal is the reference for timing.
 
+## Turrets
+
+- **Turrets upgrade by track, as weapons do.** Damage, fire rate, range and a special, each
+  0 to 5, bought separately (TurretUpgradeCost: 30% of the turret's price, times 1.5 a level).
+  A single level bar made every upgrade the same choice; tracks let a gun turret by the gate go
+  for fire rate while one on a long road goes for range, and they read the same as the armory.
+  Each level gives +30% damage, +15% fire rate or +8% range; the special is per turret. Every
+  upgrade adds 6% of the turret's base HP, so a fully upgraded one has about twice it, as a
+  level 5 turret had before.
+- **Each turret has a job.** The gun is cheap and fast but its small rounds barely dent armour;
+  the cannon and the missile battery are for crowds (one big burst, or several small ones spread
+  over different creeps); frost holds them in place; tesla chains through a line. The sniper
+  tower fills the gap at the top: very long range, slow, and it picks the creep with the most
+  health left rather than the nearest, so it works on brutes and bosses while the rest of the
+  base clears the small ones.
+- **Turret fire never provokes.** A creep a turret hits doesn't turn on the turret's builder,
+  missiles included, the same as a turret's bullets: aggro comes from what survivors do.
+
 ## Loot
 
 - **Distance is the main gradient.** Sites further from the base give better loot. Searching
