@@ -4,16 +4,19 @@ import { WEAPON_BASE } from '../demo/defs';
 import { Emote, Order, PF_ALIVE, PF_FIRING, PF_HURT, PF_RELOADING } from '../protocol';
 import type { Game } from '../state';
 import { litMaterial } from './structs';
-import { Body, type Look, readLook, shade } from './look';
-import { ik2, Spring, turnTowards, wrapAngle } from './rig';
+import { build, piece } from './figures';
+import { SURVIVOR } from './figures.gen';
+import { Body, readLook } from './look';
+import { ik2, J, Spring, turnTowards, wrapAngle } from './rig';
+import { survivor } from './survivor';
 import { box, merge, part, type Part, playerColor, sphere } from './util';
 
-interface Limb { upper: THREE.Group; lower: THREE.Group }
+interface Limb { upper: THREE.Object3D; lower: THREE.Object3D }
 interface Hero {
-  group: THREE.Group; body: THREE.Group; hips: THREE.Group; torso: THREE.Group; head: THREE.Group; tail: THREE.Group | null; pack: THREE.Group;
+  group: THREE.Group; body: THREE.Group; hips: THREE.Object3D; torso: THREE.Object3D; head: THREE.Object3D; tail: THREE.Object3D | null; pack: THREE.Object3D;
   legL: Limb; legR: Limb; armL: Limb; armR: Limb;
   gun: THREE.Group; gunMesh: THREE.Mesh | null; spin: THREE.Group | null; flash: THREE.Object3D; finger: THREE.Object3D; hand: THREE.Object3D;
-  shout: THREE.Object3D; stars: THREE.Object3D; goggles: THREE.Object3D; marker: THREE.Object3D; cross: THREE.Object3D; progress: THREE.Object3D;
+  shout: THREE.Object3D; stars: THREE.Object3D; marker: THREE.Object3D; cross: THREE.Object3D; progress: THREE.Object3D;
   look: number; wd: number; ht: number; weapon: number; color: number;
   phase: number; seen: number; down: boolean; pop: number; shotAt: number; crouch: number; downAmt: number; taunt: number; reload: number;
   sprint: number; leap: number; hurt: boolean;
@@ -25,9 +28,11 @@ interface Hero {
 const ease = (v: number, goal: number, k: number, dt: number) => v + (goal - v) * Math.min(1, dt * k);
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
-// Limb lengths, shoulder to elbow and elbow to the middle of the hand.
-const UPPER = 0.23, FORE = 0.2;
-const WAIST = 0.6, HIP = 0.58, THIGH = 0.28;
+// The figure's skeleton (tools/blender/figures.py): limb lengths, shoulder to elbow and elbow
+// to the middle of the hand, hip to knee.
+const SV = SURVIVOR;
+const UPPER = SV.shY - SV.elbowY, FORE = SV.elbowY - SV.handY;
+const WAIST = SV.waist, HIP = SV.hipY, THIGH = SV.hipY - SV.kneeY, HIP_Z = SV.hipZ;
 
 // How each weapon is carried: where it sits in the torso's space (origin at the waist, +x the
 // way the hero faces), where each hand holds it in its own, and where its muzzle is.
@@ -88,9 +93,6 @@ export class Heroes {
   group = new THREE.Group();
   private heroes = new Map<number, Hero>();
   private mat = litMaterial();
-  // Night vision goggles' lenses: a faint green glow, lit or not.
-  private lensMat = new THREE.MeshBasicNodeMaterial({ color: 0x8cff6a });
-  private lensGeo = merge(LENSES);
   private flashMat = new THREE.MeshBasicNodeMaterial({ color: 0xffe08a, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending });
   private bubbleMat = new THREE.MeshBasicNodeMaterial({ color: 0xf4efe0 });
   private starMat = new THREE.MeshBasicNodeMaterial({ color: 0xffe060 });
@@ -135,81 +137,61 @@ export class Heroes {
   private make(id: number, look: number, weapon: number): Hero {
     // A survivor: the player's colour as the main garment (a little faded), the rest from the
     // look the host dealt them.
-    const L = readLook(look), A = L.arch;
+    const L = readLook(look);
     const c = garment(id);
-    const dark = shade(c, 0.6);
+    const fem = L.body === Body.Fem;
     const g = new THREE.Group();
     const body = new THREE.Group();
     g.add(body);
-    const hips = new THREE.Group(), torso = new THREE.Group();
-    hips.rotation.order = torso.rotation.order = 'YXZ';
+    // The skeleton, at the Blender figure's pivots: each group is a bone the body's one
+    // skinned mesh follows, numbered as the figure's joints are (see rig.ts; 12 the pelvis).
+    const bone = () => { const b = new THREE.Bone(); b.rotation.order = 'YXZ'; return b; };
+    const hips = bone(), torso = bone(), head = bone(), tail = bone(), pack = bone();
     torso.position.y = WAIST;
     body.add(hips, torso);
-    const F = figure(L, c);
-    this.mesh(F.torso, torso, 0, WAIST);
-    const head = new THREE.Group();
-    head.position.set(0.01, 1.1 - WAIST, 0);
-    head.rotation.order = 'YXZ';
+    head.position.set(SV.neck[0], SV.neck[1] - WAIST, 0);
     torso.add(head);
-    this.mesh([...F.head, ...F.eyes, ...F.mouth], head, 0.01, 1.1);
-    // Night vision goggles, shown once bought.
-    const goggles = new THREE.Group();
-    goggles.visible = false;
-    head.add(goggles);
-    this.mesh(GOGGLES, goggles, 0.01, 1.1);
-    const lens = new THREE.Mesh(this.lensGeo, this.lensMat);
-    lens.position.set(-0.01, -1.1, 0);
-    goggles.add(lens);
-    let tail: THREE.Group | null = null;
-    if (F.tail.length) {
-      tail = new THREE.Group();
-      tail.position.set(-0.12, 0.25, 0);
-      head.add(tail);
-      this.mesh(F.tail, tail, -0.11, 1.35);
-    }
-    const pack = new THREE.Group();
-    pack.position.set(0, 0, 0);
+    tail.position.set(SV.tail[0] - SV.neck[0], SV.tail[1] - SV.neck[1], 0);
+    head.add(tail);
     torso.add(pack);
-    this.mesh(F.pack, pack, 0, WAIST);
-
-    // Legs: thigh from the hip, shin and boot from the knee.
-    const legs = A.pcLegs ? shade(c, 0.85) : A.legs;
-    this.mesh([part(box(0.3, 0.13, (L.body === Body.Fem ? 0.44 : 0.42)), legs, 0, HIP - 0.02, 0)], hips);
+    const hz = HIP_Z * (fem ? 1.07 : 1);
     const leg = (z: number): Limb => {
-      const upper = new THREE.Group(), lower = new THREE.Group();
+      const upper = bone(), lower = bone();
       upper.position.set(0, HIP, z);
       lower.position.set(0, -THIGH, 0);
       upper.add(lower);
       hips.add(upper);
-      this.mesh([part(box(0.17, 0.31, 0.17), legs, 0, -0.14, 0)], upper);
-      this.mesh([part(box(0.15, 0.27, 0.15), legs, 0, -0.13, 0), part(box(0.25, 0.09, 0.19), A.boots, 0.04, -0.255, 0),
-        part(box(0.155, 0.07, 0.155), shade(legs, 0.85), 0, 0.0, 0)], lower);
       return { upper, lower };
     };
-    const legL = leg(0.12), legR = leg(-0.12);
-
-    // Arms: shoulder, sleeve, forearm and hand.
-    const sh = 0.3 * (L.body === Body.Fem ? 0.93 : 1);
-    const open = A.overKind === 'open' && A.over !== undefined;
-    const sleeve = open ? A.over! : c;
+    const legL = leg(hz), legR = leg(-hz);
+    const sh = SV.shZ * (fem ? 0.93 : 1);
     const arm = (z: number): Limb => {
-      const upper = new THREE.Group(), lower = new THREE.Group();
-      upper.position.set(0, 1.0 - WAIST, z);
+      const upper = bone(), lower = bone();
+      upper.position.set(0, SV.shY - WAIST, z);
       lower.position.set(0, -UPPER, 0);
       upper.add(lower);
       torso.add(upper);
-      this.mesh([part(box(0.15, 0.15, 0.15), open ? shade(A.over!, 0.8) : dark, 0, -0.02, 0), part(box(0.12, 0.22, 0.12), sleeve, 0, -0.13, 0)], upper);
       return { upper, lower };
     };
     const armL = arm(sh), armR = arm(-sh);
-    const forearm = (sk: boolean) => [part(box(0.105, 0.15, 0.105), sk ? L.skin : sleeve, 0, -0.07, 0), part(box(0.1, 0.1, 0.11), L.skin, 0, -FORE, 0)];
-    this.mesh(forearm(open || A.name === 'nurse'), armL.lower);
-    const hand = this.mesh(forearm(open || A.name === 'nurse'), armR.lower)!;
-    // The taunt's middle finger: a fist on the gun hand with one chunky finger up out of it,
-    // oversized so it still reads at pixel scale.
-    const finger = new THREE.Mesh(merge([part(box(0.15, 0.13, 0.15), L.skin, 0, -FORE, 0), part(box(0.07, 0.3, 0.07), L.skin, 0, -FORE - 0.2, 0)]), this.mat);
+    const bones = [pack, torso, head, armL.upper, armL.lower, armR.upper, armR.lower, legL.upper, legL.lower, legR.upper, legR.lower, tail, hips];
+    const S = survivor(L, c);
+    const skinned = new THREE.SkinnedMesh(build(S.uses, S.dress, { bone: (j) => j }), this.mat);
+    skinned.castShadow = true;
+    skinned.frustumCulled = false;
+    g.add(skinned);
+    g.updateMatrixWorld(true);
+    skinned.bind(new THREE.Skeleton(bones as THREE.Bone[]));
+    const tailed = S.uses.some((u) => u.p.j0.includes(J.X));
+    // The taunt's middle finger: a fist on the gun hand with one finger up out of it,
+    // oversized so it still reads at pixel scale; it closes over the hand.
+    const fp = piece(`finger_${fem ? 'f' : 'm'}`)!;
+    const fgeo = build([{ p: fp }], S.dress);
+    fgeo.translate(0, -SV.elbowY, sh);
+    const finger = new THREE.Mesh(fgeo, this.mat);
     finger.visible = false;
     armR.lower.add(finger);
+    const hand = new THREE.Object3D();
 
     const gun = new THREE.Group();
     torso.add(gun);
@@ -239,8 +221,8 @@ export class Heroes {
     g.scale.setScalar(1.15);
     this.group.add(g);
     const h: Hero = {
-      group: g, body, hips, torso, head, tail, pack, legL, legR, armL, armR, gun, gunMesh: null, spin: null, flash, finger, hand,
-      shout, stars, goggles, marker, cross, progress, look, wd: L.width, ht: L.height, weapon: -1, color: c,
+      group: g, body, hips, torso, head, tail: tailed ? tail : null, pack, legL, legR, armL, armR, gun, gunMesh: null, spin: null, flash, finger, hand,
+      shout, stars, marker, cross, progress, look, wd: L.width, ht: L.height, weapon: -1, color: c,
       phase: 0, seen: 0, down: false, pop: 0, shotAt: -1e9, crouch: 0, downAmt: 0, taunt: 0, reload: 0, sprint: 0, leap: 0, hurt: false,
       x: 0, y: 0, vx: 0, vy: 0, legYaw: 0, dirSign: 1, fresh: true,
       leanX: new Spring(2.2, 0.45, 0), leanZ: new Spring(2.2, 0.45, 0), aim: new Spring(4.5, 0.75, 1.6), flinch: new Spring(3, 0.3, 0),
@@ -464,8 +446,6 @@ export class Heroes {
         h.shout.quaternion.copy(this.q);
         h.shout.scale.setScalar(0.6 + tn * 0.5 + jab * 0.5);
       }
-      // Night vision goggles, worn at night.
-      h.goggles.visible = p.goggles && !!game.welcome?.dark;
       h.stars.visible = alive && p.stunned;
       if (h.stars.visible) {
         h.stars.position.set(0, 1.75 + Math.sin(t * 7) * 0.04, 0);
@@ -487,121 +467,4 @@ export class Heroes {
 // The player's colour as a survivor wears it: a little faded.
 export function garment(id: number): number {
   return new THREE.Color(playerColor(id)).lerp(new THREE.Color(0x6a6658), 0.3).getHex();
-}
-
-// Night vision goggles: a strap round the head, a mount on top and twin tubes over the eyes,
-// and their green lenses. The portraits wear them too.
-export const LENSES: Part[] = [part(box(0.012, 0.05, 0.05), 0x8cff6a, 0.263, 1.255, 0.06), part(box(0.012, 0.05, 0.05), 0x8cff6a, 0.263, 1.255, -0.06)];
-export const GOGGLES: Part[] = [
-  part(box(0.29, 0.05, 0.29), 0x1c1e1a, 0.02, 1.27),
-  part(box(0.05, 0.04, 0.06), 0x2c302a, 0.12, 1.33),
-  part(box(0.06, 0.09, 0.22), 0x2c302a, 0.165, 1.255),
-  part(box(0.08, 0.07, 0.07), 0x22251f, 0.22, 1.255, 0.06),
-  part(box(0.08, 0.07, 0.07), 0x22251f, 0.22, 1.255, -0.06),
-];
-
-export interface Figure { torso: Part[]; head: Part[]; tail: Part[]; pack: Part[]; eyes: Part[]; mouth: Part[] }
-
-// The figure above the hips, facing +x, at its height standing: torso shaped by body, outfit
-// over it, head, face, hair and headgear, and what they carry on their back; in the pieces
-// that move apart (the hair that swings, the pack that bounces, and for the portraits the
-// eyes that blink and the mouth that shouts).
-export function figure(L: Look, c: number): Figure {
-  const A = L.arch, skin = L.skin, hair = L.hair;
-  const fem = L.body === Body.Fem, masc = L.body === Body.Masc;
-  const torso: Part[] = [], head: Part[] = [], tail: Part[] = [], pack: Part[] = [], eyes: Part[] = [], mouth: Part[] = [];
-  let p = torso;
-  const add = (w: number, h: number, d: number, col: number, x: number, y: number, z = 0, rx = 0, ry = 0, rz = 0) => p.push(part(box(w, h, d), col, x, y, z, rx, ry, rz));
-
-  // Torso: broader in the shoulders, or in the hips; a belt where they meet the legs.
-  const chestD = masc ? 0.48 : fem ? 0.42 : 0.45;
-  add(0.34, 0.3, chestD, c, 0, 0.93);
-  add(0.31, 0.22, fem ? 0.36 : 0.42, c, 0, 0.69);
-  if (fem) add(0.08, 0.1, 0.3, c, 0.15, 0.95);
-  add(0.32, 0.08, fem ? 0.44 : 0.42, A.pcLegs ? shade(c, 0.85) : A.legs, 0, 0.6);
-  add(0.33, 0.04, fem ? 0.45 : 0.43, 0x2a2018, 0, 0.64);
-
-  // Over the shirt.
-  const o = A.over;
-  if (o !== undefined) switch (A.overKind) {
-    case 'vest': add(0.37, 0.42, chestD + 0.03, o, 0, 0.84); break;
-    case 'plate': add(0.4, 0.34, chestD + 0.05, o, 0, 0.9); add(0.06, 0.12, 0.12, shade(o, 0.7), 0.21, 0.82, 0.1); add(0.06, 0.12, 0.12, shade(o, 0.7), 0.21, 0.82, -0.1); break;
-    case 'bib': add(0.36, 0.26, 0.32, o, 0.01, 0.74); add(0.36, 0.22, 0.05, o, 0.01, 0.96, 0.1); add(0.36, 0.22, 0.05, o, 0.01, 0.96, -0.1); break;
-    case 'open': add(0.36, 0.5, 0.15, o, 0, 0.83, chestD / 2 - 0.07); add(0.36, 0.5, 0.15, o, 0, 0.83, -chestD / 2 + 0.07); add(0.36, 0.08, chestD + 0.02, o, 0, 1.06); break;
-  }
-  if (A.stripe !== undefined) {
-    const w = o !== undefined ? 0.38 : 0.36, d = chestD + (o !== undefined ? 0.04 : 0.02);
-    add(w, 0.035, d, A.stripe, 0, 0.78);
-    if (A.name === 'hunter') { add(w, 0.035, d, A.stripe, 0, 0.92); add(0.36, 0.5, 0.035, A.stripe, 0, 0.83, 0.06); add(0.36, 0.5, 0.035, A.stripe, 0, 0.83, -0.1); }
-    else add(w, 0.035, d, A.stripe, 0, 0.98);
-  }
-  switch (A.chest) {
-    case 'cross': add(0.02, 0.1, 0.03, 0xd03030, 0.18, 0.98, -0.11); add(0.02, 0.03, 0.1, 0xd03030, 0.18, 0.98, -0.11); add(0.02, 0.18, 0.05, 0xd03030, -0.18, 0.92); add(0.02, 0.05, 0.18, 0xd03030, -0.18, 0.92); break;
-    case 'tie': add(0.02, 0.36, 0.12, 0xe6e2d8, 0.17, 0.88); add(0.02, 0.3, 0.04, 0x8a2a2a, 0.185, 0.88); break;
-    case 'lanyard': add(0.02, 0.2, 0.02, 0xe8e8e8, 0.175, 1.0, 0.06); add(0.02, 0.2, 0.02, 0xe8e8e8, 0.175, 1.0, -0.06); add(0.02, 0.08, 0.07, 0xe8e8e8, 0.18, 0.86); break;
-    case 'pocket': add(0.02, 0.08, 0.1, shade(c, 0.7), 0.175, 0.98, -0.1); break;
-  }
-
-  // What they carry, bouncing on their back.
-  p = pack;
-  switch (A.back) {
-    case 'medbag': add(0.18, 0.18, 0.1, 0xb83a2a, -0.02, 0.66, 0.27); add(0.02, 0.06, 0.06, 0xf0f0e8, 0.07, 0.68, 0.27); add(0.36, 0.04, 0.03, 0x2a2018, 0, 0.9, 0.23, 0.9); break;
-    case 'wrench': add(0.03, 0.4, 0.06, 0x8a8c90, -0.19, 0.9, 0, 0.7); add(0.04, 0.08, 0.12, 0x8a8c90, -0.19, 1.06, 0.12, 0.7); break;
-    case 'pack': add(0.18, 0.34, 0.32, 0x55593c, -0.26, 0.88); add(0.08, 0.12, 0.26, 0x44482f, -0.36, 0.82); break;
-    case 'bigpack': add(0.24, 0.48, 0.36, 0x2c5a8a, -0.28, 0.88); add(0.18, 0.1, 0.38, 0xc84a2a, -0.28, 1.14); add(0.06, 0.16, 0.24, 0x24486e, -0.41, 0.8); break;
-    case 'toolbelt': add(0.36, 0.06, (fem ? 0.45 : 0.43) + 0.02, 0x6a4a28, 0, 0.62); add(0.1, 0.12, 0.08, 0x5a3e22, 0.08, 0.56, 0.22); add(0.1, 0.12, 0.08, 0x5a3e22, -0.06, 0.56, -0.22); break;
-    case 'satchel': add(0.08, 0.2, 0.26, 0x5a3a22, 0, 0.66, 0.26); add(0.4, 0.035, 0.03, 0x3a2616, 0, 0.88, 0.02, 0.9); break;
-    case 'bedroll': add(0.16, 0.3, 0.28, 0x5a4a2a, -0.25, 0.86); add(0.14, 0.14, 0.44, 0x3e5a34, -0.25, 1.08); break;
-  }
-
-  // Neck and head; a face on the +x side.
-  p = head;
-  add(0.12, 0.08, 0.12, shade(skin, 0.88), 0.01, 1.11);
-  add(0.26, 0.26, 0.26, skin, 0.02, 1.22);
-  add(0.04, 0.06, 0.05, shade(skin, 0.9), 0.16, 1.21);
-  p = eyes;
-  add(0.03, 0.04, 0.05, 0x141010, 0.15, 1.255, 0.06);
-  add(0.03, 0.04, 0.05, 0x141010, 0.15, 1.255, -0.06);
-  p = mouth;
-  add(0.02, 0.02, 0.08, shade(skin, 0.6), 0.15, 1.15);
-  p = head;
-  if (L.beard === 1) add(0.05, 0.08, 0.27, shade(skin, 0.72), 0.12, 1.13);
-  if (L.beard === 2) { add(0.07, 0.12, 0.28, hair, 0.12, 1.13); add(0.14, 0.1, 0.03, hair, 0.04, 1.18, 0.135); add(0.14, 0.1, 0.03, hair, 0.04, 1.18, -0.135); }
-  if (L.beard === 3) add(0.03, 0.03, 0.12, hair, 0.15, 1.185);
-  if (L.glasses) { add(0.02, 0.06, 0.1, 0x2a2a30, 0.155, 1.255, 0.06); add(0.02, 0.06, 0.1, 0x2a2a30, 0.155, 1.255, -0.06); add(0.02, 0.025, 0.02, 0x2a2a30, 0.155, 1.265); }
-
-  // Hair.
-  const cap = (h = 0.07) => { add(0.28, h, 0.28, hair, 0.01, 1.35 + h / 2); add(0.05, 0.16, 0.28, hair, -0.11, 1.27); };
-  const sides = (len: number) => { add(0.12, len, 0.03, hair, -0.04, 1.34 - len / 2, 0.135); add(0.12, len, 0.03, hair, -0.04, 1.34 - len / 2, -0.135); };
-  switch (L.style) {
-    case 'buzz': add(0.27, 0.03, 0.27, hair, 0.02, 1.36); add(0.03, 0.14, 0.27, hair, -0.115, 1.27); break;
-    case 'cornrows': add(0.27, 0.03, 0.27, hair, 0.02, 1.36); add(0.03, 0.14, 0.27, hair, -0.115, 1.27);
-      for (const z of [-0.08, 0, 0.08]) add(0.27, 0.025, 0.03, shade(hair, 1.6), 0.01, 1.38, z); break;
-    case 'short': cap(); sides(0.08); break;
-    case 'crop': cap(0.05); add(0.06, 0.04, 0.26, hair, 0.14, 1.36); break;
-    case 'sidecut': add(0.28, 0.09, 0.18, hair, 0.01, 1.39, 0.05); add(0.04, 0.14, 0.28, hair, -0.115, 1.27); add(0.1, 0.12, 0.03, hair, 0.08, 1.3, 0.14); break;
-    case 'curly': add(0.32, 0.12, 0.32, hair, 0, 1.39); add(0.08, 0.2, 0.32, hair, -0.1, 1.27); add(0.06, 0.06, 0.3, hair, 0.12, 1.34); break;
-    case 'afro': add(0.36, 0.26, 0.38, hair, -0.04, 1.43); add(0.1, 0.22, 0.36, hair, -0.12, 1.26); break;
-    case 'mohawk': add(0.03, 0.12, 0.27, hair, -0.115, 1.27); add(0.26, 0.13, 0.05, hair, 0, 1.41); break;
-    case 'bun': cap(0.05); add(0.12, 0.11, 0.12, hair, -0.08, 1.44); break;
-    case 'ponytail': cap(); p = tail; add(0.07, 0.26, 0.08, hair, -0.17, 1.2, 0, 0, 0, -0.3); p = head; break;
-    case 'long': cap(); sides(0.26); p = tail; add(0.06, 0.4, 0.3, hair, -0.12, 1.13); p = head; break;
-    case 'locs': cap(); sides(0.22); p = tail; for (const z of [-0.11, -0.04, 0.04, 0.11]) add(0.05, 0.38, 0.05, hair, -0.13, 1.12, z); p = head; break;
-    case 'braids': cap(0.05); p = tail; add(0.04, 0.42, 0.04, hair, -0.14, 1.08, 0.07); add(0.04, 0.42, 0.04, hair, -0.14, 1.08, -0.07); p = head; break;
-    case 'bob': cap(); sides(0.2); add(0.05, 0.22, 0.3, hair, -0.115, 1.24); break;
-    case 'headwrap': add(0.3, 0.17, 0.3, L.wrap, -0.01, 1.37); add(0.14, 0.18, 0.3, L.wrap, -0.08, 1.28); add(0.08, 0.08, 0.1, shade(L.wrap, 0.8), -0.15, 1.42); break;
-  }
-
-  // Headgear, sitting higher on big hair; a headwrap is worn instead.
-  const hc = A.hatColor, up = L.style === 'afro' ? 0.1 : L.style === 'curly' || L.style === 'mohawk' ? 0.04 : 0;
-  switch (L.style === 'headwrap' ? 'none' : A.hat) {
-    case 'cap': add(0.29, 0.08, 0.29, hc, 0.01, 1.39 + up); add(0.14, 0.025, 0.22, hc, 0.2, 1.36 + up); break;
-    case 'hardhat': add(0.3, 0.11, 0.3, hc, 0.01, 1.42 + up); add(0.38, 0.025, 0.36, hc, 0.02, 1.37 + up); add(0.26, 0.03, 0.06, shade(hc, 0.8), 0.01, 1.48 + up); break;
-    case 'helmet': add(0.33, 0.12, 0.33, hc, 0, 1.41 + up); add(0.3, 0.07, 0.34, hc, -0.01, 1.34 + up); add(0.02, 0.12, 0.02, 0x2a2a20, 0.08, 1.18, 0.13); add(0.02, 0.12, 0.02, 0x2a2a20, 0.08, 1.18, -0.13); break;
-    case 'straw': add(0.24, 0.11, 0.24, hc, 0, 1.42 + up); add(0.25, 0.03, 0.25, shade(hc, 0.6), 0, 1.39 + up); add(0.54, 0.025, 0.54, hc, 0, 1.37 + up); break;
-    case 'bandana': add(0.29, 0.06, 0.29, hc, 0.01, 1.37 + up); add(0.06, 0.08, 0.1, hc, -0.16, 1.33 + up); break;
-    case 'beanie': add(0.29, 0.13, 0.29, hc, 0.01, 1.41 + up); add(0.3, 0.04, 0.3, shade(hc, 1.5), 0.01, 1.35 + up); break;
-    case 'nursecap': add(0.14, 0.06, 0.2, hc, 0.02, 1.39 + up); add(0.02, 0.03, 0.03, 0xd03030, 0.095, 1.4 + up); break;
-  }
-  return { torso, head, tail, pack, eyes, mouth };
 }

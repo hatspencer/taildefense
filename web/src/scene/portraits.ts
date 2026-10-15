@@ -2,9 +2,12 @@ import * as THREE from 'three/webgpu';
 import { output, sRGBTransferOETF, vec4, vertexColor } from 'three/tsl';
 import { Emote, Order, PF_ALIVE, PF_CONNECTED, PF_FIRING, PF_HURT, PF_RELOADING, type Player } from '../protocol';
 import type { Game } from '../state';
-import { figure, garment, GOGGLES, LENSES } from './heroes';
+import { build, type Dress, PELVIS, piece, type Use } from './figures';
+import { PALETTE, SLOTS, SURVIVOR as SV } from './figures.gen';
+import { garment } from './heroes';
 import { Body, readLook, shade } from './look';
-import { Spring } from './rig';
+import { J, Spring } from './rig';
+import { survivor } from './survivor';
 import { box, merge, part, type Part, playerColor } from './util';
 
 // The HUD's portraits: each survivor's own model from the chest up, lit and alive, rendered
@@ -19,14 +22,18 @@ import { box, merge, part, type Part, playerColor } from './util';
 export const CELL = 36;
 const CELLS = 8, W = 320;
 const FPS = 20;
-const WAIST = 0.6;
+const WAIST = SV.waist;
 const WHITE = new THREE.Color(0xffffff);
+const slot = (n: (typeof SLOTS)[number]) => SLOTS.indexOf(n);
+const WHITE_CODE = 64 + PALETTE.indexOf(0xe4dccc);
+// The joints whose triangles are the bust below the head.
+const BUST = new Set<number>([J.X2, J.CHEST, J.UARM_L, J.UARM_R, PELVIS]);
 
 interface Bust {
   id: number; look: number; cell: number; bg: [number, number, number][];
-  root: THREE.Group; torso: THREE.Group; head: THREE.Group; tail: THREE.Group | null;
+  root: THREE.Group; torso: THREE.Group; head: THREE.Group; tail: THREE.Group | null; eyeY: number; mouthY: number; browY: number;
   eyes: THREE.Mesh; whites: THREE.Mesh; mouth: THREE.Mesh; browL: THREE.Mesh; browR: THREE.Mesh;
-  cut: THREE.Mesh; gash: THREE.Mesh; stain: THREE.Mesh; plaster: THREE.Mesh; goggles: THREE.Mesh;
+  cut: THREE.Mesh; gash: THREE.Mesh; stain: THREE.Mesh; plaster: THREE.Mesh;
   yaw: Spring; pitch: Spring; flinch: Spring; sway: Spring;
   breath: number; nextBlink: number; blinkTo: number; lastHp: number; hurtFlag: boolean;
   hurt: number; down: number; shout: number; busy: number; fire: number;
@@ -65,8 +72,8 @@ export class Portraits {
     this.rim.position.set(-2, 1.2, -1.6);
     this.scene.add(key, this.rim, new THREE.HemisphereLight(0xc8d0c0, 0x4a4434, 1.6));
     // A three-quarter view, a touch above the eyes.
-    this.camera.position.set(1.9, 1.34, 0.66);
-    this.camera.lookAt(0.03, 1.18, 0);
+    this.camera.position.set(1.6, 1.26, 0.56);
+    this.camera.lookAt(0.03, 1.11, 0);
   }
 
   // The cell a player's portrait is in, or -1.
@@ -89,7 +96,6 @@ export class Portraits {
       if (!b) { b = this.make(p, i, t); this.busts.set(p.id, b); this.byCell[i] = b; }
       seen.add(p.id);
       this.animate(b, p, t, dt, yaw);
-      b.goggles.visible = p.goggles && !!game.welcome?.dark;
     }
     for (const b of [...this.busts.values()]) if (!seen.has(b.id)) this.drop(b);
     if (this.pending || now - this.last < 1000 / FPS || seen.size === 0) return;
@@ -113,56 +119,65 @@ export class Portraits {
     return m;
   }
 
+  private geo(uses: Use[], dress: Dress, parent: THREE.Object3D, at: THREE.Vector3, mode: Parameters<typeof build>[2]): THREE.Mesh {
+    const geo = build(uses, dress, mode);
+    geo.translate(-at.x, -at.y, -at.z);
+    const m = new THREE.Mesh(geo, this.mat);
+    m.position.copy(at);
+    parent.add(m);
+    return m;
+  }
+
   private make(p: Player, cell: number, t: number): Bust {
-    const L = readLook(p.look), A = L.arch, c = garment(p.id);
-    const F = figure(L, c);
+    const L = readLook(p.look), c = garment(p.id);
+    const S = survivor(L, c);
+    const face = S.uses.filter((u) => u.p === piece(`face_${L.body === Body.Fem ? 'f' : 'm'}`));
+    const rest = S.uses.filter((u) => !face.includes(u));
     const root = new THREE.Group();
-    // The torso bends at the waist.
+    // The torso bends at the waist; the head turns at the neck; long hair swings from the
+    // back of the head. Each is the figure's own triangles for those joints.
     const torso = new THREE.Group();
     torso.position.y = WAIST;
     torso.rotation.order = 'YXZ';
     root.add(torso);
-    // The shoulders and the tops of the sleeves, as the hero's arms hang.
-    const sh = 0.3 * (L.body === Body.Fem ? 0.93 : 1);
-    const open = A.overKind === 'open' && A.over !== undefined;
-    const arms: Part[] = [];
-    for (const z of [sh, -sh]) {
-      arms.push(part(box(0.15, 0.15, 0.15), open ? shade(A.over!, 0.8) : shade(c, 0.6), 0, 0.98, z));
-      arms.push(part(box(0.12, 0.22, 0.12), open ? A.over! : c, 0, 0.87, z));
-    }
-    this.mesh([...F.torso, ...F.pack, ...arms], torso, 0, WAIST).position.set(0, 0, 0);
-
-    // The head turns at the neck; the face's moving parts each turn about their own middle.
+    const zero = new THREE.Vector3();
+    this.geo(rest, S.dress, torso, new THREE.Vector3(0, WAIST, 0), { keep: (j) => BUST.has(j) }).position.copy(zero);
+    const neck = new THREE.Vector3(...SV.neck);
     const head = new THREE.Group();
-    head.position.set(0.01, 1.1 - WAIST, 0);
+    head.position.set(neck.x, neck.y - WAIST, 0);
     head.rotation.order = 'YXZ';
     torso.add(head);
-    const local = (o: THREE.Mesh) => { o.position.x -= 0.01; o.position.y -= 1.1; return o; };
-    this.mesh(F.head, head, 0.01, 1.1).position.set(0, 0, 0);
-    // Whites behind the eyes, so a glance reads and the eyes show on any skin.
-    const whites = local(this.mesh([part(box(0.02, 0.036, 0.075), 0xe4dccc, 0.142, 1.255, 0.06), part(box(0.02, 0.036, 0.075), 0xe4dccc, 0.142, 1.255, -0.06)], head, 0.142, 1.255));
-    const eyes = local(this.mesh(F.eyes, head, 0.15, 1.255));
-    const mouth = local(this.mesh(F.mouth, head, 0.15, 1.15));
-    const brow = shade(L.style === 'bald' || L.style === 'headwrap' ? 0x2a1c14 : L.hair, 0.8);
-    const browL = local(this.mesh([part(box(0.02, 0.022, 0.065), brow, 0.153, 1.296, 0.06)], head, 0.153, 1.296, 0.06));
-    const browR = local(this.mesh([part(box(0.02, 0.022, 0.065), brow, 0.153, 1.296, -0.06)], head, 0.153, 1.296, -0.06));
-    // Wounds by how hurt they are, and the plaster a medkit puts on.
-    const blood = 0x7a1410;
-    const cut = local(this.mesh([part(box(0.02, 0.06, 0.03), blood, 0.152, 1.2, 0.09), part(box(0.02, 0.02, 0.05), blood, 0.152, 1.17, 0.08)], head, 0.15, 1.2));
-    const gash = local(this.mesh([part(box(0.02, 0.025, 0.09), blood, 0.152, 1.33, -0.04), part(box(0.02, 0.07, 0.025), blood, 0.152, 1.3, -0.07)], head, 0.15, 1.3));
-    const stain = this.mesh([part(box(0.02, 0.12, 0.1), 0x5a0e0a, 0.2, 0.86, 0.06), part(box(0.02, 0.06, 0.06), 0x5a0e0a, 0.2, 0.78, 0.1)], torso, 0, WAIST);
-    stain.position.set(0, 0, 0);
-    const plaster = local(this.mesh([part(box(0.02, 0.035, 0.09), 0xe6dcc4, 0.153, 1.2, 0.07), part(box(0.022, 0.012, 0.012), 0xb8aa8c, 0.153, 1.2, 0.07)], head, 0.15, 1.2));
-    // Night vision goggles, worn at night once bought.
-    const goggles = this.mesh([...GOGGLES, ...LENSES], head, 0.01, 1.1);
-    goggles.position.set(0, 0, 0);
+    this.geo(rest, S.dress, head, neck, { keep: (j) => j === J.HEAD }).position.copy(zero);
     let tail: THREE.Group | null = null;
-    if (F.tail.length) {
+    if (rest.some((u) => u.p.j0.includes(J.X))) {
+      const at = new THREE.Vector3(...SV.tail);
       tail = new THREE.Group();
-      tail.position.set(-0.12, 0.25, 0);
+      tail.position.copy(at).sub(neck);
       head.add(tail);
-      this.mesh(F.tail, tail, -0.11, 1.35).position.set(0, 0, 0);
+      this.geo(rest, S.dress, tail, at, { keep: (j) => j === J.X }).position.copy(zero);
     }
+    // The face's moving parts, each turning about its own middle: in the head's frame, so
+    // animate() sets them relative to the neck.
+    const part_ = (only: (k: number, x: number, y: number, z: number) => boolean, x: number, y: number, z: number) => {
+      const m = this.geo(face, S.dress, head, new THREE.Vector3(x, y, z), { only });
+      m.position.sub(neck);
+      return m;
+    };
+    const [ex, ey] = SV.eye, [bx, by, bz] = SV.brow, [mx, my] = SV.mouth;
+    const whites = part_((k) => k === WHITE_CODE, ex, ey, 0);
+    const eyes = part_((k) => k === slot('eye'), ex, ey, 0);
+    const mouth = part_((k) => k === slot('lip') || k === slot('mouth'), mx, my, 0);
+    const browL = part_((k, _x, _y, z) => k === slot('brow') && z > 0, bx, by, bz);
+    const browR = part_((k, _x, _y, z) => k === slot('brow') && z < 0, bx, by, -bz);
+    // Wounds by how hurt they are, and the plaster a medkit puts on: on the cheek and the
+    // brow, in the head's frame.
+    const local = (o: THREE.Mesh) => { o.position.sub(neck); return o; };
+    const blood = 0x7a1410, fx = ex + 0.004, cy = ey - 0.035;
+    const cut = local(this.mesh([part(box(0.012, 0.036, 0.016), blood, fx - 0.012, cy, 0.05), part(box(0.012, 0.012, 0.03), blood, fx - 0.012, cy - 0.018, 0.044)], head, fx, cy));
+    const gash = local(this.mesh([part(box(0.012, 0.014, 0.05), blood, fx, by + 0.03, -0.022), part(box(0.012, 0.04, 0.014), blood, fx - 0.004, by + 0.014, -0.04)], head, fx, by + 0.02));
+    const stain = this.mesh([part(box(0.02, 0.1, 0.08), 0x5a0e0a, 0.15, 0.86, 0.05), part(box(0.02, 0.05, 0.05), 0x5a0e0a, 0.15, 0.79, 0.08)], torso, 0, WAIST);
+    stain.position.set(0, 0, 0);
+    const plaster = local(this.mesh([part(box(0.012, 0.022, 0.05), 0xe6dcc4, fx - 0.01, cy, 0.04), part(box(0.014, 0.008, 0.008), 0xb8aa8c, fx - 0.008, cy, 0.04)], head, fx, cy));
     root.scale.setScalar(L.width > 1.05 ? 1 : 1.02);
     this.scene.add(root);
 
@@ -173,7 +188,7 @@ export class Portraits {
       bg.push([((h >> 16) & 255) * 0.45 + 0x1c * 0.55, ((h >> 8) & 255) * 0.45 + 0x1e * 0.55, (h & 255) * 0.45 + 0x16 * 0.55]);
     }
     return {
-      id: p.id, look: p.look, cell, bg, root, torso, head, tail, eyes, whites, mouth, browL, browR, cut, gash, stain, plaster, goggles,
+      id: p.id, look: p.look, cell, bg, root, torso, head, tail, eyeY: ey - neck.y, mouthY: my - neck.y, browY: by - neck.y, eyes, whites, mouth, browL, browR, cut, gash, stain, plaster,
       yaw: new Spring(2, 0.55, 0), pitch: new Spring(2.2, 0.6, 0), flinch: new Spring(3.2, 0.3, 0), sway: new Spring(1.4, 0.4, 0),
       breath: Math.random() * 6, nextBlink: t + 1 + Math.random() * 3, blinkTo: 0, lastHp: p.hp, hurtFlag: false,
       hurt: 0, down: 0, shout: 0, busy: 0, fire: 0,
@@ -232,18 +247,18 @@ export class Portraits {
     const eyeH = shut ? 0.15 : 1.15 * b.shout + (1 - b.shout) * (1 - 0.4 * b.fire - 0.2 * b.busy);
     b.eyes.scale.set(1, Math.max(0.15, eyeH), 1);
     b.whites.scale.set(1, Math.max(0.1, Math.min(1, eyeH)), 1);
-    b.eyes.position.z = -0.016 * Math.cos(rel) * (alive ? 1 : 0);
-    b.eyes.position.y = 0.155 - 0.008 * b.busy;
+    b.eyes.position.z = -0.005 * Math.cos(rel) * (alive ? 1 : 0);
+    b.eyes.position.y = b.eyeY - 0.003 * b.busy;
     const open = Math.max(b.shout * 5, b.hurt * 2.5, low ? 1.6 : 0, !alive ? 1.8 : 0, p.winded ? 2 : 0);
     b.mouth.scale.set(1, 1 + open, 1 + 0.3 * b.hurt);
-    b.mouth.position.y = 0.05 - 0.004 * open;
+    b.mouth.position.y = b.mouthY - 0.0025 * open;
     // Brows: down at the middle when shooting, up there when hurt or afraid, high when
     // shouting.
     const worry = Math.max(b.hurt, low ? 0.8 : 0, b.down);
     const tilt = 0.4 * b.fire * (1 - worry) - 0.45 * worry;
     b.browL.rotation.x = tilt; b.browR.rotation.x = -tilt;
-    const lift = 0.018 * b.shout + 0.008 * worry - 0.006 * b.fire;
-    b.browL.position.y = b.browR.position.y = 0.196 + lift;
+    const lift = 0.01 * b.shout + 0.005 * worry - 0.004 * b.fire;
+    b.browL.position.y = b.browR.position.y = b.browY + lift;
 
     b.plaster.visible = alive && p.heal > 0;
     b.cut.visible = frac < 0.6 && !b.plaster.visible;
