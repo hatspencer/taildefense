@@ -28,6 +28,27 @@ Medkits (8) heal 40% of your health over 3 s, unless a hit cuts it short. You st
 carry up to three. Buy them at the armory for 60 gold, or find them in places with a first-aid
 kit, like an ambulance. The gear row that raises regeneration is Vitamins.
 
+## Turrets
+
+Six turrets, from the build menu (B):
+
+| | | |
+|---|---|---|
+| Gun turret (T) | 120 | fast single shots at the nearest creep |
+| Cannon (C) | 240 | slow shells that burst on a crowd |
+| Frost tower (F) | 180 | pulses cold round itself, slowing everything in reach |
+| Tesla coil (L) | 320 | lightning that jumps from creep to creep |
+| Sniper tower (N) | 380 | a heavy round every few seconds from far off, at the toughest creep it can see; the answer to brutes and bosses, whose armour shrugs off a gun turret |
+| Missile battery (M) | 420 | a salvo of small rockets, each at a different creep |
+
+A turret goes up the way a weapon does: four tracks, damage, fire rate, range and a special,
+each to level 5, bought one at a time from the buttons on its card (select it, or T to step
+through your turrets). The special is the turret's own: pierce for the gun and the sniper, blast
+radius for the cannon, longer slow for frost, two more jumps and a longer reach for the tesla
+coil, one more missile for the battery. Each button shows what the next level changes and costs;
+the coloured pips on the turret's side show its levels, a column per track. Every upgrade also
+gives the turret a little more health. Selling returns half of everything that went into it.
+
 ## Out past the walls
 
 Outside the walls are ruined houses, wrecks and supply crates worth looting. The wrecks on the

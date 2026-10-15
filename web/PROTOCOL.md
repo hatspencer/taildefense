@@ -63,10 +63,11 @@ everything it knows, a terrain message follows).
   "buildRadius": 40,           // building only within this distance of core
   "shopRadius": 4.5,           // shop only within this distance of the armory centre
   "maxLevel": 5,               // weapon track and gear max level
-  "maxStructLevel": 5,
+  "maxStructLevel": 5,         // a wall's or gate's; a turret's tracks go to maxLevel
   "repairCostPerHP": 0.1,
   "sellFraction": 0.5,         // selling returns this share of price + upgrades, times hp/maxHp
   "tracks": ["damage", "fire rate", "handling", "special"],
+  "turretTracks": ["damage", "fire rate", "range", "special"],   // a turret's, as in a frame's track levels
   "creeps": [                  // index = creep kind
     {"name": "walker", "hp": 40, "speed": 1.7, "radius": 0.45, "size": 1, "ranged": false, "bounty": 3,
      "rate": 1, "windup": 0.4}   // blows per second; seconds each is wound up (creep flag 64)
@@ -93,9 +94,15 @@ everything it knows, a terrain message follows).
   "structs": [                 // index = struct kind; 0 is "none"
     {"name": "Wall", "price": 20, "hp": 320, "w": 1, "h": 1, "range": 0, "turret": false,
      "key": "X", "desc": "...", "upgrade": [0, 16, 32, 48, 64],   // [level] price level -> level+1
-     "upgradable": true}       // turrets, walls and gates go up levels; a wall only gets tougher
+     "upgradable": true},      // turrets, walls and gates go up levels; a wall only gets tougher
+    {"name": "Gun turret", "price": 120, "hp": 220, "w": 1, "h": 1, "range": 9, "turret": true,
+     "key": "T", "desc": "...", "upgradable": true,
+     "upgrade": [36, 54, 81, 122, 182],              // a turret: price to raise any track from level
+     "ranges": [9, 9.7, 10.4, 11.2, 11.9, 12.6],     // reach at each range track level 0..5
+     "special": "+1 pierce",                         // what the special track adds a level
+     "values": [["11 dmg", "14 dmg", ...], ...]}     // [track][level 0..5] what the track gives
   ],
-  "buildable": [3, 4, 5, 6, 7, 8],
+  "buildable": [3, 4, 5, 6, 7, 8, 9, 10],          // 9 sniper tower, 10 missile battery
   "siteKinds": [               // index = site kind
     {"name": "Ruined house", "search": 3},   // search: seconds it takes
     {"name": "Car wreck", "search": 2},
@@ -267,7 +274,8 @@ u16  nStructs         the whole list; the index is the struct id used in command
   u16  x, u16 y       top-left tile
   u8   w, u8 h        tiles
   u16  hp, u16 maxHp
-  u8   level
+  u8   level          a wall's or gate's; a turret's is 1 + its upgrades on every track
+  u8   lv[4]          a turret's track levels: damage, fire rate, range, special (0 otherwise)
   i8   owner          player id, -1 for the starting base
 
 u16  nCreeps
@@ -288,7 +296,7 @@ u16  nCreeps
 u16  nTracers         shots fired this tick
   u16  x0, y0, x1, y1 q8
   u8   kind           0..6 player weapon kind (6 the crowbar: a swing, the survivor to its
-                      reach), 16+structKind turret shot, 32 spitter spit, 35 a hurler's bone, 33 dash (the hero's leap, start to end), 34 the Huey's door gunner
+                      reach), 16+structKind turret shot (a missile battery's is a one-tile stub at launch; its missiles fly as 5, rocket, tracers), 32 spitter spit, 35 a hurler's bone, 33 dash (the hero's leap, start to end), 34 the Huey's door gunner
                       (x0,y0 is the Huey over the ground; it fires from the air)
 u16  nBlasts          explosions and pulses this tick
   u16  x, y q8
@@ -351,7 +359,7 @@ integers. The host checks everything; a refusal comes back as a `toast` with lev
 {"op": "build",   "kind": 5, "tx": 150, "ty": 96}  // walk to the tile and build there
 {"op": "repair",  "s": 12}                   // walk to struct 12 and repair it (costs gold)
 {"op": "loot",    "site": 3}                 // walk to site 3 and search it
-{"op": "upgradeStruct", "s": 12}             // anywhere
+{"op": "upgradeStruct", "s": 12, "track": 1} // anywhere; track: a turret's (turretTracks), 0 for a wall
 {"op": "sell",    "s": 12}                   // anywhere, your own or the base's
 {"op": "buyWeapon", "w": 2}                  // at the armory
 {"op": "upgrade", "w": 2, "track": 0}        // at the armory

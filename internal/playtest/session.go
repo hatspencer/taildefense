@@ -102,7 +102,7 @@ func agree(w *game.World, r *netplay.Replica) error {
 	}
 	for i := range w.Structs {
 		s, v := &w.Structs[i], r.Structs[i]
-		if v.Alive != s.Alive || (s.Alive && (v.Kind != s.Kind || v.Level != s.Level || int(v.HP) != int(math.Ceil(float64(max(s.HP, 0)))))) {
+		if v.Alive != s.Alive || (s.Alive && (v.Kind != s.Kind || v.Level != s.Level || v.Lv != s.Lv || int(v.HP) != int(math.Ceil(float64(max(s.HP, 0)))))) {
 			return fmt.Errorf("structure %d %+v, world %+v", i, v, *s)
 		}
 	}

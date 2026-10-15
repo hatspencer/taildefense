@@ -215,7 +215,7 @@ func parseFrame(t *testing.T, p []byte) frameSummary {
 	skip(f.sites)
 	skip(u8() * 5)
 	f.structs = u16()
-	skip(f.structs * 14)
+	skip(f.structs * (14 + int(game.NumTracks)))
 	skip(u16() * 10)
 	skip(u16() * 9)
 	skip(u16() * 6)

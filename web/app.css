@@ -331,6 +331,15 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .card .grid button .n { display: block; overflow: hidden; text-overflow: ellipsis; }
 .card .grid button .k { position: absolute; top: 3px; right: 4px; font: 16px/1 var(--crt); color: var(--tape); }
 .card .grid button .p { display: block; color: var(--amber); font: 17px/1 var(--crt); }
+.card .grid.tracks { grid-template-columns: repeat(2, 1fr); }
+.card .grid.tracks { gap: 4px; }
+.card .grid.tracks button { padding: 2px 6px; line-height: 1.2; }
+.card .grid.tracks .n { display: flex; align-items: center; gap: 5px; }
+.card .grid.tracks .n .p { display: inline; margin-left: auto; font-size: 15px; }
+.card .grid.tracks .v { display: block; color: var(--bone); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+.card .grid.tracks .pips { display: inline-flex; gap: 2px; }
+.card .grid.tracks .pips i { width: 5px; height: 5px; background: #3c3f30; box-shadow: 0 0 0 1px var(--black); }
+.card .grid.tracks .pips i.on { background: var(--amber); }
 .card .grid button.sel { background: #3a4a24; box-shadow: 0 0 0 2px var(--moss), inset 0 2px 0 #4d6030; }
 .card .hint { font-family: var(--small); font-size: 12px; color: var(--khaki); }
 

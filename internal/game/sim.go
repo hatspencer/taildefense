@@ -1011,50 +1011,122 @@ func (w *World) stepTurrets() {
 		if s.Cool > 0 {
 			continue
 		}
-		dmg, rng, rate := TurretStats(s.Kind, s.Level)
-		rng *= w.rangeMul()
+		st := TurretStats(s.Kind, s.Lv)
+		rng := st.Range * w.rangeMul()
 		x, y := s.CX(), s.CY()
-		t := w.nearestVisible(x, y, rng)
+		var t int32
+		if s.Kind == STurretSniper {
+			t = w.toughestVisible(x, y, rng)
+		} else {
+			t = w.nearestVisible(x, y, rng)
+		}
 		if t < 0 {
 			s.Cool = .2 // idle: look again shortly rather than every tick
 			continue
 		}
-		s.Cool = 1 / rate
+		s.Cool = 1 / st.Rate
 		c := &w.Creeps[t]
 		kind := TracerTurret + uint8(s.Kind)
 		switch s.Kind {
-		case STurretGun:
+		case STurretGun, STurretSniper:
 			ang := float32(math.Atan2(float64(c.Y-y), float64(c.X-x)))
-			w.hitscan(s.Owner, x, y, ang, rng, dmg, int(s.Level/3), 0, kind)
+			w.hitscan(s.Owner, x, y, ang, rng, st.Damage, st.Pierce, 0, kind)
 		case STurretCannon:
 			w.tracer(x, y, c.X, c.Y, kind)
-			w.explode(c.X, c.Y, Structs[s.Kind].Blast+.3*float32(s.Level-1), dmg, s.Owner, 0)
+			w.explode(c.X, c.Y, st.Blast, st.Damage, s.Owner, 0)
 		case STurretFrost:
-			slow := Structs[s.Kind].Slow + .25*float32(s.Level-1)
 			w.grid.each(x, y, rng, func(i int32) bool {
 				o := &w.Creeps[i]
 				dx, dy := o.X-x, o.Y-y
 				if dx*dx+dy*dy <= rng*rng {
-					o.Slow = slow
-					w.damage(i, dmg, s.Owner)
+					o.Slow = st.Slow
+					w.damage(i, st.Damage, s.Owner)
 				}
 				return true
 			})
 			w.Blasts = append(w.Blasts, Blast{x, y, rng, 1})
 		case STurretTesla:
-			w.chain(s, t, dmg, Structs[s.Kind].Chains+2*(int(s.Level)-1))
+			w.chain(s, t, st.Damage, st.Chains, st.Hop)
+		case STurretMissile:
+			w.salvo(s, t, rng, st)
+		}
+	}
+}
+
+// toughestVisible is the creep with the most hit points left within r of x, y that a shot
+// from there can reach: a sniper's mark.
+func (w *World) toughestVisible(x, y, r float32) int32 {
+	most, bi := float32(0), int32(-1)
+	w.grid.each(x, y, r, func(i int32) bool {
+		c := &w.Creeps[i]
+		if c.HP <= most {
+			return true
+		}
+		dx, dy := c.X-x, c.Y-y
+		if dx*dx+dy*dy <= r*r && w.clearShot(x, y, c.X, c.Y) {
+			most, bi = c.HP, i
+		}
+		return true
+	})
+	return bi
+}
+
+// missileSpeed is how fast a battery's missiles fly, tiles per second.
+const missileSpeed = 18
+
+// salvo fires a missile battery: one missile at its target and one at each of the next
+// nearest creeps it can reach, round them again when there are fewer creeps than missiles.
+func (w *World) salvo(s *Structure, first int32, rng float32, st TurretStat) {
+	x, y := s.CX(), s.CY()
+	var marks [16]hitCand
+	marks[0] = hitCand{0, first}
+	n := 1
+	w.grid.each(x, y, rng, func(i int32) bool {
+		c := &w.Creeps[i]
+		if i == first || c.HP <= 0 {
+			return true
+		}
+		dx, dy := c.X-x, c.Y-y
+		dd := dx*dx + dy*dy
+		if dd > rng*rng || !w.clearShot(x, y, c.X, c.Y) {
+			return true
+		}
+		// Keep the nearest few, nearest first.
+		j := n
+		if j == len(marks) {
+			if dd >= marks[j-1].t {
+				return true
+			}
+			j--
+		} else {
+			n++
+		}
+		for j > 1 && marks[j-1].t > dd {
+			marks[j] = marks[j-1]
+			j--
+		}
+		marks[j] = hitCand{dd, i}
+		return true
+	})
+	for k := range st.Salvo {
+		c := &w.Creeps[marks[k%n].i]
+		dx, dy := c.X-x, c.Y-y
+		d := max(sqrt32(dx*dx+dy*dy), .1)
+		w.Rockets = append(w.Rockets, Projectile{X: x, Y: y, VX: dx / d * missileSpeed, VY: dy / d * missileSpeed,
+			TTL: d / missileSpeed, Damage: st.Damage, Blast: st.Blast, Owner: s.Owner, Turret: true})
+		if k < n {
+			w.tracer(x, y, x+dx/d, y+dy/d, TracerTurret+uint8(STurretMissile))
 		}
 	}
 }
 
 // chain arcs from a tesla coil to its target and on to the nearest creep not yet struck,
-// losing some damage at every jump. Higher levels jump further.
-func (w *World) chain(s *Structure, first int32, dmg float32, jumps int) {
+// losing some damage at every jump, each jump at most hop tiles.
+func (w *World) chain(s *Structure, first int32, dmg float32, jumps int, hop float32) {
 	var struck [16]uint16
 	n := 0
 	x, y := s.CX(), s.CY()
 	cur := first
-	hop := 3.5 + .5*float32(s.Level-1)
 	for j := 0; j <= jumps && cur >= 0 && n < len(struck); j++ {
 		c := &w.Creeps[cur]
 		w.tracer(x, y, c.X, c.Y, TracerTurret+uint8(STurretTesla))
@@ -1103,9 +1175,14 @@ func (w *World) stepRockets() {
 			}
 		}
 		if boom {
-			w.shooter = r.Owner
+			// A survivor's rocket provokes what it hits into coming for them; a turret's,
+			// like any turret's shot, does not.
+			if !r.Turret {
+				w.shooter = r.Owner
+			}
+			w.turretFire = r.Turret
 			w.explode(r.X, r.Y, r.Blast, r.Damage, r.Owner, 0)
-			w.shooter = -1
+			w.shooter, w.turretFire = -1, false
 			continue
 		}
 		w.tracer(r.X-r.VX*Dt, r.Y-r.VY*Dt, r.X, r.Y, uint8(WLauncher))

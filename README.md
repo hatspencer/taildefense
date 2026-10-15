@@ -91,9 +91,9 @@ faces, however the camera is turned, and the camera follows while you walk.
 | 1-6, 0, R | equip a weapon (0 is the crowbar, on brutal), reload (or the reload button) |
 | 8 | use a medkit |
 | V | taunt: flip them off and shout; every creep around you comes for you for 5 s, sleeping guards too |
-| B | build: X wall, G gate, T gun turret, C cannon, F frost tower, L tesla coil; shift keeps placing |
+| B | build: X wall, G gate, T gun turret, C cannon, F frost tower, L tesla coil, N sniper tower, M missile battery; shift keeps placing |
 | left-click | select a building, creep or player |
-| U / X | upgrade / sell the selected building (turrets, and walls and gates, which get 60% more HP a level) |
+| U / X | upgrade / sell the selected wall or gate (60% more HP a level); a turret upgrades a track at a time from its card |
 | G | armory: weapons, upgrade tracks, gear, abilities (you have to be standing by it) |
 | Y | ready for the next wave |
 | T | the next turret: selects it (its upgrade and sell card shows) and looks at it; again for the one after |

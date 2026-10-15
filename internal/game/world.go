@@ -62,8 +62,9 @@ type Structure struct {
 	X, Y      int16 // top-left tile
 	W, H      uint8
 	HP, MaxHP float32
-	Level     uint8
-	Owner     int8 // player who built it, -1 for the starting base
+	Level     uint8            // a wall's or gate's level; for a turret, 1 + the upgrades on all its tracks
+	Lv        [NumTracks]uint8 // a turret's track levels
+	Owner     int8             // player who built it, -1 for the starting base
 	Cool      float32
 	Alive     bool
 }
@@ -247,6 +248,7 @@ type Projectile struct {
 	Damage       float32
 	Blast        float32
 	Owner        int8
+	Turret       bool // a missile battery's: its damage counts as the turret's
 }
 
 // Spawn is one creep waiting to enter.

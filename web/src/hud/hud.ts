@@ -1,11 +1,10 @@
 import type { ConnState } from '../net';
-import { CROWBAR, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, type Player, type Welcome, sellValue, turretRange, WEAPON_SLOTS } from '../protocol';
+import { CROWBAR, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, type Player, TTrack, TURRET_TRACKS, type Welcome, sellValue, turretRange, WEAPON_SLOTS } from '../protocol';
 import { type Controller, KEYS } from '../controller';
 import { cssHex, playerColor } from '../scene/util';
 import { Armory } from './armory';
 import { archetypeName } from '../scene/look';
 import { CELL, type Portraits } from '../scene/portraits';
-import { K_TESLA } from '../scene/structs';
 import { el, esc, fmtGold, setClass, setText, show } from './dom';
 import { iconFor, weatherIcon } from './icons';
 import { scoreRows } from './score';
@@ -29,6 +28,18 @@ let mark = '';
 function markURL(): string { return mark || (mark = wordmarkURL(3)); }
 
 // The HTML overlay: top bar, bottom console, the command card, windows and messages.
+// change shows a value going from a to b without saying twice what stays the same:
+// "195 dmg", "240 dmg" -> "195 → 240 dmg"; "every 2.9s", "every 2.5s" -> "every 2.9s → 2.5s".
+function change(a: string, b: string): string {
+  const x = a.split(' '), y = b.split(' ');
+  if (x.length !== y.length) return `${a} → ${b}`;
+  let i = 0, j = x.length - 1;
+  while (i < x.length && x[i] === y[i]) i++;
+  while (j > i && x[j] === y[j]) j--;
+  if (i >= x.length) return a;
+  return `${x.slice(0, j + 1).join(' ')} → ${y.slice(i).join(' ')}`;
+}
+
 export class Hud {
   root: HTMLElement;
   minimap: Minimap;
@@ -444,7 +455,7 @@ export class Hud {
       ['<kbd>R</kbd> or Reload', 'reload now (the button sits next to your ammo)'],
       ['<kbd>B</kbd>', 'build card; its hotkeys pick a structure, left-click places, Shift keeps placing'],
       ['Left-click', 'select a structure, creep or hero'],
-      ['<kbd>U</kbd> / <kbd>X</kbd>', 'upgrade / sell the selected structure'],
+      ['<kbd>U</kbd> / <kbd>X</kbd>', 'upgrade / sell the selected structure; a turret upgrades one track at a time, from its card'],
       ['<kbd>G</kbd>', 'armory window (opens by itself when you arrive)'],
       ['<kbd>Y</kbd>', 'ready for the next wave'],
       ['<kbd>T</kbd>', 'the next turret: selects it (upgrade / sell) and looks at it; again for the one after'],
@@ -863,7 +874,7 @@ export class Hud {
         b.title = d.desc;
         b.onclick = () => ctl.startBuild(k);
       }
-      el('div', 'hint', c, 'Left-click places · Shift keeps placing · right-click or Esc cancels');
+      // How to place is said by the placement prompt; the card is full with eight to build.
       return;
     }
     if (s?.t === 'struct') {
@@ -871,10 +882,28 @@ export class Hud {
       const owner = f.sOwner[id] < 0 ? 'base' : f.player(f.sOwner[id])?.name ?? `player ${f.sOwner[id]}`;
       head(esc(d?.name ?? '?'), esc(owner));
       const upg = d?.upgradable ?? d?.turret;
-      el('div', 'sub', c, `HP ${f.sHp[id]} / ${f.sMaxHp[id]}${upg && !d?.turret ? ` · level ${f.sLevel[id]}/${wd.maxStructLevel}` : ''}${d?.turret ? ` · level ${f.sLevel[id]}/${wd.maxStructLevel} · range ${turretRange(d, f.sLevel[id]).toFixed(1).replace(/\.0$/, '')}${f.sKind[id] === K_TESLA ? ` · strikes ${2 * f.sLevel[id]}` : ''}` : ''}`);
-      if (d?.desc) el('div', 'sub', c, d.desc);
+      const lv = (t: number) => f.sLv[id * TURRET_TRACKS + t];
+      el('div', 'sub', c, `HP ${f.sHp[id]} / ${f.sMaxHp[id]}${upg && !d?.turret ? ` · level ${f.sLevel[id]}/${wd.maxStructLevel}` : ''}${d?.turret ? ` · range ${turretRange(d, lv(TTrack.Range)).toFixed(1).replace(/\.0$/, '')}` : ''}`);
+      // A turret's card is full with its tracks; its description goes on the title instead.
+      if (d?.desc && !d.turret) el('div', 'sub', c, d.desc);
+      if (d?.turret) {
+        c.title = d.desc;
+        // A turret goes up track by track, as a weapon does: each button shows what it gives
+        // now and next, and what the next level costs.
+        const grid = el('div', 'grid tracks', c);
+        for (let t = 0; t < TURRET_TRACKS; t++) {
+          const l = lv(t), max = l >= wd.maxLevel, cost = d.upgrade[l] ?? 0;
+          const cur = d.values?.[t]?.[l] ?? '', next = d.values?.[t]?.[l + 1] ?? '';
+          const b = el('button', '', grid);
+          const pips = Array.from({ length: wd.maxLevel }, (_, i) => `<i class="${i < l ? 'on' : ''}"></i>`).join('');
+          b.innerHTML = `<span class="n">${esc(wd.turretTracks?.[t] ?? '')}<span class="pips">${pips}</span><span class="p">${max ? 'max' : `${fmtGold(cost)}g`}</span></span><span class="v">${esc(max ? cur : change(cur, next))}</span>`;
+          b.title = t === TTrack.Special && d.special ? `Each level: ${d.special}` : '';
+          b.disabled = max || gold < cost;
+          b.onclick = () => ctl.upgradeSel(t);
+        }
+      }
       const btns = el('div', 'btns', c);
-      if (upg) {
+      if (upg && !d?.turret) {
         const lvl = f.sLevel[id];
         const cost = d.upgrade[lvl] ?? 0;
         const up = el('button', 'primary', btns);
@@ -889,7 +918,7 @@ export class Hud {
       }
       if (f.sKind[id] > 2) {
         const sl = el('button', '', btns);
-        const refund = d ? sellValue(d, f.sLevel[id], f.sHp[id], f.sMaxHp[id], wd.sellFraction) : 0;
+        const refund = d ? sellValue(d, f, id, wd.sellFraction) : 0;
         sl.innerHTML = `Sell <span class="gold">+${refund}g</span> <kbd>X</kbd>`;
         sl.onclick = () => ctl.sellSel();
       }

@@ -73,6 +73,7 @@ type StructView struct {
 	W, H      int
 	HP, MaxHP uint16
 	Level     uint8
+	Lv        [game.NumTracks]uint8 // a turret's track levels
 	Owner     int8
 }
 
@@ -275,6 +276,9 @@ func (r *Replica) Apply(p []byte) error {
 		s.W, s.H = int(d.u8()), int(d.u8())
 		s.HP, s.MaxHP = d.u16(), d.u16()
 		s.Level = d.u8()
+		for t := range s.Lv {
+			s.Lv[t] = d.u8()
+		}
 		s.Owner = d.i8()
 		r.Structs[idx] = s
 	}

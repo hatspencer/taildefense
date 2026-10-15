@@ -124,7 +124,7 @@ func (b *Bot) between(s *Session, p *game.Player, do func(netplay.Cmd)) {
 
 // build orders something it can afford put up near the generator, and reports whether it did.
 func (b *Bot) build(w *game.World, p *game.Player, do func(netplay.Cmd)) bool {
-	kinds := []game.StructKind{game.STurretGun, game.STurretGun, game.STurretCannon, game.STurretFrost, game.STurretTesla, game.SWall, game.SGate}
+	kinds := []game.StructKind{game.STurretGun, game.STurretGun, game.STurretCannon, game.STurretFrost, game.STurretTesla, game.STurretSniper, game.STurretMissile, game.SWall, game.SGate}
 	k := kinds[b.rng.IntN(len(kinds))]
 	if p.Gold < game.Structs[k].Price {
 		k = game.SWall
@@ -204,7 +204,7 @@ func (b *Bot) upkeep(w *game.World, p *game.Player, do func(netplay.Cmd)) {
 	if b.rng.IntN(8) == 0 {
 		do(netplay.Cmd{Op: netplay.OpSell, T: uint16(si)})
 	} else {
-		do(netplay.Cmd{Op: netplay.OpUpgradeStruct, T: uint16(si)})
+		do(netplay.Cmd{Op: netplay.OpUpgradeStruct, T: uint16(si), A: uint8(b.rng.IntN(int(game.NumTracks)))})
 	}
 }
 
