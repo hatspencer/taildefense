@@ -3,7 +3,7 @@ import { EffectKind, Order, PF_ALIVE, PingKind, siteX, siteY, walled } from '../
 import { type Game, PING_LIFE } from '../state';
 import { cssHex, playerColor } from '../scene/util';
 
-export interface LabelFocus { hoverStruct: number; selStruct: number; hoverCreep: number; selCreep: number; showAllBars: boolean; hoverSite: number; siteHint: string; hoverGun?: number; gunHint?: string }
+export interface LabelFocus { hoverStruct: number; selStruct: number; hoverCreep: number; selCreep: number; showAllBars: boolean; hoverSite: number; siteHint: string; hoverGun?: number; gunHint?: string; dropHold?: number }
 
 // The HUD's palette and faces, for the canvas (see app.css).
 // Labels are small print, so they use the crisp face, not Pixelify (see --small).
@@ -224,6 +224,7 @@ export class Labels {
         if (p.order === Order.Loot && p.channel > 0) rings.push({ x, y: y - lift, frac: p.channel, col: AMBER, caption: 'searching…' });
         else if (p.order === Order.Revive && p.channel > 0) rings.push({ x, y: y - lift, frac: p.channel, col: MOSS, caption: 'reviving…' });
         else if (p.order === Order.Pickup && p.channel > 0) rings.push({ x, y: y - lift, frac: p.channel, col: AMBER, caption: 'picking up…' });
+        else if (mine && (focus.dropHold ?? 0) > 0) rings.push({ x, y: y - lift, frac: focus.dropHold!, col: AMBER, caption: 'dropping…' });
       } else {
         // A blinking cross over the body, the name and the seconds left to reach them; a
         // revive in progress rings the cross.

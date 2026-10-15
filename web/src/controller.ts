@@ -35,6 +35,8 @@ export class Controller {
   mx = -1; my = -1; mouseIn = false;
   shift = false;
   armoryOpen = false;
+  // When G went down to drop the weapon in hand, 0 while it is up (input.ts).
+  dropAt = 0;
   private wasAtArmory = false;
   // Set by walkToArmory: the window opens on arrival, but not for walking past the shop.
   private toArmory = false;

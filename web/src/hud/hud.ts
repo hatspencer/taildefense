@@ -132,7 +132,7 @@ export class Hud {
     chatBtn.title = 'Chat with the team (T or Enter)';
     chatBtn.onclick = () => this.openChat();
     const armBtn = el('button', '', top, 'Armory');
-    armBtn.title = 'Armory (G)';
+    armBtn.title = 'Armory (C)';
     armBtn.onclick = () => ctl.openArmory(!ctl.armoryOpen);
     const helpBtn = el('button', '', top, '?');
     helpBtn.title = 'Controls (F1)';
@@ -450,14 +450,14 @@ export class Hud {
       ['<kbd>Alt</kbd> + left-click, or <kbd>Z</kbd> then click', 'ping the spot for the whole team, in the world or on the map: on a creep it warns, on a loot site it marks loot, on a structure it calls to defend it'],
       ['<kbd>H</kbd>', 'hold position'],
       ['<kbd>V</kbd>', 'taunt: flip them off and shout, pulling every creep nearby onto you, then a cooldown'],
-      ['<kbd>C</kbd>', 'drop the weapon in hand for a teammate, upgrades and all; it lies there until someone picks it up with <kbd>E</kbd>'],
+      ['<kbd>G</kbd> (hold)', 'hold for a second to drop the weapon in hand for a teammate, upgrades and all; it lies there until someone picks it up with <kbd>E</kbd>'],
       ['<kbd>1</kbd>–<kbd>6</kbd>, <kbd>0</kbd>', 'equip an owned weapon (0 is the crowbar, on brutal)'],
       ['<kbd>8</kbd>', 'use a medkit: heals over a few seconds unless a hit cuts it short; buy more at the armory'],
       ['<kbd>R</kbd> or Reload', 'reload now (the button sits next to your ammo)'],
       ['<kbd>B</kbd>', 'build card; its hotkeys pick a structure, left-click places, Shift keeps placing'],
       ['Left-click', 'select a structure, creep or hero'],
       ['<kbd>U</kbd> / <kbd>X</kbd>', 'upgrade / sell the selected structure; a turret upgrades one track at a time, from its card'],
-      ['<kbd>G</kbd>', 'armory window (opens by itself when you arrive)'],
+      ['<kbd>C</kbd>', 'armory window (opens by itself when you arrive)'],
       ['<kbd>Y</kbd>', 'ready for the next wave'],
       ['<kbd>T</kbd>', 'the next turret: selects it (upgrade / sell) and looks at it; again for the one after'],
       ['<kbd>N</kbd>', 'hold: look at the generator · twice: walk back to it'],
@@ -924,7 +924,7 @@ export class Hud {
         sl.onclick = () => ctl.sellSel();
       }
       if (f.sKind[id] === 2) {
-        const ar = el('button', 'primary', btns); ar.innerHTML = 'Open armory <kbd>G</kbd>';
+        const ar = el('button', 'primary', btns); ar.innerHTML = 'Open armory <kbd>C</kbd>';
         ar.onclick = () => ctl.openArmory(true);
       }
       return;
@@ -961,7 +961,7 @@ export class Hud {
     head('Orders');
     const btns = el('div', 'btns', c);
     const b1 = el('button', '', btns); b1.innerHTML = 'Build <kbd>B</kbd>'; b1.onclick = () => { this.buildCard = true; };
-    const b2 = el('button', '', btns); b2.innerHTML = 'Armory <kbd>G</kbd>'; b2.onclick = () => ctl.openArmory(true);
+    const b2 = el('button', '', btns); b2.innerHTML = 'Armory <kbd>C</kbd>'; b2.onclick = () => ctl.openArmory(true);
     const b3 = el('button', '', btns); b3.innerHTML = 'Stop'; b3.onclick = () => ctl.send({ op: 'stop' });
     const b4 = el('button', '', btns); b4.innerHTML = 'Hold <kbd>H</kbd>'; b4.onclick = () => ctl.send({ op: 'hold' });
     el('div', 'hint', c, 'WASD to walk · E to use · right-click: signature · F1 for all controls');

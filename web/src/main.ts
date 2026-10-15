@@ -4,7 +4,7 @@ import { DemoHost, type DemoOptions } from './demo/host';
 import { Hud } from './hud/hud';
 import { Labels } from './hud/labels';
 import { Splash } from './hud/splash';
-import { Input } from './input';
+import { DROP_HOLD, Input } from './input';
 import { Lab } from './lab';
 import { type Handlers, type Transport, WsTransport } from './net';
 import { PF_ALIVE, PF_ARMORY, Phase, PingKind, SiteKind, siteX, siteY, TTrack, TURRET_TRACKS, turretRange, type Welcome, wreck } from './protocol';
@@ -359,6 +359,7 @@ async function main(): Promise<void> {
         hoverCreep: ctl.hover?.t === 'creep' ? ctl.hover.id : -1, selCreep: sel?.t === 'creep' ? sel.id : -1,
         showAllBars: ctl.mode.k === 'build',
         hoverSite: ctl.hover?.t === 'site' ? ctl.hover.id : -1, siteHint: ctl.hover?.t === 'site' ? ctl.siteHint(ctl.hover.id) : '',
+        dropHold: ctl.dropAt ? Math.min(1, (now - ctl.dropAt) / DROP_HOLD) : 0,
         hoverGun: ctl.hover?.t === 'gun' ? ctl.hover.id : -1, gunHint: ctl.hover?.t === 'gun' ? ctl.gunHint(ctl.hover.id) : '',
       }, now, rig.dist, (x, z) => fow.clarity(x, z));
       hud.minimap.draw(now, W, H);
