@@ -205,7 +205,7 @@ func WeaponStats(w WeaponKind, lv [NumTracks]uint8) Stats {
 	case WRifle:
 		s.Pierce += 2 * sp
 	case WMinigun:
-		s.Pierce += sp / 2
+		s.Pierce += sp
 		s.Burn += 2 * float32(sp)
 	case WLauncher:
 		s.Blast += .6 * float32(sp)
