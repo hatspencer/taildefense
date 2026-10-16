@@ -106,6 +106,14 @@ export class Armory {
         el('td', '', tr).innerHTML = `${me.medkits}/${m.max} ${pips(me.medkits, m.max)}`;
         btn(el('td', '', tr), full ? 'full' : `Buy <span class="gold">${fmtGold(m.cost)}g</span>`, m.cost, !full, () => ctl.send({ op: 'buyMedkit' }), 'primary');
       }
+      // Only where there is a night to see through.
+      if (wd.goggles && wd.dark) {
+        const tr = el('tr', '', t);
+        el('td', 'wname', tr, 'Night vision goggles');
+        el('td', '', tr, 'see as far by night as by day; worn instead of the flashlight');
+        el('td', '', tr, me.goggles ? 'worn' : '');
+        btn(el('td', '', tr), me.goggles ? 'worn' : `Buy <span class="gold">${fmtGold(wd.goggles)}g</span>`, wd.goggles, !me.goggles, () => ctl.send({ op: 'buyGoggles' }), 'primary');
+      }
     } else {
       const t = el('table', '', b);
       t.innerHTML = '<tr><th>Key</th><th>Ability</th><th>Level</th><th></th></tr>';

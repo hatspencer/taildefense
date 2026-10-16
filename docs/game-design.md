@@ -309,6 +309,12 @@ the army trucks.
 - **Medkits are a decision, not a regen stat.** One heals 40% over 3 s, and a hit cuts it
   short, so you heal after you get clear, not in the crowd. You carry up to three, start with
   one, buy them for 60 gold or find them in ambulances. The old regen gear row is Vitamins.
+- **Night vision goggles are the way out of the dark, at a price.** 3000 gold, more than the
+  rocket launcher, for daytime sight (12, the rifle's scope doubles it) at night, worn instead
+  of brutal's flashlight, so all round, not just ahead. Sold only on hard and brutal, where
+  there is a night. Bought once and kept through being downed, like the gear. At night they show on
+  the survivor and their portrait, green lenses over the eyes, so the team knows whose eyes to trust in the dark,
+  and their sight is everyone's, as any survivor's is.
 - **The generator heals, slowly.** Standing right by it (within a step and a half of its
   sides) gives back 2 HP a second, mid-wave too: a place to catch your breath, not to stand
   in a fight.

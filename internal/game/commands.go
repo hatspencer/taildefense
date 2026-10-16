@@ -89,6 +89,7 @@ func (w *World) resetPlayer(p *Player) {
 	p.Weapons[p.Cur] = WeaponState{Owned: true, Ammo: Weapons[p.Cur].Mag}
 	p.Gear = [NumGear]uint8{}
 	p.Medkits, p.Heal = 1, 0
+	p.Goggles = false
 	p.MaxHP = 100
 	p.Kills, p.Damage, p.Tally = 0, 0, Tally{}
 	p.Ready = false
@@ -234,6 +235,30 @@ func (w *World) BuyMedkit(p *Player) error {
 		return err
 	}
 	p.Medkits++
+	return nil
+}
+
+// Night vision goggles: bought once at the armory, kept through being downed, and worn in
+// place of the flashlight; at night the wearer sees as far as by day (see sight).
+const gogglesCost = 3000
+
+// GogglesCost is what the goggles cost, for the client.
+func GogglesCost() int32 { return gogglesCost }
+
+// BuyGoggles sells the player night vision goggles.
+func (w *World) BuyGoggles(p *Player) error {
+	switch {
+	case !w.atArmory(p):
+		return errNotAtArmory
+	case p.Goggles:
+		return errors.New("you wear night vision goggles already")
+	case w.diff().Dark <= 0:
+		return errors.New("there is no night to see through on this difficulty")
+	}
+	if err := w.pay(p, gogglesCost); err != nil {
+		return err
+	}
+	p.Goggles = true
 	return nil
 }
 

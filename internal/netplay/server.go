@@ -531,6 +531,10 @@ func Exec(w *game.World, pl *game.Player, c Cmd) (string, error) {
 		if err = w.BuyMedkit(pl); err == nil {
 			msg = fmt.Sprintf("bought a medkit · %d carried", pl.Medkits)
 		}
+	case OpBuyGoggles:
+		if err = w.BuyGoggles(pl); err == nil {
+			msg = "night vision goggles on: you see by night as by day"
+		}
 	case OpRevive:
 		err = w.OrderRevive(pl, int(c.T))
 	case OpDropWeapon:
@@ -663,6 +667,7 @@ const (
 	OpDifficulty // A difficulty; the host only
 	OpDropWeapon // A weapon kind
 	OpPickup     // T the weapon on the ground's id
+	OpBuyGoggles
 )
 
 // Cmd is a discrete request from a player. X and Y are tiles, sent to 1/8; T names a creep

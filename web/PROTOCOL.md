@@ -60,6 +60,7 @@ everything it knows, a terrain message follows).
   "taunt": {"cool": 12, "radius": 12, "time": 5},  // the taunt command: cooldown s, pull radius, s hunted
   "revive": {"reach": 1.6, "time": 2.5, "hp": 0.4}, // stand within reach for time seconds; up with hp*maxHp
   "medkit": {"heal": 0.4, "time": 3, "max": 3, "cost": 60}, // one heals heal*maxHp over time s; carry max; cost gold
+  "goggles": 3000,             // night vision goggles' price: daytime sight at night, instead of the flashlight
   "core": {"x": 160, "y": 100},// generator centre, tiles
   "buildRadius": 40,           // building only within this distance of core
   "shopRadius": 4.5,           // shop only within this distance of the armory centre
@@ -245,7 +246,8 @@ u8   nPlayers
   u16  tauntCool      deciseconds until the taunt can be used again
   u8   stamina        0..255, spent by sprinting
   u8   sprint         bit 0 sprinting now, bit 1 winded (no sprint until the bar is back to about a third),
-                      bit 2 stunned by a slam (not moving, firing or casting)
+                      bit 2 stunned by a slam (not moving, firing or casting), bit 3 wears night vision
+                      goggles (sees DAY_SIGHT all round at night, no flashlight)
   u32  look           what the survivor looks like, dealt by the host on joining, bits:
                         0-3 archetype (0 paramedic, 1 mechanic, 2 hunter, 3 student, 4 builder,
                             5 nurse, 6 biker, 7 farmer, 8 ex-soldier, 9 office worker),
@@ -361,6 +363,7 @@ integers. The host checks everything; a refusal comes back as a `toast` with lev
                                             // after 0.4 s; on false stops
 {"op": "medkit"}                            // use a medkit
 {"op": "buyMedkit"}                         // buy one, at the armory
+{"op": "buyGoggles"}                        // night vision goggles, at the armory, on hard and brutal
 {"op": "attack",  "id": 1234}               // chase and shoot one creep
 {"op": "stop"}                               // drop the order, fight what comes in range
 {"op": "hold"}                               // stand still, fight what comes in range

@@ -119,6 +119,9 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 		if p.Winded {
 			sp |= 2
 		}
+		if p.Goggles {
+			sp |= 8
+		}
 		e.u8(sp)
 		e.u32(p.Look)
 		e.u8(p.Buff)

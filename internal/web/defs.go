@@ -171,6 +171,7 @@ type welcomeMsg struct {
 	Taunt           tauntDef      `json:"taunt"`
 	Revive          reviveDef     `json:"revive"`
 	Medkit          medkitDef     `json:"medkit"`
+	Goggles         int32         `json:"goggles"` // night vision goggles' price
 }
 
 var fireNames = map[game.Fire]string{game.FireHitscan: "hitscan", game.FireRocket: "rocket", game.FireMelee: "melee"}
@@ -286,6 +287,7 @@ func welcome(wel netplay.Welcome, core point, host, hint string, hosting bool) w
 	m.Revive = reviveDef{reach, rt, hp}
 	mh, mt, mm, mc := game.MedkitInfo()
 	m.Medkit = medkitDef{mh, mt, mm, mc}
+	m.Goggles = game.GogglesCost()
 	return m
 }
 

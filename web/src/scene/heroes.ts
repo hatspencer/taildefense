@@ -13,7 +13,7 @@ interface Hero {
   group: THREE.Group; body: THREE.Group; hips: THREE.Group; torso: THREE.Group; head: THREE.Group; tail: THREE.Group | null; pack: THREE.Group;
   legL: Limb; legR: Limb; armL: Limb; armR: Limb;
   gun: THREE.Group; gunMesh: THREE.Mesh | null; spin: THREE.Group | null; flash: THREE.Object3D; finger: THREE.Object3D; hand: THREE.Object3D;
-  shout: THREE.Object3D; stars: THREE.Object3D; marker: THREE.Object3D; cross: THREE.Object3D; progress: THREE.Object3D;
+  shout: THREE.Object3D; stars: THREE.Object3D; goggles: THREE.Object3D; marker: THREE.Object3D; cross: THREE.Object3D; progress: THREE.Object3D;
   look: number; wd: number; ht: number; weapon: number; color: number;
   phase: number; seen: number; down: boolean; pop: number; shotAt: number; crouch: number; downAmt: number; taunt: number; reload: number;
   sprint: number; leap: number; hurt: boolean;
@@ -88,6 +88,9 @@ export class Heroes {
   group = new THREE.Group();
   private heroes = new Map<number, Hero>();
   private mat = litMaterial();
+  // Night vision goggles' lenses: a faint green glow, lit or not.
+  private lensMat = new THREE.MeshBasicNodeMaterial({ color: 0x8cff6a });
+  private lensGeo = merge(LENSES);
   private flashMat = new THREE.MeshBasicNodeMaterial({ color: 0xffe08a, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending });
   private bubbleMat = new THREE.MeshBasicNodeMaterial({ color: 0xf4efe0 });
   private starMat = new THREE.MeshBasicNodeMaterial({ color: 0xffe060 });
@@ -149,6 +152,14 @@ export class Heroes {
     head.rotation.order = 'YXZ';
     torso.add(head);
     this.mesh([...F.head, ...F.eyes, ...F.mouth], head, 0.01, 1.1);
+    // Night vision goggles, shown once bought.
+    const goggles = new THREE.Group();
+    goggles.visible = false;
+    head.add(goggles);
+    this.mesh(GOGGLES, goggles, 0.01, 1.1);
+    const lens = new THREE.Mesh(this.lensGeo, this.lensMat);
+    lens.position.set(-0.01, -1.1, 0);
+    goggles.add(lens);
     let tail: THREE.Group | null = null;
     if (F.tail.length) {
       tail = new THREE.Group();
@@ -229,7 +240,7 @@ export class Heroes {
     this.group.add(g);
     const h: Hero = {
       group: g, body, hips, torso, head, tail, pack, legL, legR, armL, armR, gun, gunMesh: null, spin: null, flash, finger, hand,
-      shout, stars, marker, cross, progress, look, wd: L.width, ht: L.height, weapon: -1, color: c,
+      shout, stars, goggles, marker, cross, progress, look, wd: L.width, ht: L.height, weapon: -1, color: c,
       phase: 0, seen: 0, down: false, pop: 0, shotAt: -1e9, crouch: 0, downAmt: 0, taunt: 0, reload: 0, sprint: 0, leap: 0, hurt: false,
       x: 0, y: 0, vx: 0, vy: 0, legYaw: 0, dirSign: 1, fresh: true,
       leanX: new Spring(2.2, 0.45, 0), leanZ: new Spring(2.2, 0.45, 0), aim: new Spring(4.5, 0.75, 1.6), flinch: new Spring(3, 0.3, 0),
@@ -452,6 +463,8 @@ export class Heroes {
         h.shout.quaternion.copy(this.q);
         h.shout.scale.setScalar(0.6 + tn * 0.5 + jab * 0.5);
       }
+      // Night vision goggles, worn at night.
+      h.goggles.visible = p.goggles && !!game.welcome?.dark;
       h.stars.visible = alive && p.stunned;
       if (h.stars.visible) {
         h.stars.position.set(0, 1.75 + Math.sin(t * 7) * 0.04, 0);
@@ -474,6 +487,17 @@ export class Heroes {
 export function garment(id: number): number {
   return new THREE.Color(playerColor(id)).lerp(new THREE.Color(0x6a6658), 0.3).getHex();
 }
+
+// Night vision goggles: a strap round the head, a mount on top and twin tubes over the eyes,
+// and their green lenses. The portraits wear them too.
+export const LENSES: Part[] = [part(box(0.012, 0.05, 0.05), 0x8cff6a, 0.263, 1.255, 0.06), part(box(0.012, 0.05, 0.05), 0x8cff6a, 0.263, 1.255, -0.06)];
+export const GOGGLES: Part[] = [
+  part(box(0.29, 0.05, 0.29), 0x1c1e1a, 0.02, 1.27),
+  part(box(0.05, 0.04, 0.06), 0x2c302a, 0.12, 1.33),
+  part(box(0.06, 0.09, 0.22), 0x2c302a, 0.165, 1.255),
+  part(box(0.08, 0.07, 0.07), 0x22251f, 0.22, 1.255, 0.06),
+  part(box(0.08, 0.07, 0.07), 0x22251f, 0.22, 1.255, -0.06),
+];
 
 export interface Figure { torso: Part[]; head: Part[]; tail: Part[]; pack: Part[]; eyes: Part[]; mouth: Part[] }
 
