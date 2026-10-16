@@ -405,8 +405,10 @@ the long way round, or not at all. Map generation tries the spot again elsewhere
   rocket launcher, for daytime sight (12, the rifle's scope doubles it) at night, worn instead
   of brutal's flashlight, so all round, not just ahead. Sold only on hard and brutal, where
   there is a night. Bought once and kept through being downed, like the gear. At night they show on
-  the survivor and their portrait, green lenses over the eyes, so the team knows whose eyes to trust in the dark,
-  and their sight is everyone's, as any survivor's is.
+  the survivor and their portrait: a binocular set on a head harness in place of the hat, its two
+  lenses glowing, so in the dark a goggled survivor is a pair of green eyes and the team knows
+  whose eyes to trust; their sight is everyone's, as any survivor's is. The glow throws no cone
+  ahead: the sight is all round, and a beam would read as the flashlight's.
 - **The generator heals, slowly.** Standing right by it (within a step and a half of its
   sides) gives back 2 HP a second, mid-wave too: a place to catch your breath, not to stand
   in a fight.
