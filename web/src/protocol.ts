@@ -92,7 +92,7 @@ export interface Welcome {
   t: 'welcome'; proto: number; version: string; you: number; w: number; h: number; seed: string;
   host: string; hosting: boolean; hint: string; tickRate: number; core: { x: number; y: number };
   buildRadius: number; shopRadius: number; maxLevel: number; maxStructLevel: number;
-  repairCostPerHP: number; sellFraction?: number; tracks: string[]; turretTracks?: string[]; creeps: CreepDef[]; weapons: WeaponDef[];
+  repairCostPerHP: number; sellFraction?: number; repairShare?: number; tracks: string[]; turretTracks?: string[]; creeps: CreepDef[]; weapons: WeaponDef[];
   gear: GearDef[]; abilities: AbilityDef[]; structs: StructDef[]; buildable: number[];
   siteKinds: SiteKindDef[]; sites: SiteDef[];
   difficulty: { id: number; name: string }; difficulties: string[]; weathers: WeatherDef[];
@@ -120,16 +120,29 @@ export function turretRange(d: StructDef, rangeLevel: number): number {
   return d.ranges?.[rangeLevel] ?? d.range;
 }
 
-// sellValue is what selling structure i of frame f returns, as the host works it out.
-export function sellValue(d: StructDef, f: Frame, i: number, frac = 0.5): number {
+// spent is the gold that went into structure i of frame f: its price and its upgrades.
+function spent(d: StructDef, f: Frame, i: number): number {
   let spent = d.price;
   if (d.turret) {
     for (let t = 0; t < TURRET_TRACKS; t++) for (let l = 0; l < f.sLv[i * TURRET_TRACKS + t]; l++) spent += d.upgrade[l] ?? 0;
   } else {
     for (let l = 1; l < f.sLevel[i]; l++) spent += d.upgrade[l] ?? 0;
   }
+  return spent;
+}
+
+// sellValue is what selling structure i of frame f returns, as the host works it out.
+export function sellValue(d: StructDef, f: Frame, i: number, frac = 0.5): number {
   const hp = f.sHp[i], maxHp = f.sMaxHp[i];
-  return Math.floor(spent * frac * (maxHp > 0 ? hp / maxHp : 1));
+  return Math.floor(spent(d, f, i) * frac * (maxHp > 0 ? hp / maxHp : 1));
+}
+
+// repairCost is roughly what mending structure i of frame f to full costs, as the host works it
+// out: the flat rate per hit point, capped at share of what went into it for a repair from nothing.
+export function repairCost(d: StructDef, f: Frame, i: number, perHP: number, share = 0.5): number {
+  const maxHp = f.sMaxHp[i], sp = spent(d, f, i);
+  const rate = maxHp > 0 && sp > 0 ? Math.min(perHP, share * sp / maxHp) : perHP;
+  return Math.ceil((maxHp - f.sHp[i]) * rate);
 }
 
 export interface Toast { t: 'toast'; level: number; text: string }

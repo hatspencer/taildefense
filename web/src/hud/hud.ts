@@ -1,5 +1,5 @@
 import type { ConnState } from '../net';
-import { CROWBAR, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, type Player, TTrack, TURRET_TRACKS, type Welcome, sellValue, turretRange, WEAPON_SLOTS } from '../protocol';
+import { CROWBAR, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, type Player, TTrack, TURRET_TRACKS, type Welcome, repairCost, sellValue, turretRange, WEAPON_SLOTS } from '../protocol';
 import { type Controller, KEYS } from '../controller';
 import { cssHex, playerColor } from '../scene/util';
 import { Armory } from './armory';
@@ -913,7 +913,7 @@ export class Hud {
         up.onclick = () => ctl.upgradeSel();
       }
       if (f.sHp[id] < f.sMaxHp[id]) {
-        const cost = Math.ceil((f.sMaxHp[id] - f.sHp[id]) * wd.repairCostPerHP);
+        const cost = d ? repairCost(d, f, id, wd.repairCostPerHP, wd.repairShare) : Math.ceil((f.sMaxHp[id] - f.sHp[id]) * wd.repairCostPerHP);
         const rp = el('button', '', btns); rp.innerHTML = `Repair <span class="gold">~${cost}g</span> <kbd>E</kbd>`;
         rp.onclick = () => ctl.repairSel();
       }

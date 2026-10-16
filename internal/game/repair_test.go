@@ -40,6 +40,27 @@ func TestRepairChargesByTheHitPoint(t *testing.T) {
 	}
 }
 
+// Mending a structure always costs less than selling it and building it again, at any health:
+// the repair rate is capped where the flat rate would make a cheap wall better rebuilt.
+func TestRepairBeatsSellingAndRebuilding(t *testing.T) {
+	for _, k := range Buildable {
+		for lv := uint8(1); lv <= MaxStructLevel; lv++ {
+			s := Structure{Kind: k, Level: lv, MaxHP: Structs[k].HP}
+			if Structs[k].Turret {
+				s.Lv[0] = lv - 1
+			}
+			s.MaxHP += Structs[k].HP * StructGrowth(k) * float32(lv-1)
+			for f := float32(0); f < 1; f += .05 {
+				s.HP = s.MaxHP * f
+				repair := (s.MaxHP - s.HP) * RepairRate(&s)
+				if rebuild := float32(Spent(&s) - SellValue(&s)); repair > rebuild {
+					t.Fatalf("%s level %d at %.0f%%: repair %.1f, sell and rebuild %.1f", Structs[k].Name, lv, f*100, repair, rebuild)
+				}
+			}
+		}
+	}
+}
+
 // Standing right by the generator slowly heals a survivor, mid-wave too; a few steps off, not.
 func TestTheGeneratorHealsWhoStandsByIt(t *testing.T) {
 	w := newBare(4)

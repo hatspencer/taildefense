@@ -151,6 +151,7 @@ type welcomeMsg struct {
 	MaxStructLevel  int           `json:"maxStructLevel"`
 	RepairCostPerHP float32       `json:"repairCostPerHP"`
 	SellFraction    float32       `json:"sellFraction"`
+	RepairShare     float32       `json:"repairShare"`
 	Tracks          []string      `json:"tracks"`
 	TurretTracks    []string      `json:"turretTracks"`
 	Creeps          []creepDef    `json:"creeps"`
@@ -183,7 +184,7 @@ func welcome(wel netplay.Welcome, core point, host, hint string, hosting bool) w
 		Seed: strconv.FormatUint(wel.Seed, 10), Host: host, Hosting: hosting, Hint: hint,
 		TickRate: game.TickRate, Core: core, BuildRadius: game.BuildRadius, ShopRadius: game.ShopRadius,
 		MaxLevel: game.MaxLevel, MaxStructLevel: game.MaxStructLevel, RepairCostPerHP: game.RepairCostPerHP,
-		SellFraction: game.SellFraction,
+		SellFraction: game.SellFraction, RepairShare: game.RepairShare,
 		Tracks:       game.TrackNames[:],
 		TurretTracks: game.TurretTrackNames[:],
 	}

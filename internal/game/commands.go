@@ -412,8 +412,8 @@ func (w *World) UpgradeStruct(p *Player, si int, t Track) error {
 // health; a damaged one returns that much less.
 const SellFraction = .5
 
-// SellValue is what selling s would return.
-func SellValue(s *Structure) int32 {
+// Spent is the gold that went into s: its price and every upgrade bought on it.
+func Spent(s *Structure) int32 {
 	spent := Structs[s.Kind].Price
 	if Structs[s.Kind].Turret {
 		for _, lv := range s.Lv {
@@ -426,7 +426,12 @@ func SellValue(s *Structure) int32 {
 			spent += StructUpgradeCost(s.Kind, l)
 		}
 	}
-	return int32(float32(spent) * SellFraction * s.HP / s.MaxHP)
+	return spent
+}
+
+// SellValue is what selling s would return.
+func SellValue(s *Structure) int32 {
+	return int32(float32(Spent(s)) * SellFraction * s.HP / s.MaxHP)
 }
 
 // Sell removes a structure for half of what went into it, the gold going to whoever sells it.

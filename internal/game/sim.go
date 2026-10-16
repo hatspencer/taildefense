@@ -705,7 +705,7 @@ func (w *World) respawn(p *Player) {
 func (w *World) repair(p *Player, si int) bool {
 	s := &w.Structs[si]
 	hp := min(80*Dt*float32(1+p.Gear[GearVitamins]/2), s.MaxHP-s.HP)
-	owed := p.repairOwed + hp*RepairCostPerHP
+	owed := p.repairOwed + hp*RepairRate(s)
 	if float32(p.Gold) < owed {
 		return false
 	}

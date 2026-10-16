@@ -54,7 +54,9 @@ the coloured pips on the turret's side show its levels, a column per track. Ever
 gives the turret a little more health. Selling returns half of everything that went into it, less for a damaged one, to whoever
 sells it: anyone can sell anything but the generator and the armory, a teammate's too, and the
 team is told. To sell, press Delete twice on the selected structure (the first press
-says what it will fetch), or use Sell on its card.
+says what it will fetch), or use Sell on its card. Repairing costs gold by the hit point, never more
+than half of what went into the structure for a full mend, so it is always cheaper than selling
+and building again.
 
 ## Out past the walls
 
