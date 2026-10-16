@@ -14,9 +14,9 @@
     Settings
     Changelog
     Doctor
+    Screenshots
     Restart into the new td
     Quit
-
 
 
 

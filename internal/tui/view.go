@@ -228,6 +228,8 @@ func (m *Model) itemHint(it menuItem) string {
 		return "the latest commits, and which of them this td is"
 	case itemDoctor:
 		return "check tailscale, the browser and what updates need"
+	case itemScreenshots:
+		return "open the folder of finished games' scoreboards"
 	case itemRestart:
 		return "start the updated td in place of this one"
 	}

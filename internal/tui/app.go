@@ -177,6 +177,7 @@ const (
 	itemSettings
 	itemChangelog
 	itemDoctor
+	itemScreenshots
 	itemUpdate
 	itemRestart
 	itemQuit
@@ -184,7 +185,7 @@ const (
 
 var itemLabels = map[menuItem]string{
 	itemHost: "Host a game", itemJoin: "Join a game", itemSettings: "Settings",
-	itemChangelog: "Changelog", itemDoctor: "Doctor",
+	itemChangelog: "Changelog", itemDoctor: "Doctor", itemScreenshots: "Screenshots",
 	itemUpdate: "Check for updates", itemRestart: "Restart into the new td", itemQuit: "Quit",
 }
 
@@ -378,7 +379,7 @@ func (m *Model) ensureTick() tea.Cmd {
 }
 
 func (m *Model) menu() []menuItem {
-	items := []menuItem{itemHost, itemJoin, itemSettings, itemChangelog, itemDoctor}
+	items := []menuItem{itemHost, itemJoin, itemSettings, itemChangelog, itemDoctor, itemScreenshots}
 	if m.sess.Update().State == cli.UpdateUpdated {
 		items = append(items, itemRestart)
 	} else {
@@ -574,6 +575,12 @@ func (m *Model) menuKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case itemDoctor:
 			m.screen, m.notice, m.dscroll = screenDoctor, "", 0
 			return m, m.runDoctor()
+		case itemScreenshots:
+			if dir, err := web.OpenScreenshots(); err != nil {
+				m.say(true, "screenshots: %v", err)
+			} else {
+				m.say(false, "opened %s", dir)
+			}
 		case itemUpdate:
 			if m.sess.Update().State == cli.UpdateUpdating {
 				m.say(false, "an update is already running in the background")
