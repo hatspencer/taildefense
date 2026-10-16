@@ -444,8 +444,9 @@ choice, not a cheat guard.
   art, it is all generated. The bank is made once sound starts, in a worker so no frame waits
   on it (about 1.3 s of work, guns first; a sound not made yet is skipped), and the long, low
   sounds (explosions, voices, sirens) at 24 kHz, which they lose nothing by and which halves
-  their memory: about 38 MB in all. Each sound has a few variants from different seeds,
-  played at a slightly different speed each time, so fire never sounds like a loop.
+  their memory: about 38 MB in all. Each sound has a few variants from different seeds, and
+  every play is pitched and set up to 15% apart (mostly much less), so fire never sounds like
+  a loop and the ear doesn't tire of a sound repeated exactly.
 - **Guns are built like real shots,** because they are most of what is heard. Six layers: a
   crack of a millisecond, the muzzle blast overdriven into distortion with its top end dying
   first, a resonant body in the mids where the bang is, a low boom falling in pitch, a tail
@@ -456,7 +457,11 @@ choice, not a cheat guard.
   and wetter, and the screen position pans it. One shared reverb is open ground with buildings
   round it, not a hall.
 - **Cues over noise.** A tick's events are thinned to the nearest few of each sound and spread
-  across the tick, so twenty turrets and five thousand creeps stay readable. What needs
+  across the tick, so twenty turrets and five thousand creeps stay readable. No more than
+  six of one sound play at once (more for the guns that fire in streams), and 40 in all. The
+  more creeps are awake within earshot, the fewer of their groans, blows, throws and deaths
+  are played: from 6 to 30 awake they thin to about half, since a horde reads as a horde from
+  a few voices and all of them at once only tires the ear. What needs
   attention gets its own sound that cuts through: the siren, the generator's klaxon, the
   radio for pings and chat, a nest waking.
 - **Effects only, no music or ambience,** so the game's own sounds carry the mood and the
