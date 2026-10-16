@@ -1,12 +1,12 @@
 import { fixedColor, piece, type Dress, type Use } from './figures';
-import { REGIONS, SLOTS, SURVIVOR as SV } from './figures.gen';
+import { REGIONS, SLOTS } from './figures.gen';
 import { Body, type Look, shade } from './look';
-import { box, part, type Part } from './util';
 
 // A survivor as pieces of the Blender figure, dressed as the look the host dealt them: the
 // body (male or female build), head and face, hands and boots; the outfit's layers over the
 // shirt, its hat, what it carries; the person's hair, beard and glasses. The player's colour is
-// the shirt, so teams read by colour; the archetype is the silhouette.
+// the shirt, so teams read by colour; the archetype is the silhouette. At night, once bought,
+// the night vision goggles take the hat's place: their harness is the headgear then.
 
 const slot = (n: (typeof SLOTS)[number]) => SLOTS.indexOf(n);
 const region = (n: (typeof REGIONS)[number]) => 32 + REGIONS.indexOf(n);
@@ -19,7 +19,7 @@ const R = {
 // Big hair lifts the hat.
 const LIFT: Partial<Record<string, number>> = { afro: 0.1, curly: 0.035, mohawk: 0.04, locs: 0.015 };
 
-export function survivor(L: Look, c: number): { uses: Use[]; dress: Dress } {
+export function survivor(L: Look, c: number, nv = false): { uses: Use[]; dress: Dress } {
   const A = L.arch, g = L.body === Body.Fem ? 'f' : 'm';
   const uses: Use[] = [];
   const add = (name: string, at?: [number, number, number]) => { const p = piece(name); if (p) uses.push({ p, at }); };
@@ -29,9 +29,10 @@ export function survivor(L: Look, c: number): { uses: Use[]; dress: Dress } {
   if (A.chest) add(`chest_${A.chest}_${g}`);
   if (A.back !== 'none') add(`pack_${A.back}_${g}`);
   if (L.style !== 'bald') { add(`hair_${L.style}`); add(`tail_${L.style}`); }
-  if (A.hat !== 'none' && L.style !== 'headwrap') add(`hat_${A.hat}`, [0, LIFT[L.style] ?? 0, 0]);
+  if (nv) { add('nvg'); add('nvg_lens'); }
+  else if (A.hat !== 'none' && L.style !== 'headwrap') add(`hat_${A.hat}`, [0, LIFT[L.style] ?? 0, 0]);
   if (L.beard >= 2) add(`beard_${L.beard}`);
-  if (L.glasses) add('glasses');
+  if (L.glasses && !nv) add('glasses');
 
   const skin = L.skin, pants = A.pcLegs ? shade(c, 0.85) : A.legs;
   const sleeve = A.overKind === 'open' && A.over !== undefined ? A.over : c;
@@ -75,23 +76,6 @@ export function survivor(L: Look, c: number): { uses: Use[]; dress: Dress } {
     return 0xff00ff;
   };
   return { uses, dress };
-}
-
-// Night vision goggles in the figure's space, over its eyes: a strap round the head, a mount
-// on the brow and twin tubes, and apart from them the lenses, which glow.
-export function goggles(): { body: Part[]; lenses: Part[] } {
-  const [ex, ey, ez] = SV.eye, by = SV.brow[1], dark = 0x22251f;
-  const body = [
-    part(box(0.19, 0.022, 0.18), 0x1c1e1a, 0.005, by),
-    part(box(0.03, 0.02, 0.03), 0x2c302a, ex - 0.005, by + 0.03),
-    part(box(0.03, 0.04, 0.1), 0x2c302a, ex + 0.01, ey + 0.002),
-  ];
-  const lenses: Part[] = [];
-  for (const z of [ez, -ez]) {
-    body.push(part(box(0.04, 0.032, 0.032), dark, ex + 0.03, ey, z));
-    lenses.push(part(box(0.004, 0.024, 0.024), 0x8cff6a, ex + 0.052, ey, z));
-  }
-  return { body, lenses };
 }
 
 function mix(a: number, b: number, k: number): number {

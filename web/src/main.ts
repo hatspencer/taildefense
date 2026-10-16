@@ -328,6 +328,7 @@ async function main(): Promise<void> {
         lab = new demoKit!.Lab(game, wd.core.x, wd.core.y, P.has('gun') ? Number(P.get('gun')) : -1);
         demoHost!.halt();
         lab = new Lab(game, wd.core.x, wd.core.y, P.has('gun') ? Number(P.get('gun')) : -1, P.has('still'));
+        lab = new Lab(game, wd.core.x, wd.core.y, P.has('gun') ? Number(P.get('gun')) : -1, P.has('still'), P.has('nv'));
         (transport as DemoHost).halt();
         const [lx, ly] = lab.center(P.get('lab') ?? '');
         rig.follow = false; rig.center(lx, ly); rig.setDist(Number(P.get('dist')) || 26);

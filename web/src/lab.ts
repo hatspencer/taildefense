@@ -23,10 +23,12 @@ export class Lab {
   private poses = ['circle', 'sprint', 'loot', 'revive', 'reload', 'taunt', 'down', 'shoot', 'dual', 'thrown'];
 
   // gun, when 0 or more, puts that weapon in every survivor's hands (#lab=h&gun=6); still
-  // keeps the shooter aiming one way, unhurt, to study how it holds the gun (&still).
-  constructor(private game: Game, cx: number, cy: number, private gun = -1, private still = false) {
+  // keeps the shooter aiming one way, unhurt, to study how it holds the gun (&still); nv
+  // brings the night and puts the survivors in night vision goggles (&nv).
+  constructor(private game: Game, cx: number, cy: number, private gun = -1, private still = false, private nv = false) {
     this.x0 = cx - 3 * DX;
     this.y0 = cy + 9;
+    if (nv && game.welcome) game.setDifficulty(game.welcome.difficulty, 7);
   }
 
   // Where to look: the whole bench, or one creep row (0..7), or one creep ('0.6'), or the
@@ -91,7 +93,7 @@ export class Lab {
       const p = f.players[i], pose = this.poses[i];
       // Health varies so the portraits show their wounds; the sprinter has a medkit working.
       p.id = i; p.look = (i * 2654435761) >>> 0; p.cur = this.gun >= 0 ? this.gun : i % 6; p.hp = [80, 50, 55, 80, 22, 80, 0, 45, 70, 35][i]; p.maxHp = 100;
-      p.heal = pose === 'sprint' ? 5 : 0;
+      p.heal = pose === 'sprint' ? 5 : 0; p.goggles = this.nv;
       p.flags = PF_CONNECTED | PF_ALIVE; p.order = Order.Idle; p.channel = 0; p.emote = Emote.None; p.emoteLeft = 0; p.sprinting = false;
       p.held = false; p.airborne = false; p.stunned = false; p.owned = 0;
       let x = hx + (i % 2) * 3.4, y = this.y0 + Math.floor(i / 2) * DY, aim = Math.PI / 2;

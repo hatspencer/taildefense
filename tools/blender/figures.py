@@ -9,7 +9,8 @@
 #
 # In Blender: run the file to rewrite the module and lay out a row of dressed survivors, the
 # creeps, the guns (twice their size) and the turrets;
-# show_heads() puts two big heads beside them to study the face.
+# show_heads() puts two big heads beside them to study the face, show_goggles() three in the
+# night vision goggles.
 #
 # Each triangle carries a code: a slot the page colours per player or per creep (skin, shirt,
 # trousers, ...), a body region the page dresses per outfit (the forearm is a sleeve or bare
@@ -820,6 +821,70 @@ def glasses():
     return headspace(bm)
 
 
+# Night vision goggles: a binocular set on a head harness, a tube over each eye hung on its
+# own arm from a bridge on a flip mount at the brow, so at night a survivor looks out of two
+# green eyes; a battery pack at the back of the skull to balance it, its cable over the
+# crown, and an infrared lamp on the bridge. The lenses are a piece of their own, which the
+# page makes glow.
+NV_WEB, NV_BLACK, NV_BODY, NV_EDGE, NV_LENS, NV_IR = 0x2a2d24, 0x161718, 0x2d3033, 0x4a4f53, 0x8cff6a, 0x6a1a14
+NV_EYE = 1.214      # the tubes' axis: just over the eyes
+NV_Z = 0.037        # and out from the middle, a touch wider than the eyes
+NV_TOE = 0.06       # each tube turned out a little
+
+
+def nvg_tube(z, at=0.1):
+    """One tube from its eyecup forward: the rubber cup, the housing with a focus ring, the
+    objective's knurled barrel flaring to a lip, and the lens recessed in it."""
+    k = 1 if z > 0 else -1
+    d = (math.cos(NV_TOE), 0.0, math.sin(NV_TOE) * k)
+    p = lambda s: (at + d[0] * s, NV_EYE, z + d[2] * s)
+    body = [cy(p(0), p(0.018), 0.021, NV_BLACK, 0.0185, seg=14),
+            cy(p(0.016), p(0.062), 0.0185, NV_BODY, seg=14),
+            cy(p(0.03), p(0.04), 0.0198, NV_EDGE, seg=14),
+            cy(p(0.06), p(0.1), 0.0215, NV_BLACK, 0.0245, seg=16),
+            cy(p(0.066), p(0.072), 0.0228, NV_BODY, seg=16),
+            cy(p(0.08), p(0.086), 0.0238, NV_BODY, seg=16),
+            cy(p(0.098), p(0.106), 0.026, NV_EDGE, seg=16)]
+    # The arm it hangs from: a pod on the bridge, down to a clamp round the housing.
+    body.append(bx((at + 0.036, NV_EYE + 0.026, z), (0.034, 0.016, 0.022), NV_BODY, 0.004))
+    body.append(cy((at + 0.024, NV_EYE + 0.03, z - 0.012 * k), (at + 0.024, NV_EYE + 0.03, z + 0.012 * k), 0.006, NV_EDGE, seg=10))
+    lens = col(cylinder(p(0.102), p(0.1035), 0.0195, seg=16), NV_LENS)
+    return body, lens
+
+
+def nvg():
+    """(the goggles, their lenses), on the head bone."""
+    P, L = [], []
+    # The harness: a band round the head, high at the brow and low at the nape; a strap
+    # over the crown front to back, and one over it ear to ear.
+    strap = lambda u, v, w: (abs(v - (0.14 + 0.24 * u)) < 0.1 or (abs(w) < 0.14 and v > 0.2 and u > -0.75)
+                             or (abs(u + 0.12) < 0.11 and v > 0.05))
+    web = cranial(strap, push=0.024, seg=36, rings=24, solid=0.007)
+    paint(web, fixed(NV_WEB))
+    P.append(web)
+    # The mount on the brow: a plate on the band, a hinge, an arm forward and down.
+    P.append(bx((0.098, 1.276, 0), (0.016, 0.046, 0.064), NV_BLACK, 0.005, rot=(0, 0, -0.32)))
+    P.append(cy((0.112, 1.272, 0.026), (0.112, 1.272, -0.026), 0.0075, NV_EDGE, seg=10))
+    P.append(bx((0.122, 1.262, 0), (0.024, 0.016, 0.03), NV_BODY, 0.004, rot=(0, 0, -0.5)))
+    # The bridge the tubes hang from, a knob on top and the lamp to one side.
+    P.append(bx((0.136, 1.252, 0), (0.044, 0.02, 0.13), NV_BODY, 0.007))
+    P.append(bx((0.136, 1.262, 0), (0.028, 0.008, 0.05), NV_BLACK, 0.003))
+    P.append(cy((0.15, 1.262, -0.03), (0.15, 1.272, -0.03), 0.0075, NV_EDGE, seg=10))
+    P.append(cy((0.118, 1.258, 0.06), (0.162, 1.258, 0.06), 0.0085, NV_BLACK, seg=10))
+    P.append(col(cylinder((0.162, 1.258, 0.06), (0.164, 1.258, 0.06), 0.006, seg=10), NV_IR))
+    for z in (NV_Z, -NV_Z):
+        b, lens = nvg_tube(z)
+        P += b
+        L.append(lens)
+    # The battery pack, the counterweight, and its cable over the crown to the bridge.
+    P.append(bx((-0.118, 1.236, 0), (0.034, 0.06, 0.088), NV_BODY, 0.008, rot=(0, 0, 0.18)))
+    P.append(bx((-0.137, 1.236, 0), (0.006, 0.044, 0.07), NV_BLACK, 0.002, rot=(0, 0, 0.18)))
+    (cx, cy_, cz), (rx, ry, rz) = CRANIUM
+    over = lambda a: (cx + math.cos(a) * (rx + 0.034), cy_ + math.sin(a) * (ry + 0.034), 0.0)
+    P += rod([over(a) for a in (2.75, 2.2, 1.75, 1.35, 0.95, 0.6)], 0.0045, NV_BLACK)
+    return headspace(hard(join(*P))), headspace(join(*L))
+
+
 # ---- Clothes over the shirt, and what they carry ------------------------------------------------
 
 class Surf:
@@ -1136,6 +1201,9 @@ def survivor_pieces():
     out['beard_2'] = encode(beard(2), joint=HEAD, tone=weathered(dirt=0, grain=0.12))
     out['beard_3'] = encode(beard(3), joint=HEAD)
     out['glasses'] = encode(glasses(), joint=HEAD, smooth_=False)
+    nv, lens = nvg()
+    out['nvg'] = encode(nv, joint=HEAD, tone=weathered(dirt=0.1, grain=0.06))
+    out['nvg_lens'] = encode(lens, joint=HEAD, smooth_=False)
     return out
 
 
@@ -1196,6 +1264,22 @@ def show_heads():
         ob = bpy.data.objects['study_' + ('f' if fem else 'm')]
         for p_ in ob.data.polygons:
             p_.use_smooth = True
+
+
+def show_goggles():
+    """Big heads in the night vision goggles: bare, with long hair, and under a helmet."""
+    for o in list(bpy.data.objects):
+        if o.name.startswith('nvg'):
+            bpy.data.objects.remove(o)
+    nv, lens = nvg()
+    for i, (fem, st, ht) in enumerate(((False, 'short', None), (True, 'long', None), (False, 'buzz', 'helmet'))):
+        parts = [head(fem), face(fem), hair(st)[0], nv.copy(), lens.copy()]
+        if ht:
+            parts.append(hat(ht))
+        bm = join(*parts)
+        for v in bm.verts:
+            v.co *= 4
+        preview('nvg%d' % i, bm, at=(0, -2.5, 3 + i * 1.3))
 
 
 def show_survivors():
