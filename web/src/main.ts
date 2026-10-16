@@ -238,6 +238,12 @@ async function main(): Promise<void> {
     if (P.has('score')) hud.showScore(true);
     if (P.has('menu')) hud.toggleMenu();
     if (P.has('f3')) hud.toggleStats();
+    // site=N: the view on the Nth ruined house, for its walls.
+    if (P.has('site') && !cam) {
+      const houses = (game.welcome?.sites ?? []).filter((s) => s.kind === SiteKind.House);
+      const s = houses[(Number(P.get('site')) || 0) % Math.max(1, houses.length)];
+      if (s) { rig.follow = false; rig.center(s.x + s.w / 2, s.y + s.h / 2); rig.setDist(Number(P.get('dist')) || 14); }
+    }
     const sel = P.get('sel');
     if (sel) {
       const [t, id] = sel.split(':');

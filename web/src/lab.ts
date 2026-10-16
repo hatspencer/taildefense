@@ -27,11 +27,13 @@ export class Lab {
     this.y0 = cy + 9;
   }
 
-  // Where to look: the whole bench, or one creep row (0..7), or the survivors ('h'), or one
-  // of them ('h0'..'h7').
+  // Where to look: the whole bench, or one creep row (0..7), or one creep ('0.6'), or the
+  // survivors ('h'), or one of them ('h0'..'h7').
   center(at = ''): [number, number] {
     if (/^h\d$/.test(at)) { const i = Number(at[1]); return [this.x0 + COLS.length * DX + 2.5 + (i % 2) * 3.4, this.y0 + Math.floor(i / 2) * DY]; }
     if (at === 'h') return [this.x0 + COLS.length * DX + 4.2, this.y0 + 1.5 * DY];
+    // A row and a column of it: '0.6' is the walker dying.
+    if (/^\d\.\d$/.test(at)) return [this.x0 + Number(at[2]) * DX, this.y0 + Number(at[0]) * DY];
     if (at !== '') return [this.x0 + 3 * DX, this.y0 + Number(at) * DY];
     return [this.x0 + 3 * DX + 3, this.y0 + 2.5 * DY];
   }
@@ -67,7 +69,7 @@ export class Lab {
           if (t % 1.1 < 0.02) g.flashUntil[id] = now + 90;
         } else if (col === 'burn') fl |= CF_BURNING;
         else if (col === 'sleep') fl |= CF_ASLEEP | CF_GUARD;
-        else if (col === 'die' && t % 4.5 > 1.2) continue;
+        else if (col === 'die' && t % 7 > 1.2) continue;
         f.cId[n] = id; f.cKind[n] = k; f.cFlags[n] = fl; f.cTarget[n] = col === 'attack' ? 128 + 32 : 255;
         f.cHp[n] = col === 'hit' ? 200 : 255;
         f.cX[n] = px; f.cY[n] = py;

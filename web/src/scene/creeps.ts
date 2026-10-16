@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import {
-  abs, attribute, cos, float, floor, Fn, fract, instancedDynamicBufferAttribute, int, max, mix, normalGeometry, normalLocal,
+  abs, attribute, cos, float, floor, Fn, fract, instancedDynamicBufferAttribute, int, max, min, mix, normalGeometry, normalLocal,
   positionGeometry, select, sin, smoothstep, step, time, uniform, uniformArray, vec3, vertexColor,
 } from 'three/tsl';
 import {
@@ -30,13 +30,13 @@ const HAIRS = [0x2e2620, 0x16120f, 0x4e3220, 0x8e8a82, 0xa88a52, 0x6a2e1a, 0x2e2
 //   mo  asleep, hunting you, at a structure, which arm leads
 //   at  winding up, striking, flinching, head tilt
 //   va  limp, arms hanging rather than reaching, an arm gone, trousers
-//   de  dying 0..1, falls forward (1) or back (-1), sunk, thrown
+//   de  dying 0..1, falls on its face (1) or its back (-1), sunk 0..1, thrown
 //   pl  x, y, z, heading
 const STRIDE = 28;
 // The "z"s over sleeping guards.
 const MARKS = 2048;
 // The dead lie a while, then sink away.
-const CORPSES = 1024, LIE = 3.4, SINK = 1.3, FALL = 0.7;
+const CORPSES = 1024, LIE = 3.4, SINK = 1.6, FALL = 0.8;
 
 interface KindMesh { mesh: THREE.InstancedMesh; fx: Float32Array; buf: THREE.InstancedInterleavedBuffer; scale: number; top: number; n: number; rig: CreepRig; def: CreepDef }
 
@@ -46,9 +46,23 @@ const hash = (id: number, salt: number) => {
   return (h >>> 0) / 4294967296;
 };
 
+// How a kind lies when dead, in model units: the front and back of its trunk (what it lands
+// on), and how high it can lie at most, which is how far it sinks before it goes.
+interface Lie { front: number; back: number; depth: number }
+function lie(geo: THREE.BufferGeometry): Lie {
+  const pos = geo.getAttribute('position'), rj = geo.getAttribute('rj');
+  let front = 0, back = 0, lo = 0, hi = 0;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), own = rj.getX(i);
+    lo = Math.min(lo, x); hi = Math.max(hi, x);
+    if (own === J.CHEST || own < 0) { front = Math.max(front, x); back = Math.min(back, x); }
+  }
+  return { front, back: -back, depth: hi - lo + 0.1 };
+}
+
 // The shader: the vertex's joints posed from the instance's state, outermost last, then the
 // whole figure bobbed, felled, scaled and placed.
-function material(r: CreepRig, scale: number, buf: THREE.InstancedInterleavedBuffer, uHover: THREE.UniformNode<'float', number>): THREE.MeshLambertNodeMaterial {
+function material(r: CreepRig, L: Lie, scale: number, buf: THREE.InstancedInterleavedBuffer, uHover: THREE.UniformNode<'float', number>): THREE.MeshLambertNodeMaterial {
   const v4 = (o: number) => instancedDynamicBufferAttribute<'vec4'>(buf, 'vec4', STRIDE, o);
   const st = v4(0), an = v4(4), mo = v4(8), at = v4(12), va = v4(16), de = v4(20), pl = v4(24);
   const pivots: THREE.Vector3[] = [], pars: THREE.Vector4[] = [];
@@ -61,8 +75,11 @@ function material(r: CreepRig, scale: number, buf: THREE.InstancedInterleavedBuf
 
   const phase = an.x, move = an.y, seed = an.w;
   const wind = at.x, strike = at.y, flinch = at.z;
-  const die = de.x, dieJ = smoothstep(0, 0.45, die);
-  const flail = st.x.mul(sin(time.mul(17).add(seed.mul(40))));
+  // Dying: the knees go first, then it topples, and the legs straighten as it lands.
+  const die = de.x, dieJ = smoothstep(0, 0.45, die), down = smoothstep(0.25, 1, die);
+  const dieL = dieJ.mul(float(1).sub(down.mul(0.75))), dir = de.y;
+  // Burning: it beats at its chest with both hands, twisting and doubling over, and staggers.
+  const burn = st.x, bt = time.add(seed.mul(40));
 
   const rot = (v: V3, a: V3): V3 => {
     const cz = cos(a.x), sz = sin(a.x), cx = cos(a.y), sx = sin(a.y), cy = cos(a.z), sy = sin(a.z);
@@ -97,9 +114,19 @@ function material(r: CreepRig, scale: number, buf: THREE.InstancedInterleavedBuf
         .add(idle);
       const head = float(1).sub(step(0.5, abs(id.sub(J.HEAD))));
       let a: V3 = vec3(z, P0.z.mul(s).mul(move).add(at.w.mul(head)), P1.z.mul(s).mul(move));
-      const slump = dieJ.add(mo.x.mul(0.3));
-      a = a.add(P2.xyz.mul(wind).mul(lead)).add(P3.xyz.mul(strike).mul(lead)).add(P4.xyz.mul(slump))
-        .add(vec3(P5.x.mul(flinch), P5.y.mul(flail).mul(0.5), P5.y.mul(flail).mul(0.3)));
+      // Its slump, dying or asleep; dying on its back, the trunk and head arch back rather
+      // than fold over.
+      const dying = select(leg.greaterThan(0.5), dieL, dieJ);
+      const back = select(cls.lessThan(0.5).and(dir.lessThan(0)), float(-0.6), float(1));
+      const slumpA = vec3(back, 1, 1).mul(dying).add(mo.x.mul(0.3)), slump = dying.add(mo.x.mul(0.3));
+      a = a.add(P2.xyz.mul(wind).mul(lead)).add(P3.xyz.mul(strike).mul(lead)).add(P4.xyz.mul(slumpA))
+        .add(vec3(P5.x.mul(flinch), 0, 0));
+      const fore = float(1).sub(step(0.5, abs(id.sub(J.FARM_L)))).add(float(1).sub(step(0.5, abs(id.sub(J.FARM_R)))));
+      const beat = sin(bt.mul(15).add(side.mul(1.9)));
+      const hands = vec3(mix(float(0.75), float(0.9), fore).add(beat.mul(0.25)), side.mul(mix(float(-0.2), float(0.15), fore)), 0).mul(min(P5.y, 1)).mul(arm);
+      const body = vec3(sin(bt.mul(11)).mul(0.12).add(0.15), 0, sin(bt.mul(7)).mul(0.35)).mul(float(1).sub(step(0.5, cls)));
+      const stagger = vec3(0, sin(bt.mul(9)).mul(0.25), 0).mul(P5.y).mul(leg);
+      a = a.add(hands.add(body).add(stagger).mul(burn));
       const k = float(1).add(P2.w.mul(wind)).add(P3.w.mul(strike)).add(P4.w.mul(slump));
       const piv = uPiv.element(i);
       const q = rot(p.sub(piv), a).mul(k).add(piv);
@@ -108,15 +135,19 @@ function material(r: CreepRig, scale: number, buf: THREE.InstancedInterleavedBuf
     }
     // The pelvis: a rise and fall with each step, sinking as the knees give.
     const bob = abs(sin(phase)).oneMinus().mul(move).mul(r.bob);
-    p = p.add(vec3(0, bob.sub(dieJ.add(mo.x.mul(0.3)).mul(r.drop)), 0));
-    // Falling: over the front or back edge, flung high when blown off its feet.
-    const thrown = de.w, dir = de.y;
-    const fall = smoothstep(0.3, 1, die).mul(dir.negate()).mul(float(1.45).add(thrown.mul(1.6)));
-    const edge = vec3(dir.mul(0.32), 0, 0);
-    const fz = vec3(fall, 0, 0);
+    p = p.add(vec3(0, bob.sub(dieL.add(mo.x.mul(0.3)).mul(r.drop)), 0));
+    // Falling: tipping over the front or the back of its trunk, quicker as it goes, until it
+    // lies flat on its face or its back; what would go into the ground (a hunched head, an
+    // outflung arm) lies on it instead. Flung high when blown off its feet.
+    const thrown = de.w;
+    const tip = down.mul(down).mul(dir.negate()).mul(Math.PI / 2);
+    const edge = vec3(select(dir.greaterThan(0), float(L.front), float(-L.back)), 0, 0);
+    const fz = vec3(tip, 0, 0);
     p = rot(p.sub(edge), fz).add(edge);
     n = rot(n, fz);
-    p = p.add(vec3(0, sin(min1(die.mul(1.3)).mul(Math.PI)).mul(thrown).mul(0.9).sub(de.z), 0));
+    p = vec3(p.x, mix(p.y, max(p.y, 0.015), step(1e-3, die)), p.z);
+    // Then it sinks through the ground until nothing of it is left above.
+    p = p.add(vec3(0, sin(min1(die.mul(1.3)).mul(Math.PI)).mul(thrown).mul(0.9).sub(de.z.mul(L.depth)), 0));
     // Scaled to its size and placed, heading 0 facing +x and turning towards +z.
     const c = cos(pl.w), sn = sin(pl.w);
     const turn = (v: V3) => vec3(v.x.mul(c).sub(v.z.mul(sn)), v.y, v.x.mul(sn).add(v.z.mul(c)));
@@ -231,7 +262,7 @@ export class Creeps {
       const fx = new Float32Array(cap * STRIDE);
       const buf = new THREE.InstancedInterleavedBuffer(fx, STRIDE, 1);
       buf.setUsage(THREE.DynamicDrawUsage);
-      const mesh = new THREE.InstancedMesh(geo, material(r, scale, buf, this.uHover), cap);
+      const mesh = new THREE.InstancedMesh(geo, material(r, lie(geo), scale, buf, this.uHover), cap);
       // Placement is in the state buffer; the instance matrices stay the identity.
       mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
       mesh.count = 0;
@@ -407,7 +438,7 @@ export class Creeps {
       fx[o + 18] = this.cArm[s];
       fx[o + 20] = Math.min(1, age / FALL);
       fx[o + 21] = this.cDir[s];
-      fx[o + 22] = age > LIE ? (age - LIE) / SINK * 0.7 : 0;
+      fx[o + 22] = age > LIE ? (age - LIE) / SINK : 0;
       fx[o + 23] = this.cThrown[s];
       fx[o + 24] = this.cX[s]; fx[o + 26] = this.cY[s]; fx[o + 27] = this.cYaw[s];
     }
@@ -444,8 +475,8 @@ export class Creeps {
     this.cK[s] = this.kindOf[id]; this.cId[s] = id;
     this.cX[s] = this.px[id]; this.cY[s] = this.py[id]; this.cYaw[s] = this.yaw[id];
     this.cT[s] = now;
-    // Most go down on their faces, the way they were going; some topple back.
-    this.cDir[s] = hash(id, 13) < 0.7 ? 1 : -1;
+    // Most go down on their faces, the way they were going; some topple onto their backs.
+    this.cDir[s] = hash(id, 13) < 0.6 ? 1 : -1;
     this.cThrown[s] = thrown ? 0.6 + Math.random() * 0.5 : 0;
     this.cArm[s] = this.armless[id];
     this.cBurn[s] = burning ? 1 : 0;

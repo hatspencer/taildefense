@@ -22,15 +22,17 @@ camera-controls, esbuild). `web/PROTOCOL.md` is the contract between `td` and th
 `internal/web/dist/index.html#demo` straight from disk for a self-running demo with a fake host;
 `#demo&webgl` forces the WebGL 2 path, and `#demo&creeps=8000` stresses it.
 `#lab` is the animation bench: every creep kind walking, idle, attacking, hit, burning, asleep
-and dying, beside the survivors' poses; `#lab=0`…`#lab=7` looks at one creep row, `#lab=h` at the
-survivors (`#lab=h0`…`#lab=h7` at one of them), and `&dist=11` brings the camera in.
+and dying, beside the survivors' poses; `#lab=0`…`#lab=7` looks at one creep row, `#lab=0.6` at
+one creep (row and column: the walker dying), `#lab=h` at the survivors (`#lab=h0`…`#lab=h7` at
+one of them), and `&dist=11` brings the camera in. In the demo, `#site=3` puts the view on the
+fourth ruined house, to look at its walls.
 A real game cancels the browser's shortcuts, DevTools' among them, and asks before the page is
 left; add `&dev` after the token in its URL to keep them (td's own Firefox profile has DevTools
 off whatever the URL says).
 
-The survivors, creeps, guns and turrets are modelled in Blender by `tools/blender/figures.py`,
+The survivors, creeps, guns, turrets and ruined walls are modelled in Blender by `tools/blender/figures.py`,
 which writes `web/src/scene/figures.gen.ts` (every piece's vertices, joints, colour codes and
 tones, and the pivots the page animates them about). Run the file in Blender to rewrite the
 module; it also lays them all out in the scene to look at (the guns at twice their size, the
-turrets with their heads on), and `show_heads()` puts two big
+turrets with their heads on, each wall style as a short run of three tiles), and `show_heads()` puts two big
 heads beside them to study the face. Commit the script and the module together.

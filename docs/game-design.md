@@ -466,6 +466,14 @@ choice, not a cheat guard.
   prongs that hold the frost crystal, car batteries wired to a coil on stacked insulators, a
   plank watchtower with a rifle on a bipod, a gunship's rocket pod on a turntable. The
   crystal and the coil's ball stay glowing, open to the sky, so they read from the camera.
+- **Ruins are built of something.** Each wall style is modelled as one tile of wall, of what
+  it was built of: two-brick-thick courses stepping down where the top fell, dressed
+  fieldstone with a capstone, cinder blocks with rebar bent out of the cores, a barn's boards
+  each broken at its own height, faded clapboard on a brick footing, an outpost's concrete
+  with rust weeping down it and sandbags on top, the shop's painted block, the church's
+  ashlar. What fell off the top lies at its foot. Lone rock tiles are junk heaps of masonry with a crate
+  and a tyre. Tiles join along a run, each at its own height and turned either way, so a run
+  reads as one broken wall rather than one tile over and over.
 - **Size stays the rules'.** A creep stands about as tall for its collision radius as before, so how
   big it looks is still how big it is to hit.
 
@@ -483,8 +491,14 @@ choice, not a cheat guard.
   one has its own gait offset and head tilt. A badly hurt walker or runner may lose an arm.
 - **Creeps are skinned on the GPU** so thousands can animate at once. The CPU only writes a few
   numbers per creep each frame.
-- **The dead stay a while.** A killed creep falls the way it was facing, or is thrown by a
-  blast, lies there, then sinks into the ground.
+- **The dead stay a while.** A killed creep's knees give, then it topples flat, mostly on its
+  face the way it was going and sometimes onto its back, its legs straightening as it lands
+  and whatever would go into the ground (a hunched head, an outflung arm) lying on it. Thrown
+  by a blast, it is flung up first. It lies there a few seconds, then sinks through the ground
+  until nothing is left above, so the field clears without anything popping out of sight.
+- **Burning creeps beat at themselves.** Both hands at the chest, slapping at the flames,
+  the trunk twisting and doubling over and the legs staggering: it reads as burning at a
+  glance without arms flung out across the crowd.
 - **Blows are telegraphed.** Every creep winds up before it hits: walkers claw and bite, runners
   coil and pounce, swarmers rear and lunge, brutes slam both fists down (with a dust ring),
   spitters swell and whip the head forward, and the abomination rears and sweeps several arms.
