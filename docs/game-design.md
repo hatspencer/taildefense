@@ -138,6 +138,9 @@ each wave, but Normal is the reference for timing.
   base clears the small ones.
 - **Turret fire never provokes.** A creep a turret hits doesn't turn on the turret's builder,
   missiles included, the same as a turret's bullets: aggro comes from what survivors do.
+- **Anyone can sell anyone's building.** The base belongs to the team: a wall someone who has
+  left put in the wrong place, or a turret worth more moved, shouldn't wait on its builder. The
+  gold goes to the seller and the team hears who sold whose, so it is never done unseen.
 
 ## Loot
 

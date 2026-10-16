@@ -429,7 +429,9 @@ func SellValue(s *Structure) int32 {
 	return int32(float32(spent) * SellFraction * s.HP / s.MaxHP)
 }
 
-// Sell removes a structure the player built for half of what went into it.
+// Sell removes a structure for half of what went into it, the gold going to whoever sells it.
+// Anyone may sell anything but the core and the armory, a teammate's building too, so one who
+// has left or is busy elsewhere doesn't pin the base's shape; the team hears of it.
 func (w *World) Sell(p *Player, si int) (int32, error) {
 	if si < 0 || si >= len(w.Structs) || !w.Structs[si].Alive {
 		return 0, errors.New("nothing to sell there")
@@ -438,11 +440,15 @@ func (w *World) Sell(p *Player, si int) (int32, error) {
 	if s.Kind == SCore || s.Kind == SArmory {
 		return 0, errors.New("that cannot be sold")
 	}
-	if s.Owner >= 0 && s.Owner != int8(p.ID) {
-		return 0, errors.New("someone else built that")
-	}
 	refund := SellValue(s)
 	p.Gold += refund
+	if s.Owner >= 0 && s.Owner != int8(p.ID) {
+		for _, o := range w.Players {
+			if int8(o.ID) == s.Owner {
+				w.note(1, "%s sold %s's %s", p.Name, o.Name, Structs[s.Kind].Name)
+			}
+		}
+	}
 	w.remove(si)
 	return refund, nil
 }
