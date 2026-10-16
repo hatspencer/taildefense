@@ -7,7 +7,7 @@ import { PALETTE, SLOTS, SURVIVOR as SV } from './figures.gen';
 import { garment } from './heroes';
 import { Body, readLook, shade } from './look';
 import { J, Spring } from './rig';
-import { goggles as gogglesFor, survivor } from './survivor';
+import { survivor } from './survivor';
 import { box, merge, part, type Part, playerColor } from './util';
 
 // The HUD's portraits: each survivor's own model from the chest up, lit and alive, rendered
@@ -33,7 +33,7 @@ interface Bust {
   id: number; look: number; cell: number; bg: [number, number, number][];
   root: THREE.Group; torso: THREE.Group; head: THREE.Group; tail: THREE.Group | null; eyeY: number; mouthY: number; browY: number;
   eyes: THREE.Mesh; whites: THREE.Mesh; mouth: THREE.Mesh; browL: THREE.Mesh; browR: THREE.Mesh;
-  cut: THREE.Mesh; gash: THREE.Mesh; stain: THREE.Mesh; plaster: THREE.Mesh; goggles: THREE.Mesh;
+  cut: THREE.Mesh; gash: THREE.Mesh; stain: THREE.Mesh; plaster: THREE.Mesh; nv: boolean;
   yaw: Spring; pitch: Spring; flinch: Spring; sway: Spring;
   breath: number; nextBlink: number; blinkTo: number; lastHp: number; hurtFlag: boolean;
   hurt: number; down: number; shout: number; busy: number; fire: number;
@@ -92,11 +92,12 @@ export class Portraits {
     for (let i = 0; i < f.nPlayers && i < CELLS; i++) {
       const p = f.players[i];
       let b = this.busts.get(p.id);
-      if (b && (b.look !== p.look || b.cell !== i)) { this.drop(b); b = undefined; }
-      if (!b) { b = this.make(p, i, t); this.busts.set(p.id, b); this.byCell[i] = b; }
+      // Night vision goggles, worn at night once bought, change the figure.
+      const nv = p.goggles && !!game.welcome?.dark;
+      if (b && (b.look !== p.look || b.cell !== i || b.nv !== nv)) { this.drop(b); b = undefined; }
+      if (!b) { b = this.make(p, i, t, nv); this.busts.set(p.id, b); this.byCell[i] = b; }
       seen.add(p.id);
       this.animate(b, p, t, dt, yaw);
-      b.goggles.visible = p.goggles && !!game.welcome?.dark;
     }
     for (const b of [...this.busts.values()]) if (!seen.has(b.id)) this.drop(b);
     if (this.pending || now - this.last < 1000 / FPS || seen.size === 0) return;
@@ -129,9 +130,9 @@ export class Portraits {
     return m;
   }
 
-  private make(p: Player, cell: number, t: number): Bust {
+  private make(p: Player, cell: number, t: number, nv: boolean): Bust {
     const L = readLook(p.look), c = garment(p.id);
-    const S = survivor(L, c);
+    const S = survivor(L, c, nv);
     const face = S.uses.filter((u) => u.p === piece(`face_${L.body === Body.Fem ? 'f' : 'm'}`));
     const rest = S.uses.filter((u) => !face.includes(u));
     const root = new THREE.Group();
@@ -179,9 +180,6 @@ export class Portraits {
     const stain = this.mesh([part(box(0.02, 0.1, 0.08), 0x5a0e0a, 0.15, 0.86, 0.05), part(box(0.02, 0.05, 0.05), 0x5a0e0a, 0.15, 0.79, 0.08)], torso, 0, WAIST);
     stain.position.set(0, 0, 0);
     const plaster = local(this.mesh([part(box(0.012, 0.022, 0.05), 0xe6dcc4, fx - 0.01, cy, 0.04), part(box(0.014, 0.008, 0.008), 0xb8aa8c, fx - 0.008, cy, 0.04)], head, fx, cy));
-    // Night vision goggles, worn at night once bought.
-    const G = gogglesFor();
-    const goggles = local(this.mesh([...G.body, ...G.lenses], head));
     root.scale.setScalar(L.width > 1.05 ? 1 : 1.02);
     this.scene.add(root);
 
@@ -192,7 +190,7 @@ export class Portraits {
       bg.push([((h >> 16) & 255) * 0.45 + 0x1c * 0.55, ((h >> 8) & 255) * 0.45 + 0x1e * 0.55, (h & 255) * 0.45 + 0x16 * 0.55]);
     }
     return {
-      id: p.id, look: p.look, cell, bg, root, torso, head, tail, eyeY: ey - neck.y, mouthY: my - neck.y, browY: by - neck.y, eyes, whites, mouth, browL, browR, cut, gash, stain, plaster, goggles,
+      id: p.id, look: p.look, cell, bg, root, torso, head, tail, eyeY: ey - neck.y, mouthY: my - neck.y, browY: by - neck.y, eyes, whites, mouth, browL, browR, cut, gash, stain, plaster, nv,
       yaw: new Spring(2, 0.55, 0), pitch: new Spring(2.2, 0.6, 0), flinch: new Spring(3.2, 0.3, 0), sway: new Spring(1.4, 0.4, 0),
       breath: Math.random() * 6, nextBlink: t + 1 + Math.random() * 3, blinkTo: 0, lastHp: p.hp, hurtFlag: false,
       hurt: 0, down: 0, shout: 0, busy: 0, fire: 0,
