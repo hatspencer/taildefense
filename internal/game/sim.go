@@ -638,6 +638,9 @@ func (w *World) attackStruct(c *Creep, d *CreepDef, si int) {
 }
 
 func (w *World) hurtPlayer(p *Player, dmg float32) {
+	if p.Shield > 0 {
+		return
+	}
 	p.Tally.Taken += float64(min(dmg, max(p.HP, 0)))
 	p.HP -= dmg
 	p.Hurt = .25
@@ -680,6 +683,7 @@ func (w *World) standNear(x, y float32) (float32, float32) {
 func (w *World) respawn(p *Player) {
 	p.Alive = true
 	p.HP = p.MaxHP
+	p.Shield = 0
 	p.X, p.Y = w.standNear(w.CoreX+.5, w.CoreY+3.8)
 	p.Order = Order{}
 	p.Search, p.Revived = 0, 0

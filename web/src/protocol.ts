@@ -171,7 +171,7 @@ export class Player {
   levels = new Uint8Array(WEAPON_SLOTS * 4); gear = new Uint8Array(4);
   // channel: the current search's (order Loot) or revive's (order Revive) progress, 0..1.
   // revived: for a downed survivor, how far someone's revive of them is, 0..1.
-  order = 0; channel = 0; revived = 0; emote = 0; emoteLeft = 0; tauntCool = 0; stamina = 1; sprinting = false; winded = false; stunned = false; goggles = false; look = 0; buff = 0; buffLeft = 0;
+  order = 0; channel = 0; revived = 0; emote = 0; emoteLeft = 0; tauntCool = 0; stamina = 1; sprinting = false; winded = false; stunned = false; goggles = false; shielded = false; look = 0; buff = 0; buffLeft = 0;
   abLevel = new Uint8Array(4); abCool = new Float32Array(4);
   // Medkits carried, and seconds of a medkit's healing left.
   medkits = 0; heal = 0;
@@ -199,7 +199,7 @@ export class Player {
     this.reload = o.reload; this.respawn = o.respawn; this.gold = o.gold; this.kills = o.kills;
     this.damage = o.damage; this.owned = o.owned; this.levels.set(o.levels); this.gear.set(o.gear);
     this.order = o.order; this.channel = o.channel; this.revived = o.revived; this.emote = o.emote;
-    this.emoteLeft = o.emoteLeft; this.tauntCool = o.tauntCool; this.stamina = o.stamina; this.sprinting = o.sprinting; this.winded = o.winded; this.stunned = o.stunned; this.goggles = o.goggles; this.look = o.look; this.buff = o.buff; this.buffLeft = o.buffLeft;
+    this.emoteLeft = o.emoteLeft; this.tauntCool = o.tauntCool; this.stamina = o.stamina; this.sprinting = o.sprinting; this.winded = o.winded; this.stunned = o.stunned; this.goggles = o.goggles; this.shielded = o.shielded; this.look = o.look; this.buff = o.buff; this.buffLeft = o.buffLeft;
     this.abLevel.set(o.abLevel); this.abCool.set(o.abCool); this.medkits = o.medkits; this.heal = o.heal; this.reloading = o.reloading; this.name = o.name;
     this.downs = o.downs; this.revives = o.revives; this.built = o.built; this.searched = o.searched; this.bosses = o.bosses; this.taken = o.taken; this.turret = o.turret;
   }
@@ -323,7 +323,7 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
     p.gear.set(bytes.subarray(o, o + 4)); o += 4;
     p.order = d.getUint8(o); p.channel = d.getUint8(o + 1) / 255; p.revived = d.getUint8(o + 2) / 255;
     p.emote = d.getUint8(o + 3); p.emoteLeft = d.getUint8(o + 4) / 10; p.tauntCool = d.getUint16(o + 5, true) / 10;
-    p.stamina = d.getUint8(o + 7) / 255; const sp = d.getUint8(o + 8); p.sprinting = (sp & 1) !== 0; p.winded = (sp & 2) !== 0; p.stunned = (sp & 4) !== 0; p.goggles = (sp & 8) !== 0;
+    p.stamina = d.getUint8(o + 7) / 255; const sp = d.getUint8(o + 8); p.sprinting = (sp & 1) !== 0; p.winded = (sp & 2) !== 0; p.stunned = (sp & 4) !== 0; p.goggles = (sp & 8) !== 0; p.shielded = (sp & 16) !== 0;
     p.look = d.getUint32(o + 9, true);
     p.buff = d.getUint8(o + 13); p.buffLeft = d.getUint8(o + 14) / 10; o += 15;
     for (let a = 0; a < 4; a++) {

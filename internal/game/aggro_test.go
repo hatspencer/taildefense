@@ -507,3 +507,23 @@ func TestTheNextWaveWaitsForTheLastOne(t *testing.T) {
 		}
 	}
 }
+
+func TestASurvivorBackAtTheBaseIsShieldedForAWhile(t *testing.T) {
+	w := newBare(9)
+	p, _ := w.Join("ana", "ana@example")
+	w.Step()
+	w.hurtPlayer(p, 1e6)
+	if !run(w, TickRate*int(Difficulties[DiffNormal].Revive+2), func() bool { return p.Alive }) {
+		t.Fatal("never back at the base")
+	}
+	w.hurtPlayer(p, 1e6)
+	p.slow(5)
+	p.stun(5)
+	if !p.Alive || p.HP != p.MaxHP || p.slowLeft > 0 || p.Stunned() {
+		t.Fatalf("shield let through: alive %v, hp %.0f, slowed %.1f, stunned %v", p.Alive, p.HP, p.slowLeft, p.Stunned())
+	}
+	run(w, TickRate*spawnShield+1, func() bool { return false })
+	if w.hurtPlayer(p, 10); p.HP == p.MaxHP {
+		t.Fatal("still shielded after the shield ran out")
+	}
+}

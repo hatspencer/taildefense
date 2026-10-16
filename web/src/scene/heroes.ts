@@ -290,7 +290,8 @@ export class Heroes {
       // Standing up again (revived or respawned): a little pop.
       if (h.down && alive) h.pop = 1;
       h.down = !alive;
-      h.group.visible = (p.flags & 1) !== 0 || alive;
+      // Shielded just after being put back at the base: blinking, and still shooting.
+      h.group.visible = ((p.flags & 1) !== 0 || alive) && !(alive && p.shielded && Math.floor(t * 8) % 2 === 1);
       const x = game.prx[p.id], y = game.pry[p.id], aim = game.paim[p.id];
       h.group.position.set(x, 0, y);
 

@@ -247,7 +247,8 @@ u8   nPlayers
   u8   stamina        0..255, spent by sprinting
   u8   sprint         bit 0 sprinting now, bit 1 winded (no sprint until the bar is back to about a third),
                       bit 2 stunned by a slam (not moving, firing or casting), bit 3 wears night vision
-                      goggles (sees DAY_SIGHT all round at night, no flashlight)
+                      goggles (sees DAY_SIGHT all round at night, no flashlight), bit 4 shielded: just
+                      put back at the base, takes no harm for 5s (drawn blinking)
   u32  look           what the survivor looks like, dealt by the host on joining, bits:
                         0-3 archetype (0 paramedic, 1 mechanic, 2 hunter, 3 student, 4 builder,
                             5 nurse, 6 biker, 7 farmer, 8 ex-soldier, 9 office worker),

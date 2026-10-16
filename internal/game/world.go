@@ -116,6 +116,7 @@ type Player struct {
 	Firing    bool
 	Moving    bool
 	Hurt      float32
+	Shield    float32 // seconds left of the shield a survivor put back at the base wears; see spawnShield
 	// A slow (stun.go): seconds the survivor walks at half speed for, and until another can land.
 	slowLeft, slowCool float32
 	stunLeft           float32 // seconds a slam keeps the survivor stopped

@@ -122,6 +122,9 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 		if p.Goggles {
 			sp |= 8
 		}
+		if p.Shielded {
+			sp |= 16
+		}
 		e.u8(sp)
 		e.u32(p.Look)
 		e.u8(p.Buff)
