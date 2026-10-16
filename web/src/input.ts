@@ -120,6 +120,8 @@ export class Input {
     if (!on) return;
     const me = ctl.me();
     if (!me || !(me.flags & PF_ALIVE)) return;
+    const no = ctl.dropRefusal();
+    if (no) { ctl.onToast(no, 2); return; }
     ctl.dropAt = performance.now();
     this.dropTimer = window.setTimeout(() => { this.dropTimer = 0; ctl.dropAt = 0; ctl.dropWeapon(); }, DROP_HOLD);
   }

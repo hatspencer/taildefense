@@ -223,6 +223,14 @@ export class Controller {
     return `${name}${lv}${by ? ` · ${by}'s` : ''} · ${mine ? 'you carry one' : 'pick up'}`;
   }
 
+  // Why G can't drop the weapon in hand, said before the hold starts rather than after it
+  // fills; '' when it can. The host checks again.
+  dropRefusal(): string {
+    const me = this.me();
+    if (me && !(me.owned & ~(1 << me.cur))) return `the ${this.game.welcome?.weapons[me.cur]?.name ?? 'weapon'} is the only weapon you have`;
+    return '';
+  }
+
   // Puts the weapon in hand on the ground for a teammate, upgrades and all.
   dropWeapon(): void {
     const me = this.me();
