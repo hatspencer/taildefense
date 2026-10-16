@@ -102,11 +102,24 @@ function card(g: CanvasRenderingContext2D, x: number, y: number, w: number, r: S
   // The numbers, on glass.
   const ny = y + 46, nh = 62;
   screen(g, x + 14, ny, w - 28, nh);
-  const cw = (w - 28) / r.nums.length;
+  // Each column as wide as what it holds, the slack shared out; numbers too long for the glass
+  // are set smaller rather than run into each other.
+  const vals = r.nums.map((n) => fmtGold(n.v)), avail = w - 28, gap = 14;
+  g.font = `14px ${SMALL}`;
+  const lw = r.nums.map((n) => g.measureText(n.label).width);
+  let size = 34, cols: number[] = [];
+  for (; size >= 20; size -= 2) {
+    g.font = `${size}px ${CRT}`;
+    cols = vals.map((v, i) => Math.max(g.measureText(v).width, lw[i]) + gap);
+    if (cols.reduce((a, b) => a + b, 0) <= avail) break;
+  }
+  const extra = Math.max(0, avail - cols.reduce((a, b) => a + b, 0)) / cols.length;
   g.textAlign = 'center';
+  let colX = x + 14;
   r.nums.forEach((n, i) => {
-    const mx = x + 14 + cw * (i + 0.5);
-    g.font = `34px ${CRT}`; g.fillStyle = n.bad ? C.sore : C.lit; g.fillText(fmtGold(n.v), mx, ny + 32);
+    const cw = cols[i] + extra, mx = colX + cw / 2;
+    colX += cw;
+    g.font = `${size}px ${CRT}`; g.fillStyle = n.bad ? C.sore : C.lit; g.fillText(vals[i], mx, ny + 32);
     g.font = `14px ${SMALL}`; g.fillStyle = C.dim; g.fillText(n.label, mx, ny + 52);
   });
   g.textAlign = 'left';
