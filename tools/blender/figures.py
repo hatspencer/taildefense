@@ -2128,12 +2128,348 @@ def show_kit():
             for p_ in o.data.polygons:
                 p_.use_smooth = True
 
+# ---- Ruins ----------------------------------------------------------------------------------
+#
+# The ruined walls, in the same hand: each one tile of wall along x (-0.5..0.5, so a run of
+# them joins up), standing on y = 0, built of what it was built of (bricks in courses, stones,
+# boards, blocks) and broken off raggedly at the top, the fall lying at its foot. terrain.ts
+# stretches each to its own height, so a wall is drawn about as tall as it stands at most.
+# The junk heap is a lone rock tile's: rubble, a crate, a tyre.
+
+MORTAR, BRICK_A, BRICK_B, BRICK_C, BRICK_DK = 0xa89c88, 0x8e4a34, 0x7a3c2a, 0x9a5638, 0x5e2e22
+CLAP_A, CLAP_B, CLAP_GREY, FOOT = 0xb3a88c, 0xa49a80, 0x8a8478, 0x6e3e30
+STONE_A, STONE_B, STONE_C, STONE_D = 0x737064, 0x878374, 0x66635a, 0x8f8a7a
+CINDER, CINDER_B, CINDER_DK = 0x8e8b84, 0x7e7b74, 0x5e5b55
+TIMBER_A, TIMBER_B, TIMBER_C, TIMBER_DK = 0x6b5038, 0x5d4631, 0x74593f, 0x46382a
+FORT, FORT_DK, SHOP, SHOP_DK, TEAL = 0x8c8b84, 0x56554f, 0xc4bfae, 0x66635a, 0x2f7472
+ASHLAR, ASHLAR_B, PLINTH, MOSS, SOOT = 0xb9b2a0, 0xa49d8a, 0x6e6a5e, 0x4a5a2a, 0x3a3632
+TYRE = 0x222222
+
+
+def profile(seed, base, drop, n=8):
+    """A broken top: heights at n + 1 points along the wall, mostly near base, with a bite or
+    two taken out of it, as a function of x."""
+    xs = [-0.5 + i / n for i in range(n + 1)]
+    hs = [base - drop * 0.25 * rnd(i, seed) for i in range(n + 1)]
+    # One deep bite and one shallow, off centre, so a run of walls doesn't repeat a shape.
+    for b in range(2):
+        c = 1 + int(rnd(b, seed + 50) * (n - 1))
+        w = 1 + int(rnd(b, seed + 60) * 2)
+        d = drop * (0.7 + 0.3 * rnd(b, seed + 70)) * (1 if b == 0 else 0.4)
+        for i in range(max(0, c - w), min(n + 1, c + w + 1)):
+            hs[i] -= d * (1 - abs(i - c) / (w + 1))
+    def at(x):
+        t = clamp((x + 0.5) * n, 0, n - 1e-6)
+        i = int(t)
+        return hs[i] + (hs[i + 1] - hs[i]) * (t - i)
+    return at
+
+
+def slab(top, z, color, y0=0.0, n=16):
+    """A wall's body, from y0 up to top(x), z thick either side of 0 (or (z0, z1))."""
+    z0, z1 = z if isinstance(z, tuple) else (-z, z)
+    bm = bmesh.new()
+    xs = [-0.5 + i / n for i in range(n + 1)]
+    F = [(bm.verts.new(G(x, y0, z1)), bm.verts.new(G(x, max(y0 + 0.02, top(x)), z1))) for x in xs]
+    B = [(bm.verts.new(G(x, y0, z0)), bm.verts.new(G(x, max(y0 + 0.02, top(x)), z0))) for x in xs]
+    for i in range(n):
+        bm.faces.new((F[i][0], F[i + 1][0], F[i + 1][1], F[i][1]))
+        bm.faces.new((B[i][0], B[i][1], B[i + 1][1], B[i + 1][0]))
+        bm.faces.new((F[i][1], F[i + 1][1], B[i + 1][1], B[i][1]))
+        bm.faces.new((F[i][0], B[i][0], B[i + 1][0], F[i + 1][0]))
+    bm.faces.new((F[0][0], F[0][1], B[0][1], B[0][0]))
+    bm.faces.new((F[n][0], B[n][0], B[n][1], F[n][1]))
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    # Nothing is seen from below.
+    bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.calc_center_median().z < y0 + 1e-4 and abs(f.normal.z) > 0.9], context='FACES_ONLY')
+    return col(bm, color)
+
+
+def courses(top, y0, rows, h, length, z, colors, seed, gap=0.014, jit=0.008, x0=-0.5, x1=0.5):
+    """Bricks or blocks laid in courses, each joint over the middle of the one below, up to
+    the broken top: a unit is laid where the top clears it."""
+    out = []
+    for r in range(rows):
+        y = y0 + r * h
+        x = x0 - (r % 2) * length / 2
+        k = 0
+        while x < x1 - 1e-6:
+            a, b = max(x, x0), min(x + length, x1)
+            cx = (a + b) / 2
+            i = r * 31 + k
+            if b - a > 0.05 and y + h * 0.7 <= top(cx):
+                c = colors[int(rnd(i, seed) * len(colors))]
+                dz = (rnd(i, seed + 1) - 0.5) * jit * 2
+                out.append(bx((cx, y + h / 2, dz), (b - a - gap, h - gap, 2 * z + jit * (rnd(i, seed + 2) - 0.3)), c,
+                              rot=(0, (rnd(i, seed + 3) - 0.5) * 0.04, (rnd(i, seed + 4) - 0.5) * 0.03)))
+            x += length
+            k += 1
+    return out
+
+
+def stepped(top, y0, h):
+    """The top of what's left of whole courses under top(x), for the mortar behind them."""
+    at = lambda x: y0 + max(0, math.floor((top(x) - y0) / h - 0.7)) * h - h * 0.3
+    # The lowest near x, so it never shows above a half brick at a step.
+    return lambda x: min(at(clamp(x + d, -0.5, 0.5)) for d in (-0.16, -0.08, 0, 0.08, 0.16))
+
+
+def fallen(seed, n, size, colors, spread=0.42, side=0, flat=0.6):
+    """What fell off the top, lying at the foot on either side (or one: side +1, -1)."""
+    out = []
+    for i in range(n):
+        s = side or (1 if rnd(i, seed) < 0.5 else -1)
+        x = (rnd(i, seed + 1) - 0.5) * 0.9
+        z = s * (spread * (0.75 + 0.25 * rnd(i, seed + 2)))
+        sz = tuple(size[j] * (0.7 + 0.5 * rnd(i, seed + 3 + j)) for j in range(3))
+        c = colors[int(rnd(i, seed + 7) * len(colors))]
+        out.append(bx((x, sz[1] * flat, z), sz, c, rot=((rnd(i, seed + 8) - 0.5) * 0.8, rnd(i, seed + 9) * 3, (rnd(i, seed + 10) - 0.5) * 0.9)))
+    return out
+
+
+def stone(c, r, color, seed, seg=6, rings=4):
+    """A rough stone: a squashed lump, flattened where it beds on the next."""
+    bm = ellipsoid(c, r, (0, (rnd(seed, 3) - 0.5) * 0.6, 0), seg=seg, rings=rings)
+    C = G(*c)
+    for v in bm.verts:
+        d = v.co - C
+        v.co = C + d * (0.88 + 0.18 * noise(*back(v.co), f=9, seed=seed))
+    return col(bm, color)
+
+
+def block(c, size, color, seed, bevel=0.035):
+    """A dressed fieldstone: a bevelled block, knocked out of true."""
+    bm = box(c, size, bevel, (0, (rnd(seed, 3) - 0.5) * 0.12, (rnd(seed, 4) - 0.5) * 0.1))
+    C = G(*c)
+    for v in bm.verts:
+        v.co += (v.co - C) * (0.12 * (noise(*back(v.co), f=13, seed=seed) - 0.5))
+    return col(bm, color)
+
+
+def wall_siding():
+    top = profile(11, 1.15, 0.3, n=5)
+    z = 0.3
+    parts = [slab(lambda x: 0.24, 0.33, FOOT), slab(lambda x: 0.27, (-0.335, 0.335), BRICK_DK, y0=0.22)]
+    # The wall's thickness behind the boards, up to where the boards stop.
+    parts.append(slab(lambda x: top(x) + 0.02, 0.3, CLAP_B, y0=0.26))
+    # Clapboard, lapped: each board leans out at its foot, faded, a few bare and grey.
+    for r in range(8):
+        y = 0.27 + r * 0.115
+        for side in (1, -1):
+            segs = [(-0.5, 0.5)] if rnd(r, 21 + side) > 0.4 else [(-0.5, -0.05), (0.02, 0.5)]
+            for a, b in segs:
+                # Each board stops where the wall is broken.
+                while b - a > 0.08 and top((a + b) / 2) < y + 0.1:
+                    b -= 0.12
+                if b - a <= 0.08:
+                    continue
+                c = CLAP_GREY if rnd(r * 3 + int(a * 10), 23 + side) < 0.18 else (CLAP_A if (r + side) % 3 else CLAP_B)
+                parts.append(bx(((a + b) / 2, y + 0.06, side * (z + 0.018)), (b - a, 0.125, 0.025), c, rot=(side * 0.14, 0, 0)))
+    # Trim along the foot of the boards.
+    parts += [bx((0, 0.27, s * 0.32), (1.0, 0.05, 0.03), TIMBER_DK) for s in (1, -1)]
+    parts += fallen(12, 5, (0.3, 0.025, 0.1), [CLAP_A, CLAP_GREY, TIMBER_DK], spread=0.42)
+    return kit(*parts)
+
+
+def wall_brick():
+    top = profile(13, 1.2, 0.55, n=6)
+    h, z = 0.11, 0.28
+    parts = [slab(stepped(top, 0, h), z - 0.012, MORTAR)]
+    # Two bricks thick, the back one broken a little lower.
+    for s, d, sd in ((1, 0.0, 14), (-1, 0.09, 15)):
+        layer = courses(lambda x: top(x) - d, 0, 12, h, 0.3, 0.135, [BRICK_A, BRICK_A, BRICK_B, BRICK_C], sd)
+        for b in layer:
+            for v in b.verts:
+                v.co += G(0, 0, s * 0.142)
+        parts += layer
+    parts += fallen(15, 6, (0.24, 0.08, 0.12), [BRICK_A, BRICK_B, BRICK_C], spread=0.4)
+    parts += [stone((0.1 - 0.5 * i, 0.04, 0.42 * (1 - 2 * i)), (0.16, 0.06, 0.08), MORTAR, 16 + i) for i in range(2)]
+    return kit(*parts)
+
+
+def wall_stone():
+    top = profile(17, 1.05, 0.35)
+    z = 0.36
+    parts = [slab(lambda x: top(x) - 0.15, z - 0.04, STONE_C)]
+    cols = [STONE_A, STONE_B, STONE_C, STONE_D]
+    y, r = 0.0, 0
+    while y < 1.1:
+        h = 0.2 + 0.06 * rnd(r, 18)
+        x = -0.5 + (r % 2) * 0.12 - 0.1
+        k = 0
+        while x < 0.5:
+            w = 0.24 + 0.12 * rnd(r * 13 + k, 19)
+            cx = x + w / 2
+            if y + h * 0.5 < top(clamp(cx, -0.5, 0.5)) and -0.52 < cx < 0.52:
+                i = r * 13 + k
+                a, b = max(x, -0.5), min(x + w, 0.5)
+                parts.append(block(((a + b) / 2, y + h / 2, (rnd(i, 20) - 0.5) * 0.04), (b - a - 0.02, h - 0.02, 2 * z + 0.03 * rnd(i, 22)),
+                                   cols[int(rnd(i, 21) * 4)], i))
+            x += w
+            k += 1
+        y += h * 0.92
+        r += 1
+    # Capstones on what stands highest; moss in the cracks.
+    parts.append(block((-0.2, top(-0.2) - 0.06, 0), (0.3, 0.08, 0.6), STONE_D, 90))
+    parts += [stone((0.3 * (1 - 2 * i), 0.03, 0.36 * (1 - 2 * i)), (0.12, 0.05, 0.14), MOSS, 91 + i) for i in range(2)]
+    parts += [block(((rnd(i, 92) - 0.5) * 0.8, 0.06, (0.47 if i % 2 else -0.47)), (0.22, 0.12, 0.16), cols[i % 4], 93 + i, 0.02) for i in range(4)]
+    return kit(*parts)
+
+
+def wall_cinder():
+    top = profile(23, 1.1, 0.6, n=5)
+    h, z = 0.2, 0.25
+    parts = [slab(stepped(top, 0.08, h), z - 0.015, CINDER_DK)]
+    parts.append(slab(lambda x: 0.1, z + 0.01, CINDER_DK))
+    parts += courses(top, 0.08, 6, h, 0.4, z, [CINDER, CINDER, CINDER_B], 24, gap=0.02)
+    # Rebar out of the cores, bent where the blocks broke away.
+    for i, x in enumerate((-0.3, 0.1, 0.4)):
+        t = stepped(top, 0.08, h)(x)
+        parts += rod([(x, t - 0.1, 0), (x, t + 0.25, 0), (x + 0.08 * (1 - 2 * (i % 2)), t + 0.36, 0.05)], 0.016, RUSTY, seg=5)
+    parts += fallen(25, 4, (0.36, 0.17, 0.2), [CINDER, CINDER_B], spread=0.38)
+    parts += fallen(26, 5, (0.1, 0.05, 0.08), [CINDER, CINDER_DK], spread=0.4)
+    return kit(*parts)
+
+
+def wall_timber():
+    z = 0.12
+    parts = [
+        bx((-0.42, 0.6, 0), (0.15, 1.2, 0.17), TIMBER_DK, rot=(0.03, 0, 0.02)),
+        bx((0, 0.3, z + 0.03), (1.0, 0.08, 0.06), TIMBER_DK),
+        bx((0, 0.8, z + 0.03), (1.0, 0.08, 0.06), TIMBER_DK, rot=(0, 0, 0.04)),
+        bx((0, 0.3, -z - 0.03), (1.0, 0.08, 0.06), TIMBER_DK),
+    ]
+    # Vertical boards, each broken off at its own height, a splintered point on top.
+    x, k = -0.34, 0
+    while x < 0.5:
+        w = 0.15 + 0.04 * rnd(k, 30)
+        hgt = 0.55 + 0.55 * rnd(k, 31) if rnd(k, 32) > 0.12 else 0.0
+        if hgt > 0:
+            c = [TIMBER_A, TIMBER_B, TIMBER_C][k % 3]
+            b = bx((x + w / 2, hgt / 2, 0), (w - 0.02, hgt, 0.06), c, rot=(0, 0, (rnd(k, 33) - 0.5) * 0.06))
+            # The splintered end: the top corners pulled down unevenly.
+            for v in b.verts:
+                g = back(v.co)
+                if g[1] > hgt - 0.01:
+                    v.co.z -= (0.12 * rnd(k, 34) if g[0] > x + w / 2 else 0.12 * rnd(k, 35))
+            parts.append(b)
+        x += w
+        k += 1
+    # A board fallen against the wall, and a few on the ground.
+    parts.append(bx((0.2, 0.32, 0.3), (0.14, 0.7, 0.05), TIMBER_C, rot=(-0.55, 0.3, 0)))
+    parts += fallen(36, 4, (0.6, 0.03, 0.14), [TIMBER_A, TIMBER_B, TIMBER_DK], spread=0.36)
+    return kit(*parts)
+
+
+def wall_fort():
+    top = profile(41, 1.0, 0.14, n=4)
+    z = 0.42
+    parts = [slab(top, z, FORT), slab(lambda x: 0.26, z + 0.01, FORT_DK, y0=0.16)]
+    # Rust weeping from bolt holes, chips knocked out of the face.
+    for i, s in enumerate((1, -1, 1)):
+        x = -0.3 + 0.32 * i + 0.1 * rnd(i, 45)
+        ln = 0.2 + 0.25 * rnd(i, 46)
+        parts.append(bx((x, 0.92 - ln / 2, s * (z + 0.004)), (0.025, ln, 0.01), RUSTY))
+        parts.append(bx((x, 0.92, s * (z + 0.006)), (0.035, 0.035, 0.012), FORT_DK))
+    # Chips knocked out of the edge by fire.
+    for i in range(3):
+        x = -0.35 + 0.33 * i + 0.1 * rnd(i, 47)
+        parts.append(bx((x, top(x) - 0.06, (1 if i % 2 else -1) * z), (0.14, 0.1, 0.1), FORT_DK, rot=(0.5, 0.3, 0.4)))
+    # Two rows of sandbags along the top.
+    for row in range(2):
+        for i in range(3):
+            x = -0.34 + i * 0.34 + row * 0.17
+            if x > 0.48:
+                continue
+            y = min(top(x), top(x + 0.1), top(x - 0.1)) + 0.07 + row * 0.12
+            parts.append(lump((x, y, (rnd(i, 42 + row) - 0.5) * 0.08), (0.18, 0.08, 0.3 - row * 0.05), BAG if (i + row) % 2 else BAG_DK,
+                              (0, 0.1 * (rnd(i, 43) - 0.5), 0), 44 + i + row * 3))
+    parts += [lump((-0.2 + 0.5 * i, 0.06, 0.5 * (1 - 2 * i)), (0.16, 0.07, 0.11), BAG_DK, (0, 0.4 + i, 0), 48 + i) for i in range(2)]
+    return kit(*parts)
+
+
+def wall_shop():
+    top = profile(51, 1.0, 0.25, n=5)
+    z = 0.3
+    parts = [slab(top, z, SHOP), slab(lambda x: 0.18, z + 0.012, SHOP_DK)]
+    parts.append(slab(lambda x: min(0.86, top(x) - 0.01), z + 0.01, TEAL, y0=max(0.7, 0)))
+    # Plaster gone in patches, the block behind it showing; soot from the fire.
+    for i, (x, y, s) in enumerate(((-0.25, 0.45, 1), (0.25, 0.35, -1), (0.1, 0.55, 1))):
+        parts.append(bx((x, y, s * (z + 0.005)), (0.22 + 0.1 * rnd(i, 52), 0.16, 0.012), CINDER_B))
+    parts.append(slab(lambda x: top(x) - 0.01, (z + 0.003, z + 0.012), SOOT, y0=max(0.0, 0.9)))
+    parts += fallen(53, 5, (0.14, 0.04, 0.1), [SHOP, CINDER_B, TEAL], spread=0.4)
+    return kit(*parts)
+
+
+def wall_chapel():
+    top = profile(61, 2.0, 0.5, n=6)
+    h, z = 0.21, 0.36
+    parts = [slab(lambda x: 0.24, z + 0.05, PLINTH), slab(stepped(top, 0.24, h), z - 0.012, MORTAR)]
+    parts += courses(top, 0.24, 9, h, 0.36, z, [ASHLAR, ASHLAR, ASHLAR_B], 62, gap=0.012, jit=0.006)
+    # String courses, where they still run.
+    for y in (0.87, 1.5):
+        parts.append(slab(lambda x, y=y: y + 0.05 if top(x) > y + 0.1 else y - 0.05, z + 0.035, ASHLAR_B, y0=y - 0.04))
+    parts += [stone(((rnd(i, 63) - 0.5) * 0.8, 0.08, 0.5 * (1 if i % 2 else -1)), (0.17, 0.08, 0.11), [ASHLAR, ASHLAR_B][i % 2], 64 + i)
+              for i in range(4)]
+    parts += [stone((0.3, 0.26, 0.42), (0.1, 0.03, 0.08), MOSS, 70)]
+    return kit(*parts)
+
+
+def junk():
+    """A lone rock tile's heap: broken masonry, a dumped crate, a tyre, a board."""
+    return kit(
+        stone((0, 0.16, 0), (0.48, 0.24, 0.44), STONE_C, 80, seg=8, rings=5),
+        stone((0.28, 0.12, 0.2), (0.26, 0.15, 0.22), STONE_B, 81),
+        stone((-0.3, 0.08, 0.28), (0.18, 0.1, 0.16), BRICK_B, 82),
+        *fallen(83, 5, (0.24, 0.08, 0.12), [BRICK_A, BRICK_C, CINDER], spread=0.38),
+        bx((-0.18, 0.36, -0.12), (0.4, 0.32, 0.4), WOOD, 0.01, (0, 0.5, 0.15)),
+        bx((-0.18, 0.36, -0.12), (0.42, 0.06, 0.42), WOOD_DK, 0, (0, 0.5, 0.15)),
+        bx((0.05, 0.3, 0.25), (0.7, 0.04, 0.12), PLANK, rot=(0, 0.9, 0.25)),
+        *[bmesh_rot(bmesh_torus(0.16, 0.07, 0, seg=10, ring=5), (0.25, -0.05, -0.3), (1.2, 0, 0.2))],
+    )
+
+
+def bmesh_rot(bm, at, rot):
+    rotate(bm, rot)
+    for v in bm.verts:
+        v.co += G(*at)
+    return col(bm, TYRE)
+
+
+# Each style's model and the height it stands at; terrain.ts keeps the order (its Wall enum).
+WALLS = [wall_siding, wall_brick, wall_stone, wall_cinder, wall_timber, wall_fort, wall_shop, wall_chapel]
+
+
+def ruin_pieces():
+    tone = weathered(dirt=0.15, grain=0.12)
+    out = {'ruin_%d' % i: encode(make(), joint=0, tone=tone) for i, make in enumerate(WALLS)}
+    out['ruin_junk'] = encode(junk(), joint=0, tone=tone)
+    return out
+
+
+def show_ruins():
+    """Each style as a short run of wall, an L of it, and the junk heap, behind the turrets."""
+    for o in list(bpy.data.objects):
+        if o.name.startswith('ruin_'):
+            bpy.data.objects.remove(o)
+    for i, make in enumerate(WALLS):
+        bm = make()
+        for k in range(3):
+            preview('ruin_%d_%d' % (i, k), bm, at=(10 + k, 0, (i - 3.5) * 1.6))
+    preview('ruin_junk', junk(), at=(10, 0, 5.6))
+    for o in bpy.data.objects:
+        if o.name.startswith('ruin_'):
+            for p_ in o.data.polygons:
+                p_.use_smooth = True
+
+
 def main():
     creeps, rig = creep_pieces()
-    write({**survivor_pieces(), **creeps, **kit_pieces()}, {'SURVIVOR': survivor_rig(), 'CREEPS': rig})
+    write({**survivor_pieces(), **creeps, **kit_pieces(), **ruin_pieces()}, {'SURVIVOR': survivor_rig(), 'CREEPS': rig})
     show_survivors()
     show_creeps()
     show_kit()
+    show_ruins()
 
 
 if __name__ == '__main__':

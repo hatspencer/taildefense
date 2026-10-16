@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { color, dot, floor, fract, mix, normalWorld, positionWorld, sin, smoothstep, time, vec2, vec3, vertexColor, float } from 'three/tsl';
 import { Ruin, SiteKind, Tile, type SiteDef } from '../protocol';
 import { box, cone, cyl, dodeca, merge, part, setEmissive, writeMatrix } from './util';
+import { build, fixedColor, piece } from './figures';
 import { uSnow, uWet } from './weather';
 
 function hash(x: number, y: number, s = 0): number {
@@ -284,15 +285,10 @@ export class Terrain {
       (line ? walls : boulders).push(x, y);
     }
     const style = wallStyles(tiles, w, h, sites);
-    // Lone rocks are junk: a rubble heap with a dumped crate.
-    const boulderGeo = merge([
-      part(dodeca(0.5), 0x6c665a, 0, 0.2, 0, 0, 0, 0, 1, 0.6, 1),
-      part(dodeca(0.28), 0x7a6e5a, 0.3, 0.12, 0.2),
-      part(box(0.4, 0.32, 0.4), 0x6a4a2c, -0.18, 0.36, -0.12, 0, 0.5, 0.15),
-      part(box(0.7, 0.05, 0.12), 0x7a5a36, 0.05, 0.3, 0.25, 0, 0.9, 0.25),
-    ]);
+    // Lone rocks are junk: a rubble heap with a dumped crate and a tyre.
+    const boulderGeo = ruin('ruin_junk');
     const mat = propMaterial();
-    const wallGeos = WALLS.map((s) => s.geo());
+    const wallGeos = WALLS.map((_, k) => ruin(`ruin_${k}`));
     const scs = WALLS.map(() => new Scatter());
     for (let i = 0; i < walls.length; i += 2) {
       const x = walls[i], y = walls[i + 1], st = style[y * w + x], S = WALLS[st];
@@ -303,7 +299,7 @@ export class Terrain {
       // Ruins are broken: each block has its own height, but never low enough to look like
       // something a shot would clear, since every wall tile stops bullets.
       const hgt = S.lo + hash(x, y, 13) * (S.hi - S.lo);
-      scs[st].add(x + 0.5, y + 0.5, heading, 1, hgt, [b, b * 0.98, b * 0.94]);
+      scs[st].add(x + 0.5, y + 0.5, heading, 1, hgt / S.t, [b, b * 0.98, b * 0.94]);
     }
     scs.forEach((sc, k) => { sc.build(this.group, wallGeos[k], mat, true); this.scatters.push(sc); });
     const sc = new Scatter();
@@ -353,85 +349,29 @@ export class Terrain {
   }
 }
 
-// Ruined walls come in styles, each block of one built along +x, a tile long. lo..hi is how
-// tall a block of it stands, before the break.
+// Ruined walls come in styles, each a tile of wall along +x modelled in Blender
+// (tools/blender/figures.py, ruin_<style>) about t tall; lo..hi is how tall a block of it
+// stands, each its own height in that range.
 const enum Wall { Siding = 0, Brick, Stone, Cinder, Timber, Fort, Shop, Chapel }
-const WALLS: { lo: number; hi: number; geo: () => THREE.BufferGeometry }[] = [
-  // Siding: a brick footing, faded clapboard, a broken top.
-  { lo: 0.8, hi: 1.6, geo: () => merge([
-    part(box(1, 0.3, 1), 0x6e3e30, 0, 0.15, 0),
-    part(box(0.96, 0.7, 0.96), 0xb3a88c, 0, 0.65, 0),
-    part(box(1, 0.06, 1), 0x8a8270, 0, 0.62, 0),
-    part(box(0.98, 0.08, 0.98), 0x6a6458, 0, 1.0, 0),
-    part(box(0.45, 0.3, 0.45), 0x9c9178, 0.22, 1.12, 0.18, 0, 0.4, 0),
-  ]) },
-  // Brick: red courses with pale mortar, the top fallen away in steps.
-  { lo: 0.85, hi: 1.5, geo: () => merge([
-    part(box(1, 0.9, 0.72), 0x8e4a34, 0, 0.45, 0),
-    part(box(1.01, 0.035, 0.73), 0xb0a090, 0, 0.22, 0),
-    part(box(1.01, 0.035, 0.73), 0xb0a090, 0, 0.45, 0),
-    part(box(1.01, 0.035, 0.73), 0xb0a090, 0, 0.68, 0),
-    part(box(0.6, 0.2, 0.72), 0x7a3c2a, -0.2, 1.0, 0),
-    part(box(0.28, 0.14, 0.72), 0x8e4a34, -0.36, 1.17, 0),
-    part(box(0.26, 0.12, 0.2), 0x8e4a34, 0.28, 0.06, 0.46, 0, 0.6, 0),
-  ]) },
-  // Fieldstone: an old farmhouse's grey stones, lumpy, with a capstone or two left.
-  { lo: 0.8, hi: 1.3, geo: () => merge([
-    part(box(1, 0.86, 0.8), 0x737064, 0, 0.43, 0),
-    part(dodeca(0.24), 0x878374, -0.3, 0.22, 0.32, 0.3, 0, 0, 1.3, 0.8, 0.6),
-    part(dodeca(0.22), 0x66635a, 0.22, 0.5, 0.33, 0, 0.5, 0, 1.4, 0.8, 0.6),
-    part(dodeca(0.2), 0x8f8a7a, -0.12, 0.7, -0.33, 0.4, 0, 0, 1.3, 0.8, 0.6),
-    part(dodeca(0.22), 0x6e6b5e, 0.3, 0.2, -0.33, 0, 0.3, 0, 1.2, 0.9, 0.6),
-    part(dodeca(0.26), 0x7d7a6c, -0.18, 0.92, 0, 0.2, 0.4, 0, 1.3, 0.6, 1.1),
-    part(dodeca(0.2), 0x8a8676, 0.26, 0.9, 0.05, 0, 0.9, 0, 1, 0.6, 1.2),
-  ]) },
-  // Cinder block: grey blocks with their seams, a stained foot, rusted rebar out of the top.
-  { lo: 0.9, hi: 1.5, geo: () => merge([
-    part(box(1, 1, 0.62), 0x8e8b84, 0, 0.5, 0),
-    part(box(1.01, 0.16, 0.63), 0x6a675f, 0, 0.08, 0),
-    part(box(1.01, 0.025, 0.63), 0x6e6c66, 0, 0.36, 0),
-    part(box(1.01, 0.025, 0.63), 0x6e6c66, 0, 0.68, 0),
-    part(box(0.025, 0.3, 0.63), 0x6e6c66, -0.2, 0.52, 0),
-    part(box(0.025, 0.3, 0.63), 0x6e6c66, 0.3, 0.84, 0),
-    part(box(0.04, 0.42, 0.04), 0x6a3a22, 0.22, 1.18, 0.05, 0, 0, 0.15),
-    part(box(0.04, 0.32, 0.04), 0x6a3a22, -0.3, 1.12, -0.06, 0.2, 0, -0.1),
-  ]) },
-  // Timber: a barn's or a shed's grey-brown boards between posts, some fallen short.
-  { lo: 0.85, hi: 1.2, geo: () => merge([
-    part(box(1, 0.62, 0.3), 0x5a4430, 0, 0.31, 0),
-    part(box(0.16, 1.15, 0.36), 0x46382a, -0.42, 0.575, 0),
-    part(box(0.3, 1.0, 0.26), 0x6b5038, -0.2, 0.5, 0),
-    part(box(0.3, 0.78, 0.26), 0x5d4631, 0.1, 0.39, 0),
-    part(box(0.26, 0.94, 0.26), 0x74593f, 0.37, 0.47, 0),
-    part(box(1, 0.08, 0.34), 0x4a3b2b, 0, 0.3, 0),
-    part(box(1, 0.08, 0.34), 0x4a3b2b, 0, 0.82, 0, 0.05, 0, 0.04),
-    part(box(0.14, 0.6, 0.06), 0x6b5038, 0.06, 0.1, 0.34, 1.35, 0.3, 0),
-  ]) },
-  // An outpost's wall: poured concrete, a dark stripe, a row of sandbags along the top.
-  { lo: 1.1, hi: 1.3, geo: () => merge([
-    part(box(1, 0.95, 0.85), 0x8c8b84, 0, 0.475, 0),
-    part(box(1.01, 0.1, 0.86), 0x56554f, 0, 0.22, 0),
-    part(dodeca(0.2), 0x8f8058, -0.3, 1.0, 0, 0, 0.2, 0, 1.5, 0.6, 1.4),
-    part(dodeca(0.2), 0x9a8a62, 0.02, 1.0, 0.04, 0, -0.1, 0, 1.5, 0.6, 1.4),
-    part(dodeca(0.2), 0x857652, 0.33, 1.0, -0.03, 0, 0.3, 0, 1.4, 0.6, 1.4),
-  ]) },
-  // The gas station's shop: painted block, a teal band where the sign ran, a grimy foot.
-  { lo: 1.2, hi: 1.35, geo: () => merge([
-    part(box(1, 1, 0.64), 0xc4bfae, 0, 0.5, 0),
-    part(box(1.01, 0.18, 0.65), 0x66635a, 0, 0.09, 0),
-    part(box(1.01, 0.15, 0.65), 0x2f7472, 0, 0.78, 0),
-    part(box(1.02, 0.05, 0.7), 0x8a867a, 0, 1.0, 0),
-  ]) },
-  // The church: tall pale ashlar on a dark plinth, a string course, the top broken off unevenly.
-  { lo: 1.7, hi: 2.4, geo: () => merge([
-    part(box(1, 1, 0.8), 0xb9b2a0, 0, 0.5, 0),
-    part(box(1.02, 0.22, 0.84), 0x6e6a5e, 0, 0.11, 0),
-    part(box(1.01, 0.03, 0.81), 0x9a9482, 0, 0.42, 0),
-    part(box(1.01, 0.03, 0.81), 0x9a9482, 0, 0.72, 0),
-    part(box(1.03, 0.07, 0.86), 0xa49d8a, 0, 0.98, 0),
-    part(box(0.4, 0.16, 0.8), 0xb0a996, -0.24, 1.06, 0),
-  ]) },
+const WALLS: { lo: number; hi: number; t: number }[] = [
+  // Siding: faded clapboard, lapped, on a brick footing.
+  { lo: 0.85, hi: 1.65, t: 1.1 },
+  // Brick: two bricks thick in red courses, the top fallen away in steps.
+  { lo: 0.9, hi: 1.55, t: 1.2 },
+  // Fieldstone: an old farmhouse's grey stones, with a capstone left.
+  { lo: 0.85, hi: 1.35, t: 1.0 },
+  // Cinder block: grey blocks, rebar bent out of the cores where they broke.
+  { lo: 0.95, hi: 1.55, t: 1.1 },
+  // Timber: a barn's or a shed's boards between rails, each broken off at its own height.
+  { lo: 0.9, hi: 1.25, t: 1.1 },
+  // An outpost's wall: poured concrete, rust weeping down it, sandbags along the top.
+  { lo: 1.15, hi: 1.35, t: 1.0 },
+  // The gas station's shop: painted block, a teal band where the sign ran, scorched.
+  { lo: 1.25, hi: 1.4, t: 1.0 },
+  // The church: tall pale ashlar on a dark plinth, string courses, broken off unevenly.
+  { lo: 1.75, hi: 2.45, t: 2.0 },
 ];
+const ruin = (name: string) => build([{ p: piece(name)! }], fixedColor);
 
 // Which style each wall tile is built in: an outpost's and the gas station's their own, a
 // house's to suit its shape, and any other ruin one of the house styles by its look.
