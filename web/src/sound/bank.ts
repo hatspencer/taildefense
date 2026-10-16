@@ -516,6 +516,30 @@ function boneLand(sr: number, r: R): Buf {
   return b.normalize(0.65).fadeOut();
 }
 
+// Footsteps, barely there: a boot's heel and the grit under it; a bare foot of the dead
+// dragged as much as set down; and the big ones' weight landing in the dirt.
+function step(sr: number, r: R): Buf {
+  const b = new Buf(sr, 0.2);
+  thud(b, r, 0, jit(r, 115, 0.15), 65, 0.016, 0.8, 0.9, 900);
+  roar(b, r, 0.006, 0.08, jit(r, 3200, 0.2), 1200, 0.002, 0.018, 0.3);
+  debris(b, r, 0.01, 0.05, 3, 1800, 4500, 0.1);
+  return b.normalize(0.6).fadeOut();
+}
+
+function creepStep(sr: number, r: R): Buf {
+  const b = new Buf(sr, 0.32);
+  thud(b, r, 0, jit(r, 90, 0.15), 55, 0.022, 0.7, 1, 600);
+  whoosh(b, r, 0.015, jit(r, 0.2, 0.25), 1000, 500, 0.3, 0.8);
+  return b.normalize(0.55).fadeOut();
+}
+
+function bigStep(sr: number, r: R): Buf {
+  const b = new Buf(sr, 0.6);
+  thud(b, r, 0, jit(r, 62, 0.1), 30, 0.07, 1.2, 0.8, 500);
+  debris(b, r, 0.02, 0.25, 6, 500, 1800, 0.12);
+  return b.normalize(0.75).fadeOut();
+}
+
 // --- survivors ----------------------------------------------------------------------------
 
 // pitch: 1 a man's voice, about 1.7 a woman's.
@@ -925,6 +949,9 @@ export const RECIPES: Record<string, [number, Maker, number?]> = {
   spit: [3, spit],
   boneThrow: [2, boneThrow],
   boneLand: [3, boneLand],
+  step: [6, step],
+  creepStep: [6, creepStep],
+  bigStep: [4, bigStep, LOW],
   strike: [5, (sr, r) => creepStrike(sr, r, false)],
   strikeBig: [3, (sr, r) => creepStrike(sr, r, true), LOW],
   coins: [2, coins],

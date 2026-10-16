@@ -520,6 +520,11 @@ choice, not a cheat guard.
   a few voices and all of them at once only tires the ear. What needs
   attention gets its own sound that cuts through: the siren, the generator's klaxon, the
   radio for pings and chat, a nest waking.
+- **Footsteps, barely there.** Survivors and creeps step once per step's length of ground
+  covered (a survivor's lengthening with speed, a creep's with its size), some 28 dB under a
+  pistol shot: enough to hear something coming in a quiet build phase, nothing in a fight.
+  Only the nearest two of the dead are heard stepping each tick (one in a crowd), the big
+  ones first, and steps are the first sounds dropped once 32 of the 40 voices are playing.
 - **Effects only, no music or ambience,** so the game's own sounds carry the mood and the
   warnings.
 - **Each player's own volume,** a setting like any other, saved from the menu.

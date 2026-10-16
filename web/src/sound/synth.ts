@@ -37,6 +37,8 @@ export class Synth {
   private reverb: GainNode | null = null;
   private bufs = new Map<string, AudioBuffer>();
   private active = 0;
+  // How many sounds are playing: the least of them (footsteps) wait for a quieter moment.
+  get busy(): number { return this.active / MAX_VOICES; }
   private playing = new Map<string, number>();
   private vol: number;
   private warmQueue: string[] = [];

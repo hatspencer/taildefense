@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import {
-  BlastKind, CF_ASLEEP, CF_STRIKE, EffectKind, Phase, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_HURT, PF_RELOADING,
+  BlastKind, CF_ASLEEP, MAX_CREEPS, CF_STRIKE, EffectKind, Phase, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_HURT, PF_RELOADING,
   PingKind, TRACER_HELI, TRACER_SHARD, type Player, TURRET_TRACKS,
 } from '../protocol';
 import { K_CANNON, K_CORE, K_GUN, K_MISSILE, K_SNIPER, K_TESLA } from '../scene/structs';
@@ -33,6 +33,9 @@ const BIG = new Set([3, 5, 7]);
 // not a burst twenty times a second.
 const TICK = 0.05;
 const AHEAD = 0.03;
+// Footsteps: how loud a survivor's, a creep's and a big one's are, and how many of the dead
+// may step in one tick. Steps are the first sounds let go when many are playing.
+const STEP = 0.11, CREEP_STEP = 0.08, BIG_STEP = 0.22, CREEP_STEPS = 2, STEP_BUSY = 0.8;
 
 interface Shot { x: number; y: number; vol: number; extra?: number; p?: Placed }
 
@@ -51,6 +54,12 @@ export class Sound {
   private effects = new Map<string, { kind: number; x: number; y: number; x0: number; y0: number }>();
   private last = new Map<string, number>();
   private groanDue = 0;
+  // Ground covered since the last footstep, and where each was last seen (and in which frame).
+  private serial = 0;
+  private pWalk = new Float32Array(256); private pSx = new Float32Array(256); private pSy = new Float32Array(256);
+  private pSeen = new Uint32Array(256);
+  private cWalk = new Float32Array(MAX_CREEPS); private cSx = new Float32Array(MAX_CREEPS); private cSy = new Float32Array(MAX_CREEPS);
+  private cSeen = new Uint32Array(MAX_CREEPS);
   // The Huey's rotor, a fire, and each player's minigun spinning.
   private rotor: Loop | null = null;
   private fire: Loop | null = null;
@@ -252,6 +261,7 @@ export class Sound {
       if (p) this.synth.play(big ? 'strikeBig' : 'strike', p, t0 + Math.random() * TICK);
     }
     this.groan(game, near, hear, crowd);
+    this.steps(game, t0, hear, crowd);
 
     this.effectSounds(game, t0);
     this.playerSounds(game, loot);
@@ -278,6 +288,51 @@ export class Sound {
     }
     const rate = Math.min(2.4 - 1.4 * crowd, 0.3 * Math.sqrt(near));
     this.groanDue = now + (0.5 + Math.random()) / rate;
+  }
+
+  // Footsteps, one for every step's length of ground covered: a survivor's step lengthens
+  // with speed as the legs do, a creep's with its size. Only the nearest of the dead are
+  // heard stepping, fewer in a crowd, and none of it when the mix is busy.
+  private steps(game: Game, t0: number, hear: number, crowd: number): void {
+    const f = game.cur, n = ++this.serial, quiet = this.synth.busy < STEP_BUSY;
+    // The share of the tick at which a step falls, from what is left over past it.
+    const walk = (acc: Float32Array, id: number, d: number, len: number): number => {
+      acc[id] += d;
+      if (acc[id] < len) return -1;
+      acc[id] = Math.min(acc[id] - len, len * 0.5);
+      return Math.max(0, 1 - acc[id] / d);
+    };
+    for (let i = 0; i < f.nPlayers; i++) {
+      const p = f.players[i], id = p.id;
+      const d = Math.hypot(p.x - this.pSx[id], p.y - this.pSy[id]), seen = this.pSeen[id] === n - 1;
+      this.pSx[id] = p.x; this.pSy[id] = p.y; this.pSeen[id] = n;
+      // A dash covers a metre in a tick and has a sound of its own.
+      if (!seen || d > 0.9 || !(p.flags & PF_ALIVE) || !(p.flags & PF_CONNECTED)) { this.pWalk[id] = Math.random() * 0.4; continue; }
+      const u = walk(this.pWalk, id, d, Math.min(1.3, Math.max(0.36, 0.3 + 0.11 * d / TICK)));
+      if (u < 0 || !quiet) continue;
+      const q = this.place(p.x, p.y, STEP);
+      if (q) this.synth.play('step', q, t0 + u * TICK);
+    }
+    const heard: { x: number; y: number; near: number; u: number; big: boolean }[] = [];
+    const creeps = game.welcome!.creeps;
+    for (let i = 0; i < f.nCreeps; i++) {
+      const id = f.cId[i], x = f.cX[i], y = f.cY[i], dx = x - this.lx, dy = y - this.ly;
+      if (dx * dx + dy * dy > hear * hear || f.cFlags[i] & CF_ASLEEP) continue;
+      const d = Math.hypot(x - this.cSx[id], y - this.cSy[id]), seen = this.cSeen[id] === n - 1;
+      this.cSx[id] = x; this.cSy[id] = y; this.cSeen[id] = n;
+      const k = f.cKind[i], len = 0.3 + (creeps[k]?.radius ?? 0.45) * 0.8;
+      if (!seen || d > 1) { this.cWalk[id] = Math.random() * len; continue; }
+      const u = walk(this.cWalk, id, d, len);
+      if (u >= 0) heard.push({ x, y, near: -(dx * dx + dy * dy) + (BIG.has(k) ? 1e4 : 0), u, big: BIG.has(k) });
+    }
+    if (!quiet) return;
+    // The big ones first: their tread is heard over the rest.
+    heard.sort((a, b) => b.near - a.near);
+    for (let j = 0; j < Math.min(Math.round(CREEP_STEPS - crowd), heard.length); j++) {
+      const s = heard[j];
+      const q = this.place(s.x, s.y, s.big ? BIG_STEP : CREEP_STEP, s.big ? 1.4 : 1);
+      if (q) this.synth.play(s.big ? 'bigStep' : 'creepStep', q, t0 + s.u * TICK);
+    }
   }
 
   private spinning(ps: Player[], n: number, x: number, y: number): void {
