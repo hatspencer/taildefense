@@ -1,6 +1,7 @@
 import { fixedColor, piece, type Dress, type Use } from './figures';
-import { REGIONS, SLOTS } from './figures.gen';
+import { REGIONS, SLOTS, SURVIVOR as SV } from './figures.gen';
 import { Body, type Look, shade } from './look';
+import { box, part, type Part } from './util';
 
 // A survivor as pieces of the Blender figure, dressed as the look the host dealt them: the
 // body (male or female build), head and face, hands and boots; the outfit's layers over the
@@ -74,6 +75,23 @@ export function survivor(L: Look, c: number): { uses: Use[]; dress: Dress } {
     return 0xff00ff;
   };
   return { uses, dress };
+}
+
+// Night vision goggles in the figure's space, over its eyes: a strap round the head, a mount
+// on the brow and twin tubes, and apart from them the lenses, which glow.
+export function goggles(): { body: Part[]; lenses: Part[] } {
+  const [ex, ey, ez] = SV.eye, by = SV.brow[1], dark = 0x22251f;
+  const body = [
+    part(box(0.19, 0.022, 0.18), 0x1c1e1a, 0.005, by),
+    part(box(0.03, 0.02, 0.03), 0x2c302a, ex - 0.005, by + 0.03),
+    part(box(0.03, 0.04, 0.1), 0x2c302a, ex + 0.01, ey + 0.002),
+  ];
+  const lenses: Part[] = [];
+  for (const z of [ez, -ez]) {
+    body.push(part(box(0.04, 0.032, 0.032), dark, ex + 0.03, ey, z));
+    lenses.push(part(box(0.004, 0.024, 0.024), 0x8cff6a, ex + 0.052, ey, z));
+  }
+  return { body, lenses };
 }
 
 function mix(a: number, b: number, k: number): number {
