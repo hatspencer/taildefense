@@ -1,4 +1,4 @@
-import { PF_ALIVE, RIFLE, RIFLE_SIGHT, type Frame, TTrack, TURRET_TRACKS, type Welcome, Weather, sightMul, turretRange, walled } from './protocol';
+import { FLASH_CONE, PF_ALIVE, RIFLE, RIFLE_SIGHT, type Frame, TTrack, TURRET_TRACKS, type Welcome, Weather, sightMul, turretRange, walled } from './protocol';
 
 // Fog of war: what the team sees right now, and what it has ever seen, per tile. Vision is
 // shared: every survivor and every structure lights a disc around itself. The host sends
@@ -63,13 +63,15 @@ export class Vision {
     const mul = f.weather === Weather.Fog ? 1 - 0.25 * f.weatherAmt : 1, see = sightMul(f.weather, f.weatherAmt);
     // At night (hard and brutal) a survivor sees only a small pool round them: the dead are on
     // you before you know it.
-    const dark = wd.dark ?? 0, sight = dark || 12;
+    const dark = wd.dark ?? 0, sight = dark || 12, cone = dark ? wd.cone ?? 0 : 0;
     for (let i = 0; i < f.nPlayers; i++) {
       const p = f.players[i];
       const r = this.roomAt(p.x, p.y);
       if (r >= 0) { this.entered[r] = 1; this.lightRoom(r); }
-      // A rifle's scope sees twice as far.
-      this.disc(p.x, p.y, (p.flags & PF_ALIVE ? sight * (p.cur === RIFLE ? RIFLE_SIGHT : 1) : 4) * see, r);
+      // A rifle's scope sees twice as far: all round, or with a flashlight (brutal) along its beam.
+      const alive = (p.flags & PF_ALIVE) !== 0, scope = p.cur === RIFLE ? RIFLE_SIGHT : 1;
+      this.disc(p.x, p.y, (alive ? sight * (cone ? 1 : scope) : 4) * see, r);
+      if (alive && cone) this.cone(p.x, p.y, p.aim, cone * scope * see, r);
     }
     for (let i = 0; i < f.nStructs; i++) {
       if (!f.sAlive[i]) continue;
@@ -101,6 +103,24 @@ export class Vision {
     for (let y = Math.max(0, s.y); y < Math.min(this.h, s.y + s.h); y++) {
       const a = y * w + Math.max(0, s.x), b = y * w + Math.min(w, s.x + s.w);
       now.fill(1, a, b); seen.fill(1, a, b);
+    }
+  }
+
+  // Lights the flashlight's beam: open ground within r and FLASH_CONE of the aim, as
+  // discover.go's lightCone.
+  private cone(cx: number, cy: number, aim: number, r: number, inside: number): void {
+    const { w, h, now, seen, room } = this;
+    const ax = Math.fround(Math.cos(aim)), ay = Math.fround(Math.sin(aim)), lim = Math.cos(FLASH_CONE);
+    const y0 = Math.max(0, Math.floor(cy - r)), y1 = Math.min(h - 1, Math.floor(cy + r));
+    const x0 = Math.max(0, Math.floor(cx - r)), x1 = Math.min(w - 1, Math.floor(cx + r));
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        const dx = x + 0.5 - cx, dy = y + 0.5 - cy, d = Math.hypot(dx, dy);
+        if (d > r || dx * ax + dy * ay < lim * d) continue;
+        const i = y * w + x;
+        if (room[i] !== -1 && room[i] !== inside) continue;
+        now[i] = 1; seen[i] = 1;
+      }
     }
   }
 

@@ -5,8 +5,8 @@
 export const WEAPON_SLOTS = 7, RIFLE = 3, CROWBAR = 6;
 // How much further a survivor with a rifle in hand sees: the host's rifleSight.
 export const RIFLE_SIGHT = 2;
-// The hardest difficulty's id (difficulty.go's DiffBrutal): its night shows only lit ground.
-export const BRUTAL = 3;
+// Half the flashlight's beam, in radians: discover.go's flashCone.
+export const FLASH_CONE = 0.45;
 
 export const MAX_CREEPS = 16384;
 export const MAX_PLAYERS = 8;
@@ -97,6 +97,8 @@ export interface Welcome {
   fogOfWar?: boolean;
   // Night on the harder settings: how far a survivor sees, out past the generator's lights.
   dark?: number;
+  // Brutal's night: how far the flashlight reaches along the aim; then only what is lit now shows.
+  cone?: number;
   // At night, the ground the team has found so far: base64, a bit per tile, low bit first.
   seen?: string;
   taunt: { cool: number; radius: number; time: number };
@@ -130,7 +132,7 @@ export interface Toast { t: 'toast'; level: number; text: string }
 export interface Status { t: 'status'; text: string }
 export interface End { t: 'end'; reason: string }
 // The host changed the difficulty mid-game; dark is the night it brings (0 for none).
-export interface DifficultyMsg { t: 'difficulty'; difficulty: { id: number; name: string }; dark: number }
+export interface DifficultyMsg { t: 'difficulty'; difficulty: { id: number; name: string }; dark: number; cone?: number }
 export type TextMsg = Welcome | Toast | Status | End | DifficultyMsg;
 
 export type Command =

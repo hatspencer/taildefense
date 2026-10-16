@@ -50,7 +50,8 @@ everything it knows, a terrain message follows).
   "difficulty": {"id": 1, "name": "Normal"},   // chosen by the host before hosting
   "difficulties": ["Easy", "Normal", "Hard", "Brutal"],
   "fogOfWar": false,           // the host's FOG setting: the client hides what the team cannot see
-  "dark": 5.5,                 // hard and brutal: night, a survivor's sight radius; absent otherwise
+  "dark": 3,                   // hard and brutal: night, a survivor's sight radius; absent otherwise
+  "cone": 11,                  // brutal: the flashlight's reach along the aim (x2 with a rifle); then only what is lit now shows
   "seen": "base64",            // at night, the ground the team has found: a bit per tile (y*w+x), low bit first
   "weathers": [                // index = weather kind in the frame
     {"name": "Clear", "info": ""},
@@ -344,7 +345,7 @@ u8   nPings           spots players marked for the team this tick
 {"t": "toast", "level": 2, "text": "not enough gold: need 250, have 120"}  // to you only
 {"t": "status", "text": "hosting · 2/8 · friends: td join box"}          // about every 2 s
 {"t": "end", "reason": "the host ended the game or went away"}          // then the socket closes
-{"t": "difficulty", "difficulty": {"id": 2, "name": "Hard"}, "dark": 7}  // the host changed it; dark as in the welcome
+{"t": "difficulty", "difficulty": {"id": 2, "name": "Hard"}, "dark": 7, "cone": 0}  // the host changed it; dark, cone as in the welcome
 ```
 
 ## Browser → server

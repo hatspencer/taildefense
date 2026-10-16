@@ -45,6 +45,9 @@ func (w *World) discover() {
 			w.lightRect(int(s.X)+1, int(s.Y)+1, int(s.W)-2, int(s.H)-2)
 		}
 		w.lightDisc(p.X, p.Y, r*see, in)
+		if c := w.cone(p); p.Alive && c > 0 {
+			w.lightCone(p.X, p.Y, p.Aim, c*see, in)
+		}
 	}
 	for i := range w.Structs {
 		s := &w.Structs[i]
@@ -69,12 +72,24 @@ func (w *World) discover() {
 // rifleSight is how much further a survivor with a rifle in hand sees: the scope.
 const rifleSight = 2
 
-// sight is how far survivor p sees at night.
+// flashCone is half the flashlight's beam, in radians: the page's spotlight has the same.
+const flashCone = .45
+
+// sight is how far survivor p sees all round at night. With a flashlight (brutal) the scope
+// lengthens the beam instead.
 func (w *World) sight(p *Player) float32 {
-	if p.Cur == WRifle {
+	if p.Cur == WRifle && w.diff().Cone <= 0 {
 		return w.diff().Dark * rifleSight
 	}
 	return w.diff().Dark
+}
+
+// cone is how far survivor p's flashlight reaches along their aim, 0 without one.
+func (w *World) cone(p *Player) float32 {
+	if p.Cur == WRifle {
+		return w.diff().Cone * rifleSight
+	}
+	return w.diff().Cone
 }
 
 // roomGrid is, per tile, the walled site whose inside it is, walls excluded, or -1.
@@ -138,6 +153,29 @@ func (w *World) lightDisc(cx, cy, r float32, inside int) {
 		span := sqrt32(max(0, r*r-dy*dy))
 		x0, x1 := max(0, int(floor32(cx-span+.5))), min(w.W-1, int(floor32(cx+span-.5)))
 		for i := y*w.W + x0; i <= y*w.W+x1; i++ {
+			if rm := int(w.rooms[i]); rm != -1 && rm != inside {
+				continue
+			}
+			w.see(i)
+		}
+	}
+}
+
+// lightCone marks the flashlight's beam: open ground within r of cx, cy and flashCone of the
+// aim, and the room inside (-1: none) the survivor stands in.
+func (w *World) lightCone(cx, cy, aim, r float32, inside int) {
+	sin, cos := math.Sincos(float64(aim))
+	ax, ay, lim := float32(cos), float32(sin), float32(math.Cos(flashCone))
+	y0, y1 := max(0, int(floor32(cy-r))), min(w.H-1, int(floor32(cy+r)))
+	x0, x1 := max(0, int(floor32(cx-r))), min(w.W-1, int(floor32(cx+r)))
+	for y := y0; y <= y1; y++ {
+		for x := x0; x <= x1; x++ {
+			dx, dy := float32(x)+.5-cx, float32(y)+.5-cy
+			d := sqrt32(dx*dx + dy*dy)
+			if d > r || dx*ax+dy*ay < lim*d {
+				continue
+			}
+			i := y*w.W + x
 			if rm := int(w.rooms[i]); rm != -1 && rm != inside {
 				continue
 			}

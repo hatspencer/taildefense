@@ -164,6 +164,7 @@ type welcomeMsg struct {
 	Difficulty      difficultyRef `json:"difficulty"`
 	FogOfWar        bool          `json:"fogOfWar"`
 	Dark            float32       `json:"dark,omitempty"` // survivors' sight at night; 0 for none
+	Cone            float32       `json:"cone,omitempty"` // brutal: the flashlight's reach; 0 for none
 	Seen            []byte        `json:"seen,omitempty"` // at night, the ground found so far: a bit per tile, low bit first
 	Difficulties    []string      `json:"difficulties"`
 	Weathers        []weatherDef  `json:"weathers"`
@@ -271,6 +272,7 @@ func welcome(wel netplay.Welcome, core point, host, hint string, hosting bool) w
 	m.FogOfWar = wel.Fog
 	if wel.Diff < game.NumDifficulties {
 		m.Dark = game.Difficulties[wel.Diff].Dark
+		m.Cone = game.Difficulties[wel.Diff].Cone
 	}
 	for _, d := range game.Difficulties {
 		m.Difficulties = append(m.Difficulties, d.Name)
@@ -289,9 +291,10 @@ func welcome(wel netplay.Welcome, core point, host, hint string, hosting bool) w
 
 // difficultyMsg tells a page the host changed the difficulty, with the night it brings.
 func difficultyMsg(d game.Difficulty) map[string]any {
-	m := map[string]any{"t": "difficulty", "difficulty": difficultyRef{int(d), d.String()}, "dark": float32(0)}
+	m := map[string]any{"t": "difficulty", "difficulty": difficultyRef{int(d), d.String()}, "dark": float32(0), "cone": float32(0)}
 	if d < game.NumDifficulties {
 		m["dark"] = game.Difficulties[d].Dark
+		m["cone"] = game.Difficulties[d].Cone
 	}
 	return m
 }
