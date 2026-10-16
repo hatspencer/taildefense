@@ -485,6 +485,16 @@ choice, not a cheat guard.
 - **Feet don't slide.** The gait advances with distance actually travelled, so a slowed creep
   shuffles and a runner bounds. Survivors split upper and lower body: legs follow the movement,
   the torso follows the aim, so strafing and backpedalling read. Hands hold each gun by IK.
+- **Long guns are shouldered.** The shotgun, rifle and SMG sit with the stock in the right
+  shoulder at eye level, the shoulders turned off the aim and the head looking along the
+  barrel, as anyone shoulders a long gun; the pistol is held out in both hands, the launcher
+  rests on the shoulder and the minigun is braced at the hip. Guns in the hand are drawn at
+  three quarters of their size on the ground: the figures are stylised short, and a full-size
+  long gun puts its forend out of the off hand's reach.
+- **Clothes move with what they lie on.** A vest, plate carrier or bib follows the torso alone,
+  never the arms, so raising a gun can't pull it off the shoulder; only a jacket's sleeves follow
+  the arms. Their edges are cut straight into the body's surface rather than following its
+  triangles, and straps go over the shoulder flat on it.
 - **Springs carry the weight.** Lean, recoil, flinch, a pack bouncing and hair swinging all run
   through damped springs, so motion settles instead of snapping.
 - **Creeps are crowds of people.** Shirt, trousers, skin and hair are picked per creep, and each
