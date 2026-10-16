@@ -377,7 +377,7 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .scorecards .dot { display: inline-block; flex: none; width: 8px; height: 12px; border: 2px solid var(--black); align-self: center; }
 .scorecards .st { font-family: var(--small); font-size: 12px; }
 .scorecards .st.down { color: var(--rust); }
-.scorecards .nums { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 2px; padding: 4px 6px 3px; background: var(--scan), var(--screen); border: 2px solid var(--black); }
+.scorecards .nums { display: grid; grid-template-columns: repeat(9, minmax(max-content, 1fr)); gap: 2px 10px; padding: 4px 6px 3px; background: var(--scan), var(--screen); border: 2px solid var(--black); }
 .scorecards .n { text-align: center; min-width: 0; }
 .scorecards .n b { display: block; font: 400 22px/1 var(--crt); color: #f4c25c; font-variant-numeric: tabular-nums; }
 .scorecards .n.bad b { color: #d98a62; }
@@ -387,7 +387,7 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .scorecards .pchip b { font-weight: 600; color: var(--amber); margin-left: 4px; }
 .scorecards .pchip.held { border-color: var(--amber); box-shadow: inset 0 0 0 1px rgba(224, 166, 58, 0.35); }
 .scorecards .pchip.ab { color: var(--steel); }
-@media (max-width: 560px) { .scorecards .nums { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .scorecards .nums { grid-template-columns: repeat(5, minmax(max-content, 1fr)); } }
 
 .help { width: min(660px, calc(100% - 32px)); }
 .help table { border-collapse: collapse; }
