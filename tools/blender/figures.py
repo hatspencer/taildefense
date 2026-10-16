@@ -210,13 +210,13 @@ def sphere(c, r, seg=10, rings=7, fn=None):
     return bm
 
 
-def box(c, size, bevel=0.0, rot=(0, 0, 0)):
+def box(c, size, bevel=0.0, rot=(0, 0, 0), seg=1):
     bm = bmesh.new()
     bmesh.ops.create_cube(bm, size=1.0)
     for v in bm.verts:
         v.co = Vector((v.co.x * size[0], -v.co.z * size[2], v.co.y * size[1]))
     if bevel > 0:
-        bmesh.ops.bevel(bm, geom=list(bm.edges), offset=bevel, segments=1, affect='EDGES')
+        bmesh.ops.bevel(bm, geom=list(bm.edges), offset=min(bevel, min(size) * 0.45), segments=seg, affect='EDGES')
     rotate(bm, rot)
     for v in bm.verts:
         v.co += G(*c)
@@ -477,10 +477,14 @@ def body(fem=False):
         links += [('pel', 'hp' + L), ('hp' + L, 'th' + L), ('th' + L, 'kn' + L), ('kn' + L, 'cf' + L), ('cf' + L, 'an' + L)]
         # The seat, and the chest's slope into the shoulder.
         extra.append(ellipsoid((-0.045, 0.56, 0.06 * s * hk), (0.07, 0.075, 0.075 * hk)))
+        # The kneecap, the calf swelling behind the shin, the thigh's front.
+        extra.append(ellipsoid((0.05, KNEE_Y + 0.01, hz), (0.026, 0.03, 0.034)))
+        extra.append(ellipsoid((-0.03, 0.225, hz * 0.97), (0.045, 0.06, 0.045)))
+        extra.append(ellipsoid((0.035, 0.44, hz), (0.05, 0.08, 0.06)))
         extra.append(ellipsoid((0.068, 0.888, 0.054 * s), (0.056, 0.048, 0.05)) if fem else ellipsoid((0.04, 0.95, 0.065 * s), (0.05, 0.048, 0.075)))
         # The trapezius, sloping from the neck down to the shoulder.
         extra.append(hull(ellipsoid((-0.015, 1.045, 0.035 * s), (0.05, 0.025, 0.03)), ellipsoid((-0.012, 0.995, (sz - 0.025) * s), (0.055, 0.033, 0.05))))
-    trunk = fuse(blob(n, links, extra), faces=1300)
+    trunk = fuse(blob(n, links, extra), faces=2000)
     arms = []
     for s in (1, -1):
         z = sz * s
@@ -491,7 +495,7 @@ def body(fem=False):
             'fa': ((0.004, 0.67, z), (0.045, 0.05, 0.041)),
             'wr': ((0.004, 0.592, z), (0.03, 0.02, 0.034)),
         }
-        arms.append(fuse(blob(a, [('sh', 'ua'), ('ua', 'el'), ('el', 'fa'), ('fa', 'wr')]), faces=300))
+        arms.append(fuse(blob(a, [('sh', 'ua'), ('ua', 'el'), ('el', 'fa'), ('fa', 'wr')]), voxel=0.007, faces=460))
     return trunk, arms[0], arms[1]
 
 
@@ -518,7 +522,7 @@ def head(fem=False):
         parts.append(ellipsoid((0.044, 1.192, 0.036 * s_), (0.024, 0.015, 0.02)))
         parts.append(ellipsoid((0.096, 1.185, 0.011 * s_), (0.008, 0.007, 0.007)))
         parts.append(hull(ellipsoid((-0.004, 1.222, 0.08 * s_), (0.016, 0.018, 0.008)), ellipsoid((-0.008, 1.19, 0.078 * s_), (0.011, 0.014, 0.008))))
-    bm = fuse(parts, voxel=0.0035, faces=900, smooth_iter=7, smooth_k=0.5)
+    bm = fuse(parts, voxel=0.0035, faces=1300, smooth_iter=7, smooth_k=0.5)
     paint(bm, S['skin'])
     # Where stubble shades the jaw and lip.
     paint_by(bm, lambda x, y, z: R['jaw'] if y < 1.185 and x > -0.02 and abs(z) < 0.07 and not (x > 0.09 and y > 1.17) else None)
@@ -551,11 +555,16 @@ def face(fem=False):
 def hand(s=1, z=None):
     """A hand hanging from the wrist, fingers together and curled a little, thumb forward."""
     z = (SH_Z if z is None else z) * s
-    bm = fuse([
-        hull(ellipsoid((0.006, 0.580, z), (0.024, 0.012, 0.03)), ellipsoid((0.01, 0.540, z), (0.022, 0.025, 0.033))),
-        hull(ellipsoid((0.01, 0.540, z), (0.02, 0.02, 0.031)), ellipsoid((0.022, 0.502, z), (0.018, 0.016, 0.027))),
-        hull(ellipsoid((0.022, 0.565, z - 0.015 * s), (0.012, 0.012, 0.012)), ellipsoid((0.036, 0.536, z - 0.012 * s), (0.01, 0.014, 0.01))),
-    ], voxel=0.005, faces=90, smooth_iter=2)
+    parts = [hull(ellipsoid((0.006, 0.580, z), (0.024, 0.012, 0.03)), ellipsoid((0.008, 0.536, z), (0.02, 0.022, 0.033))),
+             # The thumb, from the heel of the hand forward and down.
+             hull(ellipsoid((0.016, 0.568, z - 0.016 * s), (0.013, 0.013, 0.012)), ellipsoid((0.034, 0.538, z - 0.014 * s), (0.009, 0.013, 0.009)))]
+    for i, dz in enumerate((-0.021, -0.007, 0.007, 0.02)):
+        # Four fingers in two joints, curling in, the middle ones longest.
+        L = (0.9, 1.0, 0.97, 0.82)[i]
+        k = (z + dz * s, 0.517)
+        parts.append(hull(ellipsoid((0.012, 0.524, k[0]), (0.011, 0.01, 0.0075)), ellipsoid((0.016, 0.524 - 0.022 * L, k[0]), (0.009, 0.009, 0.0068))))
+        parts.append(hull(ellipsoid((0.016, 0.524 - 0.022 * L, k[0]), (0.009, 0.009, 0.0068)), ellipsoid((0.028, 0.524 - 0.04 * L, k[0]), (0.0075, 0.008, 0.006))))
+    bm = fuse(parts, voxel=0.0035, faces=180, smooth_iter=2)
     paint(bm, S['skin'])
     return bm
 
@@ -577,9 +586,14 @@ def boot(s=1, z=None, high=0.16):
     z = (HIP_Z if z is None else z) * s
     bm = fuse([
         hull(ellipsoid((-0.005, high, z), (0.054, 0.012, 0.05)), ellipsoid((-0.01, 0.06, z), (0.058, 0.035, 0.05))),
-        hull(ellipsoid((0.0, 0.06, z), (0.05, 0.035, 0.05)), ellipsoid((0.095, 0.04, z), (0.042, 0.028, 0.044))),
-        box((0.035, 0.014, z), (0.21, 0.028, 0.104), bevel=0.01),
-    ], voxel=0.006, faces=160, smooth_iter=1)
+        hull(ellipsoid((0.0, 0.065, z), (0.05, 0.038, 0.05)), ellipsoid((0.06, 0.06, z), (0.04, 0.03, 0.046)),
+             ellipsoid((0.1, 0.046, z), (0.038, 0.03, 0.045))),
+        # The cuff turned over at the top, the heel.
+        ellipsoid((-0.004, high - 0.008, z), (0.058, 0.014, 0.054)),
+        box((-0.045, 0.02, z), (0.07, 0.04, 0.094), bevel=0.008, seg=2),
+        box((0.04, 0.014, z), (0.215, 0.028, 0.104), bevel=0.012, seg=2),
+    ], voxel=0.0045, faces=280, smooth_iter=1)
+    cut(bm, (0.03,))
     paint(bm, S['boot'])
     paint_by(bm, lambda x, y, z_: S['sole'] if y < 0.03 else None)
     return bm
@@ -1259,7 +1273,7 @@ def dead_head(at, k=1.0, hairdo='patchy', tilt=0.0, gape=1.0, pale=None, seed=0)
     """A survivor's head, dead: the eyes sunk in dark sockets, the mouth hanging open, the
     hair coming out in patches (or bald, or long and lank). at is where the neck meets it, k
     its size; tilt turns it about the neck (below 0 bows it)."""
-    bm = thin(head(False), 0.5)
+    bm = thin(head(False), 0.55)
     rg = survivor_rig()
     ex, ey, ez = rg['eye']
     mx, my, _ = rg['mouth']
@@ -1387,6 +1401,7 @@ def zombie(sp):
     }
     links = [('pel', 'wai'), ('wai', 'chs'), ('chs', 'top'), ('top', 'nk')]
     mid = vlerp(pel, wai, 0.5)
+    extra = [f() for f in sp.get('extra', ())]
     segs = [('seat', pel, mid), ('belly', mid, chs), ('chest', chs, top), ('neck', top, nk)]
     bones = [(PELVIS, pel, vlerp(pel, wai, 0.3)), (CHEST, vlerp(pel, wai, 0.45), wai), (CHEST, wai, chs), (CHEST, chs, top),
              (CHEST, top, nk), (HEAD, nk, vadd(nk, (0, 0.2, 0)))]
@@ -1401,17 +1416,24 @@ def zombie(sp):
         n['an' + L] = (an, (0.034 * g, 0.032, 0.034 * g))
         n['he' + L] = (he, (0.032, 0.03, 0.034))
         n['to' + L] = (to, (0.03, 0.022, 0.04))
-        links += [('top', 'sc' + L), ('pel', 'hp' + L), ('hp' + L, 'kn' + L), ('kn' + L, 'an' + L), ('an' + L, 'he' + L, 'to' + L)]
+        # The thigh's bulk and the calf, between the joints, so legs taper as legs do.
+        n['tm' + L] = (vadd(vlerp(hp, kn, 0.4), (0.008, 0, 0)), (0.062 * w ** 0.5, 0.06, 0.06 * w ** 0.5))
+        n['cf' + L] = (vadd(vlerp(kn, an, 0.3), (-0.022, 0, 0)), (0.046 * g, 0.055, 0.043 * g))
+        links += [('top', 'sc' + L), ('pel', 'hp' + L), ('hp' + L, 'tm' + L), ('tm' + L, 'kn' + L), ('kn' + L, 'cf' + L), ('cf' + L, 'an' + L), ('an' + L, 'he' + L, 'to' + L)]
+        # The kneecap, the buttock, the shoulder blade, the collarbone under the skin.
+        extra += [ellipsoid(vadd(kn, (0.04 * g, 0.005, 0)), (0.024 * g, 0.03, 0.03 * g)),
+                  ellipsoid(vadd(pel, (-0.04 * w, -0.015, 0.055 * w * s)), (0.055 * w, 0.06, 0.058 * w)),
+                  ellipsoid(vadd(vlerp(chs, top, 0.55), (-0.045 * w, 0, 0.065 * w * s)), (0.035 * w, 0.055, 0.05 * w)),
+                  limb(vadd(nk, (-0.01, -0.03, 0.02 * s)), vadd(sh, (0.0, 0.005, -0.02 * s)), (0.016, 0.014, 0.014), (0.02, 0.018, 0.02))]
         segs += [('shoulder', top, sh), ('hip', pel, hp), ('thigh', hp, kn), ('shin', kn, an), ('foot', an, to)]
         bones += [(CHEST, top, sh), (PELVIS, pel, hp), (th, hp, kn), (sh_, kn, an), (sh_, an, to)]
     if 'gut' in sp:
         gc, gr = sp['gut']
         segs.append(('gut', wai, gc))
         bones.append((CHEST, wai, gc))
-    extra = [f() for f in sp.get('extra', ())]
     if 'gut' in sp:
         extra.append(hull(ellipsoid(sp['gut'][0], sp['gut'][1], seg=16, rings=10), ellipsoid(chs, (0.09 * w, 0.08, 0.12 * w))))
-    trunk = fuse(blob(n, links, extra), voxel=sp.get('voxel', 0.01), faces=sp.get('faces', 800), smooth_iter=5)
+    trunk = fuse(blob(n, links, extra), voxel=sp.get('voxel', 0.0085), faces=sp.get('faces', 1150), smooth_iter=5)
     dress = sp.get('dress') or outfit(sp)
     paint_segs(trunk, segs, dress)
     arms, abones = [], []
@@ -1421,11 +1443,14 @@ def zombie(sp):
         ak = sp.get('armk', (1.0, 1.0))[0 if s > 0 else 1]
         sh, el, wr = K('sh', s), K('el', s), K('wr', s)
         a = {'sh': (sh, (0.048 * w * ak, 0.052 * ak, 0.046 * w * ak)), 'el': (el, (0.035 * g * ak,) * 3),
-             'wr': (wr, (0.026 * g * ak, 0.024 * ak, 0.028 * g * ak))}
+             'wr': (wr, (0.026 * g * ak, 0.024 * ak, 0.028 * g * ak)),
+             # The upper arm's muscle and the forearm's, thickest near the elbow.
+             'ua': (vlerp(sh, el, 0.4), (0.043 * w ** 0.5 * ak, 0.05 * ak, 0.041 * w ** 0.5 * ak)),
+             'fa': (vlerp(el, wr, 0.3), (0.037 * g * ak, 0.04 * ak, 0.035 * g * ak))}
         flat = sp.get('flat')
         hd, tip = claw(wr, (1, -0.25, 0) if flat else vsub(wr, el), (0, -1, 0) if flat else (0.4, 0, -s),
                        ak * sp.get('hand', 1.0), sp.get('fingers', 1.0))
-        bm = fuse(blob(a, [('sh', 'el'), ('el', 'wr')], hd), voxel=0.0055 * max(1.0, ak * 0.7), faces=sp.get('armfaces', 240) * (1.5 if ak > 1.5 else 1))
+        bm = fuse(blob(a, [('sh', 'ua'), ('ua', 'el'), ('el', 'fa'), ('fa', 'wr')], hd), voxel=0.005 * max(1.0, ak * 0.7), faces=sp.get('armfaces', 330) * (1.5 if ak > 1.5 else 1))
         aseg = [('upper', sh, el), ('fore', el, wr), ('hand', wr, tip)]
         paint_segs(bm, aseg, dress)
         arms.append(bm)
@@ -1478,7 +1503,7 @@ def brute():
     sp = dict(pel=(0.0, 0.62), wai=(0.04, 0.77), chs=(0.09, 0.95), top=(0.12, 1.08), nk=(0.16, 1.12),
               sh=(0.11, 1.06, 0.23), el=(0.15, 0.8, 0.27), wr=(0.22, 0.6, 0.25),
               hp=(0.0, 0.59, 0.13), kn=(0.07, 0.32, 0.14), an=(0.0, 0.08, 0.145), to=(0.15, 0.035, 0.15),
-              w=1.45, g=1.35, armk=(1.25, 1.25), gut=((0.1, 0.78, 0), (0.16, 0.17, 0.19)), faces=1000,
+              w=1.45, g=1.35, armk=(1.25, 1.25), gut=((0.1, 0.78, 0), (0.16, 0.17, 0.19)), faces=1400,
               shirt='short', pants='long', seed=4)
     trunk, arms, bones, abones, segs, piv = zombie(sp)
     surf = Surf(trunk)
@@ -1558,7 +1583,7 @@ def abomination():
               sh=(0.33, 1.44, 0.36), el=(0.5, 1.12, 0.44), wr=(0.64, 0.92, 0.38),
               R={'sh': (0.31, 1.46, 0.44), 'el': (0.43, 0.98, 0.62), 'wr': (0.56, 0.4, 0.56)},
               hp=(0.0, 0.76, 0.2), kn=(0.13, 0.42, 0.24), an=(0.0, 0.1, 0.25), to=(0.2, 0.04, 0.26),
-              w=2.3, g=2.1, armk=(1.15, 2.1), hand=1.0, faces=2600, voxel=0.014, armfaces=420,
+              w=2.3, g=2.1, armk=(1.15, 2.1), hand=1.0, faces=3400, voxel=0.012, armfaces=560,
               extra=[lambda: ellipsoid((0.06, 1.5, 0.0), (0.36, 0.32, 0.36)),
                      lambda: ellipsoid((0.2, 1.62, 0.15), (0.2, 0.16, 0.2)),
                      lambda: ellipsoid((0.0, 1.2, 0.3), (0.16, 0.22, 0.14), rot=(0.4, 0, 0)),
@@ -1592,7 +1617,7 @@ def abomination():
                                 (X2, ((0.18, 1.12, -0.42), (0.34, 0.96, -0.56), (0.5, 0.98, -0.54)), 10)):
         a = {'sh': (sh, (0.045, 0.045, 0.045)), 'el': (el, (0.034,) * 3), 'wr': (wr, (0.026,) * 3)}
         hd_, tip = claw(wr, vsub(wr, el), (0.3, -1, 0), 1.1)
-        bm = fuse(blob(a, [('sh', 'el'), ('el', 'wr')], hd_), voxel=0.0055, faces=220)
+        bm = fuse(blob(a, [('sh', 'el'), ('el', 'wr')], hd_), voxel=0.005, faces=300)
         paint_segs(bm, [('upper', sh, el), ('fore', el, wr), ('hand', wr, tip)], outfit({'shirt': 'long', 'seed': sd}))
         out.append((bm, None, j))
         piv['x' if j == X else 'x2'] = sh
@@ -1607,7 +1632,7 @@ def broodmother():
     sp = dict(pel=(0.0, 1.0), wai=(0.04, 1.2), chs=(0.1, 1.47), top=(0.15, 1.67), nk=(0.22, 1.72),
               sh=(0.15, 1.65, 0.17), el=(0.22, 1.3, 0.25), wr=(0.36, 1.0, 0.23),
               hp=(0.0, 0.97, 0.1), kn=(0.15, 0.55, 0.12), an=(0.0, 0.08, 0.12), to=(0.13, 0.03, 0.12),
-              w=0.95, g=0.78, armk=(1.1, 1.1), fingers=1.6, gut=(gc, (0.32, 0.3, 0.29)), faces=2000,
+              w=0.95, g=0.78, armk=(1.1, 1.1), fingers=1.6, gut=(gc, (0.32, 0.3, 0.29)), faces=2700,
               shirt='gown', pants=None, shoes=False, seed=11)
     base = outfit(sp)
 
@@ -1624,7 +1649,7 @@ def broodmother():
     sacs = [ellipsoid(c, (r, r * 1.1, r), seg=12, rings=8) for c, r in
             (((-0.12, 1.52, 0.1), 0.15), ((-0.17, 1.33, -0.08), 0.17), ((-0.06, 1.7, -0.08), 0.12), ((-0.2, 1.15, 0.1), 0.13),
              ((-0.26, 1.42, 0.08), 0.1))]
-    sacs = fuse(sacs, voxel=0.012, faces=500, smooth_iter=3)
+    sacs = fuse(sacs, voxel=0.01, faces=700, smooth_iter=3)
     paint_by(sacs, lambda x, y, z: fixed(VEIN) if abs(math.sin(y * 40 + z * 14)) < 0.12 else fixed(EGG) if noise(x, y, z, 10, 12) > 0.4 else fixed(PUS))
     # Things moving under the skin of the belly.
     lumps = [ellipsoid((gc[0] + 0.29 * math.cos(a) * math.cos(b), gc[1] + 0.27 * math.sin(b), 0.26 * math.sin(a) * math.cos(b)), (0.07, 0.05, 0.06))
@@ -1702,24 +1727,40 @@ def kit(*parts):
     return hard(join(*parts))
 
 
+# Guns and turrets are built ROUND: every box's corners rounded off (a box given no bevel
+# gets a small one), every tube with more sides. Ruins, many and far off, are built square.
+ROUND = [False]
+
+
 def bx(c, size, color, bevel=0.0, rot=(0, 0, 0)):
+    if ROUND[0]:
+        return col(box(c, size, bevel or 0.004, rot, seg=2), color)
     return col(box(c, size, bevel, rot), color)
 
 
 def cy(a, b, r1, color, r2=None, seg=10):
-    return col(cylinder(a, b, r1, r2, seg), color)
+    return col(cylinder(a, b, r1, r2, round(seg * 1.5) if ROUND[0] else seg), color)
 
 
-def rod(pts, r, color, seg=6):
+def rounded(make):
+    """make() built round."""
+    ROUND[0] = True
+    try:
+        return make()
+    finally:
+        ROUND[0] = False
+
+
+def rod(pts, r, color, seg=8):
     """A bent bar through pts, with a knuckle at each bend."""
     out = [cy(pts[i], pts[i + 1], r, color, seg=seg) for i in range(len(pts) - 1)]
-    out += [col(sphere(p, (r, r, r), seg, 4), color) for p in pts[1:-1]]
+    out += [col(sphere(p, (r, r, r), seg, 5 if seg > 6 else 4), color) for p in pts[1:-1]]
     return out
 
 
 def lump(c, r, color, rot=(0, 0, 0), seed=0):
     """Something soft and sagging: a sandbag or a sack, its ends pinched in."""
-    bm = ellipsoid(c, r, rot, seg=10, rings=6)
+    bm = ellipsoid(c, r, rot, seg=14, rings=8)
     C = G(*c)
     for v in bm.verts:
         d = v.co - C
@@ -1994,7 +2035,7 @@ def tesla_body():
     return kit(*out)
 
 
-def bmesh_torus(R, r, y, seg=14, ring=6):
+def bmesh_torus(R, r, y, seg=20, ring=8):
     bm = bmesh.new()
     vs = []
     for i in range(seg):
@@ -2093,12 +2134,12 @@ def kit_pieces():
     tone = weathered(dirt=0.15, grain=0.1)
     out = {}
     for i, make in enumerate(GUNS):
-        out['gun_%d' % i] = encode(make(), joint=0, tone=tone)
-    out['gun_4_spin'] = encode(minigun_spin(), joint=0, tone=tone)
+        out['gun_%d' % i] = encode(rounded(make), joint=0, tone=tone)
+    out['gun_4_spin'] = encode(rounded(minigun_spin), joint=0, tone=tone)
     for name, (body, head) in TURRETS.items():
-        out['turret_%s' % name] = encode(body(), joint=0, tone=weathered(dirt=0.3, grain=0.12))
+        out['turret_%s' % name] = encode(rounded(body), joint=0, tone=weathered(dirt=0.3, grain=0.12))
         if head:
-            out['turret_%s_head' % name] = encode(head(), joint=0, tone=tone)
+            out['turret_%s_head' % name] = encode(rounded(head), joint=0, tone=tone)
     return out
 
 
@@ -2108,17 +2149,17 @@ def show_kit():
         if o.name.startswith('kit_'):
             bpy.data.objects.remove(o)
     for i, make in enumerate(GUNS):
-        bm = make()
+        bm = rounded(make)
         if i == 4:
-            bm = join(bm, minigun_spin())
+            bm = join(bm, rounded(minigun_spin))
         for v in bm.verts:
             v.co *= 2.0
         preview('kit_gun_%d' % i, bm, at=(5 + (i % 2) * 2.2, 2.6 - (i // 2) * 0.5, 0))
     heads = {'gun': 0.66, 'cannon': 0.12, 'sniper': 2.0, 'missile': 0.76}
     for i, (name, (body, head)) in enumerate(TURRETS.items()):
-        bm = body()
+        bm = rounded(body)
         if head:
-            h = head()
+            h = rounded(head)
             for v in h.verts:
                 v.co += G(0, heads[name], 0)
             bm = join(bm, h)
@@ -2227,7 +2268,7 @@ def fallen(seed, n, size, colors, spread=0.42, side=0, flat=0.6):
     return out
 
 
-def stone(c, r, color, seed, seg=6, rings=4):
+def stone(c, r, color, seed, seg=8, rings=5):
     """A rough stone: a squashed lump, flattened where it beds on the next."""
     bm = ellipsoid(c, r, (0, (rnd(seed, 3) - 0.5) * 0.6, 0), seg=seg, rings=rings)
     C = G(*c)
@@ -2239,7 +2280,7 @@ def stone(c, r, color, seed, seg=6, rings=4):
 
 def block(c, size, color, seed, bevel=0.035):
     """A dressed fieldstone: a bevelled block, knocked out of true."""
-    bm = box(c, size, bevel, (0, (rnd(seed, 3) - 0.5) * 0.12, (rnd(seed, 4) - 0.5) * 0.1))
+    bm = box(c, size, bevel, (0, (rnd(seed, 3) - 0.5) * 0.12, (rnd(seed, 4) - 0.5) * 0.1), seg=2)
     C = G(*c)
     for v in bm.verts:
         v.co += (v.co - C) * (0.12 * (noise(*back(v.co), f=13, seed=seed) - 0.5))
