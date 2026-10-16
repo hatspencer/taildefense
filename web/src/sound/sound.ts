@@ -22,6 +22,10 @@ const LOUD: Record<string, number> = {
   spit: 0.5, boneThrow: 0.5, boneLand: 0.45, dash: 0.6,
 };
 const CAP: Record<string, number> = { minigun: 6, smg: 5, turretGun: 5 };
+// The creeps' own sounds, which thin out as more of them are awake within earshot.
+const CREEPY = new Set(['spit', 'boneThrow', 'boneLand', 'dash']);
+// Awake creeps in earshot at which they start thinning, and at which they are thinnest.
+const CROWD0 = 6, CROWD1 = 30;
 // Creep kinds that throw rather than strike: their blows are tracers.
 const THROWS = new Set([4, 6]);
 const BIG = new Set([3, 5, 7]);
@@ -151,6 +155,20 @@ export class Sound {
     if (!this.synth.ready) { this.remember(game); return; }
     const t0 = this.synth.now + AHEAD;
 
+    // The dead within earshot: how many are awake, and whose blows land. The more there are,
+    // the fewer of their sounds are played: a horde is heard as a horde from a few voices,
+    // and every one of them heard at once only tires the ear.
+    const strikes: Shot[] = [];
+    let near = 0;
+    const hear = (7 + this.dist * 0.3) * 1.6;
+    for (let i = 0; i < f.nCreeps; i++) {
+      const x = f.cX[i], y = f.cY[i], dx = x - this.lx, dy = y - this.ly;
+      if (dx * dx + dy * dy > hear * hear) continue;
+      if (!(f.cFlags[i] & CF_ASLEEP)) near++;
+      if (f.cFlags[i] & CF_STRIKE && !THROWS.has(f.cKind[i])) strikes.push({ x, y, vol: -(dx * dx + dy * dy), extra: f.cKind[i] });
+    }
+    const crowd = Math.min(1, Math.max(0, (near - CROWD0) / (CROWD1 - CROWD0)));
+
     // Shots: grouped by sound, the nearest few of each played, spread across the tick.
     const groups = new Map<string, Shot[]>();
     const add = (name: string, x: number, y: number, extra?: number) => {
@@ -176,15 +194,15 @@ export class Sound {
       }
     }
     for (const [name, list] of groups) {
-      const cap = CAP[name] ?? 4;
+      const cap = CREEPY.has(name) ? Math.max(1, Math.round(3 - 2 * crowd)) : CAP[name] ?? 4;
       list.sort((a, b) => b.vol - a.vol);
       const n = Math.min(cap, list.length);
       // More than are played: the ones played stand in for the rest, a little louder.
-      const crowd = list.length > n ? 1 + 0.18 * Math.log2(list.length / n) : 1;
+      const more = list.length > n ? 1 + 0.18 * Math.log2(list.length / n) : 1;
       for (let j = 0; j < n; j++) {
-        const s = list[j], p = { ...s.p!, vol: s.vol * crowd };
+        const s = list[j], p = { ...s.p!, vol: s.vol * more };
         const at = t0 + (s.extra ?? (j / n) * TICK + Math.random() * 0.008);
-        this.synth.play(name, p, at, 0.97 + Math.random() * 0.06);
+        this.synth.play(name, p, at);
       }
     }
 
@@ -197,8 +215,8 @@ export class Sound {
         if (p) this.synth.play(name, p, t0 + Math.random() * 0.02, rate);
       };
       switch (f.bKind[i]) {
-        case BlastKind.Explosion: at(r < 1.6 ? 'explosionS' : r < 3 ? 'explosion' : 'explosionL', 1.2, 2.2, 0.94 + Math.random() * 0.12); break;
-        case BlastKind.Airstrike: at('explosionL', 1.4, 2.5, 0.9 + Math.random() * 0.12); break;
+        case BlastKind.Explosion: at(r < 1.6 ? 'explosionS' : r < 3 ? 'explosion' : 'explosionL', 1.2, 2.2); break;
+        case BlastKind.Airstrike: at('explosionL', 1.4, 2.5, 0.96); break;
         case BlastKind.Frost: at('frost', 0.5); break;
         case BlastKind.Concussion: at('concussion', 1, 1.8); break;
         case BlastKind.Loot: loot = true; at(r <= 1.01 ? 'jackpot' : 'lootFound', 0.7); break;
@@ -206,7 +224,7 @@ export class Sound {
         case BlastKind.Taunt: at('shout_' + this.voiceOf(f.players, f.nPlayers, x, y), 0.9); break;
         case BlastKind.Lightning: at('thunder', 1.3, 8); break;
         case BlastKind.Revived: at('revived_' + this.voiceOf(f.players, f.nPlayers, x, y), 0.7); break;
-        case BlastKind.GuardsWake: at('alert', 0.75, 1.6); break;
+        case BlastKind.GuardsWake: if (this.once('alert', 2)) at('alert', 0.75, 1.6); break;
         case BlastKind.Bell: at('bell', 1, 12); break;
         case BlastKind.Bile: at('bile', 0.9, 1.6); break;
       }
@@ -220,29 +238,20 @@ export class Sound {
       if (p) deaths.push({ x: f.dX[i], y: f.dY[i], vol: p.vol + (big ? 10 : 0), extra: k });
     }
     deaths.sort((a, b) => b.vol - a.vol);
-    for (let j = 0; j < Math.min(4, deaths.length); j++) {
+    for (let j = 0; j < Math.min(4 - Math.round(2 * crowd), deaths.length); j++) {
       const d = deaths[j], k = d.extra!, big = BIG.has(k);
       const p = this.place(d.x, d.y, big ? 1.1 : 0.55, big ? 2 : 1)!;
-      this.synth.play('death' + k, p, t0 + Math.random() * TICK, 0.93 + Math.random() * 0.14);
+      this.synth.play('death' + k, p, t0 + Math.random() * TICK);
     }
 
     // Blows landing, and the groaning of the dead nearby.
-    const strikes: Shot[] = [];
-    let near = 0;
-    const hear = (7 + this.dist * 0.3) * 1.6;
-    for (let i = 0; i < f.nCreeps; i++) {
-      const x = f.cX[i], y = f.cY[i], dx = x - this.lx, dy = y - this.ly;
-      if (dx * dx + dy * dy > hear * hear) continue;
-      if (!(f.cFlags[i] & CF_ASLEEP)) near++;
-      if (f.cFlags[i] & CF_STRIKE && !THROWS.has(f.cKind[i])) strikes.push({ x, y, vol: -(dx * dx + dy * dy), extra: f.cKind[i] });
-    }
     strikes.sort((a, b) => b.vol - a.vol);
-    for (let j = 0; j < Math.min(2, strikes.length); j++) {
+    for (let j = 0; j < Math.min(crowd > 0.5 ? 1 : 2, strikes.length); j++) {
       const s = strikes[j], big = BIG.has(s.extra!);
       const p = this.place(s.x, s.y, big ? 0.9 : 0.5);
-      if (p) this.synth.play(big ? 'strikeBig' : 'strike', p, t0 + Math.random() * TICK, 0.92 + Math.random() * 0.16);
+      if (p) this.synth.play(big ? 'strikeBig' : 'strike', p, t0 + Math.random() * TICK);
     }
-    this.groan(game, near, hear);
+    this.groan(game, near, hear, crowd);
 
     this.effectSounds(game, t0);
     this.playerSounds(game, loot);
@@ -251,8 +260,9 @@ export class Sound {
     this.remember(game);
   }
 
-  // A groan now and then from one of the dead within earshot: more of them, more often.
-  private groan(game: Game, near: number, hear: number): void {
+  // A groan now and then from one of the dead within earshot: more of them, more often, but a
+  // crowd groans no more than about once a second.
+  private groan(game: Game, near: number, hear: number, crowd: number): void {
     const now = performance.now() / 1000;
     if (near === 0 || now < this.groanDue) return;
     const f = game.cur;
@@ -263,10 +273,10 @@ export class Sound {
       if (dx * dx + dy * dy > hear * hear || f.cFlags[i] & CF_ASLEEP) continue;
       const kind = f.cKind[i], big = BIG.has(kind);
       const p = this.place(f.cX[i], f.cY[i], big ? 0.8 : 0.42);
-      if (p) this.synth.play('groan' + kind, p, 0, 0.9 + Math.random() * 0.2);
+      if (p) this.synth.play('groan' + kind, p);
       break;
     }
-    const rate = Math.min(2.4, 0.3 * Math.sqrt(near));
+    const rate = Math.min(2.4 - 1.4 * crowd, 0.3 * Math.sqrt(near));
     this.groanDue = now + (0.5 + Math.random()) / rate;
   }
 
@@ -332,7 +342,7 @@ export class Sound {
       const g = voice(p);
       const here = (loud: number) => mine ? this.flat(loud) : this.place(p.x, p.y, loud * 0.8);
       if (p.flags & PF_HURT && !(was & PF_HURT) && p.flags & PF_ALIVE && this.once('hurt' + id, 0.45)) {
-        const q = here(0.75); if (q) this.synth.play('hurt_' + g, q, 0, 0.95 + Math.random() * 0.1);
+        const q = here(0.75); if (q) this.synth.play('hurt_' + g, q);
       }
       if (was & PF_ALIVE && !(p.flags & PF_ALIVE)) { const q = here(0.9); if (q) this.synth.play('down_' + g, q, 0, 1, mine); }
       if (!mine) continue;

@@ -8,8 +8,15 @@ declare const __SOUND_WORKER__: string;
 // before it is ready is skipped. Every play is a buffer source through a distance filter, a gain and a pan, with a send into one shared reverb: open
 // ground with buildings and trees round it, which is what makes a gunshot sound outdoors.
 
-// More voices than this at once and the quieter new ones are dropped.
-const MAX_VOICES = 56;
+// More voices than this at once and the new ones are dropped, as are more than SAME of one
+// sound: a wall of the same shot or groan is what tires the ear, and the first few say it all.
+const MAX_VOICES = 40;
+const SAME = 6;
+// Guns that fire in a stream need more of their own to stay a stream.
+const SAME_OF: Record<string, number> = { minigun: 16, smg: 12, turretGun: 12, doorGun: 10, pistol: 8, rifle: 8 };
+// Every play is pitched and set a little apart, up to this either way, so no sound repeats
+// exactly: the ear stops hearing a sound that varies and keeps hearing one that doesn't.
+const JITTER = 0.15;
 // Rendered first in the idle warm-up: what is heard in the first seconds of a fight.
 const FIRST = ['pistol', 'smg', 'shotgun', 'rifle', 'minigun', 'turretGun', 'death0', 'strike', 'groan0', 'explosion', 'crowbar'];
 
@@ -30,6 +37,7 @@ export class Synth {
   private reverb: GainNode | null = null;
   private bufs = new Map<string, AudioBuffer>();
   private active = 0;
+  private playing = new Map<string, number>();
   private vol: number;
   private warmQueue: string[] = [];
   private worker: Worker | null = null;
@@ -133,11 +141,12 @@ export class Synth {
   }
 
   // play starts one of name's variants at t (context time), placed p, at playback rate rate
-  // (1 as rendered; a little either way keeps repeats from sounding alike).
+  // (1 as rendered), both jittered. urgent ones are played however busy it is.
   play(name: string, p: Placed, t = 0, rate = 1, urgent = false): void {
     const ctx = this.ctx;
     if (!ctx || !this.master || !this.reverb || !this.ready || p.vol < 0.003) return;
-    if (this.active >= MAX_VOICES && !urgent) return;
+    const same = this.playing.get(name) ?? 0;
+    if ((this.active >= MAX_VOICES || same >= (SAME_OF[name] ?? SAME)) && !urgent) return;
     const rec = RECIPES[name];
     if (!rec) return;
     const buf = this.buffer(name, Math.floor(Math.random() * rec[0]));
@@ -145,11 +154,12 @@ export class Synth {
     const at = Math.max(ctx.currentTime, t);
     const src = ctx.createBufferSource();
     src.buffer = buf;
-    src.playbackRate.value = rate;
-    const out = this.chain(src, p);
+    src.playbackRate.value = rate * jitter();
+    const out = this.chain(src, { ...p, vol: p.vol * jitter() });
     src.start(at);
     this.active++;
-    src.onended = () => { this.active--; out.disconnect(); };
+    this.playing.set(name, same + 1);
+    src.onended = () => { this.active--; this.playing.set(name, this.playing.get(name)! - 1); out.disconnect(); };
   }
 
   // chain is source -> distance low-pass -> gain -> pan -> master, plus a reverb send that
@@ -218,6 +228,11 @@ export class Synth {
       },
     };
   }
+}
+
+// jitter is 1 give or take JITTER, mostly near 1: the mean of two draws, so the ends are rare.
+function jitter(): number {
+  return 1 + JITTER * (Math.random() + Math.random() - 1);
 }
 
 // startWorker starts the renderer, or returns null where a page can't have one, and the bank
