@@ -12,7 +12,7 @@ export class FogOfWar {
   private node = texture(blank());
   private uSize = uniform(new THREE.Vector2(1, 1));
   private uOn = uniform(0);
-  // How bright ground seen before stays: dimmer at night.
+  // How bright ground seen before stays: dimmer at night, black in brutal's.
   private uMem = uniform(0.4);
   // How bright ground never seen is: pitch black at night.
   private uNever = uniform(0.07);
@@ -53,7 +53,7 @@ export class FogOfWar {
     if (v !== this.vision) {
       this.vision = v;
       this.uOn.value = v ? 1 : 0;
-      this.uMem.value = game.welcome?.dark ? 0.16 : 0.4;
+      this.uMem.value = game.lightOnly() ? 0 : game.welcome?.dark ? 0.16 : 0.4;
       this.uNever.value = game.welcome?.dark ? 0 : 0.07;
       if (v) {
         this.tex.dispose();

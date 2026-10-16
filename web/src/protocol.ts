@@ -5,6 +5,8 @@
 export const WEAPON_SLOTS = 7, RIFLE = 3, CROWBAR = 6;
 // How much further a survivor with a rifle in hand sees: the host's rifleSight.
 export const RIFLE_SIGHT = 2;
+// The hardest difficulty's id (difficulty.go's DiffBrutal): its night shows only lit ground.
+export const BRUTAL = 3;
 
 export const MAX_CREEPS = 16384;
 export const MAX_PLAYERS = 8;

@@ -799,9 +799,12 @@ export class Loot {
     if (sig !== this.sig) { this.sig = sig; this.lay(game); }
     // Glints bob and turn; each its own phase.
     const t = now / 1000, a = this.glints.instanceMatrix.array as Float32Array;
+    // In brutal's night a glint shows only where someone lights it.
+    const lit = game.lightOnly() ? game.vision : null;
     let n = 0;
     for (let i = 0; i < this.sites.length; i++) {
       if (f.siteSearched(i) || !lootable(this.sites[i].kind) || game.unfound(i)) continue;
+      if (lit && !lit.sees(this.px[i], this.pz[i])) continue;
       const k = propKind(this.sites[i].kind), ph = hash(i, 5) * 6.28;
       const s = 1 + 0.18 * Math.sin(t * 3.2 + ph);
       writeMatrix(a, n++ * 16, this.px[i], (GLINT_Y[k] ?? 1.2) + Math.sin(t * 1.8 + ph) * 0.08, this.pz[i], t * 1.5 + ph, s, s * 1.6);

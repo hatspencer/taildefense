@@ -41,6 +41,11 @@ it here along with the code.
   so what a turret out on the edge can see, the whole team can see and shoot. Nor
   does anyone keep count of a site's guards: its skulls say how hard it is, never how many
   are left, so whether a site is clear is found out the hard way.
+- **Brutal's night shows only what is lit.** On hard the ground the team has found stays dimly
+  on screen; on brutal it goes back to black as soon as nobody lights it, and so do the glints
+  over the sites there. Only the pools round survivors, the base and turrets' sight show, so
+  the dark you have just walked through is as unknown as the dark ahead. The minimap keeps the
+  team's map, which is the one thing brutal leaves you to find your way back by.
 - **Brutal starts in melee.** Survivors begin with a crowbar and no gun: a short swing that
   hits up to three creeps in front, never runs dry, and is quiet. Its signature, the haymaker,
   hits all round and throws everything back. Guns are bought or found as usual; the crowbar is
@@ -398,8 +403,11 @@ choice, not a cheat guard.
   can't flood everyone's screen.
 - **M expands the minimap** into a big map in the middle of the screen, sized to fit between the
   compass and the console. It works like the small map: click to look, right-click to walk
-  there. M or Esc closes it. This is for planning a loot run during the long break without
+  there. M or Esc closes it. This is for planning a run during the long break without
   squinting.
+- **Loot sites are not on the map**, on any difficulty. Finding them is the point of going out:
+  marked on the map, every site is a known errand and the wastes stop being unknown. The glint
+  over a site in the world still shows which ones nobody has searched.
 
 ## HUD
 

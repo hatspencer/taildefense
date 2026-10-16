@@ -1,4 +1,4 @@
-import { Frame, MAX_CREEPS, PF_ALIVE, type Player, type Welcome, Weather, decodeFrame } from './protocol';
+import { BRUTAL, Frame, MAX_CREEPS, PF_ALIVE, type Player, type Welcome, Weather, decodeFrame } from './protocol';
 import { Vision } from './vision';
 
 // Everything the client knows about the world: the last two frames and the interpolation
@@ -154,6 +154,12 @@ export class Game {
   guardsLeft(i: number): number {
     if (this.welcome?.dark) return -2;
     return this.vision && !this.vision.knows(i) ? -1 : this.cur.siteGuards(i);
+  }
+
+  // Brutal's night: only what a survivor, the generator or a turret lights right now shows;
+  // ground the team found before goes back to black once nobody is on it.
+  lightOnly(): boolean {
+    return !!this.welcome?.dark && this.welcome.difficulty.id === BRUTAL;
   }
 
   // Whether site i is still out in the dark: at night, where the team has never been.
