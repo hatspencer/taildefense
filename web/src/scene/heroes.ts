@@ -36,17 +36,24 @@ const UPPER = SV.shY - SV.elbowY, FORE = SV.elbowY - SV.handY;
 const WAIST = SV.waist, HIP = SV.hipY, THIGH = SV.hipY - SV.kneeY, HIP_Z = SV.hipZ;
 
 // How each weapon is carried: where it sits in the torso's space (origin at the waist, +x the
-// way the hero faces), where each hand holds it in its own, and where its muzzle is.
-interface Hold { at: [number, number, number]; grip: [number, number, number]; fore: [number, number, number]; muzzle: number }
+// way the hero faces), where each hand holds it in its own (the gun's grip and forend, as
+// tools/blender/figures.py models them), where its muzzle is, and the blade: how far the
+// shoulders turn off the aim for it (right shoulder back, the gun turned back onto the aim),
+// so a stock sits in the right shoulder and the left hand reaches the forend, as anyone
+// shouldering a long gun stands. The shouldered guns' 'at' puts the butt in the shoulder.
+interface Hold { at: [number, number, number]; grip: [number, number, number]; fore: [number, number, number]; muzzle: number; blade: number }
 const HOLDS: Hold[] = [
-  { at: [0.44, 0.36, -0.05], grip: [0, -0.05, 0], fore: [-0.01, -0.08, 0.06], muzzle: 0.28 },   // pistol, both hands out
-  { at: [0.16, 0.38, -0.15], grip: [0, -0.04, 0], fore: [0.42, -0.02, 0], muzzle: 0.64 },       // shotgun, shouldered
-  { at: [0.24, 0.32, -0.12], grip: [0, -0.05, 0], fore: [0.13, -0.13, 0], muzzle: 0.42 },       // SMG
-  { at: [0.15, 0.39, -0.15], grip: [0, -0.04, 0], fore: [0.36, -0.03, 0], muzzle: 0.74 },       // rifle
-  { at: [0.24, 0.13, -0.1], grip: [-0.1, 0.02, -0.06], fore: [0.02, 0.15, 0.06], muzzle: 0.68 }, // minigun, braced at the hip
-  { at: [0.0, 0.55, -0.2], grip: [0.06, -0.09, 0], fore: [0.32, -0.09, 0.02], muzzle: 0.62 },   // launcher, on the shoulder
-  { at: [0.16, 0.24, -0.17], grip: [0, 0, 0], fore: [-0.09, 0, 0], muzzle: 0.6 },             // crowbar, both hands on the tape, up at the shoulder
+  { at: [0.42, 0.4, 0.0], grip: [0, -0.05, 0], fore: [-0.01, -0.08, 0.05], muzzle: 0.28, blade: 0.25 },     // pistol, both hands out
+  { at: [0.286, 0.415, 0.092], grip: [0, -0.04, 0], fore: [0.29, -0.01, 0], muzzle: 0.64, blade: 0.75 },     // shotgun, shouldered
+  { at: [0.238, 0.4, 0.008], grip: [0, -0.06, 0], fore: [0.14, -0.11, 0], muzzle: 0.42, blade: 0.6 },        // SMG, its wire stock in the shoulder
+  { at: [0.278, 0.415, 0.084], grip: [0, -0.04, 0], fore: [0.28, -0.01, 0], muzzle: 0.74, blade: 0.75 },     // rifle, shouldered
+  { at: [0.24, 0.13, -0.1], grip: [-0.1, 0.02, -0.06], fore: [0.02, 0.15, 0.06], muzzle: 0.68, blade: 0.2 }, // minigun, braced at the hip
+  { at: [0.14, 0.45, -0.15], grip: [0.06, -0.09, 0], fore: [0.28, -0.09, 0.02], muzzle: 0.62, blade: 0.3 },  // launcher, on the shoulder
+  { at: [0.16, 0.24, -0.17], grip: [0, 0, 0], fore: [-0.09, 0, 0], muzzle: 0.6, blade: 0 },                 // crowbar, both hands on the tape, up at the shoulder
 ];
+// Guns in the hand are drawn smaller than on the ground: the figures are stylised short, and at
+// full size a long gun is out of their reach.
+const HELD = 0.75;
 
 // The gun in the hand, modelled in Blender (tools/blender/figures.py): facing +x from the
 // grip, taped in the player's colour. 'spin' is the minigun's barrels, turning about y = 0.02;
@@ -165,6 +172,7 @@ export class Heroes {
     const hand = new THREE.Object3D();
 
     const gun = new THREE.Group(), gun2 = new THREE.Group();
+    gun.scale.setScalar(HELD); gun2.scale.setScalar(HELD);
     gun2.visible = false;
     torso.add(gun, gun2);
     const flash = new THREE.Mesh(sphere(0.14, 6, 4), this.flashMat);
@@ -390,8 +398,13 @@ export class Heroes {
       const tn = h.taunt;
       const jab = Math.max(0, Math.sin(t * 7)) * 0.18;
       const shoutLean = tn * (0.1 + jab * 0.5);
-      h.torso.rotation.set(0, -(ay2 - Math.sin(ph) * 0.1 * walk), -cr * 0.2 + flinch * 0.6 + kick * 0.15 - shoutLean - lp * 0.25 - h.sprint * 0.12);
-      h.head.rotation.set(0, -wrapAngle(aim - ay2) * 0.6, -flinch * 0.5 + 0.05 * Math.sin(2 * ph) * walk + cr * 0.35 + (alive ? 0 : 0.3));
+      // Bladed to the gun while it is up: none at a sprint, kneeling, taunting, reloading or down.
+      const hold = HOLDS[h.weapon] ?? HOLDS[0];
+      const rl = h.reload, sp = h.sprint * (1 - rl);
+      const blade = hold.blade * (1 - h.sprint) * (1 - cr) * (1 - tn) * (1 - dn) * (1 - rl * 0.5);
+      h.torso.rotation.set(0, -(ay2 - Math.sin(ph) * 0.1 * walk) + blade, -cr * 0.2 + flinch * 0.6 + kick * 0.15 - shoutLean - lp * 0.25 - h.sprint * 0.12);
+      // The head looks along the gun, its cheek to a shouldered stock.
+      h.head.rotation.set(0, -wrapAngle(aim - ay2) * 0.6 - blade * 0.85, -flinch * 0.5 + 0.05 * Math.sin(2 * ph) * walk + cr * 0.35 + (alive ? 0 : 0.3) + blade * 0.12);
       if (h.tail) {
         const goal = -0.35 * Math.min(speed, 5) / 5 - 0.12 * Math.abs(Math.sin(2 * ph)) * walk;
         h.tail.rotation.z = h.tailS.update(dt, goal - flinch * 0.4);
@@ -400,8 +413,6 @@ export class Heroes {
 
       // The gun where its hold puts it: kicked back by each shot, carried low at a sprint,
       // canted to the side for a reload.
-      const hold = HOLDS[h.weapon] ?? HOLDS[0];
-      const rl = h.reload, sp = h.sprint * (1 - rl);
       if (h.weapon === 6) {
         // The crowbar is held up at the right shoulder, ready, tipped out a little; each swing
         // chops it down and across in front, fast, then lifts it back.
@@ -419,7 +430,7 @@ export class Heroes {
         h.gun2.updateMatrix();
       } else {
         h.gun.position.set(hold.at[0] - kick * 0.25 - sp * 0.06, hold.at[1] - sp * 0.1 - rl * 0.06, hold.at[2] + sp * 0.05);
-        h.gun.rotation.set(rl * 0.7, sp * 0.35, kick * 0.6 - sp * 0.55 - rl * 0.3);
+        h.gun.rotation.set(rl * 0.7, sp * 0.35 - blade, kick * 0.6 - sp * 0.55 - rl * 0.3);
       }
       h.gun.updateMatrix();
       h.flash.visible = h.weapon !== 6 && now - h.shotAt < (h.weapon === 1 ? 70 : 45);

@@ -26,7 +26,8 @@ The demo and the lab are a bundle of their own, `demo.js`, which the page fetche
 `#lab` is the animation bench: every creep kind walking, idle, attacking, hit, burning, asleep
 and dying, beside the survivors' poses; `#lab=0`…`#lab=10` looks at one creep row, `#lab=0.6` at
 one creep (row and column: the walker dying), `#lab=h` at the survivors (`#lab=h0`…`#lab=h9` at
-one of them), and `&dist=11` brings the camera in. In the demo, `#site=3` puts the view on the
+one of them; `&gun=3&still` gives them all the rifle and keeps the shooter aiming one way), and
+`&dist=11` brings the camera in. In the demo, `#site=3` puts the view on the
 fourth ruined house, to look at its walls.
 A real game cancels the browser's shortcuts, DevTools' among them, and asks before the page is
 left; add `&dev` after the token in its URL to keep them (td's own Firefox profile has DevTools

@@ -349,7 +349,7 @@ def encode(bm, bones=None, joint=None, allow=None, blend=0.0, smooth_=True, tone
         g = back(v.co)
         pos += [round(c * 4096) for c in g]
         if joint is None:
-            j0, j1, w = weigh(g, bones, allow, blend)
+            j0, j1, w = weigh(g, bones, allow(*g) if callable(allow) else allow, blend)
             js += [j0, j1, round(w * 255)]
     for i, f in enumerate(bm.faces):
         tris += [v.index for v in f.verts]
@@ -828,6 +828,13 @@ class Surf:
         from mathutils.bvhtree import BVHTree
         self.bvh = BVHTree.FromBMesh(trunk)
 
+    def on(self, p, lift):
+        """p (game space) moved onto the surface and lift off it, along the surface's normal."""
+        hit = self.bvh.find_nearest(G(*p))
+        if hit[0] is None:
+            return p
+        return back(hit[0] + hit[1].normalized() * lift)
+
     def x(self, y, z, front=True):
         o = G(0.5 if front else -0.5, y, z)
         hit = self.bvh.ray_cast(o, Vector((-1 if front else 1, 0, 0)))
@@ -835,13 +842,49 @@ class Surf:
 
 
 def strap(surf, pts, front=True, w=0.022, t=0.006, lift=0.008):
-    """A strap along the surface through (y, z) points, on the front or the back."""
-    s = 1 if front else -1
-    es = [ellipsoid((surf.x(y, z, front) + s * lift, y, z), (t, w / 2, w / 2), seg=6, rings=4) for y, z in pts]
+    """A strap along the surface through (y, z) points, on the front or the back; or through
+    (x, y, z) points anywhere on it, as over a shoulder."""
+    P = [p if len(p) == 3 else (surf.x(p[0], p[1], front), p[0], p[1]) for p in pts]
+    # Each point laid on the surface and lifted along its normal, the strap's flat side on it,
+    # so it follows the curve of a shoulder instead of sinking into it or standing off it.
+    pos, nrm = [], []
+    for p in P:
+        hit = surf.bvh.find_nearest(G(*p))
+        n = hit[1].normalized() if hit[0] is not None else Vector((1, 0, 0))
+        pos.append((hit[0] if hit[0] is not None else G(*p)) + n * (lift + t))
+        nrm.append(n)
+    es = []
+    for i, (c, n) in enumerate(zip(pos, nrm)):
+        d = (pos[min(i + 1, len(pos) - 1)] - pos[max(i - 1, 0)]).normalized()
+        a = n.cross(d).normalized()
+        bm = bmesh.new()
+        bmesh.ops.create_uvsphere(bm, u_segments=8, v_segments=4, radius=1.0)
+        for v in bm.verts:
+            u = v.co.copy()
+            v.co = c + n * (u.x * t) + d * (u.y * t * 1.5) + a * (u.z * w / 2)
+        es.append(bm)
     out = [hull(a.copy(), b.copy()) for a, b in zip(es, es[1:])]
     for e in es:
         e.free()
     return join(*out)
+
+
+def shoulder(s, z=0.088):
+    """The top of the shoulder by the neck, where a strap goes over (side s)."""
+    return (0.0, 1.06, z * s)
+
+
+def sliced(bm, ys=(), zs=(), planes=()):
+    """A copy of bm cut across at heights ys, lengthwise at zs and along any other planes
+    ((point, normal) in game space), so a garment taken from it by face has straight edges."""
+    bm = bm.copy()
+    for co, no in planes:
+        bmesh.ops.bisect_plane(bm, geom=list(bm.verts) + list(bm.edges) + list(bm.faces), plane_co=G(*co), plane_no=G(*no))
+    for y in ys:
+        bmesh.ops.bisect_plane(bm, geom=list(bm.verts) + list(bm.edges) + list(bm.faces), plane_co=G(0, y, 0), plane_no=Vector((0, 0, 1)))
+    for z in zs:
+        bmesh.ops.bisect_plane(bm, geom=list(bm.verts) + list(bm.edges) + list(bm.faces), plane_co=G(0, 0, z), plane_no=Vector((0, 1, 0)))
+    return bm
 
 
 def over(kind, trunk, arms, fem=False):
@@ -850,26 +893,37 @@ def over(kind, trunk, arms, fem=False):
     P = []
     surf = Surf(trunk)
     if kind == 'vest':
-        P.append(shell(trunk, lambda x, y, z: 0.605 < y < 1.04 and not (y > 0.99 and abs(z) < 0.075)
+        # Sleeveless: it stops at the armholes, where the arms would push through it.
+        az = SH_Z * (0.93 if fem else 1) - 0.04
+        vee = [((0, 0.85, 0.035 * s), (0, -0.3 * s, 1)) for s in (1, -1)]
+        cut_ = sliced(trunk, (0.99, 0.88, 0.85), (0.075, -0.075, az, -az), vee)
+        P.append(shell(cut_, lambda x, y, z: 0.605 < y < 1.04 and not (y > 0.99 and abs(z) < 0.075) and not (y > 0.88 and abs(z) > az)
                        and not (x > 0.03 and abs(z) < 0.035 + (y - 0.85) * 0.3 and y > 0.85), 0.016))
+        cut_.free()
     elif kind == 'plate':
+        cut_ = sliced(trunk, (0.72, 1.0), (0.11, -0.11))
         for front in (True, False):
             sgn = 1 if front else -1
-            P.append(shell(trunk, lambda x, y, z: 0.72 < y < 1.0 and abs(z) < 0.11 and x * sgn > 0.02, 0.032))
-        P.append(shell(trunk, lambda x, y, z: 0.72 < y < 0.8, 0.026))
+            P.append(shell(cut_, lambda x, y, z: 0.72 < y < 1.0 and abs(z) < 0.11 and x * sgn > 0.02, 0.032))
+        P.append(shell(cut_, lambda x, y, z: 0.72 < y < 0.8, 0.026))
+        cut_.free()
         for z in (-0.065, 0.0, 0.065):
             b = box((surf.x(0.79, z) + 0.05, 0.79, z), (0.035, 0.06, 0.05), bevel=0.008)
             paint(b, R['torso'] if False else S['over'])
             P.append(b)
         for s in (1, -1):
-            P.append(strap(surf, [(0.98, 0.08 * s), (1.04, 0.1 * s)], True, w=0.04, lift=0.02))
-            P.append(strap(surf, [(1.04, 0.1 * s), (0.98, 0.08 * s)], False, w=0.04, lift=0.02))
+            P.append(strap(surf, [(0.98, 0.08 * s), shoulder(s, 0.1)], True, w=0.04, lift=0.02))
+            P.append(strap(surf, [shoulder(s, 0.1), (surf.x(0.98, 0.08 * s, False), 0.98, 0.08 * s)], w=0.04, lift=0.02))
     elif kind == 'bib':
-        P.append(shell(trunk, lambda x, y, z: 0.605 < y < 0.93 and abs(z) < 0.095 and x > 0.0, 0.011))
-        P.append(shell(trunk, lambda x, y, z: 0.605 < y < 0.86 and abs(z) < 0.11 and x < 0.0, 0.011))
+        cut_ = sliced(trunk, (0.93, 0.86), (0.095, -0.095, 0.11, -0.11))
+        P.append(shell(cut_, lambda x, y, z: 0.605 < y < 0.93 and abs(z) < 0.095 and x > 0.0, 0.011))
+        P.append(shell(cut_, lambda x, y, z: 0.605 < y < 0.86 and abs(z) < 0.11 and x < 0.0, 0.011))
+        cut_.free()
         for s in (1, -1):
-            P.append(strap(surf, [(0.9, 0.07 * s), (0.98, 0.075 * s), (1.03, 0.085 * s)], True, w=0.03))
-            P.append(strap(surf, [(1.03, 0.085 * s), (0.95, 0.06 * s), (0.86, 0.05 * s)], False, w=0.03))
+            # Up the front from the bib, over the shoulder by the neck, down the back.
+            P.append(strap(surf, [(0.9, 0.07 * s), (0.98, 0.076 * s), (surf.x(1.03, 0.085 * s) - 0.02, 1.03, 0.085 * s), shoulder(s),
+                                  (surf.x(1.03, 0.085 * s, False) + 0.02, 1.03, 0.085 * s),
+                                  (surf.x(0.95, 0.06 * s, False), 0.95, 0.06 * s), (surf.x(0.86, 0.05 * s, False), 0.86, 0.05 * s)], w=0.028))
             btn = box((surf.x(0.9, 0.07 * s) + 0.016, 0.9, 0.07 * s), (0.01, 0.018, 0.018))
             paint(btn, fixed(0xb0a890))
             P.append(btn)
@@ -885,12 +939,13 @@ def over(kind, trunk, arms, fem=False):
     for b in P:
         if all(f.material_index < 64 for f in b.faces):
             paint(b, S['over'])
-    # One colour over a smooth body: half the body's triangles do.
-    return thin(join(*P), 0.45)
+    # Cut down only a little: thinned much further its triangles cut through the body's.
+    return thin(join(*P), 0.8)
 
 
-def band(surf, y, h, lift, n=24):
-    """A band round the trunk at height y, h tall, lift off the surface."""
+def band(surf, y, h, lift, n=24, gap=None):
+    """A band round the trunk at height y, h tall, lift off the surface; left open where
+    gap(x, y, z) holds."""
     bm = bmesh.new()
     rows = []
     for yy in (y - h / 2, y + h / 2):
@@ -904,7 +959,9 @@ def band(surf, y, h, lift, n=24):
         rows.append(row)
     for i in range(n):
         j = (i + 1) % n
-        bm.faces.new((rows[0][i], rows[0][j], rows[1][j], rows[1][i]))
+        f = bm.faces.new((rows[0][i], rows[0][j], rows[1][j], rows[1][i]))
+        if gap and gap(*back(f.calc_center_median())):
+            bm.faces.remove(f)
     bm.normal_update()
     return bm
 
@@ -913,7 +970,9 @@ def stripes(trunk, on_vest=False):
     """Reflective bands round the chest and belly."""
     surf = Surf(trunk)
     k = 0.024 if on_vest else 0.01
-    bm = join(band(surf, 0.78, 0.03, k), band(surf, 0.94, 0.03, k))
+    # On the vest, open across its V-neck.
+    vee = (lambda x, y, z: x > 0.03 and abs(z) < 0.035 + (y - 0.85) * 0.3 + 0.01) if on_vest else None
+    bm = join(band(surf, 0.78, 0.03, k), band(surf, 0.94, 0.03, k, n=32, gap=vee))
     paint(bm, S['stripe'])
     return bm
 
@@ -958,8 +1017,9 @@ def pack(kind, trunk, fem=False):
     surf = Surf(trunk)
     bx = lambda y, z=0.0: surf.x(y, z, False)
     P = []
-    straps = lambda col, w=0.03: [(strap(surf, [(0.8, 0.08 * s), (0.95, 0.08 * s), (1.03, 0.085 * s)], True, w=w),
-                                   strap(surf, [(1.03, 0.085 * s), (0.95, 0.08 * s), (0.8, 0.08 * s)], False, w=w)) for s in (1, -1)]
+    straps = lambda col, w=0.03: [(strap(surf, [(0.8, 0.08 * s), (0.95, 0.08 * s), shoulder(s)], True, w=w),
+                                   strap(surf, [shoulder(s), (bx(0.95, 0.08 * s), 0.95, 0.08 * s), (bx(0.8, 0.08 * s), 0.8, 0.08 * s)], w=w))
+                                  for s in (1, -1)]
     if kind == 'medbag':
         b = box((bx(0.86) - 0.06, 0.86, 0), (0.11, 0.24, 0.26), bevel=0.02)
         paint(b, fixed(0xb83a2a))
@@ -1009,8 +1069,8 @@ def pack(kind, trunk, fem=False):
     elif kind == 'satchel':
         bag = box((0.02, 0.62, 0.165), (0.17, 0.15, 0.06), bevel=0.02)
         paint(bag, fixed(0x5a3a22))
-        sa = strap(surf, [(0.66, 0.13), (0.8, 0.07), (0.95, -0.03), (1.035, -0.1)], True, w=0.025)
-        sb = strap(surf, [(1.035, -0.1), (0.9, -0.02), (0.75, 0.08), (0.66, 0.13)], False, w=0.025)
+        sa = strap(surf, [(0.66, 0.13), (0.8, 0.07), (0.95, -0.03), shoulder(-1, 0.1)], True, w=0.025)
+        sb = strap(surf, [shoulder(-1, 0.1)] + [(surf.x(y, z, False), y, z) for y, z in ((0.9, -0.02), (0.75, 0.08), (0.66, 0.13))], w=0.025)
         paint(sa, fixed(0x3a2616)); paint(sb, fixed(0x3a2616))
         P += [bag, sa, sb]
     elif kind == 'bedroll':
@@ -1052,8 +1112,13 @@ def survivor_pieces():
         out['finger_' + g] = encode(finger_at(sz), joint=FARM_R, tone=skin_tone)
         hz = HIP_Z * (1.07 if fem else 1)
         out['boots_' + g] = encode(join(boot(1, hz), boot(-1, hz)), bones, allow={SHIN_L, SHIN_R}, tone=cloth, smooth_=False)
+        # What goes over the shirt moves with what it lies on: the trunk, or for the open
+        # jacket's sleeves the arm, so raising an arm never drags a vest off the shoulder.
+        from mathutils.bvhtree import BVHTree
+        tb, ab = BVHTree.FromBMesh(trunk), BVHTree.FromBMesh(arms)
+        on = lambda x, y, z: ARMS if ab.find_nearest(G(x, y, z))[3] < tb.find_nearest(G(x, y, z))[3] - 0.004 else TRUNK
         for k in ('vest', 'plate', 'bib', 'open'):
-            out['over_%s_%s' % (k, g)] = encode(over(k, trunk, [al, ar], fem), bones, allow=TRUNK | ARMS, blend=0.05, tone=cloth)
+            out['over_%s_%s' % (k, g)] = encode(over(k, trunk, [al, ar], fem), bones, allow=on if k == 'open' else TRUNK, blend=0.05, tone=cloth)
         out['stripes_' + g] = encode(stripes(trunk), bones, allow=TRUNK, blend=0.05, smooth_=False)
         out['vstripes_' + g] = encode(stripes(trunk, True), bones, allow=TRUNK, blend=0.05, smooth_=False)
         for k in ('cross', 'tie', 'lanyard', 'pocket'):

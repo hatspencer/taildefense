@@ -22,8 +22,9 @@ export class Lab {
   // Player poses, by player slot.
   private poses = ['circle', 'sprint', 'loot', 'revive', 'reload', 'taunt', 'down', 'shoot', 'dual', 'thrown'];
 
-  // gun, when 0 or more, puts that weapon in every survivor's hands (#lab=h&gun=6).
-  constructor(private game: Game, cx: number, cy: number, private gun = -1) {
+  // gun, when 0 or more, puts that weapon in every survivor's hands (#lab=h&gun=6); still
+  // keeps the shooter aiming one way, unhurt, to study how it holds the gun (&still).
+  constructor(private game: Game, cx: number, cy: number, private gun = -1, private still = false) {
     this.x0 = cx - 3 * DX;
     this.y0 = cy + 9;
   }
@@ -113,7 +114,10 @@ export class Lab {
         case 'reload': p.flags |= PF_RELOADING; break;
         case 'taunt': p.emote = Emote.Taunt; p.emoteLeft = 1; break;
         case 'down': p.flags = PF_CONNECTED; break;
-        case 'shoot': aim = t * 0.7; p.flags |= PF_FIRING; if (t % 2.5 < 0.25) p.flags |= PF_HURT; break;
+        case 'shoot':
+          if (this.still) aim = Math.PI / 2;
+          else { aim = t * 0.7; if (t % 2.5 < 0.25) p.flags |= PF_HURT; }
+          p.flags |= PF_FIRING; break;
         case 'dual': p.cur = 0; p.owned |= OWNED_DUAL; aim = Math.PI / 2 + Math.sin(t) * 0.6; p.flags |= PF_FIRING; break;
         case 'thrown': {
           // Held up for a second, thrown three tiles, then stunned where they land.
