@@ -40,7 +40,7 @@ type PlayerView struct {
 	Heal                                       float32 // seconds of a medkit's healing left
 	ReloadMask                                 uint8   // a bit per weapon reloading, in hand or not
 	Look                                       uint32  // see game.dealLook
-	Sprinting, Winded, Goggles                 bool
+	Sprinting, Winded, Goggles, Shielded       bool
 	Cur                                        game.WeaponKind
 	Ammo                                       uint16
 	ReloadFrac                                 float32 // 1 just started, 0 done
@@ -468,7 +468,7 @@ func (r *Replica) header(d *dec) {
 		p.TauntCool = float32(d.u16()) / 10
 		p.Stamina = float32(d.u8()) / 255
 		sp := d.u8()
-		p.Sprinting, p.Winded, p.Goggles = sp&1 != 0, sp&2 != 0, sp&8 != 0
+		p.Sprinting, p.Winded, p.Goggles, p.Shielded = sp&1 != 0, sp&2 != 0, sp&8 != 0, sp&16 != 0
 		p.Look = d.u32()
 		p.Cur = game.WeaponKind(d.u8())
 		p.Ammo = d.u16()

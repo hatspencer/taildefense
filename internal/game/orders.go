@@ -235,6 +235,10 @@ func (w *World) step(p *Player) bool {
 
 // ---- the survivor's tick ---------------------------------------------------------------
 
+// spawnShield is the seconds a survivor put back at the base takes no harm for, so a swarm on
+// the nexus cannot kill them again as they stand up; they can shoot through it.
+const spawnShield = 5
+
 func (w *World) stepPlayers() {
 	for _, p := range w.Players {
 		p.Revived = 0 // revivers below set it again
@@ -255,11 +259,15 @@ func (w *World) stepPlayers() {
 			p.Respawn -= Dt
 			if p.Respawn <= 0 {
 				w.respawn(p)
+				p.Shield = spawnShield
 			}
 			continue
 		}
 		if p.Hurt > 0 {
 			p.Hurt -= Dt
+		}
+		if p.Shield > 0 {
+			p.Shield = max(p.Shield-Dt, 0)
 		}
 		regen := 1.5 * float32(p.Gear[GearVitamins])
 		if w.Phase == PhaseBuild {

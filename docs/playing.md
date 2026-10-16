@@ -146,7 +146,8 @@ then: a turret or wall they pass, or a survivor further off than they'd normally
 
 When you go down you can be revived where you fell: a teammate presses E on you and stays
 next to you for a few seconds, and a hit starts it over. If nobody does, you're back at the base
-when the countdown runs out.
+when the countdown runs out, blinking: for 5 seconds nothing can hurt, slow or stun you, and
+you can shoot.
 
 ## Weather
 

@@ -330,6 +330,10 @@ When you go down you stay where you fell, and a teammate can revive you by stand
 you for a few seconds; a hit starts the revive over. Otherwise you respawn at the base when the
 countdown ends. This makes going out alone risky, and going in pairs worth it.
 
+A survivor put back at the base is shielded for 5 seconds, drawn blinking: no harm, slow or stun
+lands, but they can shoot. Without it a swarm on the nexus killed them again as they stood up,
+over and over. A revive gives no shield: the reviver chose the moment.
+
 ## Weather
 
 The weather changes between waves and is the same for everyone. Fog shortens everyone's range,

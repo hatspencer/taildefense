@@ -425,6 +425,9 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 		if p.Stunned() {
 			sprint |= 4
 		}
+		if p.Shield > 0 {
+			sprint |= 16
+		}
 		b.u8(sprint)
 		b.u32(p.Look)
 		b.u8(uint8(p.Cur))
