@@ -372,7 +372,7 @@ integers. The host checks everything; a refusal comes back as a `toast` with lev
 {"op": "repair",  "s": 12}                   // walk to struct 12 and repair it (costs gold)
 {"op": "loot",    "site": 3}                 // walk to site 3 and search it
 {"op": "upgradeStruct", "s": 12, "track": 1} // anywhere; track: a turret's (turretTracks), 0 for a wall
-{"op": "sell",    "s": 12}                   // anywhere, your own or the base's
+{"op": "sell",    "s": 12}                   // anywhere, anyone's, not the core or armory
 {"op": "buyWeapon", "w": 2}                  // at the armory
 {"op": "upgrade", "w": 2, "track": 0}        // at the armory
 {"op": "gear",    "g": 1}                    // at the armory

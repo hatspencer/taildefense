@@ -159,6 +159,28 @@ func TestShopAndBuild(t *testing.T) {
 	}
 }
 
+func TestATeammatesBuildingCanBeSold(t *testing.T) {
+	w := newBare(5)
+	bo, _ := w.Join("bo", "bo@example")
+	cy, _ := w.Join("cy", "cy@example")
+	bo.Gold = 100000
+	x, y := int(bo.X)+1, int(bo.Y)+2
+	if err := w.Build(bo, STurretGun, x, y); err != nil {
+		t.Fatal(err)
+	}
+	gold, si := cy.Gold, w.StructAt(x, y)
+	refund, err := w.Sell(cy, si)
+	if err != nil || w.StructAt(x, y) >= 0 || refund <= 0 || cy.Gold-gold != refund {
+		t.Fatalf("sell: %v, refund %d, gold %d to %d", err, refund, gold, cy.Gold)
+	}
+	if n := w.Notes[len(w.Notes)-1].Text; n != "cy sold bo's "+Structs[STurretGun].Name {
+		t.Errorf("note %q", n)
+	}
+	if _, err := w.Sell(cy, w.Armory); err == nil {
+		t.Error("sold the armory")
+	}
+}
+
 func TestPlayersCannotWalkThroughWallsButThroughGates(t *testing.T) {
 	w := newBare(9)
 	var wall, gate *Structure
