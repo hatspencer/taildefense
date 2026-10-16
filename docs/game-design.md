@@ -141,6 +141,11 @@ each wave, but Normal is the reference for timing.
 - **Anyone can sell anyone's building.** The base belongs to the team: a wall someone who has
   left put in the wrong place, or a turret worth more moved, shouldn't wait on its builder. The
   gold goes to the seller and the team hears who sold whose, so it is never done unseen.
+- **Repair beats selling and rebuilding.** Repair costs 0.1 gold a hit point, capped so a full
+  mend from nothing costs at most half of what went into the structure, the same share selling
+  returns. A wall's hit points are cheap new (20 gold for 320), and at the flat rate alone a
+  wall below about half health was cheaper sold and put back than mended; turrets, whose hit
+  points are dear, keep the flat rate.
 
 ## Loot
 

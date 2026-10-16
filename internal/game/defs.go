@@ -390,8 +390,23 @@ func TurretTrackValue(k StructKind, t Track, level uint8) string {
 	return fmt.Sprintf("%d pierce", st.Pierce)
 }
 
-// RepairCostPerHP is gold per hit point repaired.
+// RepairCostPerHP is gold per hit point repaired, at most.
 const RepairCostPerHP = .1
+
+// RepairShare caps a repair from nothing at this share of what went into the structure, so
+// mending is always cheaper than selling and building again: a wall's hit points are cheap
+// to buy new, and at the flat rate a badly hurt one was better sold and put back.
+const RepairShare = .5
+
+// RepairRate is the gold per hit point repairing s costs. The generator and the armory,
+// never bought, pay the flat rate.
+func RepairRate(s *Structure) float32 {
+	spent := Spent(s)
+	if spent == 0 {
+		return RepairCostPerHP
+	}
+	return min(RepairCostPerHP, RepairShare*float32(spent)/s.MaxHP)
+}
 
 // BuildRadius is how far from the generator's centre building is allowed.
 const BuildRadius = 40

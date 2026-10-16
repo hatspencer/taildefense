@@ -66,8 +66,9 @@ everything it knows, a terrain message follows).
   "shopRadius": 4.5,           // shop only within this distance of the armory centre
   "maxLevel": 5,               // weapon track and gear max level
   "maxStructLevel": 5,         // a wall's or gate's; a turret's tracks go to maxLevel
-  "repairCostPerHP": 0.1,
+  "repairCostPerHP": 0.1,      // gold per hit point repaired, at most
   "sellFraction": 0.5,         // selling returns this share of price + upgrades, times hp/maxHp
+  "repairShare": 0.5,          // ...and repair costs at most this share of price + upgrades per maxHp a hit point
   "tracks": ["damage", "fire rate", "handling", "special"],
   "turretTracks": ["damage", "fire rate", "range", "special"],   // a turret's, as in a frame's track levels
   "creeps": [                  // index = creep kind
