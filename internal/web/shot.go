@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"taildefense/internal/install"
+	"taildefense/internal/platform"
 )
 
 // maxShot caps a scoreboard screenshot's upload; one at a laptop's resolution is well under.
@@ -28,6 +29,19 @@ var shotDir = func() (string, error) {
 		return "", err
 	}
 	return filepath.Join(p.Prefix, "screenshots"), nil
+}
+
+// OpenScreenshots opens the screenshots folder in the system's file browser, making it first
+// if no game has been kept yet, and says which folder it is.
+func OpenScreenshots() (string, error) {
+	dir, err := shotDir()
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return dir, err
+	}
+	return dir, platform.OpenURL(dir)
 }
 
 // saveShot takes the page's PNG of the final scoreboard and keeps it. Like the socket it wants
