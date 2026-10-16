@@ -8,7 +8,7 @@ import { build, fixedColor, piece, type Use } from './figures';
 import { SURVIVOR } from './figures.gen';
 import { Body, readLook } from './look';
 import { ik2, J, Spring, turnTowards, wrapAngle } from './rig';
-import { survivor } from './survivor';
+import { goggles as gogglesFor, survivor } from './survivor';
 import { box, merge, part, playerColor, sphere } from './util';
 
 interface Limb { upper: THREE.Object3D; lower: THREE.Object3D }
@@ -16,7 +16,7 @@ interface Hero {
   group: THREE.Group; body: THREE.Group; hips: THREE.Object3D; torso: THREE.Object3D; head: THREE.Object3D; tail: THREE.Object3D | null; pack: THREE.Object3D;
   legL: Limb; legR: Limb; armL: Limb; armR: Limb;
   gun: THREE.Group; gunMesh: THREE.Mesh | null; spin: THREE.Group | null; flash: THREE.Object3D; finger: THREE.Object3D; hand: THREE.Object3D;
-  shout: THREE.Object3D; stars: THREE.Object3D; marker: THREE.Object3D; cross: THREE.Object3D; progress: THREE.Object3D;
+  shout: THREE.Object3D; stars: THREE.Object3D; goggles: THREE.Object3D; marker: THREE.Object3D; cross: THREE.Object3D; progress: THREE.Object3D;
   look: number; wd: number; ht: number; weapon: number; color: number;
   phase: number; seen: number; down: boolean; pop: number; shotAt: number; crouch: number; downAmt: number; taunt: number; reload: number;
   sprint: number; leap: number; hurt: boolean;
@@ -79,6 +79,8 @@ export class Heroes {
   group = new THREE.Group();
   private heroes = new Map<number, Hero>();
   private mat = litMaterial();
+  // Night vision goggles' lenses: a faint green glow, lit or not.
+  private lensMat = new THREE.MeshBasicNodeMaterial({ color: 0x8cff6a });
   private flashMat = new THREE.MeshBasicNodeMaterial({ color: 0xffe08a, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending });
   private bubbleMat = new THREE.MeshBasicNodeMaterial({ color: 0xf4efe0 });
   private starMat = new THREE.MeshBasicNodeMaterial({ color: 0xffe060 });
@@ -159,6 +161,11 @@ export class Heroes {
     g.updateMatrixWorld(true);
     skinned.bind(new THREE.Skeleton(bones as THREE.Bone[]));
     const tailed = S.uses.some((u) => u.p.j0.includes(J.X));
+    // Night vision goggles on the head bone, shown once bought.
+    const goggles = new THREE.Group(), G = gogglesFor();
+    goggles.visible = false;
+    goggles.add(new THREE.Mesh(merge(G.body).translate(-SV.neck[0], -SV.neck[1], 0), this.mat), new THREE.Mesh(merge(G.lenses).translate(-SV.neck[0], -SV.neck[1], 0), this.lensMat));
+    head.add(goggles);
     // The taunt's middle finger: a fist on the gun hand with one finger up out of it,
     // oversized so it still reads at pixel scale; it closes over the hand.
     const fp = piece(`finger_${fem ? 'f' : 'm'}`)!;
@@ -199,7 +206,7 @@ export class Heroes {
     this.group.add(g);
     const h: Hero = {
       group: g, body, hips, torso, head, tail: tailed ? tail : null, pack, legL, legR, armL, armR, gun, gunMesh: null, spin: null, flash, finger, hand,
-      shout, stars, marker, cross, progress, look, wd: L.width, ht: L.height, weapon: -1, color: c,
+      shout, stars, goggles, marker, cross, progress, look, wd: L.width, ht: L.height, weapon: -1, color: c,
       phase: 0, seen: 0, down: false, pop: 0, shotAt: -1e9, crouch: 0, downAmt: 0, taunt: 0, reload: 0, sprint: 0, leap: 0, hurt: false,
       x: 0, y: 0, vx: 0, vy: 0, legYaw: 0, dirSign: 1, fresh: true,
       leanX: new Spring(2.2, 0.45, 0), leanZ: new Spring(2.2, 0.45, 0), aim: new Spring(4.5, 0.75, 1.6), flinch: new Spring(3, 0.3, 0),
@@ -432,6 +439,8 @@ export class Heroes {
         h.shout.quaternion.copy(this.q);
         h.shout.scale.setScalar(0.6 + tn * 0.5 + jab * 0.5);
       }
+      // Night vision goggles, worn at night.
+      h.goggles.visible = p.goggles && !!game.welcome?.dark;
       h.stars.visible = alive && p.stunned;
       if (h.stars.visible) {
         h.stars.position.set(0, 1.75 + Math.sin(t * 7) * 0.04, 0);
