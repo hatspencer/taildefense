@@ -84,6 +84,46 @@ func TestBrutalFlashlight(t *testing.T) {
 	}
 }
 
+// Night vision goggles cost a fortune, are sold only where there is a night, and give back
+// daytime sight all round in place of brutal's flashlight.
+func TestNightVisionGoggles(t *testing.T) {
+	day := NewGame(5, DiffNormal)
+	q, _ := day.Join("bo", "bo@example")
+	q.X, q.Y, q.Gold = day.CoreX, day.CoreY, 1e6
+	if day.atArmory(q) && day.BuyGoggles(q) == nil {
+		t.Fatal("goggles sold where there is no night")
+	}
+
+	w := NewGame(5, DiffBrutal)
+	p, _ := w.Join("ana", "ana@example")
+	for i := range w.Structs {
+		if w.Structs[i].Kind == SArmory {
+			p.X, p.Y = w.Structs[i].CX(), w.Structs[i].CY()
+		}
+	}
+	p.Gold = gogglesCost - 1
+	if w.BuyGoggles(p) == nil {
+		t.Fatal("goggles sold for less than they cost")
+	}
+	p.Gold = gogglesCost
+	if err := w.BuyGoggles(p); err != nil || !p.Goggles || p.Gold != 0 {
+		t.Fatalf("buying goggles: %v, worn %v, gold left %d", err, p.Goggles, p.Gold)
+	}
+	if w.BuyGoggles(p) == nil {
+		t.Fatal("a second pair sold")
+	}
+	p.X, p.Y, p.Aim = w.CoreX+60.5, w.CoreY+.5, 0
+	w.Weather, w.WeatherAmt = WClear, 0
+	w.discover()
+	lit := func(x, y float32) bool {
+		c := Creep{X: x, Y: y}
+		return !w.hidden(&c)
+	}
+	if !lit(p.X-daySight+1, p.Y) || !lit(p.X, p.Y+daySight-1) || lit(p.X+daySight+1, p.Y) {
+		t.Fatal("goggles should see daytime sight all round and no beam past it")
+	}
+}
+
 // At night a survivor's bullet goes through what nobody can see: a rifle shot down a line
 // misses the creep out in the dark and hits the one in sight, and by day it hits both.
 func TestNightShotsOnlyFindWhatIsSeen(t *testing.T) {

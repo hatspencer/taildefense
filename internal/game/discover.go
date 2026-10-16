@@ -75,17 +75,29 @@ const rifleSight = 2
 // flashCone is half the flashlight's beam, in radians: the page's spotlight has the same.
 const flashCone = .45
 
+// daySight is how far a survivor sees by day, as the page has it; night vision goggles give
+// it back at night.
+const daySight = 12
+
 // sight is how far survivor p sees all round at night. With a flashlight (brutal) the scope
 // lengthens the beam instead.
 func (w *World) sight(p *Player) float32 {
-	if p.Cur == WRifle && w.diff().Cone <= 0 {
-		return w.diff().Dark * rifleSight
+	r := w.diff().Dark
+	if p.Goggles {
+		r = daySight
 	}
-	return w.diff().Dark
+	if p.Cur == WRifle && (p.Goggles || w.diff().Cone <= 0) {
+		return r * rifleSight
+	}
+	return r
 }
 
-// cone is how far survivor p's flashlight reaches along their aim, 0 without one.
+// cone is how far survivor p's flashlight reaches along their aim, 0 without one: goggles
+// are worn instead.
 func (w *World) cone(p *Player) float32 {
+	if p.Goggles {
+		return 0
+	}
 	if p.Cur == WRifle {
 		return w.diff().Cone * rifleSight
 	}

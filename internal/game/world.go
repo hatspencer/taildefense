@@ -129,6 +129,7 @@ type Player struct {
 	pingFree           uint32  // the tick from which a ping costs nothing; see World.Ping
 	Stamina            float32 // 0..1
 	Medkits            uint8   // carried, used one at a time with UseMedkit
+	Goggles            bool    // night vision: daytime sight at night, and no flashlight
 	Heal               float32 // seconds of a medkit's healing left
 	steerLeft          float32 // seconds until an OrderSteer lapses without a repeat
 	noise              float32 // seconds until firing makes noise again

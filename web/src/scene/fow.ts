@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { Fn, float, luminance, mix, output, positionWorld, rangeFogFactor, reference, smoothstep, texture, uniform, vec3, vec4 } from 'three/tsl';
-import { PF_ALIVE, RIFLE, RIFLE_SIGHT, sightMul } from '../protocol';
+import { DAY_SIGHT, PF_ALIVE, RIFLE, RIFLE_SIGHT, sightMul } from '../protocol';
 import type { Game } from '../state';
 
 // Fog of war on screen, and the weather's haze: the scene's fog node, which every lit material runs, darkens what
@@ -104,16 +104,13 @@ export class FogOfWar {
     const up = me && me.flags & PF_ALIVE;
     if (up) this.uEye.value.set(game.prx[me.id], game.pry[me.id]);
     else this.uEye.value.set(tx, tz);
-    // With a flashlight the haze sits out at the end of its beam.
-    const r = (game.welcome?.cone || game.welcome?.dark || SIGHT) * (up && me.cur === RIFLE ? RIFLE_SIGHT : 1) * see;
+    // With a flashlight the haze sits out at the end of its beam; goggles see as by day.
+    const r = (up && me.goggles ? DAY_SIGHT : game.welcome?.cone || game.welcome?.dark || DAY_SIGHT) * (up && me.cur === RIFLE ? RIFLE_SIGHT : 1) * see;
     this.uNear.value += (r * 0.55 - this.uNear.value) * k;
     this.uFar.value += (r * 1.15 - this.uFar.value) * k;
     this.uHaze.value += (Math.min(1, (1 - see) / 0.6) * 0.9 - this.uHaze.value) * k;
   }
 }
-
-// How far a survivor sees in the clear, as vision.ts has it.
-const SIGHT = 12;
 
 function blank(): THREE.DataTexture {
   const t = new THREE.DataTexture(new Uint8Array([255, 255, 0, 255]), 1, 1, THREE.RGBAFormat);

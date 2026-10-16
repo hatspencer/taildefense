@@ -419,6 +419,9 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 		if p.Winded {
 			sprint |= 2
 		}
+		if p.Goggles {
+			sprint |= 8
+		}
 		if p.Stunned() {
 			sprint |= 4
 		}

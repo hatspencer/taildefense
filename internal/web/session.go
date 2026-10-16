@@ -408,6 +408,8 @@ func (s *session) command(p []byte) bool {
 		nc = netplay.Cmd{Op: netplay.OpDifficulty, A: u8(c.Kind)}
 	case "buyMedkit":
 		nc = netplay.Cmd{Op: netplay.OpBuyMedkit}
+	case "buyGoggles":
+		nc = netplay.Cmd{Op: netplay.OpBuyGoggles}
 	case "revive":
 		nc = netplay.Cmd{Op: netplay.OpRevive, T: u16(c.P)}
 	case "drop":

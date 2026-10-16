@@ -28,6 +28,10 @@ Medkits (8) heal 40% of your health over 3 s, unless a hit cuts it short. You st
 carry up to three. Buy them at the armory for 60 gold, or find them in places with a first-aid
 kit, like an ambulance. The gear row that raises regeneration is Vitamins.
 
+On hard and brutal the armory also sells night vision goggles, for 3000 gold. Worn, they let you
+see as far at night as by day, in place of brutal's flashlight; everyone sees you wearing them,
+and you keep them when you go down.
+
 ## Turrets
 
 Six turrets, from the build menu (B):

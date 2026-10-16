@@ -5,6 +5,8 @@
 export const WEAPON_SLOTS = 7, RIFLE = 3, CROWBAR = 6;
 // How much further a survivor with a rifle in hand sees: the host's rifleSight.
 export const RIFLE_SIGHT = 2;
+// How far a survivor sees by day, and at night in night vision goggles: discover.go's daySight.
+export const DAY_SIGHT = 12;
 // Half the flashlight's beam, in radians: discover.go's flashCone.
 export const FLASH_CONE = 0.45;
 
@@ -105,6 +107,8 @@ export interface Welcome {
   revive: { reach: number; time: number; hp: number };
   // heal: the share of max HP one medkit gives back over time seconds; max carried; cost each.
   medkit?: { heal: number; time: number; max: number; cost: number };
+  // Night vision goggles' price: daytime sight at night, worn instead of the flashlight.
+  goggles?: number;
 }
 // A turret's tracks, as they sit in a frame's sLv: four to a structure.
 export const enum TTrack { Damage = 0, Rate, Range, Special }
@@ -156,7 +160,7 @@ export type Command =
   | { op: 'ping'; x: number; y: number; kind: number }
   // x: the walking direction in radians, in map coordinates; on false lets go.
   | { op: 'steer'; x: number; on: boolean }
-  | { op: 'medkit' } | { op: 'buyMedkit' }
+  | { op: 'medkit' } | { op: 'buyMedkit' } | { op: 'buyGoggles' }
   // Puts weapon w down for a teammate; pickup walks to the weapon on the ground with that id.
   | { op: 'drop'; w: number }
   | { op: 'pickup'; id: number };
@@ -167,7 +171,7 @@ export class Player {
   levels = new Uint8Array(WEAPON_SLOTS * 4); gear = new Uint8Array(4);
   // channel: the current search's (order Loot) or revive's (order Revive) progress, 0..1.
   // revived: for a downed survivor, how far someone's revive of them is, 0..1.
-  order = 0; channel = 0; revived = 0; emote = 0; emoteLeft = 0; tauntCool = 0; stamina = 1; sprinting = false; winded = false; stunned = false; look = 0; buff = 0; buffLeft = 0;
+  order = 0; channel = 0; revived = 0; emote = 0; emoteLeft = 0; tauntCool = 0; stamina = 1; sprinting = false; winded = false; stunned = false; goggles = false; look = 0; buff = 0; buffLeft = 0;
   abLevel = new Uint8Array(4); abCool = new Float32Array(4);
   // Medkits carried, and seconds of a medkit's healing left.
   medkits = 0; heal = 0;
@@ -195,7 +199,7 @@ export class Player {
     this.reload = o.reload; this.respawn = o.respawn; this.gold = o.gold; this.kills = o.kills;
     this.damage = o.damage; this.owned = o.owned; this.levels.set(o.levels); this.gear.set(o.gear);
     this.order = o.order; this.channel = o.channel; this.revived = o.revived; this.emote = o.emote;
-    this.emoteLeft = o.emoteLeft; this.tauntCool = o.tauntCool; this.stamina = o.stamina; this.sprinting = o.sprinting; this.winded = o.winded; this.stunned = o.stunned; this.look = o.look; this.buff = o.buff; this.buffLeft = o.buffLeft;
+    this.emoteLeft = o.emoteLeft; this.tauntCool = o.tauntCool; this.stamina = o.stamina; this.sprinting = o.sprinting; this.winded = o.winded; this.stunned = o.stunned; this.goggles = o.goggles; this.look = o.look; this.buff = o.buff; this.buffLeft = o.buffLeft;
     this.abLevel.set(o.abLevel); this.abCool.set(o.abCool); this.medkits = o.medkits; this.heal = o.heal; this.reloading = o.reloading; this.name = o.name;
     this.downs = o.downs; this.revives = o.revives; this.built = o.built; this.searched = o.searched; this.bosses = o.bosses; this.taken = o.taken; this.turret = o.turret;
   }
@@ -319,7 +323,7 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
     p.gear.set(bytes.subarray(o, o + 4)); o += 4;
     p.order = d.getUint8(o); p.channel = d.getUint8(o + 1) / 255; p.revived = d.getUint8(o + 2) / 255;
     p.emote = d.getUint8(o + 3); p.emoteLeft = d.getUint8(o + 4) / 10; p.tauntCool = d.getUint16(o + 5, true) / 10;
-    p.stamina = d.getUint8(o + 7) / 255; const sp = d.getUint8(o + 8); p.sprinting = (sp & 1) !== 0; p.winded = (sp & 2) !== 0; p.stunned = (sp & 4) !== 0;
+    p.stamina = d.getUint8(o + 7) / 255; const sp = d.getUint8(o + 8); p.sprinting = (sp & 1) !== 0; p.winded = (sp & 2) !== 0; p.stunned = (sp & 4) !== 0; p.goggles = (sp & 8) !== 0;
     p.look = d.getUint32(o + 9, true);
     p.buff = d.getUint8(o + 13); p.buffLeft = d.getUint8(o + 14) / 10; o += 15;
     for (let a = 0; a < 4; a++) {

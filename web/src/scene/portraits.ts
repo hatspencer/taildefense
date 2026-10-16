@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { output, sRGBTransferOETF, vec4, vertexColor } from 'three/tsl';
 import { Emote, Order, PF_ALIVE, PF_CONNECTED, PF_FIRING, PF_HURT, PF_RELOADING, type Player } from '../protocol';
 import type { Game } from '../state';
-import { figure, garment } from './heroes';
+import { figure, garment, GOGGLES, LENSES } from './heroes';
 import { Body, readLook, shade } from './look';
 import { Spring } from './rig';
 import { box, merge, part, type Part, playerColor } from './util';
@@ -26,7 +26,7 @@ interface Bust {
   id: number; look: number; cell: number; bg: [number, number, number][];
   root: THREE.Group; torso: THREE.Group; head: THREE.Group; tail: THREE.Group | null;
   eyes: THREE.Mesh; whites: THREE.Mesh; mouth: THREE.Mesh; browL: THREE.Mesh; browR: THREE.Mesh;
-  cut: THREE.Mesh; gash: THREE.Mesh; stain: THREE.Mesh; plaster: THREE.Mesh;
+  cut: THREE.Mesh; gash: THREE.Mesh; stain: THREE.Mesh; plaster: THREE.Mesh; goggles: THREE.Mesh;
   yaw: Spring; pitch: Spring; flinch: Spring; sway: Spring;
   breath: number; nextBlink: number; blinkTo: number; lastHp: number; hurtFlag: boolean;
   hurt: number; down: number; shout: number; busy: number; fire: number;
@@ -89,6 +89,7 @@ export class Portraits {
       if (!b) { b = this.make(p, i, t); this.busts.set(p.id, b); this.byCell[i] = b; }
       seen.add(p.id);
       this.animate(b, p, t, dt, yaw);
+      b.goggles.visible = p.goggles && !!game.welcome?.dark;
     }
     for (const b of [...this.busts.values()]) if (!seen.has(b.id)) this.drop(b);
     if (this.pending || now - this.last < 1000 / FPS || seen.size === 0) return;
@@ -152,6 +153,9 @@ export class Portraits {
     const stain = this.mesh([part(box(0.02, 0.12, 0.1), 0x5a0e0a, 0.2, 0.86, 0.06), part(box(0.02, 0.06, 0.06), 0x5a0e0a, 0.2, 0.78, 0.1)], torso, 0, WAIST);
     stain.position.set(0, 0, 0);
     const plaster = local(this.mesh([part(box(0.02, 0.035, 0.09), 0xe6dcc4, 0.153, 1.2, 0.07), part(box(0.022, 0.012, 0.012), 0xb8aa8c, 0.153, 1.2, 0.07)], head, 0.15, 1.2));
+    // Night vision goggles, worn at night once bought.
+    const goggles = this.mesh([...GOGGLES, ...LENSES], head, 0.01, 1.1);
+    goggles.position.set(0, 0, 0);
     let tail: THREE.Group | null = null;
     if (F.tail.length) {
       tail = new THREE.Group();
@@ -169,7 +173,7 @@ export class Portraits {
       bg.push([((h >> 16) & 255) * 0.45 + 0x1c * 0.55, ((h >> 8) & 255) * 0.45 + 0x1e * 0.55, (h & 255) * 0.45 + 0x16 * 0.55]);
     }
     return {
-      id: p.id, look: p.look, cell, bg, root, torso, head, tail, eyes, whites, mouth, browL, browR, cut, gash, stain, plaster,
+      id: p.id, look: p.look, cell, bg, root, torso, head, tail, eyes, whites, mouth, browL, browR, cut, gash, stain, plaster, goggles,
       yaw: new Spring(2, 0.55, 0), pitch: new Spring(2.2, 0.6, 0), flinch: new Spring(3.2, 0.3, 0), sway: new Spring(1.4, 0.4, 0),
       breath: Math.random() * 6, nextBlink: t + 1 + Math.random() * 3, blinkTo: 0, lastHp: p.hp, hurtFlag: false,
       hurt: 0, down: 0, shout: 0, busy: 0, fire: 0,

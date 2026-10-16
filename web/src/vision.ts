@@ -1,4 +1,4 @@
-import { FLASH_CONE, PF_ALIVE, RIFLE, RIFLE_SIGHT, type Frame, TTrack, TURRET_TRACKS, type Welcome, Weather, sightMul, turretRange, walled } from './protocol';
+import { DAY_SIGHT, FLASH_CONE, PF_ALIVE, RIFLE, RIFLE_SIGHT, type Frame, TTrack, TURRET_TRACKS, type Welcome, Weather, sightMul, turretRange, walled } from './protocol';
 
 // Fog of war: what the team sees right now, and what it has ever seen, per tile. Vision is
 // shared: every survivor and every structure lights a disc around itself. The host sends
@@ -63,15 +63,17 @@ export class Vision {
     const mul = f.weather === Weather.Fog ? 1 - 0.25 * f.weatherAmt : 1, see = sightMul(f.weather, f.weatherAmt);
     // At night (hard and brutal) a survivor sees only a small pool round them: the dead are on
     // you before you know it.
-    const dark = wd.dark ?? 0, sight = dark || 12, cone = dark ? wd.cone ?? 0 : 0;
+    const dark = wd.dark ?? 0, sight = dark || DAY_SIGHT, cone = dark ? wd.cone ?? 0 : 0;
     for (let i = 0; i < f.nPlayers; i++) {
       const p = f.players[i];
       const r = this.roomAt(p.x, p.y);
       if (r >= 0) { this.entered[r] = 1; this.lightRoom(r); }
       // A rifle's scope sees twice as far: all round, or with a flashlight (brutal) along its beam.
       const alive = (p.flags & PF_ALIVE) !== 0, scope = p.cur === RIFLE ? RIFLE_SIGHT : 1;
-      this.disc(p.x, p.y, (alive ? sight * (cone ? 1 : scope) : 4) * see, r);
-      if (alive && cone) this.cone(p.x, p.y, p.aim, cone * scope * see, r);
+      // Night vision goggles: daytime sight, worn instead of the flashlight.
+      const beam = p.goggles ? 0 : cone, all = p.goggles ? DAY_SIGHT : sight;
+      this.disc(p.x, p.y, (alive ? all * (beam ? 1 : scope) : 4) * see, r);
+      if (alive && beam) this.cone(p.x, p.y, p.aim, beam * scope * see, r);
     }
     for (let i = 0; i < f.nStructs; i++) {
       if (!f.sAlive[i]) continue;

@@ -311,7 +311,7 @@ async function main(): Promise<void> {
       const goal = game.cur.phase === Phase.Wave ? 1 : 0;
       const m = world.night + (goal - world.night) * Math.min(1, dt * 0.6);
       const alive = !!me && (me.flags & PF_ALIVE) !== 0;
-      world.setMood(m, me ? game.prx[me.id] : 0, me ? game.pry[me.id] : 0, me ? game.paim[me.id] : 0, alive, wd.core.x, wd.core.y);
+      world.setMood(m, me ? game.prx[me.id] : 0, me ? game.pry[me.id] : 0, me ? game.paim[me.id] : 0, alive && !me!.goggles, wd.core.x, wd.core.y);
       effects.dark = Math.min(1, Math.max(m, weather.look.dark));
     }
     ctl.updateMouse(W, H);
