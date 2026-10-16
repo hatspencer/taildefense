@@ -27,7 +27,7 @@ it here along with the code.
 | break between waves | 20 s | 15 s | 18 s | 20 s |
 | long break, after every 5th wave | 75 s | 60 s | 60 s | 60 s |
 | starting weapon | pistol | pistol | pistol | crowbar |
-| sight out past the base | 12 | 12 | 7, night | 5.5, night |
+| sight out past the base | 12 | 12 | 7, night | 3 round, 11 ahead, night |
 
 - **Night on hard and brutal.** Out past the generator's lights a survivor sees only a small
   pool round them (twice as far with a rifle in hand: the scope), and the dead beyond it aren't shown at all, so they come out of the dark
@@ -41,10 +41,14 @@ it here along with the code.
   so what a turret out on the edge can see, the whole team can see and shoot. Nor
   does anyone keep count of a site's guards: its skulls say how hard it is, never how many
   are left, so whether a site is clear is found out the hard way.
-- **Brutal's night shows only what is lit.** On hard the ground the team has found stays dimly
-  on screen; on brutal it goes back to black as soon as nobody lights it, and so do the glints
-  over the sites there. Only the pools round survivors, the base and turrets' sight show, so
-  the dark you have just walked through is as unknown as the dark ahead. The minimap keeps the
+- **Brutal's night shows only what is lit.** A survivor carries a flashlight: a small pool
+  round them (3) and a beam down their aim (11, and the rifle's scope doubles the beam, not the
+  pool). What is behind you is in the dark, so where you look matters and the team has to
+  cover each other's backs. A shot finds only what the beam or a pool shows. On hard the
+  ground the team has found stays dimly on screen; on brutal it goes back to black as soon as
+  nobody lights it, and so do the glints over the sites there. Only the survivors' light, the
+  base and turrets' sight show, so the dark you have just walked through is as unknown as the
+  dark ahead. The minimap keeps the
   team's map, which is the one thing brutal leaves you to find your way back by.
 - **Brutal starts in melee.** Survivors begin with a crowbar and no gun: a short swing that
   hits up to three creeps in front, never runs dry, and is quiet. Its signature, the haymaker,

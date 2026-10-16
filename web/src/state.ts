@@ -1,4 +1,4 @@
-import { BRUTAL, Frame, MAX_CREEPS, PF_ALIVE, type Player, type Welcome, Weather, decodeFrame } from './protocol';
+import { Frame, MAX_CREEPS, PF_ALIVE, type Player, type Welcome, Weather, decodeFrame } from './protocol';
 import { Vision } from './vision';
 
 // Everything the client knows about the world: the last two frames and the interpolation
@@ -54,12 +54,12 @@ export class Game {
 
   // setDifficulty follows the host changing the difficulty: night comes or goes with it, and
   // with night the sight the page keeps.
-  setDifficulty(d: { id: number; name: string }, dark: number): void {
+  setDifficulty(d: { id: number; name: string }, dark: number, cone = 0): void {
     const w = this.welcome;
     if (!w) return;
     w.difficulty = d;
-    if ((w.dark ?? 0) === dark) return;
-    w.dark = dark;
+    if ((w.dark ?? 0) === dark && (w.cone ?? 0) === cone) return;
+    w.dark = dark; w.cone = cone;
     this.vision = w.fogOfWar || w.dark ? new Vision(w.w, w.h, w) : null;
     this.hiddenAt.fill(0);
   }
@@ -156,10 +156,10 @@ export class Game {
     return this.vision && !this.vision.knows(i) ? -1 : this.cur.siteGuards(i);
   }
 
-  // Brutal's night: only what a survivor, the generator or a turret lights right now shows;
-  // ground the team found before goes back to black once nobody is on it.
+  // Brutal's night: only what a survivor's pool and flashlight, the generator or a turret
+  // lights right now shows; ground the team found before goes back to black once nobody is on it.
   lightOnly(): boolean {
-    return !!this.welcome?.dark && this.welcome.difficulty.id === BRUTAL;
+    return !!this.welcome?.dark && !!this.welcome.cone;
   }
 
   // Whether site i is still out in the dark: at night, where the team has never been.

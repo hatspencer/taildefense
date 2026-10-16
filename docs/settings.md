@@ -10,8 +10,9 @@ scales creep health and wave size, gold, the time between waves, how tough the l
 and how long a downed player can be revived (20 s on normal). Hard and brutal are played at night:
 out past the base you see only a few steps round you (twice as far with a rifle), the map is
 black until someone on the team has been there, the dead come out of the dark, and nobody tells
-you how many guards a site has left. Brutal's night is darker still: you see only what you, a
-teammate, the generator or a turret lights right now, and ground found before goes back to black. On brutal you start with only a crowbar. A restart keeps the game's difficulty. The host can also change it
+you how many guards a site has left. Brutal's night is darker still: you see a small pool round
+you and down your flashlight's beam, only what you, a teammate, the generator or a turret
+lights right now shows, and ground found before goes back to black. On brutal you start with only a crowbar. A restart keeps the game's difficulty. The host can also change it
 mid-game by clicking the difficulty chip at the top left.
 
 `FOG` is `off` by default. On, the games you host hide whatever the team cannot see, on any

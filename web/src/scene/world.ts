@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { FLASH_CONE } from '../protocol';
 import { Retro } from './retro';
 import type { WeatherLook } from './weather';
 
@@ -21,7 +22,7 @@ export class World {
   hemi = new THREE.HemisphereLight(0xc4cbc2, 0x4a4632, 1.4);
   // Lights that matter at dusk: the player's flashlight and the generator's lamp. They are
   // always in the scene, so switching mood never recompiles a shader.
-  flashlight = new THREE.SpotLight(0xfff0c8, 0, 26, 0.5, 0.55, 1);
+  flashlight = new THREE.SpotLight(0xfff0c8, 0, 26, FLASH_CONE, 0.55, 1);
   lamp = new THREE.PointLight(0xffb060, 0, 16, 1.2);
   backend: Backend['name'] = 'WebGL2';
   retro: Retro | null = null;

@@ -48,6 +48,42 @@ func TestWhatIsInSightAtNight(t *testing.T) {
 	}
 }
 
+// Brutal's night: a small pool round the survivor and a flashlight's beam down their aim,
+// twice as long with a rifle's scope, and nothing behind them past the pool.
+func TestBrutalFlashlight(t *testing.T) {
+	w := NewGame(5, DiffBrutal)
+	p, _ := w.Join("ana", "ana@example")
+	p.X, p.Y, p.Aim = w.CoreX+60.5, w.CoreY+.5, 0
+	w.Weather, w.WeatherAmt = WClear, 0
+	lit := func(x, y float32) bool {
+		c := Creep{X: x, Y: y}
+		return !w.hidden(&c)
+	}
+	d := w.diff()
+	w.discover()
+	for _, c := range []struct {
+		x, y float32
+		want bool
+		what string
+	}{
+		{p.X - d.Dark + 1, p.Y, true, "just behind the survivor"},
+		{p.X - d.Dark - 1, p.Y, false, "behind, past the pool"},
+		{p.X, p.Y + d.Dark + 1, false, "to the side, past the pool"},
+		{p.X + d.Cone - 1, p.Y, true, "down the beam"},
+		{p.X + d.Cone + 1, p.Y, false, "past the beam's reach"},
+		{p.X + d.Cone - 1, p.Y + d.Cone/2, false, "outside the beam"},
+	} {
+		if lit(c.x, c.y) != c.want {
+			t.Fatalf("%s: in sight %v", c.what, !c.want)
+		}
+	}
+	p.Cur = WRifle
+	w.discover()
+	if !lit(p.X+2*d.Cone-1, p.Y) || lit(p.X-d.Dark-1, p.Y) {
+		t.Fatal("the rifle's scope should lengthen the beam, not the pool")
+	}
+}
+
 // At night a survivor's bullet goes through what nobody can see: a rifle shot down a line
 // misses the creep out in the dark and hits the one in sight, and by day it hits both.
 func TestNightShotsOnlyFindWhatIsSeen(t *testing.T) {

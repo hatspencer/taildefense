@@ -173,7 +173,7 @@ async function main(): Promise<void> {
     onText(m) {
       if (m.t === 'toast') hud.toast(m.text, m.level);
       else if (m.t === 'status') hud.status(m.text);
-      else if (m.t === 'difficulty') game.setDifficulty(m.difficulty, m.dark);
+      else if (m.t === 'difficulty') game.setDifficulty(m.difficulty, m.dark, m.cone);
     },
     onConn(state, detail) { hud.setConn(state, detail); },
   };

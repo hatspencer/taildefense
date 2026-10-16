@@ -104,7 +104,8 @@ export class FogOfWar {
     const up = me && me.flags & PF_ALIVE;
     if (up) this.uEye.value.set(game.prx[me.id], game.pry[me.id]);
     else this.uEye.value.set(tx, tz);
-    const r = (game.welcome?.dark || SIGHT) * (up && me.cur === RIFLE ? RIFLE_SIGHT : 1) * see;
+    // With a flashlight the haze sits out at the end of its beam.
+    const r = (game.welcome?.cone || game.welcome?.dark || SIGHT) * (up && me.cur === RIFLE ? RIFLE_SIGHT : 1) * see;
     this.uNear.value += (r * 0.55 - this.uNear.value) * k;
     this.uFar.value += (r * 1.15 - this.uFar.value) * k;
     this.uHaze.value += (Math.min(1, (1 - see) / 0.6) * 0.9 - this.uHaze.value) * k;
