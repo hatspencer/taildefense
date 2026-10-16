@@ -884,22 +884,33 @@ const gun = (g: Gun, extra?: (b: Buf, r: R) => void): Maker => (sr, r) => {
   return b;
 };
 
+// The mechanism heard after a shot, on top of it: brass on the ground, a pump, a bolt worked,
+// a turret's ring. [length, extra]. A gun played from a recording plays its mechanism as its
+// own sound, '<gun>Mech', at the same moment: the recordings are the shot alone.
+export const MECH: Record<string, [number, (b: Buf, r: R) => void]> = {
+  pistol: [0.9, (b, r) => brass(b, r, 0.3 + r() * 0.08, 0.05)],
+  shotgun: [1.4, (b, r) => pump(b, r, 0.36, 0.12)],
+  rifle: [2, (b, r) => { bolt(b, r, 0.5, 0.1); brass(b, r, 0.72, 0.04); }],
+  turretGun: [0.6, (b, r) => ping(b, 0.04, [1450, 2310], 0.02, 0.06 + r() * 0.02)],
+  sniper: [2.4, (b, r) => { click(b, r, 0.5, 1800, 0.08, 0.004, 600); slide(b, r, 0.53, 0.08, 2400, 0.04); click(b, r, 0.62, 2600, 0.09, 0.004, 900); }],
+};
+
 // name: [variants, maker, rate]. A loop has one variant. rate caps the sample rate a sound is
 // made at: the long, low ones (explosions, voices, sirens) lose nothing at 24 kHz and take
 // half the memory and half the time to make; a gun's crack needs the full rate.
 const LOW = 24000;
 export const RECIPES: Record<string, [number, Maker, number?]> = {
-  pistol: [4, gun(PISTOL, (b, r) => brass(b, r, 0.3 + r() * 0.08, 0.05))],
-  shotgun: [3, gun(SHOTGUN, (b, r) => pump(b, r, 0.36, 0.12))],
+  pistol: [4, gun(PISTOL, MECH.pistol[1])],
+  shotgun: [3, gun(SHOTGUN, MECH.shotgun[1])],
   smg: [5, gun(SMG)],
-  rifle: [3, gun(RIFLE, (b, r) => { bolt(b, r, 0.5, 0.1); brass(b, r, 0.72, 0.04); })],
+  rifle: [3, gun(RIFLE, MECH.rifle[1])],
   minigun: [6, gun(MINIGUN)],
   rocket: [3, (sr, r) => rocketLaunch(sr, r, false)],
   missile: [3, (sr, r) => rocketLaunch(sr, r, true)],
   crowbar: [3, crowbar],
-  turretGun: [4, gun(TURRET_GUN, (b, r) => ping(b, 0.04, [1450, 2310], 0.02, 0.06 + r() * 0.02))],
+  turretGun: [4, gun(TURRET_GUN, MECH.turretGun[1])],
   cannon: [3, gun(CANNON, (b, r) => ping(b, 0.35, [610, 1530, 2470], 0.12, 0.03 + r() * 0.01))],
-  sniper: [3, gun(SNIPER, (b, r) => { click(b, r, 0.5, 1800, 0.08, 0.004, 600); slide(b, r, 0.53, 0.08, 2400, 0.04); click(b, r, 0.62, 2600, 0.09, 0.004, 900); })],
+  sniper: [3, gun(SNIPER, MECH.sniper[1])],
   pod: [2, (sr, r) => { const b = new Buf(sr, 0.3); thud(b, r, 0, 220, 130, 0.03, 0.7, 0.5); click(b, r, 0, 1500, 0.6, 0.004, 800); return b.normalize(0.5).fadeOut(); }],
   doorGun: [4, gun(DOORGUN)],
   tesla: [4, tesla],
@@ -956,6 +967,7 @@ for (const [s, p] of [['m', 1], ['f', 1.7]] as const) {
   RECIPES['down_' + s] = [2, (sr, r) => downed(sr, r, p), LOW];
   RECIPES['revived_' + s] = [2, (sr, r) => revived(sr, r, p)];
 }
+for (const [g, [len, extra]] of Object.entries(MECH)) RECIPES[g + 'Mech'] = [3, (sr, r) => { const b = new Buf(sr, len); extra(b, r); return b.fadeOut(0.05); }];
 for (let w = 0; w < 6; w++) {
   RECIPES['reload' + w] = [1, (sr, r) => reload(sr, r, w, false)];
   RECIPES['reloaded' + w] = [1, (sr, r) => reload(sr, r, w, true)];

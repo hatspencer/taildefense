@@ -1,6 +1,6 @@
 // Bundles the client into ../internal/web/dist, which the td binary embeds.
 import * as esbuild from 'esbuild';
-import { copyFileSync, mkdirSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 
 const out = '../internal/web/dist';
 const dev = process.argv.includes('--dev');
@@ -17,6 +17,13 @@ const worker = await esbuild.build({
   legalComments: 'none',
   logLevel: 'warning',
 });
+// The recorded sounds, src/sound/samples/<name>_<variant>.mp3, inlined as base64 by name for
+// the same reason: the page fetches nothing beside itself.
+const samples = {};
+for (const f of readdirSync('src/sound/samples').filter((f) => f.endsWith('.mp3')).sort((a, b) => a.localeCompare(b, 'en', { numeric: true }))) {
+  const name = f.slice(0, f.lastIndexOf('_'));
+  (samples[name] ??= []).push(readFileSync(`src/sound/samples/${f}`).toString('base64'));
+}
 await esbuild.build({
   entryPoints: ['src/main.ts'],
   bundle: true,
@@ -27,7 +34,7 @@ await esbuild.build({
   format: 'iife',
   target: 'es2020',
   outfile: `${out}/app.js`,
-  define: { __SOUND_WORKER__: JSON.stringify(worker.outputFiles[0].text) },
+  define: { __SOUND_WORKER__: JSON.stringify(worker.outputFiles[0].text), __SOUND_SAMPLES__: JSON.stringify(JSON.stringify(samples)) },
   legalComments: 'none',
   logLevel: 'warning',
 });

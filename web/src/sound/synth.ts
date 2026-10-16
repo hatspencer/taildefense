@@ -2,10 +2,14 @@ import { RECIPES, render } from './bank';
 
 // The worker's code, put in by the build (web/build.mjs).
 declare const __SOUND_WORKER__: string;
+// The recorded sounds, put in by the build: JSON of name -> each variant's MP3 in base64.
+declare const __SOUND_SAMPLES__: string;
 
-// The sound engine: plays the bank's sounds through WebAudio. The whole bank is rendered once
-// the context starts, in a worker so no frame waits on it, guns first; a sound asked for
-// before it is ready is skipped. Every play is a buffer source through a distance filter, a gain and a pan, with a send into one shared reverb: open
+// The sound engine: plays the bank's sounds through WebAudio. A sound with recordings (CC0,
+// cut by hand into src/sound/samples) is decoded from them; the rest of the bank is rendered
+// once the context starts, in a worker so no frame waits on it, guns first. A recording the
+// browser won't decode falls back to its recipe. A sound asked for before it is ready is
+// skipped. Every play is a buffer source through a distance filter, a gain and a pan, with a send into one shared reverb: open
 // ground with buildings and trees round it, which is what makes a gunshot sound outdoors.
 
 // More voices than this at once and the new ones are dropped, as are more than SAME of one
@@ -41,6 +45,8 @@ export class Synth {
   private vol: number;
   private warmQueue: string[] = [];
   private worker: Worker | null = null;
+  // name -> its recordings, for the sounds played from them rather than made.
+  private samples: Record<string, string[]> = {};
   // Whether the player has clicked or pressed a key yet: before that a browser refuses to
   // start sound, and says so in the console.
   private gestured = false;
@@ -90,12 +96,14 @@ export class Synth {
       send.gain.value = 0.55;
       send.connect(verb).connect(master);
       this.ctx = ctx; this.master = master; this.reverb = send;
-      const names = [...FIRST, ...Object.keys(RECIPES).filter((k) => !FIRST.includes(k))];
-      for (const n of names) for (let v = 0; v < RECIPES[n][0]; v++) this.warmQueue.push(n + '#' + v);
+      try { this.samples = JSON.parse(__SOUND_SAMPLES__); } catch { this.samples = {}; }
+      for (const [name, list] of Object.entries(this.samples)) list.forEach((b64, v) => this.decode(name, v, b64));
+      const made = () => [...FIRST, ...Object.keys(RECIPES).filter((k) => !FIRST.includes(k))].filter((n) => !this.samples[n]);
+      for (const n of made()) for (let v = 0; v < RECIPES[n][0]; v++) this.warmQueue.push(n + '#' + v);
       this.worker = startWorker((name, v, d, rate) => this.store(name, v, d, rate), () => {
         // The worker would not run (a page's policy can forbid it): make the rest here.
         this.worker = null;
-        this.warmQueue = names.flatMap((n) => Array.from({ length: RECIPES[n][0] }, (_, v) => n + '#' + v)).filter((k) => !this.bufs.has(k));
+        this.warmQueue = made().flatMap((n) => Array.from({ length: RECIPES[n][0] }, (_, v) => n + '#' + v)).filter((k) => !this.bufs.has(k));
         this.warm();
       });
       if (this.worker) for (const key of this.warmQueue.splice(0)) {
@@ -129,12 +137,35 @@ export class Synth {
     this.bufs.set(name + '#' + v, b);
   }
 
+  // decode makes variant v of a recorded sound; a recording that won't decode sends the whole
+  // sound back to its recipe.
+  private decode(name: string, v: number, b64: string): void {
+    const bin = atob(b64), a = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+    this.ctx!.decodeAudioData(a.buffer).then((b) => { if (this.samples[name]) this.bufs.set(name + '#' + v, b); }, () => this.unrecord(name));
+  }
+
+  private unrecord(name: string): void {
+    if (!this.samples[name] || !RECIPES[name]) return;
+    for (let v = 0; v < this.samples[name].length; v++) this.bufs.delete(name + '#' + v);
+    delete this.samples[name];
+    for (let v = 0; v < RECIPES[name][0]; v++) {
+      if (this.worker) this.worker.postMessage({ name, v, sr: this.ctx!.sampleRate });
+      else this.warmQueue.push(name + '#' + v);
+    }
+    if (!this.worker) this.warm();
+  }
+
+  // How many variants of a sound there are: its recordings, or as many as its recipe makes.
+  private variants(name: string): number {
+    return this.samples[name]?.length ?? RECIPES[name]?.[0] ?? 0;
+  }
+
   // A variant that is ready, or any ready variant of the sound, or null while none is.
   private buffer(name: string, v: number): AudioBuffer | null {
-    const rec = RECIPES[name];
-    if (!rec) return null;
-    for (let k = 0; k < rec[0]; k++) {
-      const b = this.bufs.get(name + '#' + ((v + k) % rec[0]));
+    const n = this.variants(name);
+    for (let k = 0; k < n; k++) {
+      const b = this.bufs.get(name + '#' + ((v + k) % n));
       if (b) return b;
     }
     return null;
@@ -147,9 +178,7 @@ export class Synth {
     if (!ctx || !this.master || !this.reverb || !this.ready || p.vol < 0.003) return;
     const same = this.playing.get(name) ?? 0;
     if ((this.active >= MAX_VOICES || same >= (SAME_OF[name] ?? SAME)) && !urgent) return;
-    const rec = RECIPES[name];
-    if (!rec) return;
-    const buf = this.buffer(name, Math.floor(Math.random() * rec[0]));
+    const buf = this.buffer(name, Math.floor(Math.random() * this.variants(name)));
     if (!buf) return;
     const at = Math.max(ctx.currentTime, t);
     const src = ctx.createBufferSource();
@@ -160,6 +189,8 @@ export class Synth {
     this.active++;
     this.playing.set(name, same + 1);
     src.onended = () => { this.active--; this.playing.set(name, this.playing.get(name)! - 1); out.disconnect(); };
+    // A recorded shot is the shot alone; the gun's mechanism comes from its recipe.
+    if (this.samples[name] && RECIPES[name + 'Mech']) this.play(name + 'Mech', p, at, rate, urgent);
   }
 
   // chain is source -> distance low-pass -> gain -> pan -> master, plus a reverb send that

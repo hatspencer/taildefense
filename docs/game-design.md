@@ -495,20 +495,26 @@ choice, not a cheat guard.
 
 ## Sound
 
-- **Synthesized, not recorded.** Every sound is rendered by code in the page
-  (`web/src/sound/bank.ts`): no audio files, no licences, nothing to download, and like the
-  art, it is all generated. The bank is made once sound starts, in a worker so no frame waits
-  on it (about 1.3 s of work, guns first; a sound not made yet is skipped), and the long, low
-  sounds (explosions, voices, sirens) at 24 kHz, which they lose nothing by and which halves
-  their memory: about 38 MB in all. Each sound has a few variants from different seeds, and
-  every play is pitched and set up to 15% apart (mostly much less), so fire never sounds like
-  a loop and the ear doesn't tire of a sound repeated exactly.
-- **Guns are built like real shots,** because they are most of what is heard. Six layers: a
-  crack of a millisecond, the muzzle blast overdriven into distortion with its top end dying
-  first, a resonant body in the mids where the bang is, a low boom falling in pitch, a tail
-  rolling away and echoes off the treeline. Then the action: the shotgun's pump, the rifle's
-  bolt, the pistol's brass bouncing. Each gun has its own numbers, so a pistol, an SMG and a
-  sniper tower are told apart by ear.
+- **Recorded where a recording fits, synthesized elsewhere.** The guns, the creeps' voices,
+  blows and deaths, the survivors' cries and the building and buying sounds are CC0
+  recordings (OpenGameArt and Kenney packs, listed in `web/src/sound/samples/SOURCES.md`),
+  cut by hand and levelled to the recipe each replaced: a real gunshot or growl carries more
+  than any recipe. They are in the page itself, about 2 MB of MP3, so it still fetches
+  nothing and runs from disk. The rest (explosions, cannon, rockets, tesla, crowbar, sirens,
+  radio, reloads, the UI) is rendered by code in the page (`web/src/sound/bank.ts`), as is
+  any recording a browser won't decode: no recording fit those better than its recipe, and
+  explosions and sirens built from parameters scale with their blast and phase. The bank is
+  made once sound starts, in a worker so no frame waits on it (guns first; a sound not ready
+  yet is skipped), the long, low sounds at 24 kHz. Each sound has a few variants, and every
+  play is pitched and set up to 15% apart (mostly much less), so fire never sounds like a
+  loop and the ear doesn't tire of a sound repeated exactly.
+- **Guns are real shots,** because they are most of what is heard: the near takes of the Free
+  Firearm Sound Library, a pistol from a Walther, Bersa and 1911, the SMG and minigun from a
+  Carl Gustav and a PPSh, bolt-action rifles, pump shotguns, a Mosin for the sniper tower, an
+  SKS for the gun turret and an AK for the helicopter's door gun. Each is soft-saturated to sit
+  with the rest. The action is still synthesized and played with the shot: the shotgun's pump,
+  the rifle's bolt, the pistol's brass bouncing. The cannon keeps its six-layer recipe (crack,
+  overdriven blast, body, falling boom, tail, echoes off the treeline).
 - **Heard round the camera, outdoors.** Distance makes a sound quieter, darker (low-passed)
   and wetter, and the screen position pans it. One shared reverb is open ground with buildings
   round it, not a hall.
