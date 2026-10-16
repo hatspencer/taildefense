@@ -189,3 +189,18 @@ Recipes kept: explosions, cannon, rockets, tesla, crowbar, sirens, radio, reload
 | frost_1 | Ice spells | ice.wav | 0.00 |
 | frost_2 | Ice spells | coldsnap.wav | 0.00 |
 | thunder_0 | 100 CC0 SFX #2 | sfx100v2_thunder_01.ogg | 0.30 |
+| step_0 | Kenney RPG Audio | footstep02.ogg | 0.01 |
+| step_1 | Kenney RPG Audio | footstep03.ogg | 0.09 |
+| step_2 | Kenney RPG Audio | footstep05.ogg | 0.01 |
+| step_3 | Kenney RPG Audio | footstep06.ogg | 0.02 |
+| step_4 | Kenney RPG Audio | footstep07.ogg | 0.02 |
+| step_5 | Kenney RPG Audio | footstep09.ogg | 0.02 |
+| creepStep_0 | 100 CC0 SFX #2 | sfx100v2_footstep_wet_01.ogg | 0.01 |
+| creepStep_1 | 100 CC0 SFX #2 | sfx100v2_footstep_wet_02.ogg | 0.02 |
+| creepStep_2 | 100 CC0 SFX #2 | sfx100v2_footstep_wet_03.ogg | 0.03 |
+| creepStep_3 | Kenney Impact Sounds | footstep_grass_001.ogg | 0.00 |
+| creepStep_4 | Kenney Impact Sounds | footstep_grass_002.ogg | 0.00 |
+| bigStep_0 | Kenney Impact Sounds | impactSoft_heavy_000.ogg | 0.00 |
+| bigStep_1 | Kenney Impact Sounds | impactSoft_heavy_001.ogg | 0.00 |
+| bigStep_2 | Kenney Impact Sounds | impactSoft_heavy_002.ogg | 0.00 |
+| bigStep_3 | Kenney Impact Sounds | impactSoft_heavy_003.ogg | 0.00 |

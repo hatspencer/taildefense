@@ -581,9 +581,9 @@ choice, not a cheat guard.
 ## Sound
 
 - **Recorded where a recording fits, synthesized elsewhere.** The guns, the creeps' voices,
-  blows and deaths, the survivors' cries and the building and buying sounds are CC0
-  recordings (OpenGameArt and Kenney packs, listed in `web/src/sound/samples/SOURCES.md`),
-  cut by hand and levelled to the recipe each replaced: a real gunshot or growl carries more
+  blows and deaths, the survivors' cries, everyone's footsteps and the building and buying
+  sounds are CC0 recordings (OpenGameArt and Kenney packs, listed in
+  `web/src/sound/samples/SOURCES.md`), cut by hand and levelled to the recipe each replaced: a real gunshot or growl carries more
   than any recipe. They are in the page itself, about 2 MB of MP3, so it still fetches
   nothing and runs from disk. The rest (explosions, cannon, rockets, tesla, crowbar, sirens,
   radio, reloads, the UI) is rendered by code in the page (`web/src/sound/bank.ts`), as is
@@ -616,6 +616,8 @@ choice, not a cheat guard.
   pistol shot: enough to hear something coming in a quiet build phase, nothing in a fight.
   Only the nearest two of the dead are heard stepping each tick (one in a crowd), the big
   ones first, and steps are the first sounds dropped once 32 of the 40 voices are playing.
+  A survivor's is a boot on gravel, a creep's a wet or grassy shuffle, a big one's a heavy
+  soft thud.
 - **Effects only, no music or ambience,** so the game's own sounds carry the mood and the
   warnings.
 - **Each player's own volume,** a setting like any other, saved from the menu.
