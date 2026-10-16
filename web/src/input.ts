@@ -1,7 +1,7 @@
 import type { CameraRig } from './camera';
 import { type Controller, KEYS } from './controller';
 import type { Hud } from './hud/hud';
-import { CROWBAR, PF_ALIVE } from './protocol';
+import { CROWBAR, PF_ALIVE, sellValue } from './protocol';
 
 // Edge-pan band in CSS pixels; wide enough for fractional display scaling, where the last
 // device pixel can land a pixel or more inside the reported edge.
@@ -22,6 +22,8 @@ const PAN_SPEED = 1.2;
 const STEER: Record<string, [number, number]> = { KeyW: [0, 1], KeyS: [0, -1], KeyA: [-1, 0], KeyD: [1, 0] };
 // How often a held direction is sent again; the host drops a steer it stops hearing about.
 const STEER_EVERY = 120;
+// Milliseconds within which a second Delete sells what the first one asked about.
+const SELL_CONFIRM = 1500;
 
 // Keyboard and mouse. Left and right clicks go to the controller; the camera library owns the
 // middle button and the wheel (see camera.ts).
@@ -89,6 +91,19 @@ export class Input {
     this.rig.locked = false; this.rig.follow = false;
     this.rig.center(f.sX[id] + f.sW[id] / 2, f.sY[id] + f.sH[id] / 2, true);
     this.hud.flash(`turret ${n + 1} of ${list.length}`);
+  }
+
+  // Delete: the first press asks, a second within SELL_CONFIRM ms sells the selected structure.
+  // Selling is not on a letter, where a wall meant for the build card's X could sell one.
+  private sellArm = { s: -1, at: 0 };
+  private sell(): void {
+    const ctl = this.ctl, s = ctl.selectedStruct(), now = performance.now();
+    if (s < 0) return;
+    if (this.sellArm.s === s && now - this.sellArm.at < SELL_CONFIRM) { this.sellArm.s = -1; ctl.sellSel(); return; }
+    const f = ctl.game.cur, wd = ctl.game.welcome, d = wd?.structs[f.sKind[s]];
+    if (!d || f.sKind[s] <= 2) return;
+    this.sellArm = { s, at: now };
+    this.hud.flash(`Delete again to sell the ${d.name.toLowerCase()} for ${sellValue(d, f, s, wd!.sellFraction)}g`);
   }
 
   // N, held: the view on the generator; let go, back to how it was. Tapped twice, the hero walks there.
@@ -159,6 +174,7 @@ export class Input {
       hud.toggleMenu();
       return;
     }
+    if (k === 'Delete' || k === 'Backspace') { e.preventDefault(); if (!e.repeat) this.sell(); return; }
     if (k === 'Enter') { e.preventDefault(); this.steer.clear(); hud.openChat(); return; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (k.startsWith('Arrow')) { e.preventDefault(); this.keys.add(k); return; }
@@ -205,7 +221,6 @@ export class Input {
       case 'P': ctl.send({ op: 'pause' }); return;
       case 'M': hud.minimap.toggle(); return;
       case 'U': ctl.upgradeSel(); return;
-      case 'X': ctl.sellSel(); return;
       case 'E': ctl.interact(); return;
       case 'V': ctl.taunt(); return;
     }

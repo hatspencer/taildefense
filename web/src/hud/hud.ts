@@ -456,7 +456,7 @@ export class Hud {
       ['<kbd>R</kbd> or Reload', 'reload now (the button sits next to your ammo)'],
       ['<kbd>B</kbd>', 'build card; its hotkeys pick a structure, left-click places, Shift keeps placing'],
       ['Left-click', 'select a structure, creep or hero'],
-      ['<kbd>U</kbd> / <kbd>X</kbd>', 'upgrade / sell the selected structure; a turret upgrades one track at a time, from its card'],
+      ['<kbd>U</kbd> / <kbd>Del</kbd> twice', 'upgrade / sell the selected structure; a turret upgrades one track at a time, from its card'],
       ['<kbd>C</kbd>', 'armory window (opens by itself when you arrive)'],
       ['<kbd>Y</kbd>', 'ready for the next wave'],
       ['<kbd>T</kbd>', 'the next turret: selects it (upgrade / sell) and looks at it; again for the one after'],
@@ -920,7 +920,7 @@ export class Hud {
       if (f.sKind[id] > 2) {
         const sl = el('button', '', btns);
         const refund = d ? sellValue(d, f, id, wd.sellFraction) : 0;
-        sl.innerHTML = `Sell <span class="gold">+${refund}g</span> <kbd>X</kbd>`;
+        sl.innerHTML = `Sell <span class="gold">+${refund}g</span> <kbd>Del</kbd>`;
         sl.onclick = () => ctl.sellSel();
       }
       if (f.sKind[id] === 2) {

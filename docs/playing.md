@@ -53,7 +53,8 @@ coil, one more missile for the battery. Each button shows what the next level ch
 the coloured pips on the turret's side show its levels, a column per track. Every upgrade also
 gives the turret a little more health. Selling returns half of everything that went into it, less for a damaged one, to whoever
 sells it: anyone can sell anything but the generator and the armory, a teammate's too, and the
-team is told.
+team is told. To sell, press Delete twice on the selected structure (the first press
+says what it will fetch), or use Sell on its card.
 
 ## Out past the walls
 
