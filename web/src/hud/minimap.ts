@@ -1,15 +1,15 @@
 import type { Controller } from '../controller';
-import { EffectKind, lootable, PF_ALIVE, PF_CONNECTED, PingKind, siteX, siteY } from '../protocol';
+import { EffectKind, PF_ALIVE, PF_CONNECTED, PingKind } from '../protocol';
 import { PING_LIFE } from '../state';
 import { cssHex, playerColor } from '../scene/util';
-import { el, esc, show } from './dom';
+import { el } from './dom';
 
 // Grass, dirt, floor, sand, water, tree, rock: the scene's colours, a little more washed out.
 const TILE_RGB = [[78, 104, 54], [116, 96, 64], [112, 110, 100], [160, 146, 104], [48, 86, 104], [42, 62, 34], [94, 90, 80]];
 const WIDTH = 210;
-const GUARD = ['unguarded', 'lightly guarded', 'guarded', 'a lair', 'a garrison and its warlord'];
 
-// A 2D map: prerendered terrain, structures, creeps, heroes and the camera's view.
+// A 2D map: prerendered terrain, structures, creeps, heroes and the camera's view. Loot sites
+// are not on it: they are found by walking the ground.
 export class Minimap {
   canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -19,8 +19,6 @@ export class Minimap {
   private drag = false;
   private last = 0;
   private dpr = 1;
-  private tip: HTMLElement;
-  private hoverSite = -1;
   // Expanded (M): the map fills the middle of the screen.
   expanded = false;
   private box: HTMLElement;
@@ -31,7 +29,6 @@ export class Minimap {
     parent.appendChild(this.canvas);
     el('div', 'mmcap', parent, 'Map · M or Esc to close');
     window.addEventListener('resize', () => { if (this.expanded) this.size(); });
-    this.tip = el('div', 'mmtip panel hidden', parent);
     this.ctx = this.canvas.getContext('2d')!;
     this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     this.canvas.addEventListener('pointerdown', (e) => {
@@ -45,10 +42,8 @@ export class Minimap {
     this.canvas.addEventListener('pointermove', (e) => {
       const [x, y] = this.toWorld(e);
       if (this.drag) this.look(x, y);
-      this.hover(e);
     });
     this.canvas.addEventListener('pointerup', () => { this.drag = false; });
-    this.canvas.addEventListener('pointerleave', () => { this.hoverSite = -1; show(this.tip, false); });
   }
 
   toggle(on = !this.expanded): void {
@@ -86,36 +81,6 @@ export class Minimap {
   private toWorld(e: PointerEvent): [number, number] {
     const r = this.canvas.getBoundingClientRect();
     return [(e.clientX - r.left) / r.width * this.ctl.game.w, (e.clientY - r.top) / r.height * this.ctl.game.h];
-  }
-
-  // The nearest loot site within a few screen pixels of the pointer names itself.
-  private hover(e: PointerEvent): void {
-    const wd = this.ctl.game.welcome;
-    if (!wd) return;
-    const r = this.canvas.getBoundingClientRect();
-    const px = r.width / Math.max(1, this.ctl.game.w);
-    let best = -1, bd = 7;
-    for (let i = 0; i < wd.sites.length; i++) {
-      const s = wd.sites[i];
-      if (!lootable(s.kind) || this.ctl.game.unfound(i)) continue;
-      const d = Math.hypot(r.left + siteX(s) * px - e.clientX, r.top + siteY(s) * (r.height / Math.max(1, this.ctl.game.h)) - e.clientY);
-      if (d < bd) { bd = d; best = i; }
-    }
-    this.hoverSite = best;
-    this.updateTip();
-  }
-
-  private updateTip(): void {
-    const g = this.ctl.game, wd = g.welcome, i = this.hoverSite;
-    if (!wd || i < 0 || !wd.sites[i]) { show(this.tip, false); return; }
-    const s = wd.sites[i], f = g.cur;
-    const name = wd.siteKinds[s.kind]?.name ?? 'Loot site';
-    const lvl = Math.max(0, Math.min(4, s.guard ?? 0));
-    const left = g.guardsLeft(i);
-    const state = f.siteSearched(i) ? 'searched' : left === -2 ? (lvl > 0 ? 'how many, nobody knows' : 'unguarded') : left < 0 ? 'dark inside' : lvl === 0 ? 'unguarded' : left > 0 ? `${left} left · search if you dare` : 'guards cleared';
-    const html = `<b>${esc(name)}</b> ${lvl > 0 ? `<span class="skulls">${'☠'.repeat(lvl)}</span> ${GUARD[lvl]}` : ''} <span class="muted">· ${esc(state)}</span>`;
-    if (this.tip.innerHTML !== html) this.tip.innerHTML = html;
-    show(this.tip, true);
   }
 
   private prerender(): void {
@@ -184,28 +149,6 @@ export class Minimap {
       c.fillStyle = k === 1 ? '#9ec0bc' : k === 2 ? '#e0a63a' : k <= 4 ? '#c8bf9f' : cssHex(playerColor(f.sOwner[i]));
       c.fillRect(f.sX[i] * sx, f.sY[i] * sy, Math.max(1.5, f.sW[i] * sx), Math.max(1.5, f.sH[i] * sy));
     }
-    // Loot sites: amber until searched, then grey; guarded ones carry a rust pip per guard
-    // level while any guard lives.
-    const sd = Math.max(2, 2 * dpr), pip = Math.max(1, dpr);
-    for (let i = 0; i < wd.sites.length; i++) {
-      const s = wd.sites[i];
-      if (!lootable(s.kind) || this.ctl.game.unfound(i)) continue;
-      const x = Math.round(siteX(s) * sx), y = Math.round(siteY(s) * sy);
-      // Unknown under fog of war counts as guarded: it may well be.
-      const lvl = Math.max(0, Math.min(4, s.guard ?? 0)), done = f.siteSearched(i), guards = g.guardsLeft(i) < 0 ? lvl : f.siteGuards(i);
-      const hot = i === this.hoverSite;
-      const d = hot ? sd + 2 * dpr : sd;
-      c.fillStyle = hot ? '#fff' : '#000'; c.fillRect(x - d / 2 - pip, y - d / 2 - pip, d + 2 * pip, d + 2 * pip);
-      c.fillStyle = done ? '#7a776c' : guards > 0 ? '#c86a3c' : '#e8b444'; c.fillRect(x - d / 2, y - d / 2, d, d);
-      if (!done && guards > 0 && lvl > 0) {
-        const pw = 2 * pip, total = lvl * pw + (lvl - 1) * pip;
-        for (let k = 0; k < lvl; k++) {
-          const px = x - total / 2 + k * (pw + pip), py = y - d / 2 - pip - 3 * pip;
-          c.fillStyle = '#000'; c.fillRect(px - pip / 2, py - pip / 2, pw + pip, pw + pip);
-          c.fillStyle = '#d0503a'; c.fillRect(px, py, pw, pw);
-        }
-      }
-    }
     this.drawFog();
     // Supply crates: a blinking green box; a Huey on its way: a green cross where it is.
     const cb = Math.floor(now / 500) % 2 === 0, cr = 3 * dpr;
@@ -263,7 +206,6 @@ export class Minimap {
       c.fillStyle = t === 'N' ? '#f4c25c' : '#d9d1b3';
       c.fillText(t, x, y);
     }
-    if (this.hoverSite >= 0) this.updateTip();
   }
 
   // Team pings: a diamond in the pinger's colour (red for danger) with rings rippling out of

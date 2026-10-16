@@ -237,13 +237,10 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 
 .minimap { position: relative; padding: 6px; flex: none; display: flex; align-items: center; }
 .minimap canvas { display: block; width: var(--mm-w) !important; height: auto !important; cursor: pointer; image-rendering: pixelated; border: 2px solid var(--black); box-shadow: 0 0 0 1px var(--line); }
-.minimap .mmtip { position: absolute; left: 8px; right: 8px; bottom: calc(100% + 6px); padding: 3px 8px 4px; font-family: var(--small); font-size: 12px; pointer-events: none; text-align: left; }
 .minimap .mmcap { display: none; }
 /* M: the map floats big over the middle of the view; the console keeps its slot. */
 .minimap.big canvas { position: fixed; left: 50%; top: var(--mm-top); transform: translateX(-50%); z-index: 40; width: var(--mm-big) !important; box-shadow: 0 0 0 1px var(--line), 0 0 0 100vmax rgba(7,8,10,0.45); }
 .minimap.big .mmcap { display: block; position: fixed; left: 50%; top: calc(var(--mm-top) - 24px); transform: translateX(-50%); z-index: 41; font-family: var(--small); font-size: 13px; color: var(--bone); text-shadow: 2px 2px 0 #000; pointer-events: none; }
-.minimap.big .mmtip { position: fixed; left: 50%; right: auto; bottom: 24px; transform: translateX(-50%); z-index: 41; }
-.minimap .mmtip .skulls { color: var(--rust); letter-spacing: 1px; }
 
 .console { flex: 1; display: flex; gap: 14px; padding: 10px 14px 10px 12px; min-width: 0; }
 .hero { width: var(--hero-w); flex: none; display: flex; flex-direction: column; gap: 5px; min-width: 0; }

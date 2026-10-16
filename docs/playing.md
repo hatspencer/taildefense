@@ -58,7 +58,7 @@ bus is slow to search but gives two finds, if nothing is nesting in it. A fire e
 always hold a medkit, an armoured cash van is slow to crack but pays out in gold, a camper van
 may still have somebody living in it, and a motorbike's panniers take a second. Wrecks lie along the
 roads and are solid: you walk round them, and search one from its side. A glint marks
-the ones nobody has searched yet. Press E on one to walk over and search it, which takes a few
+the ones nobody has searched yet. Sites are not on the map: you find them by going out and looking. Press E on one to walk over and search it, which takes a few
 seconds and stops if you get hit. The further from the base, the better the loot, and searching
 during a wave is luckier. Scavenger gear from the armory raises your luck too. Sometimes a house
 hides a nest, and every fifth wave some of the searched sites are restocked.
