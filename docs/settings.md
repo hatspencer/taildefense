@@ -24,7 +24,9 @@ a profile of its own that keeps the GPU busy even unfocused, and closes it when 
 also prints a clickable link per browser it found, so the game can be started in another one, plus
 a plain link for any browser. A browser's name (`chrome`, `firefox`…) always uses that one,
 `default` opens an ordinary tab in the system's browser, `none` only prints the links, and anything
-else is a command run with the URL. `--no-browser` does the same as `none` for one run, which is
+else is a command run with the URL. In any browser the page keeps the browser's own shortcuts
+(save, print, find, zoom, reload, DevTools) out of the game and asks before a running game's page
+is closed. `--no-browser` does the same as `none` for one run, which is
 handy over SSH.
 
 ## Network

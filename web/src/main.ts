@@ -5,6 +5,7 @@ import { Hud } from './hud/hud';
 import { Labels } from './hud/labels';
 import { Splash } from './hud/splash';
 import { DROP_HOLD, Input } from './input';
+import { Kiosk } from './kiosk';
 import { Lab } from './lab';
 import { type Handlers, type Transport, WsTransport } from './net';
 import { PF_ALIVE, PF_ARMORY, Phase, PingKind, SiteKind, siteX, siteY, TTrack, TURRET_TRACKS, turretRange, type Welcome, wreck } from './protocol';
@@ -87,6 +88,9 @@ async function main(): Promise<void> {
   const labMode = P.has('lab');
   let lab: Lab | null = null;
   const demo = P.has('demo') || labMode;
+  // The browser's shortcuts and menus kept off a real game; the demo, the lab and #dev keep
+  // them, DevTools above all.
+  const kiosk = demo || P.has('dev') ? null : new Kiosk();
   let lostBefore = false;
   try { lostBefore = sessionStorage.getItem('td.webgl') === '1'; } catch { /* storage blocked */ }
   splash?.progress(0.05);
@@ -123,6 +127,7 @@ async function main(): Promise<void> {
     console.warn('taildefense: GPU device lost:', msg);
     hud.toast('GPU device lost; restarting on WebGL2', 2);
     try { sessionStorage.setItem('td.webgl', '1'); } catch { /* storage blocked */ }
+    if (kiosk) kiosk.armed = false;
     setTimeout(() => location.reload(), 1200);
   });
 
@@ -175,7 +180,10 @@ async function main(): Promise<void> {
       else if (m.t === 'status') hud.status(m.text);
       else if (m.t === 'difficulty') game.setDifficulty(m.difficulty, m.dark, m.cone);
     },
-    onConn(state, detail) { hud.setConn(state, detail); },
+    onConn(state, detail) {
+      hud.setConn(state, detail);
+      if (kiosk) kiosk.armed = state !== 'ended';
+    },
   };
 
   if (demo) {
