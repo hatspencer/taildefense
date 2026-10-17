@@ -95,7 +95,7 @@ faces, however the camera is turned, and the camera follows while you walk.
 | E | use what is under the cursor, or else the nearest thing: revive a downed teammate, pick up a dropped weapon, search a loot site, repair a damaged building, shop at the armory (walking there first); on a creep, focus fire on it |
 | Q | the equipped weapon's ultimate, once its meter is full (fighting and reviving fill it) |
 | right-click | on a creep, focus fire on it |
-| Shift / F / V | grenade, dash, airstrike, cast at the cursor at once (bought at the armory) |
+| Shift / F / V | grenade (aim, then left-click; Esc cancels), dash and airstrike at the cursor at once (bought at the armory) |
 | R | reload (or the reload button) |
 | 1 | use a medkit |
 | 2-7, 0 | equip pistol, shotgun, SMG, rifle, minigun, launcher; 0 the crowbar (on brutal) |

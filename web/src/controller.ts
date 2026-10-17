@@ -4,7 +4,7 @@ import { lootable, repairCost, walled, type Command, PF_ALIVE, PF_ARMORY, PF_CON
 import type { Effects } from './scene/effects';
 import type { Game } from './state';
 
-export type Mode = { k: 'none' } | { k: 'ping' } | { k: 'build'; kind: number };
+export type Mode = { k: 'none' } | { k: 'ping' } | { k: 'ability'; slot: number } | { k: 'build'; kind: number };
 // gun: a weapon on the ground, by its id.
 export type Pick = { t: 'creep' | 'struct' | 'hero' | 'site' | 'gun'; id: number } | null;
 
@@ -12,9 +12,13 @@ export type Pick = { t: 'creep' | 'struct' | 'hero' | 'site' | 'gun'; id: number
 // and running the seconds left of one going; left and cool are 0.
 export interface AbilityInfo { name: string; desc: string; key: string; range: number; radius: number; cool: number; target: string; level: number; maxLevel: number; left: number; nextCost: number; charge: number; running: number }
 
-// Ability slots, Overwatch style: the weapon's ultimate on Q, then the bought abilities, all
-// cast at the cursor the moment the key goes down; WASD walks.
+// Ability slots, Overwatch style: the weapon's ultimate on Q, then the bought abilities, cast at
+// the cursor the moment the key goes down, but for the grenade; WASD walks.
 export const KEYS = ['Q', 'Shift', 'F', 'V'];
+
+// The grenade aims first: Shift shows where it can land, a left-click throws, Esc or a
+// right-click puts it away.
+const AIMED = 1;
 
 // Structures that stay picked after one is placed, so a line of them goes down click by click
 // until Esc; anything else is placed once (Shift keeps it).
@@ -50,6 +54,7 @@ export class Controller {
 
   setMode(m: Mode): void {
     this.mode = m;
+    document.body.classList.toggle('cur-target', m.k === 'ability');
     document.body.classList.toggle('cur-ping', m.k === 'ping');
     document.body.classList.toggle('cur-build', m.k === 'build');
     this.onModeChange();
@@ -185,6 +190,11 @@ export class Controller {
       if (this.mode.k === 'ping' && !this.shift) this.setMode({ k: 'none' });
       return;
     }
+    if (this.mode.k === 'ability') {
+      this.castAt(this.mode.slot, x, y);
+      this.setMode({ k: 'none' });
+      return;
+    }
     if (this.mode.k === 'build') {
       const name = this.game.welcome?.structs[this.mode.kind]?.name.toLowerCase() ?? '';
       this.placeBuild(this.mode.kind, this.shift || STICKY.has(name));
@@ -194,8 +204,8 @@ export class Controller {
     if (this.sel?.t === 'struct' && this.game.cur.sKind[this.sel.id] === 2) this.openArmory(true);
   }
 
-  // Right-click: on a creep, focus fire on it; elsewhere nothing. It also backs out of placing
-  // or pinging.
+  // Right-click: on a creep, focus fire on it; elsewhere nothing. It also backs out of placing,
+  // pinging or aiming the grenade.
   rightClick(): void {
     if (this.cancel()) return;
     const me = this.me();
@@ -436,8 +446,9 @@ export class Controller {
   }
 
   // Casts an ability at once: at the cursor for one aimed at a point (pulled in to its range by
-  // the host), on the hero otherwise.
+  // the host), on the hero otherwise. The grenade instead starts aiming, or stops if it was.
   cast(slot: number): void {
+    if (this.mode.k === 'ability' && this.mode.slot === slot) { this.setMode({ k: 'none' }); return; }
     const info = this.ability(slot), me = this.me();
     if (!info || !me) return;
     if (!(me.flags & PF_ALIVE)) { this.onToast('you are dead', 2); return; }
@@ -447,8 +458,12 @@ export class Controller {
       if (info.charge < 1) { this.onToast(`${info.name} is charging (${Math.floor(info.charge * 100)}%): fight to fill it`, 2); return; }
     } else if (info.left > 0) { this.onToast(`${info.name} is not ready (${info.left.toFixed(1)}s)`, 2); return; }
     if (info.target !== 'point') { this.send({ op: 'ability', slot, x: me.x, y: me.y }); return; }
+    if (slot === AIMED) { this.setMode({ k: 'ability', slot }); return; }
     if (!this.groundOk) { this.onToast(`point at the ground and press ${info.key} for ${info.name}`, 1); return; }
-    const x = this.ground.x, y = this.ground.z;
+    this.castAt(slot, this.ground.x, this.ground.z);
+  }
+
+  castAt(slot: number, x: number, y: number): void {
     this.send({ op: 'ability', slot, x, y });
     this.fx.ping(x, y, 0xffd040);
   }

@@ -188,8 +188,10 @@ No ultimate spends ammo while it runs.
 
 ## Abilities
 
-Grenade (Shift), dash (F) and airstrike (V) are bought and levelled at the armory, and cast at
-the cursor the moment you press the key; point at the ground. The grenade goes to level 5, each
+Grenade (Shift), dash (F) and airstrike (V) are bought and levelled at the armory. Shift aims the
+grenade: its range rings your hero and its blast follows the cursor (grey out of range), a
+left-click throws it, and Esc, a right-click or Shift again puts it away. Dash and airstrike cast
+at the cursor the moment you press the key; point at the ground. The grenade goes to level 5, each
 level hitting harder (120 damage at the first, 400 at the fifth), throwing wider and coming back
 sooner; from level 4 it leaves a fire burning where it lands. Dash and airstrike go to level 3.
 
