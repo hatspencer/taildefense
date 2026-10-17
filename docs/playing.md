@@ -162,9 +162,9 @@ fall. Heavy rain, full storms and heavy snow are rare.
 
 ## Signatures
 
-Each weapon has its own signature ability on the right mouse button, stronger with its special upgrades:
+Each weapon has its own signature ability on Q (right-click off a creep casts it too), stronger with its special upgrades:
 
-| weapon | signature (right-click) |
+| weapon | signature (Q) |
 |---|---|
 | Pistol | fan the hammer: six quick shots |
 | Shotgun | concussion: a blast in front that throws back and slows |

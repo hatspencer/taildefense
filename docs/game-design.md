@@ -302,8 +302,11 @@ the army trucks.
 - **Aiming stays automatic.** The hero shoots the nearest creep in range while walking. This is
   co-op tower defense with thousands of creeps, not an aim game; your hands are for walking,
   abilities and building.
-- **The rest follows Overwatch.** The weapon's signature is secondary fire on the right mouse
-  button, at the cursor. The abilities are Shift, E and Q, with the big one (airstrike) on Q.
+- **The rest follows Overwatch.** The weapon's signature is the power used most, so it is on Q,
+  under the left hand, cast at the cursor at once; right-click off a creep casts it too, but
+  the right button is mostly focus fire, and a signature that only went off when the cursor
+  missed a creep was hard to rely on. The abilities are Shift, F and X, with the big one
+  (airstrike) on X: aimed and rare, so a key a little out of the way.
   E is "use": a downed teammate, loot site or supply crate right beside you comes first, so a
   hero out looting searches the wreck at hand whatever is selected. Otherwise it uses what is
   under the cursor, or else the nearest usable thing (a damaged structure, the armory); on a

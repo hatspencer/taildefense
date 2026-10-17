@@ -18,7 +18,7 @@ const RADIUS: Record<string, number> = {
 
 // Ability slots: the weapon's signature on the right mouse button, Overwatch style, then the
 // bought abilities; WASD walks.
-export const KEYS = ['RMB', 'Shift', 'F', 'Q'];
+export const KEYS = ['Q', 'Shift', 'F', 'X'];
 
 // How far E reaches for something to use when nothing is under the cursor, in tiles.
 const USE_REACH = 4;
@@ -202,10 +202,18 @@ export class Controller {
   // cursor for a targeted one. It also backs out of a targeting mode.
   rightClick(): void {
     if (this.cancel()) return;
+    const me = this.me();
+    if (!me || !(me.flags & PF_ALIVE)) return;
+    if (this.hover?.t === 'creep' && this.useAt(this.hover)) return;
+    this.signature();
+  }
+
+  // The weapon's signature, at the cursor at once, with no aiming step: Q, or right-click off
+  // a creep.
+  signature(): void {
     const info = this.ability(0), me = this.me();
     if (!info || !me) return;
-    if (!(me.flags & PF_ALIVE)) return;
-    if (this.hover?.t === 'creep' && this.useAt(this.hover)) return;
+    if (!(me.flags & PF_ALIVE)) { this.onToast('you are dead', 2); return; }
     if (info.left > 0) { this.onToast(`${info.name} is not ready (${info.left.toFixed(1)}s)`, 2); return; }
     if (info.target !== 'point') { this.send({ op: 'ability', slot: 0, x: me.x, y: me.y }); return; }
     if (this.groundOk) this.castAt(0, this.ground.x, this.ground.z);

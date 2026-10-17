@@ -445,8 +445,9 @@ export class Hud {
     const rows: [string, string][] = [
       ['<kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>', 'walk, the way the view faces; the camera follows while you walk. Your hero shoots the nearest creep on its own'],
       ['<kbd>E</kbd>', 'use: a downed teammate, weapon on the ground, loot site or supply crate right beside you first, else what is under the cursor, else the nearest thing. A downed teammate: revive them (stay close until the bar fills) · a dropped weapon: pick it up, upgrades and all · a loot site: search it · a damaged structure: repair · the armory: shop · a creep: focus your fire on it'],
-      ['Right-click', "on a creep: focus fire on it; elsewhere: the weapon's signature, at the cursor"],
-      ['<kbd>Shift</kbd> <kbd>F</kbd> <kbd>Q</kbd>', 'abilities: grenade, dash, airstrike; aim with the cursor, then left-click to cast, right-click or Esc cancels'],
+      ['<kbd>Q</kbd>', "the weapon's signature, at the cursor"],
+      ['Right-click', "on a creep: focus fire on it; elsewhere: the signature, as Q"],
+      ['<kbd>Shift</kbd> <kbd>F</kbd> <kbd>X</kbd>', 'abilities: grenade, dash, airstrike; aim with the cursor, then left-click to cast, right-click or Esc cancels'],
       ['<kbd>Alt</kbd> + left-click, or <kbd>Z</kbd> then click', 'ping the spot for the whole team, in the world or on the map: on a creep it warns, on a loot site it marks loot, on a structure it calls to defend it'],
       ['<kbd>H</kbd>', 'hold position'],
       ['<kbd>V</kbd>', 'taunt: flip them off and shout, pulling every creep nearby onto you, then a cooldown'],
@@ -964,7 +965,7 @@ export class Hud {
     const b2 = el('button', '', btns); b2.innerHTML = 'Armory <kbd>C</kbd>'; b2.onclick = () => ctl.openArmory(true);
     const b3 = el('button', '', btns); b3.innerHTML = 'Stop'; b3.onclick = () => ctl.send({ op: 'stop' });
     const b4 = el('button', '', btns); b4.innerHTML = 'Hold <kbd>H</kbd>'; b4.onclick = () => ctl.send({ op: 'hold' });
-    el('div', 'hint', c, 'WASD to walk · E to use · right-click: signature · F1 for all controls');
+    el('div', 'hint', c, 'WASD to walk · E to use · Q: signature · F1 for all controls');
   }
 
   private updateMode(): void {
