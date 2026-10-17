@@ -264,8 +264,9 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .bar .fill { position: absolute; inset: 0; transform-origin: left; background: var(--moss); box-shadow: inset 0 2px 0 rgba(255, 255, 230, 0.22), inset 0 -2px 0 rgba(0, 0, 0, 0.25); }
 .bar::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 7px, rgba(0, 0, 0, 0.42) 7px 9px); pointer-events: none; }
 .bar.ammo .fill { background: var(--amber); }
-.bar .stam { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; z-index: 2; transform-origin: left; background: #8fc4d8; box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.6); }
-.bar .stam.full { opacity: 0.45; }
+.bar.stamina { height: 10px; }
+.bar .stam { background: #6fb6d6; }
+.bar .stam.full { opacity: 0.7; }
 .bar .stam.winded { background: var(--rust); animation: winded 0.5s steps(2) infinite; }
 @keyframes winded { 50% { opacity: 0.35; } }
 .bar.reload .fill { background: var(--steel); }
