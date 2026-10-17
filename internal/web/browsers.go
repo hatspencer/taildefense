@@ -152,7 +152,8 @@ func (b Browser) args(url string) ([]string, error) {
 }
 
 // firefoxPrefs quiets a fresh Firefox profile: no welcome tour, no default browser
-// question, no full screen warning, the GPU used.
+// question, no full screen warning, the GPU used, and no DevTools: the page cancels their keys,
+// but Firefox opens them before a page hears of it.
 func firefoxPrefs(profile string) error {
 	prefs := `user_pref("browser.shell.checkDefaultBrowser", false);
 user_pref("browser.aboutwelcome.enabled", false);
@@ -162,6 +163,7 @@ user_pref("toolkit.telemetry.reportingpolicy.firstRun", false);
 user_pref("full-screen-api.warning.timeout", 0);
 user_pref("layers.acceleration.force-enabled", true);
 user_pref("webgl.force-enabled", true);
+user_pref("devtools.policy.disabled", true);
 `
 	return os.WriteFile(filepath.Join(profile, "user.js"), []byte(prefs), 0o600)
 }

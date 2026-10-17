@@ -24,3 +24,6 @@ camera-controls, esbuild). `web/PROTOCOL.md` is the contract between `td` and th
 `#lab` is the animation bench: every creep kind walking, idle, attacking, hit, burning, asleep
 and dying, beside the survivors' poses; `#lab=0`…`#lab=7` looks at one creep row, `#lab=h` at the
 survivors (`#lab=h0`…`#lab=h7` at one of them), and `&dist=11` brings the camera in.
+A real game cancels the browser's shortcuts, DevTools' among them, and asks before the page is
+left; add `&dev` after the token in its URL to keep them (td's own Firefox profile has DevTools
+off whatever the URL says).

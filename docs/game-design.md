@@ -328,6 +328,14 @@ the army trucks.
   in a fight.
 - **The taunt is rude.** The survivor turns to the camera, flips the horde off and shouts. It's
   the funniest thing in the game to do to a brute, and it reads at a glance.
+- **The browser stays out of the game.** A Ctrl+S meant for a slip of the hand, a print dialog,
+  find bar, page zoom, reload, DevTools or a mouse's back button tears you out of a wave. On a
+  real game the page cancels the browser's own shortcuts (Ctrl or Cmd with anything but
+  clipboard and undo, Alt+arrows, the function keys but F11), its right-click menu and Ctrl+wheel
+  zoom, and asks before leaving a game that is still on. Ctrl+W, Ctrl+T and Ctrl+Tab never reach
+  a page, so that question is what catches them. td's Firefox profile has DevTools turned off,
+  since Firefox opens them before the page hears the key. The demo, the lab and `#dev` leave the
+  browser alone.
 
 ## Downed and revive
 
