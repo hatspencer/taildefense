@@ -179,6 +179,7 @@ async function main(): Promise<void> {
       if (m.t === 'toast') hud.toast(m.text, m.level);
       else if (m.t === 'status') hud.status(m.text);
       else if (m.t === 'difficulty') game.setDifficulty(m.difficulty, m.dark, m.cone);
+      else if (m.t === 'net') { game.rtt = m.rtt; game.rttAvg = Number.isNaN(game.rttAvg) ? m.rtt : game.rttAvg * 0.8 + m.rtt * 0.2; }
     },
     onConn(state, detail) {
       hud.setConn(state, detail);
@@ -387,6 +388,7 @@ async function main(): Promise<void> {
         `draws ${info.render.drawCalls}`,
         `tris  ${(info.render.triangles / 1000).toFixed(0)}k`,
         `frame ${game.cur.tick}  ${game.interval.toFixed(0)} ms`,
+        `ping  ${Number.isNaN(game.rtt) ? '-' : `${game.rtt.toFixed(0)} ms  avg ${game.rttAvg.toFixed(0)}`}`,
       ].join('\n'));
     }
   };

@@ -21,6 +21,9 @@ export class Game {
   frames = 1;
   frameAt = 0;
   interval = 50;
+  // The last round trip to the host in ms, and its running average; NaN before the first.
+  rtt = NaN;
+  rttAvg = NaN;
 
   // Per creep id.
   private x0 = new Float32Array(MAX_CREEPS); private y0 = new Float32Array(MAX_CREEPS);

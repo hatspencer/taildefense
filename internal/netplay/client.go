@@ -207,6 +207,14 @@ func (c *Client) Send(cmd Cmd) error {
 	return c.bw.Flush()
 }
 
+// Echo sends p to the host, which sends it straight back as a MsgEcho.
+func (c *Client) Echo(p []byte) error {
+	if err := writeMsg(c.bw, MsgEcho, p); err != nil {
+		return err
+	}
+	return c.bw.Flush()
+}
+
 // Close hangs up.
 func (c *Client) Close() {
 	c.once.Do(func() {

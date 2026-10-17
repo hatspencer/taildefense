@@ -154,7 +154,8 @@ export interface Status { t: 'status'; text: string }
 export interface End { t: 'end'; reason: string }
 // The host changed the difficulty mid-game; dark is the night it brings (0 for none).
 export interface DifficultyMsg { t: 'difficulty'; difficulty: { id: number; name: string }; dark: number; cone?: number }
-export type TextMsg = Welcome | Toast | Status | End | DifficultyMsg;
+export interface NetMsg { t: 'net'; rtt: number }
+export type TextMsg = Welcome | Toast | Status | End | DifficultyMsg | NetMsg;
 
 export type Command =
   | { op: 'move' | 'amove'; x: number; y: number }

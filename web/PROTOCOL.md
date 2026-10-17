@@ -370,6 +370,7 @@ u8   nPings           spots players marked for the team this tick
 {"t": "status", "text": "hosting · 2/8 · friends: td join box"}          // about every 2 s
 {"t": "end", "reason": "the host ended the game or went away"}          // then the socket closes
 {"t": "difficulty", "difficulty": {"id": 2, "name": "Hard"}, "dark": 7, "cone": 0}  // the host changed it; dark, cone as in the welcome
+{"t": "net", "rtt": 23.4}                                               // about every 1 s: the round trip to the host in ms, for F3
 ```
 
 ## Browser → server

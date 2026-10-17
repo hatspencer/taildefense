@@ -142,10 +142,12 @@ func Run(ctx context.Context, o Options) (Result, error) {
 		o.Ready(page)
 	}
 
-	s := &session{o: o, cl: cl}
+	s := &session{o: o, cl: cl, start: time.Now()}
 	s.reset(wel)
 	status := time.NewTicker(2 * time.Second)
 	defer status.Stop()
+	echo := time.NewTicker(time.Second)
+	defer echo.Stop()
 	defer func() {
 		if s.b != nil {
 			close(s.b.out)
@@ -190,18 +192,22 @@ func Run(ctx context.Context, o Options) (Result, error) {
 			if o.Status != nil && s.b != nil {
 				s.text(s.b, map[string]any{"t": "status", "text": o.Status()})
 			}
+		case <-echo.C:
+			// Time since start, which the host sends back: monotonic, unlike the wall clock.
+			_ = cl.Echo(binary.LittleEndian.AppendUint64(nil, uint64(time.Since(s.start))))
 		}
 	}
 }
 
 type session struct {
-	o    Options
-	cl   *netplay.Client
-	wel  netplay.Welcome
-	r    *netplay.Replica
-	b    *browser
-	enc  viewEncoder
-	core point
+	o     Options
+	cl    *netplay.Client
+	start time.Time // the zero the echoes are timed from
+	wel   netplay.Welcome
+	r     *netplay.Replica
+	b     *browser
+	enc   viewEncoder
+	core  point
 }
 
 func (s *session) reset(wel netplay.Welcome) {
@@ -244,6 +250,12 @@ func (s *session) host(m netplay.Msg) {
 			if s.b != nil && s.b.ready {
 				s.text(s.b, difficultyMsg(s.wel.Diff))
 			}
+		}
+	case netplay.MsgEcho:
+		// The round trip to the host, for the page's F3 readout.
+		if len(m.Payload) == 8 && s.b != nil && s.b.ready {
+			rtt := time.Since(s.start) - time.Duration(binary.LittleEndian.Uint64(m.Payload))
+			s.text(s.b, map[string]any{"t": "net", "rtt": math.Round(rtt.Seconds()*1e4) / 10})
 		}
 	case netplay.MsgToast:
 		level, text := netplay.DecodeToast(m.Payload)

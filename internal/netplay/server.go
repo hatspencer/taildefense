@@ -67,6 +67,7 @@ type Server struct {
 	joinCh  chan *peer
 	leaveCh chan *peer
 	cmdCh   chan cmdMsg
+	echoCh  chan cmdMsg // Cmd.Text is the echo's payload
 	peers   []*peer
 	info    atomic.Pointer[Info]
 	done    chan struct{}
@@ -107,6 +108,7 @@ func Listen(cfg ServerConfig) (*Server, error) {
 		joinCh:  make(chan *peer),
 		leaveCh: make(chan *peer, 16),
 		cmdCh:   make(chan cmdMsg, 256),
+		echoCh:  make(chan cmdMsg, 16),
 		done:    make(chan struct{}),
 		started: time.Now(),
 	}
@@ -318,6 +320,13 @@ func (s *Server) reader(p *peer, br *bufio.Reader) {
 			case <-s.done:
 				return
 			}
+		case MsgEcho:
+			// Answered from the tick loop, behind the frames already queued, as a command would be.
+			select {
+			case s.echoCh <- cmdMsg{p, Cmd{Text: string(b)}}:
+			case <-s.done:
+				return
+			}
 		}
 	}
 }
@@ -341,6 +350,13 @@ func (s *Server) tickLoop() {
 			s.leave(p)
 		case m := <-s.cmdCh:
 			s.command(m.p, m.cmd)
+		case m := <-s.echoCh:
+			if !m.p.gone {
+				select {
+				case m.p.out <- outMsg{MsgEcho, []byte(m.cmd.Text)}:
+				default:
+				}
+			}
 		case <-t.C:
 			s.tick()
 		}

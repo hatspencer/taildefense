@@ -30,14 +30,15 @@ const DefaultPort = 7787
 
 // Message types.
 const (
-	MsgHello   byte = 1 // c->s JSON Hello
-	MsgWelcome byte = 2 // s->c
-	MsgReject  byte = 3 // s->c reason
-	MsgInfo    byte = 4 // s->c JSON Info, the answer to a probe
-	MsgFrame   byte = 5 // s->c
-	MsgCmd     byte = 7 // c->s
-	MsgToast   byte = 8 // s->c, to one player
-	MsgDiff    byte = 9 // s->c, to everyone: u8 the difficulty the host changed to
+	MsgHello   byte = 1  // c->s JSON Hello
+	MsgWelcome byte = 2  // s->c
+	MsgReject  byte = 3  // s->c reason
+	MsgInfo    byte = 4  // s->c JSON Info, the answer to a probe
+	MsgFrame   byte = 5  // s->c
+	MsgCmd     byte = 7  // c->s
+	MsgToast   byte = 8  // s->c, to one player
+	MsgDiff    byte = 9  // s->c, to everyone: u8 the difficulty the host changed to
+	MsgEcho    byte = 10 // c->s and back: the host returns the payload as it came, to time the round trip
 )
 
 // maxMessage bounds what a peer may make us allocate.

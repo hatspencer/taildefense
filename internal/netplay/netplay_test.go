@@ -161,9 +161,12 @@ func TestHostOnLoopback(t *testing.T) {
 	}
 	frames := 0
 	sentCmd := false
-	toast := ""
+	toast, echo := "", ""
+	if err := c.Echo([]byte("hi")); err != nil {
+		t.Fatal(err)
+	}
 	deadline := time.After(4 * time.Second)
-	for frames < 30 || toast == "" {
+	for frames < 30 || toast == "" || echo == "" {
 		select {
 		case m := <-c.Msgs():
 			if m.Err != nil {
@@ -177,6 +180,8 @@ func TestHostOnLoopback(t *testing.T) {
 				frames++
 			case MsgToast:
 				_, toast = DecodeToast(m.Payload)
+			case MsgEcho:
+				echo = string(m.Payload)
 			}
 			if r.Synced && !sentCmd {
 				me := r.Me()
@@ -188,11 +193,14 @@ func TestHostOnLoopback(t *testing.T) {
 				sentCmd = true
 			}
 		case <-deadline:
-			t.Fatalf("after 4s: %d frames, toast %q", frames, toast)
+			t.Fatalf("after 4s: %d frames, toast %q, echo %q", frames, toast, echo)
 		}
 	}
 	if toast == "" {
 		t.Error("no toast for a purchase away from the armory")
+	}
+	if echo != "hi" {
+		t.Errorf("echo = %q, want the payload back", echo)
 	}
 	// A wrong protocol is refused with both versions named.
 	_, _, err = dialRaw(ctx, addr, Hello{Proto: Proto + 1, Version: "old", Name: "x"})
