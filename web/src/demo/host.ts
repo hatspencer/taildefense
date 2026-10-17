@@ -6,7 +6,7 @@ import {
   type Command, MAX_CREEPS, Tile, Phase, Order, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_FIRING,
   PF_HURT, PF_MOVING, PF_READY, PF_RELOADING, CF_BURNING, CF_SLOWED, CF_GUARD, CF_HUNTING, CF_SIEGE, CF_ASLEEP,
   CF_WINDUP, CF_STRIKE, WEAPON_SLOTS,
-  BlastKind, EffectKind, Emote, type SiteDef, SiteKind, TRACER_HELI, WET, Weather, type Welcome,
+  BlastKind, EffectKind, Emote, type SiteDef, SiteKind, TRACER_HELI, TRACER_ULT, WET, Weather, type Welcome,
 } from '../protocol';
 import { ABILITY_RADIUS, CREEPS, STRUCTS, WEAPON_BASE, WEATHERS, demoWelcome, turretStats } from './defs';
 import { Writer } from './encode';
@@ -42,7 +42,8 @@ interface DPlayer {
   id: number; name: string; bot: boolean; x: number; y: number; aim: number; hp: number; maxHp: number;
   cur: number; ammo: number; reloadLeft: number; respawn: number; gold: number; kills: number; damage: number;
   owned: number; levels: Uint8Array; gear: Uint8Array; order: number; tx: number; ty: number; target: number;
-  buildKind: number; repairId: number; buff: number; buffLeft: number; abLevel: number[]; abCool: number[];
+  // buff: the weapon whose ultimate runs + 1, 0 for none; ult its meter, 0..1.
+  buildKind: number; repairId: number; buff: number; buffLeft: number; ult: number; abLevel: number[]; abCool: number[];
   ready: boolean; fireCd: number; shot: number; hurt: number; harm: number; moving: boolean; wander: number;
   site: number; searchT: number; revTarget: number; channel: number; emoteLeft: number; tauntCool: number; downT: number; look: number;
   medkits: number; heal: number; steerX: number; steerY: number; steerLeft: number;
@@ -52,6 +53,9 @@ interface DPlayer {
 }
 interface DStruct { alive: boolean; kind: number; x: number; y: number; w: number; h: number; hp: number; maxHp: number; level: number; lv: number[]; owner: number; cd: number }
 interface DEffect { kind: number; x0: number; y0: number; x: number; y: number; r: number; left: number; total: number; owner: number; dmg: number }
+
+// How much faster each weapon fires under its ultimate, as the host's playerStats has it.
+const ULT_RATE = [1, 2.5, 2, 1, 1.8, 1, 2];
 
 export class DemoHost implements Transport {
   private wr = new Writer();
@@ -245,7 +249,7 @@ export class DemoHost implements Transport {
       id, name, bot, x, y, aim: 0, hp: 100, maxHp: 100, cur, ammo: WEAPON_BASE[cur].mag, reloadLeft: 0, respawn: 0,
       gold: 400 + id * 150, kills: 40 + id * 17, damage: 9000 + id * 2100, owned: 1 | (1 << cur),
       levels: new Uint8Array(WEAPON_SLOTS * 4), gear: new Uint8Array(4), order: Order.Idle, tx: x, ty: y, target: -1, buildKind: 0,
-      repairId: -1, buff: 0, buffLeft: 0, abLevel: [1, 0, 0, 0], abCool: [0, 0, 0, 0], ready: bot, fireCd: 0, shot: 0, hurt: 0, harm: 0,
+      repairId: -1, buff: 0, buffLeft: 0, ult: 0, abLevel: [1, 0, 0, 0], abCool: [0, 0, 0, 0], ready: bot, fireCd: 0, shot: 0, hurt: 0, harm: 0,
       moving: false, wander: 2 + id, site: -1, searchT: 0, revTarget: -1, channel: 0, emoteLeft: 0, tauntCool: 0, downT: 0, medkits: 1, heal: 0, steerX: 0, steerY: 0, steerLeft: 0, gunId: 0, st: [0, 0, 0, 0, 0, 0],
       // A random survivor, a different outfit for each.
       look: ((Math.floor(this.rnd() * 0x10000000) << 4) | (id * 3 % 10)) >>> 0,
@@ -529,7 +533,11 @@ export class DemoHost implements Transport {
     const k = this.cKind[id];
     const d = Math.max(1, dmg - (k === 3 ? 4 : k === 5 ? 9 : k === 7 ? 6 : 0));
     this.cHp[id] -= d;
-    if (by) by.damage += d;
+    if (by) {
+      by.damage += d;
+      // The meter fills faster than the host's, so the demo shows ultimates.
+      if (by.buffLeft <= 0) by.ult = Math.min(1, by.ult + d / 2500);
+    }
     if (this.cSite[id] >= 0 && this.cState[id] !== G_HUNT) this.wakeSite(this.cSite[id]);
     if (this.cHp[id] <= 0) this.kill(id, by, true);
   }
@@ -756,7 +764,8 @@ export class DemoHost implements Transport {
     const tx = this.cX[target], ty = this.cY[target];
     p.aim = Math.atan2(ty - p.y, tx - p.x);
     const mx = p.x + Math.cos(p.aim) * 0.6, my = p.y + Math.sin(p.aim) * 0.6;
-    const dmg = w.dmg * (1 + 0.22 * p.levels[p.cur * 4]) * (p.buff === 4 ? 1.5 : 1);
+    const ult = p.buffLeft > 0 && p.buff === p.cur + 1, tk = p.cur + (ult ? TRACER_ULT : 0);
+    const dmg = w.dmg * (1 + 0.22 * p.levels[p.cur * 4]);
     if (p.cur === 1) {
       // Shotgun: a spread of pellets, each passing through the first creep into the next,
       // as the host's hitscan does.
@@ -775,21 +784,21 @@ export class DemoHost implements Transport {
           if (t < t1) { t2 = t1; i2 = i1; t1 = t; i1 = id; } else if (t < t2) { t2 = t; i2 = id; }
         }
         const end = i2 >= 0 ? t2 : w.range;
-        this.tracer(mx, my, p.x + dx * end, p.y + dy * end, p.cur);
+        this.tracer(mx, my, p.x + dx * end, p.y + dy * end, tk);
         if (i1 >= 0) this.hurt(i1, dmg, p);
         if (i2 >= 0 && this.cAlive[i2]) this.hurt(i2, dmg, p);
       }
     } else if (w.fire === 'rocket') {
-      this.tracer(mx, my, tx, ty, p.cur);
+      this.tracer(mx, my, tx, ty, tk);
       this.blast(tx, ty, 3, 0, dmg, p);
     } else {
       const sx = (this.rnd() - 0.5) * 0.4, sy = (this.rnd() - 0.5) * 0.4;
-      this.tracer(mx, my, tx + sx, ty + sy, p.cur);
+      this.tracer(mx, my, tx + sx, ty + sy, tk);
       this.hurt(target, dmg, p);
     }
-    p.ammo--;
+    if (!ult) p.ammo--;
     p.shot = 0.2;
-    p.fireCd += 1 / (w.rate * (1 + 0.13 * p.levels[p.cur * 4 + 1]) * (p.buff === 2 ? 2 : 1));
+    p.fireCd += 1 / (w.rate * (1 + 0.13 * p.levels[p.cur * 4 + 1]) * (ult ? ULT_RATE[p.cur] : 1));
     if (p.ammo <= 0) p.reloadLeft = w.reload;
   }
 
@@ -842,7 +851,10 @@ export class DemoHost implements Transport {
     p.harm = Math.max(0, p.harm - (p.bot ? 24 : 6) * DT);
     p.shot = Math.max(0, p.shot - DT);
     for (let i = 0; i < 4; i++) p.abCool[i] = Math.max(0, p.abCool[i] - DT);
-    if (p.buffLeft > 0) { p.buffLeft -= DT; if (p.buffLeft <= 0) p.buff = 0; }
+    if (p.buffLeft > 0) {
+      p.buffLeft -= DT;
+      if (p.buffLeft <= 0) { if (p.buff === 1) this.deadEye(p); p.buff = 0; }
+    }
     p.hp = Math.min(p.maxHp, p.hp + (0.3 + 1.5 * p.gear[2]) * DT);
     if (p.heal > 0) { p.heal = Math.max(0, p.heal - DT); p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.4 / 3 * DT); }
     if (p.bot) {
@@ -1042,14 +1054,15 @@ export class DemoHost implements Transport {
     if (p.hp <= 0) return;
     const lvl = p.abLevel[slot];
     if (lvl <= 0) { this.toast('ability not learned yet'); return; }
+    if (slot === 0 && (p.ult < 1 || p.buffLeft > 0)) { this.toast(p.buffLeft > 0 ? 'still going' : `charging: ${Math.floor(p.ult * 100)}%`); return; }
     if (p.abCool[slot] > 0) { this.toast(`not ready: ${p.abCool[slot].toFixed(1)}s`); return; }
     const a = this.welcome.abilities[slot];
-    const sig = this.welcome.weapons[p.cur].sig;
-    const range = slot === 0 ? sig.range : a.range;
-    const d = Math.hypot(x - p.x, y - p.y);
-    if (range > 0 && d > range + 0.5) { this.toast('out of range'); return; }
+    const u = this.welcome.weapons[p.cur].ult;
+    const range = slot === 0 ? u.range : a.range;
+    let d = Math.hypot(x - p.x, y - p.y);
+    if (range > 0 && d > range) { x = p.x + (x - p.x) / d * range; y = p.y + (y - p.y) / d * range; d = range; }
     p.aim = Math.atan2(y - p.y, x - p.x);
-    p.abCool[slot] = slot === 0 ? sig.cool : a.cool[lvl - 1];
+    if (slot !== 0) p.abCool[slot] = a.cool[lvl - 1];
     if (slot === 1) this.effects.push({ kind: 1, x0: p.x, y0: p.y, x, y, r: ABILITY_RADIUS[1], left: 8, total: 8, owner: p.id, dmg: 120 });
     else if (slot === 2) {
       // Dash: a quick hop towards the point, stopping short of anything solid.
@@ -1063,15 +1076,28 @@ export class DemoHost implements Transport {
     }
     else if (slot === 3) this.effects.push({ kind: 3, x0: x, y0: y, x, y, r: ABILITY_RADIUS[3], left: 30, total: 30, owner: p.id, dmg: 400 });
     else {
-      switch (p.cur) {
-        case 0: for (let i = 0; i < 6; i++) { const t = this.nearest(x, y, 3); if (t >= 0) this.fire(p, t); } p.fireCd = 0; break;
-        case 1: this.blast(p.x + Math.cos(p.aim) * 2.5, p.y + Math.sin(p.aim) * 2.5, 4, 3, 40, p); break;
-        case 3: this.tracer(p.x, p.y, p.x + Math.cos(p.aim) * 40, p.y + Math.sin(p.aim) * 40, 3); break;
-        case 5: for (let i = 0; i < 4; i++) this.blast(x + (this.rnd() - 0.5) * 6, y + (this.rnd() - 0.5) * 6, 3, 0, 120, p); break;
-        default: p.buff = p.cur; p.buffLeft = 6;
-      }
+      p.ult = 0;
+      if (p.cur === 5) {
+        // Cluster MIRV: the rocket to the point, then its bomblets round it.
+        this.tracer(p.x, p.y, x, y, 5 + TRACER_ULT);
+        for (let i = 0; i < 10; i++) {
+          const a2 = this.rnd() * Math.PI * 2, r = 4.5 * Math.sqrt(this.rnd());
+          this.blast(x + Math.cos(a2) * r, y + Math.sin(a2) * r, 3, 0, 140, p);
+        }
+      } else { p.buff = p.cur + 1; p.buffLeft = u.time; }
     }
   }
+  // Dead Eye's volley once the marking is done: one shot at every creep near enough.
+  private deadEye(p: DPlayer): void {
+    const ids = this.q, n = this.query(p.x, p.y, 18, ids, 400);
+    for (let i = 0; i < n; i++) {
+      const id = ids[i];
+      if (!this.cAlive[id]) continue;
+      this.tracer(p.x, p.y, this.cX[id], this.cY[id], TRACER_ULT);
+      this.hurt(id, this.cKind[id] === 3 || this.cKind[id] === 5 || this.cKind[id] === 7 ? 200 : 9999, p);
+    }
+  }
+
   // A Huey with a supply crate, as the host sends one after every tenth wave: here out past the
   // east wall of the first player, on open ground.
   // of the first player, so it is in view.
@@ -1246,7 +1272,7 @@ export class DemoHost implements Transport {
       w.u8(Math.min(255, rev * 255));
       w.u8(p.emoteLeft > 0 ? Emote.Taunt : Emote.None); w.u8(Math.ceil(p.emoteLeft * 10)); w.u16(Math.ceil(p.tauntCool * 10));
       w.u8(255); w.u8(0); w.u32(p.look);
-      w.u8(p.buff); w.u8(Math.max(0, p.buffLeft * 10));
+      w.u8(p.buffLeft > 0 ? p.buff : 0); w.u8(Math.max(0, p.buffLeft * 10)); w.u8(Math.min(255, p.ult * 255));
       for (let a = 0; a < 4; a++) { w.u8(p.abLevel[a]); w.u16(p.abCool[a] * 10); }
       w.u8(p.medkits); w.u8(Math.ceil(p.heal * 10));
       w.u8(p.reloadLeft > 0 ? 1 << p.cur : 0);
@@ -1343,6 +1369,8 @@ export class DemoHost implements Transport {
         break;
       }
       case 'repair': p.order = Order.Repair; p.repairId = cmd.s; break;
+      // The demo keeps no ghosts: it mends what stands, free.
+      case 'fixAll': for (const st of this.structs) if (st.alive) st.hp = st.maxHp; this.toast('repaired everything'); break;
       case 'loot':
         if (!this.sites[cmd.site]) break;
         if (this.searched[cmd.site]) { this.toast('already searched'); break; }
@@ -1397,7 +1425,7 @@ export class DemoHost implements Transport {
       case 'buyAbility': {
         if (!this.atArmory(p)) { this.toast('walk to the armory first'); break; }
         const l = p.abLevel[cmd.slot];
-        if (cmd.slot === 0 || l >= 3) break;
+        if (cmd.slot === 0 || l >= wd.abilities[cmd.slot].costs.length) break;
         const c = wd.abilities[cmd.slot].costs[l];
         if (p.gold < c) { this.toast(`not enough gold: need ${c}, have ${p.gold}`); break; }
         p.gold -= c; p.abLevel[cmd.slot]++;

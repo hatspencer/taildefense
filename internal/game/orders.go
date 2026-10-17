@@ -184,6 +184,12 @@ func (w *World) stride(p *Player) float32 {
 	if p.slowLeft > 0 {
 		speed *= slowSpeed
 	}
+	if p.marking() {
+		speed *= deadEyeWalk
+	}
+	if p.ulting(WSMG) {
+		speed *= 1.25
+	}
 	return speed
 }
 
@@ -288,6 +294,9 @@ func (w *World) stepPlayers() {
 		}
 		if p.BuffLeft > 0 {
 			p.BuffLeft = max(p.BuffLeft-Dt, 0)
+			if p.BuffLeft == 0 && p.Buff == WPistol {
+				w.deadEye(p)
+			}
 		}
 
 		// Every weapon reloads, not only the one in hand: run one dry, switch, and it comes
@@ -318,7 +327,8 @@ func (w *World) stepPlayers() {
 		if p.noise > 0 {
 			p.noise -= Dt
 		}
-		fire := target >= 0
+		// Marking for Dead Eye, the survivor holds fire.
+		fire := target >= 0 && !p.marking()
 		p.Firing = fire && ws.Reload <= 0
 		if fire {
 			c := &w.Creeps[target]
@@ -337,7 +347,10 @@ func (w *World) stepPlayers() {
 					ws.Cool += 1 / st.Rate
 					continue
 				}
-				ws.Ammo--
+				// No reloading while an ultimate runs.
+				if !p.ulting(p.Cur) {
+					ws.Ammo--
+				}
 				ws.Cool += 1 / st.Rate
 				if ws.Ammo == 0 {
 					ws.Reload = st.Reload

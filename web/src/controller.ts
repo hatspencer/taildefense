@@ -1,24 +1,24 @@
 import * as THREE from 'three/webgpu';
 import type { CameraRig } from './camera';
-import { lootable, walled, type Command, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_READY, Phase, PingKind, SiteKind, siteX, siteY, Tile } from './protocol';
+import { lootable, repairCost, walled, type Command, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_READY, Phase, PingKind, SiteKind, siteX, siteY, Tile } from './protocol';
 import type { Effects } from './scene/effects';
 import type { Game } from './state';
 
-export type Mode = { k: 'none' } | { k: 'ping' } | { k: 'ability'; slot: number } | { k: 'build'; kind: number };
+export type Mode = { k: 'none' } | { k: 'ping' } | { k: 'build'; kind: number };
 // gun: a weapon on the ground, by its id.
 export type Pick = { t: 'creep' | 'struct' | 'hero' | 'site' | 'gun'; id: number } | null;
 
-export interface AbilityInfo { name: string; desc: string; key: string; range: number; radius: number; cool: number; target: string; level: number; maxLevel: number; left: number; nextCost: number }
+// One ability slot as the HUD shows it. For the ultimate (slot 0), charge is its meter, 0..1,
+// and running the seconds left of one going; left and cool are 0.
+export interface AbilityInfo { name: string; desc: string; key: string; range: number; radius: number; cool: number; target: string; level: number; maxLevel: number; left: number; nextCost: number; charge: number; running: number }
 
-// Area radius per ability name; the protocol carries no radius (see the report), so the
-// preview falls back to these and draws nothing for unknown ones.
-const RADIUS: Record<string, number> = {
-  grenade: 3, airstrike: 7, 'fan the hammer': 2.5, concussion: 4, firewall: 2.5, barrage: 4, railshot: 0.6, 'piercing shot': 0.6,
-};
-
-// Ability slots: the weapon's signature on the right mouse button, Overwatch style, then the
-// bought abilities; WASD walks.
+// Ability slots, Overwatch style: the weapon's ultimate on Q, then the bought abilities, all
+// cast at the cursor the moment the key goes down; WASD walks.
 export const KEYS = ['Q', 'Shift', 'F', 'V'];
+
+// Structures that stay picked after one is placed, so a line of them goes down click by click
+// until Esc; anything else is placed once (Shift keeps it).
+const STICKY = new Set(['wall', 'gate']);
 
 // How far E reaches for something to use when nothing is under the cursor, in tiles.
 const USE_REACH = 4;
@@ -50,7 +50,6 @@ export class Controller {
 
   setMode(m: Mode): void {
     this.mode = m;
-    document.body.classList.toggle('cur-target', m.k === 'ability');
     document.body.classList.toggle('cur-ping', m.k === 'ping');
     document.body.classList.toggle('cur-build', m.k === 'build');
     this.onModeChange();
@@ -186,37 +185,22 @@ export class Controller {
       if (this.mode.k === 'ping' && !this.shift) this.setMode({ k: 'none' });
       return;
     }
-    switch (this.mode.k) {
-      case 'ability':
-        this.castAt(this.mode.slot, x, y);
-        return;
-      case 'build':
-        this.placeBuild(this.mode.kind, this.shift);
-        return;
+    if (this.mode.k === 'build') {
+      const name = this.game.welcome?.structs[this.mode.kind]?.name.toLowerCase() ?? '';
+      this.placeBuild(this.mode.kind, this.shift || STICKY.has(name));
+      return;
     }
     this.sel = this.hover?.t === 'site' || this.hover?.t === 'gun' ? null : this.hover;
     if (this.sel?.t === 'struct' && this.game.cur.sKind[this.sel.id] === 2) this.openArmory(true);
   }
 
-  // Right-click: on a creep, focus fire on it; anywhere else, the weapon's signature, at the
-  // cursor for a targeted one. It also backs out of a targeting mode.
+  // Right-click: on a creep, focus fire on it; elsewhere nothing. It also backs out of placing
+  // or pinging.
   rightClick(): void {
     if (this.cancel()) return;
     const me = this.me();
     if (!me || !(me.flags & PF_ALIVE)) return;
-    if (this.hover?.t === 'creep' && this.useAt(this.hover)) return;
-    this.signature();
-  }
-
-  // The weapon's signature, at the cursor at once, with no aiming step: Q, or right-click off
-  // a creep.
-  signature(): void {
-    const info = this.ability(0), me = this.me();
-    if (!info || !me) return;
-    if (!(me.flags & PF_ALIVE)) { this.onToast('you are dead', 2); return; }
-    if (info.left > 0) { this.onToast(`${info.name} is not ready (${info.left.toFixed(1)}s)`, 2); return; }
-    if (info.target !== 'point') { this.send({ op: 'ability', slot: 0, x: me.x, y: me.y }); return; }
-    if (this.groundOk) this.castAt(0, this.ground.x, this.ground.z);
+    if (this.hover?.t === 'creep') this.useAt(this.hover);
   }
 
   // What hovering a weapon on the ground says: what it is, its upgrades, who dropped it, and
@@ -438,32 +422,35 @@ export class Controller {
     const a = wd.abilities[slot];
     if (!a) return null;
     if (slot === 0) {
-      const sig = wd.weapons[me.cur]?.sig;
-      if (!sig) return null;
-            return { name: sig.name, desc: sig.desc, key: a.key || KEYS[slot], range: sig.range, radius: sig.radius ?? RADIUS[sig.name.toLowerCase()] ?? 0,
-        cool: sig.cool, target: sig.target, level: Math.max(1, me.abLevel[0]), maxLevel: 1, left: me.abCool[0], nextCost: 0 };
+      // The ultimate of the weapon in hand, or of the one whose ultimate is running.
+      const run = me.buff > 0 && me.buffLeft > 0 ? me.buff - 1 : me.cur;
+      const u = wd.weapons[run]?.ult;
+      if (!u) return null;
+      return { name: u.name, desc: u.desc, key: a.key || KEYS[slot], range: u.range, radius: u.radius, cool: 0, target: u.target,
+        level: Math.max(1, me.abLevel[0]), maxLevel: 1, left: 0, nextCost: 0, charge: me.ult, running: me.buff > 0 ? me.buffLeft : 0 };
     }
     const lvl = me.abLevel[slot];
-    return { name: a.name, desc: a.desc, key: a.key || KEYS[slot], range: a.range, radius: a.radius?.[Math.max(0, lvl - 1)] ?? RADIUS[a.name.toLowerCase()] ?? 0,
+    return { name: a.name, desc: a.desc, key: a.key || KEYS[slot], range: a.range, radius: a.radius?.[Math.max(0, lvl - 1)] ?? 0,
       cool: a.cool[Math.max(0, lvl - 1)] ?? 0, target: a.target, level: lvl, maxLevel: a.costs.length, left: me.abCool[slot],
-      nextCost: lvl < a.costs.length ? a.costs[lvl] : 0 };
+      nextCost: lvl < a.costs.length ? a.costs[lvl] : 0, charge: 0, running: 0 };
   }
 
-  startAbility(slot: number): void {
+  // Casts an ability at once: at the cursor for one aimed at a point (pulled in to its range by
+  // the host), on the hero otherwise.
+  cast(slot: number): void {
     const info = this.ability(slot), me = this.me();
     if (!info || !me) return;
     if (!(me.flags & PF_ALIVE)) { this.onToast('you are dead', 2); return; }
     if (info.level <= 0) { this.onToast(`${info.name} is locked: buy it at the armory`, 2); return; }
-    if (info.left > 0) { this.onToast(`${info.name} is not ready (${info.left.toFixed(1)}s)`, 2); return; }
+    if (slot === 0) {
+      if (info.running > 0) { this.onToast(`${info.name} is still going`, 1); return; }
+      if (info.charge < 1) { this.onToast(`${info.name} is charging (${Math.floor(info.charge * 100)}%): fight to fill it`, 2); return; }
+    } else if (info.left > 0) { this.onToast(`${info.name} is not ready (${info.left.toFixed(1)}s)`, 2); return; }
     if (info.target !== 'point') { this.send({ op: 'ability', slot, x: me.x, y: me.y }); return; }
-    if (this.mode.k === 'ability' && this.mode.slot === slot) { this.setMode({ k: 'none' }); return; }
-    this.setMode({ k: 'ability', slot });
-  }
-
-  castAt(slot: number, x: number, y: number): void {
+    if (!this.groundOk) { this.onToast(`point at the ground and press ${info.key} for ${info.name}`, 1); return; }
+    const x = this.ground.x, y = this.ground.z;
     this.send({ op: 'ability', slot, x, y });
     this.fx.ping(x, y, 0xffd040);
-    if (!this.shift) this.setMode({ k: 'none' });
   }
 
   // --- building ---
@@ -525,6 +512,32 @@ export class Controller {
   repairSel(): void {
     const s = this.selectedStruct();
     if (s >= 0) this.send({ op: 'repair', s });
+  }
+
+  // What rebuilding every ghost and mending every damaged structure costs, as the host
+  // reckons it (FixCost), and how many of each there are.
+  fixCost(): { gold: number; ghosts: number; damaged: number } {
+    const f = this.game.cur, wd = this.game.welcome;
+    let gold = 0, ghosts = 0, damaged = 0;
+    if (!wd) return { gold, ghosts, damaged };
+    for (let i = 0; i < f.nStructs; i++) {
+      const d = wd.structs[f.sKind[i]];
+      if (f.sGhost[i]) { gold += d?.price ?? 0; ghosts++; continue; }
+      if (!d || !f.sAlive[i] || f.sHp[i] > f.sMaxHp[i] - 0.5) continue;
+      gold += repairCost(d, f, i, wd.repairCostPerHP, wd.repairShare);
+      damaged++;
+    }
+    return { gold, ghosts, damaged };
+  }
+
+  // H, or the break banner's button: the base put back in one go, between waves.
+  fixAll(): void {
+    const me = this.me();
+    if (!me || !(me.flags & PF_ALIVE)) { this.onToast('you are down', 2); return; }
+    if (this.game.cur.phase !== Phase.Build) { this.onToast('rebuild and repair only between waves', 2); return; }
+    const c = this.fixCost();
+    if (!c.ghosts && !c.damaged) { this.onToast('nothing to rebuild or repair', 1); return; }
+    this.send({ op: 'fixAll' });
   }
 
   toggleReady(): void {

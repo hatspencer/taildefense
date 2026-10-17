@@ -24,7 +24,7 @@ the same thing to everyone.
 A weapon run dry reloads in the background: switch to another and keep shooting, and the empty
 one comes back full a moment later. Its slot shows a moving strip while it reloads.
 
-Medkits (8) heal 40% of your health over 3 s, unless a hit cuts it short. You start with one and
+Medkits (1) heal 40% of your health over 3 s, unless a hit cuts it short. You start with one and
 carry up to three. Buy them at the armory for 60 gold, or find them in places with a first-aid
 kit, like an ambulance. The gear row that raises regeneration is Vitamins.
 
@@ -34,16 +34,16 @@ and you keep them when you go down.
 
 ## Turrets
 
-Six turrets, from the build menu (B):
+Six turrets, from the build bar (B, then the number):
 
 | | | |
 |---|---|---|
-| Gun turret (T) | 120 | fast single shots at the nearest creep |
-| Cannon (C) | 240 | slow shells that burst on a crowd |
-| Frost tower (I) | 180 | pulses cold round itself, slowing everything in reach |
-| Tesla coil (L) | 320 | lightning that jumps from creep to creep |
-| Sniper tower (N) | 380 | a heavy round every few seconds from far off, at the toughest creep it can see; the answer to brutes and bosses, whose armour shrugs off a gun turret |
-| Missile battery (M) | 420 | a salvo of small rockets, each at a different creep |
+| Gun turret (3) | 120 | fast single shots at the nearest creep |
+| Cannon (4) | 240 | slow shells that burst on a crowd |
+| Frost tower (5) | 180 | pulses cold round itself, slowing everything in reach |
+| Tesla coil (6) | 320 | lightning that jumps from creep to creep |
+| Sniper tower (7) | 380 | a heavy round every few seconds from far off, at the toughest creep it can see; the answer to brutes and bosses, whose armour shrugs off a gun turret |
+| Missile battery (8) | 420 | a salvo of small rockets, each at a different creep |
 
 A turret goes up the way a weapon does: four tracks, damage, fire rate, range and a special,
 each to level 5, bought one at a time from the buttons on its card (select it, or T to step
@@ -57,6 +57,14 @@ team is told. To sell, press Delete twice on the selected structure (the first p
 says what it will fetch), or use Sell on its card. Repairing costs gold by the hit point, never more
 than half of what went into the structure for a full mend, so it is always cheaper than selling
 and building again.
+
+Walls (1) and gates (2) keep placing after each one goes down, so a line goes down click after
+click; Esc stops. A turret places once, unless you hold Shift.
+
+A destroyed building leaves a pale ghost where it stood. Between waves, H (or Rebuild on the top
+bar) shows what it costs to rebuild every ghost and repair everything damaged; H again pays it.
+Rebuilt buildings come back at their first level, owned by whoever built them. Building on a
+ghost clears it, and when the gold runs short the rest waits.
 
 ## Out past the walls
 
@@ -160,21 +168,30 @@ little, a storm throws lightning at creeps out in the open, and snow slows every
 Wet weather is mostly light, a drizzle or a passing thunder shower, and snow mostly a thin
 fall. Heavy rain, full storms and heavy snow are rare.
 
-## Signatures
+## Ultimates
 
-Each weapon has its own signature ability on Q (right-click off a creep casts it too), stronger with its special upgrades:
+Each weapon has an ultimate on Q. Its meter, on the Q slot, fills as you deal damage and revive
+teammates (turrets don't fill it), about once every three waves; it doesn't fill while one is
+running, and going down ends it.
 
-| weapon | signature (Q) |
+| weapon | ultimate (Q) |
 |---|---|
-| Pistol | fan the hammer: six quick shots |
-| Shotgun | concussion: a blast in front that throws back and slows |
-| SMG | bullet hose: double fire rate for 4 s |
-| Rifle | piercing shot: five times the damage through a whole line |
-| Minigun | overdrive: faster and piercing for 5 s |
-| Rocket launcher | barrage: six rockets round a point |
-| Crowbar (brutal) | haymaker: a swing all round that hurts and throws back |
+| Pistol | Dead Eye: slow down and mark everything in sight for 1.5 s, then shoot them all; lethal to all but brutes and bosses, which take a heavy hit |
+| Shotgun | Dragon's breath: 8 s of fast fire that sets creeps alight and shoves them back |
+| SMG | Run and gun: 10 s of double fire rate, quicker feet, no stamina drain and no reloads |
+| Rifle | Railgun: for 10 s every shot goes through everything in its line |
+| Minigun | Overdrive: 10 s faster, tighter and piercing, in red tracers, with no reloads |
+| Rocket launcher | Cluster MIRV: a rocket to the cursor that splits into ten bomblets |
+| Crowbar (brutal) | Berserk: 8 s of double swings that heal you and can't be slowed or stunned |
 
-Grenade, dash and airstrike are bought and levelled at the armory.
+No ultimate spends ammo while it runs.
+
+## Abilities
+
+Grenade (Shift), dash (F) and airstrike (V) are bought and levelled at the armory, and cast at
+the cursor the moment you press the key; point at the ground. The grenade goes to level 5, each
+level hitting harder (120 damage at the first, 400 at the fifth), throwing wider and coming back
+sooner; from level 4 it leaves a fire burning where it lands. Dash and airstrike go to level 3.
 
 ## Waves
 

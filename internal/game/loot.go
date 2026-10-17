@@ -508,8 +508,8 @@ func (w *World) giveGear(p *Player) (string, bool) {
 // giveAbility raises a random unmaxed bought ability by one level.
 func (w *World) giveAbility(p *Player) (string, bool) {
 	var c []int
-	for a := AbSignature + 1; a < NumAbilities; a++ {
-		if p.Abil[a].Lv < MaxAbilityLevel {
+	for a := AbUltimate + 1; a < NumAbilities; a++ {
+		if p.Abil[a].Lv < Abilities[a].Max {
 			c = append(c, a)
 		}
 	}

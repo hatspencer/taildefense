@@ -51,8 +51,8 @@ it here along with the code.
   dark ahead. The minimap keeps the
   team's map, which is the one thing brutal leaves you to find your way back by.
 - **Brutal starts in melee.** Survivors begin with a crowbar and no gun: a short swing that
-  hits up to three creeps in front, never runs dry, and is quiet. Its signature, the haymaker,
-  hits all round and throws everything back. Guns are bought or found as usual; the crowbar is
+  hits up to three creeps in front, never runs dry, and is quiet. Its ultimate, Berserk, doubles
+  the swings, heals by the hit and can't be slowed or stunned. Guns are bought or found as usual; the crowbar is
   never sold or found, so it is brutal's alone.
 
 - **Short breaks** (15 s on Normal) keep the pressure on: enough to shop, repair and drop a
@@ -146,6 +146,11 @@ each wave, but Normal is the reference for timing.
   returns. A wall's hit points are cheap new (20 gold for 320), and at the flat rate alone a
   wall below about half health was cheaper sold and put back than mended; turrets, whose hit
   points are dear, keep the flat rate.
+- **The destroyed leave ghosts, and one key puts the base back.** After a bad wave the break
+  went on clicking every wall back in place. A destroyed building leaves a ghost, and H (or the
+  top bar's button) between waves rebuilds every ghost at its first level and repairs everything
+  damaged, after showing the total. Only between waves, so it is a decision of the break and
+  not a way to refill walls under attack. Building over a ghost clears it.
 
 ## Loot
 
@@ -306,21 +311,26 @@ the long way round, or not at all. Map generation tries the spot again elsewhere
 - **Aiming stays automatic.** The hero shoots the nearest creep in range while walking. This is
   co-op tower defense with thousands of creeps, not an aim game; your hands are for walking,
   abilities and building.
-- **The rest follows Overwatch.** The weapon's signature is the power used most, so it is on Q,
-  under the left hand, cast at the cursor at once; right-click off a creep casts it too, but
-  the right button is mostly focus fire, and a signature that only went off when the cursor
-  missed a creep was hard to rely on. The abilities are Shift, F and V, with the big one
-  (airstrike) on V. None of the three is a build-card key, so they work while placing; the
-  frost tower gave F up to the dash and sits on I, for ice.
-  The taunt went from V to J: a reach, but seldom needed in a split second.
+- **Fighting first, building second, as in Overwatch.** The keys under the left hand are for
+  the fight: Q the ultimate, Shift, F and V the grenade, dash and airstrike, cast at the cursor
+  the moment the key goes down. There is no aim mode: an aim-then-click step was a beat too slow
+  in a crowd, and the cursor is already where you look. Right-click only focuses fire on a
+  creep; it used to cast the signature off a creep, which went off whenever a click missed.
   E is "use": a downed teammate, loot site or supply crate right beside you comes first, so a
   hero out looting searches the wreck at hand whatever is selected. Otherwise it uses what is
   under the cursor, or else the nearest usable thing (a damaged structure, the armory); on a
-  creep it focuses fire. Attack-move went away with click-to-move; Stop is a button on the
-  orders card, and H holds position.
+  creep it focuses fire. R reloads. The taunt is J: a reach, but seldom needed in a split second.
+  Attack-move went away with click-to-move; Stop is a button on the orders card, and hold
+  position came off the keys, since the hero standing still already holds.
+- **Building is a bar of numbers behind B.** 1–8 pick wall, gate, gun, cannon, frost, tesla,
+  sniper, missile, in the order of price, so the build keys never clash with the fight keys,
+  and the letters they used to take (I, L, X) are free. Walls and gates stay picked after each
+  one, because they go down in lines; a turret is one decision, so it places once and Shift
+  keeps it.
 - **The camera follows while you walk.** Arrows and the screen edge still look away, and the
   next step brings it back. The minimap's right-click still walks you there by path.
-- **Numbers are the inventory.** 1–6 are the weapons, 8 the medkit. A weapon run dry reloads in
+- **Numbers are the inventory.** 1 is the medkit, the thing reached for in a hurry; 2–7 the
+  weapons in the order they are bought, 0 the crowbar. A weapon run dry reloads in
   the background, so switching to a loaded one is the fast way out of an empty magazine and
   carrying two guns pays.
 - **Medkits are a decision, not a regen stat.** One heals 40% over 3 s, and a hit cuts it
@@ -345,6 +355,28 @@ the long way round, or not at all. Map generation tries the spot again elsewhere
   a page, so that question is what catches them. td's Firefox profile has DevTools turned off,
   since Firefox opens them before the page hears the key. The demo, the lab and `#dev` leave the
   browser alone.
+
+## Ultimates and abilities
+
+- **An ultimate per weapon, on a meter.** The old signatures were on a cooldown, so they were
+  cast whenever ready and mattered little. An ultimate is rare, about one every three waves, so
+  it is saved for the moment it turns: the meter fills by damage dealt, measured against what a
+  wave holds (ultFull: 70% of three waves' walker-health at the current wave and difficulty), so
+  the pace stays the same as waves grow. A revive gives 15%, so helping fills it too. Turret fire
+  and burning don't count: the meter rewards the survivor's own fighting, not the base's.
+  It doesn't fill while one runs, and going down ends it.
+- **Each ultimate leans into its weapon.** Dead Eye makes the pistol, the weakest gun, the one
+  that clears the screen: a 1.5 s mark at half speed, then a shot at everything in sight, lethal
+  to all but brutes and bosses (200 for them, so it can't erase a boss). Dragon's breath gives
+  the shotgun its crowd control as fire and a shove. The SMG's Run and gun is about moving,
+  the rifle's Railgun about lines, the minigun's Overdrive about holding a lane, the launcher's
+  Cluster MIRV about one big crowd far off, and the crowbar's Berserk about standing in the
+  middle of it. None spends ammo while it runs, so it isn't cut short by a reload.
+- **The shotgun hits harder from further.** 13 a pellet and range 10, with a tighter spread:
+  it was the gun nobody kept past the first armory visit.
+- **The grenade grows with the game.** Five levels where it had three, from 120 damage to 400,
+  wider and quicker each level, and from level 4 it leaves fire burning; a three-level grenade
+  stopped mattering by the mid game, when it was the one ability always at hand.
 
 ## Downed and revive
 

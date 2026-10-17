@@ -3,7 +3,7 @@ import {
   cameraPosition, clamp, cross, float, instancedDynamicBufferAttribute, length, mix, normalize, positionGeometry,
   abs, exp, mrt, normalView, output, vec4, pow, sin, smoothstep, step, time, uniform, uv, vec3,
 } from 'three/tsl';
-import { BlastKind, EffectKind, LOB_WINDUP, TRACER_HELI, TRACER_SHARD, Tile } from '../protocol';
+import { BlastKind, EffectKind, LOB_WINDUP, TRACER_HELI, TRACER_SHARD, TRACER_ULT, Tile } from '../protocol';
 import type { Game } from '../state';
 import { K_ARMORY, K_CORE, K_MISSILE, K_SNIPER, K_TESLA } from './structs';
 import { linInto, writeMatrix } from './util';
@@ -249,26 +249,28 @@ export class Effects {
         }
         continue;
       }
-      // Player weapons, from gun height.
-      const col = TRACER[k] ?? 0xffffff;
-      if (k === 6) {
+      // Player weapons, from gun height; a shot under an ultimate comes TRACER_ULT on and is
+      // red-hot (Dragon's breath burns orange).
+      const ult = k >= TRACER_ULT, wk = ult ? k - TRACER_ULT : k;
+      const col = ult ? (wk === 1 ? 0xff7a1a : 0xff2a1a) : TRACER[wk] ?? 0xffffff;
+      if (wk === 6) {
         // The crowbar: a pale sweep across the front, no muzzle, no smoke.
         const a = Math.atan2(y1 - y0, x1 - x0);
         for (let j = -2; j <= 2; j++) {
           const b = a + j * 0.3;
           this.streaks.add(t + Math.abs(j) * 0.01, x0 + Math.cos(b - 0.3) * dist, 1.0, y0 + Math.sin(b - 0.3) * dist,
-            x0 + Math.cos(b) * dist, 0.9, y0 + Math.sin(b) * dist, 0.12, 0xdde4ee, 0.07, 0, 0, 0.5, 1, 1.2);
+            x0 + Math.cos(b) * dist, 0.9, y0 + Math.sin(b) * dist, 0.12, ult ? col : 0xdde4ee, 0.07, 0, 0, 0.5, 1, 1.2);
         }
         continue;
       }
-      const w = k === 5 ? 0.16 : k === 3 ? 0.08 : 0.06;
-      const life = k === 5 ? 0.25 + dist * 0.01 : 0.06 + dist * 0.004;
-      this.streaks.add(t, x0, 1.12, y0, x1, 0.55, y1, life, col, w, 0, 0, k === 5 ? 0.25 : 0.4, 1, 1.4);
-      if (k === 5) this.smoke.add(t, x0, 1.1, y0, 0, 0.6, 0, 0.8, 0x9a9a9a, 0.4, 1.2, 0, 1, 0.5);
+      const w = (wk === 5 ? 0.16 : wk === 3 ? 0.08 : 0.06) * (ult ? 1.6 : 1);
+      const life = wk === 5 ? 0.25 + dist * 0.01 : 0.06 + dist * 0.004;
+      this.streaks.add(t, x0, 1.12, y0, x1, 0.55, y1, life, col, w, 0, 0, wk === 5 ? 0.25 : 0.4, 1, 1.4);
+      if (wk === 5) this.smoke.add(t, x0, 1.1, y0, 0, 0.6, 0, 0.8, 0x9a9a9a, 0.4, 1.2, 0, 1, 0.5);
       if (flashes++ < 80) {
         const mx = x0 + (x1 - x0) / dist * 0.4, mz = y0 + (y1 - y0) / dist * 0.4;
         this.glow.add(t, mx, 1.12, mz, 0, 0, 0, 0.06, 0xffe0a0, 0.55, 0.2);
-        this.muzzle(t, mx, 1.12, mz, (x1 - x0) / dist, (y1 - y0) / dist, MUZZLE[k] ?? 1, i);
+        this.muzzle(t, mx, 1.12, mz, (x1 - x0) / dist, (y1 - y0) / dist, MUZZLE[wk] ?? 1, i);
       }
       if (i % 2 === 0) this.glow.add(t + life * 0.8, x1, 0.55, y1, (Math.random() - 0.5) * 3, 2, (Math.random() - 0.5) * 3, 0.18, col, 0.18, 0.05, 9);
     }

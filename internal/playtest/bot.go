@@ -229,7 +229,11 @@ func (b *Bot) fight(s *Session, p *game.Player, do func(netplay.Cmd)) {
 		do(netplay.Cmd{Op: netplay.OpAttack, T: c.ID})
 	}
 	for a := 0; a < game.NumAbilities; a++ {
-		if p.Abil[a].Lv > 0 && p.Abil[a].Cool <= 0 && b.rng.IntN(3) == 0 {
+		ready := p.Abil[a].Cool <= 0
+		if a == game.AbUltimate {
+			ready = p.Ult >= 1 && p.BuffLeft <= 0
+		}
+		if p.Abil[a].Lv > 0 && ready && b.rng.IntN(3) == 0 {
 			do(netplay.Cmd{Op: netplay.OpAbility, A: uint8(a), X: c.X, Y: c.Y})
 			break
 		}

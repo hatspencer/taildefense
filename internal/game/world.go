@@ -67,6 +67,7 @@ type Structure struct {
 	Owner     int8             // player who built it, -1 for the starting base
 	Cool      float32
 	Alive     bool
+	Ghost     bool // destroyed, not sold: its outline stays to be rebuilt (see FixAll)
 }
 
 // CX and CY are the structure's centre.
@@ -105,8 +106,9 @@ type Player struct {
 	Cur       WeaponKind
 	Gear      [NumGear]uint8
 	Abil      [NumAbilities]AbilityState
-	Buff      WeaponKind // whose signature buff runs, valid while BuffLeft > 0
+	Buff      WeaponKind // whose ultimate runs, valid while BuffLeft > 0
 	BuffLeft  float32
+	Ult       float32 // the ultimate's meter, 0..1; full, Q fires it
 	Order     Order
 	Kills     uint32
 	Damage    float64
@@ -161,7 +163,7 @@ func (p *Player) Speed() float32 { return 6 * (1 + .08*float32(p.Gear[GearBoots]
 // Tracer is a visible shot for one frame.
 type Tracer struct {
 	X0, Y0, X1, Y1 float32
-	Kind           uint8 // 0..NumWeapons-1 player weapons, 16+ turret kinds, 32 spit
+	Kind           uint8 // 0..NumWeapons-1 player weapons, 8+ the same under an ultimate (TracerUlt), 16+ turret kinds, 32 spit
 }
 
 // TracerSpit marks a spitter's shot, TracerShard a hurler's.
@@ -200,6 +202,7 @@ type Effect struct {
 	Left, Total  float32
 	Damage       float32 // on landing, or per second for a pool
 	Owner        int8
+	Lv           uint8 // a grenade's level
 }
 
 // Toast is a message for one player only, such as why a build was refused.
@@ -250,7 +253,8 @@ type Projectile struct {
 	Damage       float32
 	Blast        float32
 	Owner        int8
-	Turret       bool // a missile battery's: its damage counts as the turret's
+	Turret       bool  // a missile battery's: its damage counts as the turret's
+	Cluster      uint8 // a cluster rocket: flies over creeps to its point and splits into this many bomblets
 }
 
 // Spawn is one creep waiting to enter.
@@ -289,6 +293,7 @@ type World struct {
 	turretFire bool    // while turrets fire, so their damage is counted as theirs
 	burning    bool    // while burning ground does its damage, which stuns nothing
 	slug       bool    // while a shotgun's pellets land, which stun for longer
+	shove      bool    // while Dragon's breath pellets land, which push creeps back
 
 	// Per tick outputs, cleared at the start of Step.
 	Tracers []Tracer
@@ -468,9 +473,12 @@ func (w *World) place(k StructKind, x, y int, owner int8) int {
 	s := Structure{Kind: k, X: int16(x), Y: int16(y), W: d.W, H: d.H, HP: d.HP, MaxHP: d.HP, Level: 1, Owner: owner, Alive: true}
 	idx := -1
 	for i := range w.Structs {
-		if !w.Structs[i].Alive {
+		o := &w.Structs[i]
+		if o.Ghost && int(o.X) < x+int(d.W) && x < int(o.X)+int(o.W) && int(o.Y) < y+int(d.H) && y < int(o.Y)+int(o.H) {
+			o.Ghost = false // built over
+		}
+		if idx < 0 && !o.Alive && !o.Ghost {
 			idx = i
-			break
 		}
 	}
 	if idx < 0 {

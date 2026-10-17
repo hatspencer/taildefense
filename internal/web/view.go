@@ -129,6 +129,7 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 		e.u32(p.Look)
 		e.u8(p.Buff)
 		e.u8(deci8(p.BuffLeft))
+		e.u8(uint8(min(max(p.Ult, 0), 1) * 255))
 		for _, a := range p.Abil {
 			e.u8(a.Lv)
 			e.u16(deci16(a.Cool))
@@ -177,9 +178,12 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 	e.u16(uint16(len(r.Structs)))
 	for i := range r.Structs {
 		s := &r.Structs[i]
-		if s.Alive {
+		switch {
+		case s.Alive:
 			e.u8(1)
-		} else {
+		case s.Ghost:
+			e.u8(2)
+		default:
 			e.u8(0)
 		}
 		e.u8(uint8(s.Kind))
