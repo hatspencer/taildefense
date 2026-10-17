@@ -657,6 +657,22 @@ about -29, ambience -32 to -42, footsteps under -45.
   air, a buzz with wind in it that grows louder as the motor winds up, swept towards you and
   away as the head turns, and sent back late by the hills. The wave's siren winds up, holds and
   is cut; the all clear holds one lower steady tone; the end groans all the way down.
+- **Explosions throw things.** A shock front, the air slammed up and sucked back in a few
+  milliseconds; the fireball driven into distortion with its top end dying, a whump and a
+  falling boom under it, crackling as it burns off; then what was thrown up raining back down
+  for a second, clods thumping and stones ticking, metal ringing among them from the bigger
+  ones, all of it sent back off the treeline over a rumble. A rocket leaves its tube with a
+  crack and a backblast, its motor tearing and crackling as it flies off; a missile's motor
+  lights with a pop and fizzes away.
+- **The base and the pickups are tools and things handled.** Building is a nail hammered into
+  a plank, its ring rising and the last blow a dead thump; an upgrade an impact gun rattling a
+  bolt tight and the part seated with a clank; paying coins tipped onto a pile, the last one
+  spinning down. A supply crate lands hard, its planks booming in their straps, and its
+  parachute settles over it. A find knocks a latch up and creaks a hinge before its two
+  glockenspiel notes; a jackpot runs up a chord and rains coins. A medkit is velcro ripped, a
+  packet torn, antiseptic hissed and a bandage pulled tight; changing guns is webbing, a grip
+  slapped into the palm and a safety thumbed off. Footsteps: a boot's heel then its toe on
+  grit, a dead foot dragged then slapped down bare, a big one's weight crushing the dirt.
 - **Thunder rips, then booms, then rolls.** A close bolt crackles along its length faster and
   faster into the clap; the roll is that clap arriving again from each stretch of the bolt
   further off, later and darker, for five seconds. One in four is further off, all roll.
