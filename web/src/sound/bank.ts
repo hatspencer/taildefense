@@ -271,10 +271,13 @@ const SHOTGUN: Gun = {
   boom: 1, boomF0: 110, boomF1: 38, boomTau: 0.075, drive: 3.5, tail: 0.35, tailTau: 0.25, tailF: 700,
   echoes: [[0.13, 0.28], [0.31, 0.12]],
 };
+// The SMG is a 9 mm machine pistol at eleven rounds a second: a snappy crack and a hard,
+// tight punch in the upper mids, a boom short enough not to smear, and the bolt slamming
+// home under every round, the clatter that makes a burst sound like a machine.
 const SMG: Gun = {
-  len: 0.5, crack: 0.45, crackTau: 0.0009, blast: 1, blastTau: 0.013, blastF0: 5200, blastF1: 1500, body: 0.39, bodyF: 1700,
-  boom: 0.45, boomF0: 200, boomF1: 80, boomTau: 0.016, drive: 2, tail: 0.15, tailTau: 0.07, tailF: 1200,
-  echoes: [[0.09, 0.1]],
+  len: 0.6, crack: 1.05, crackTau: 0.0007, blast: 1.1, blastTau: 0.012, blastF0: 6800, blastF1: 1300, body: 0.55, bodyF: 1450,
+  boom: 0.8, boomF0: 185, boomF1: 62, boomTau: 0.018, drive: 3.2, tail: 0.2, tailTau: 0.08, tailF: 1000,
+  echoes: [[0.08, 0.13], [0.19, 0.05]],
 };
 // The rifle is a full-power bolt action, a springfield or an AWP: the sharpest crack in the
 // game, a boom down where the cannon is and a report that rolls on for two seconds.
@@ -1191,7 +1194,7 @@ const LOW = 24000;
 export const RECIPES: Record<string, [number, Maker, number?]> = {
   pistol: [4, gun(PISTOL, (b, r) => brass(b, r, 0.3 + r() * 0.08, 0.05))],
   shotgun: [3, gun(SHOTGUN, (b, r) => pump(b, r, 0.36, 0.12))],
-  smg: [5, gun(SMG)],
+  smg: [5, gun(SMG, (b, r) => { clack(b, r, 0.028 + r() * 0.006, 2300 + r() * 300, 0.16, 420); click(b, r, 0.05, 3400, 0.05, 0.002); })],
   rifle: [3, gun(RIFLE, (b, r) => { bolt(b, r, 0.3, 0.14); brass(b, r, 0.5, 0.04); })],
   minigun: [6, gun(MINIGUN)],
   railgun: [3, railgun],

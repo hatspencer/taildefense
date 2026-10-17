@@ -621,7 +621,9 @@ about -29, ambience -32 to -42, footsteps under -45.
   sniper tower are told apart by ear. The pistol is heavy, a desert eagle rather than a 9 mm,
   because it is the gun most of a game is played with and a weak snap makes it feel weak. The
   rifle is a full-power bolt action, a springfield or an AWP: the sharpest crack, the deepest
-  boom of the guns and the longest report, then the bolt. The crowbar is Half-Life's: a swish
+  boom of the guns and the longest report, then the bolt. The SMG is a 9 mm machine pistol: a
+  snappy crack and a tight punch with a short boom, so eleven rounds a second stay apart, and
+  the bolt clacking home under each one, the clatter that makes a burst sound like a machine. The crowbar is Half-Life's: a swish
   and a struck pipe ringing out round 1.1 kHz for most of a second, measured against the
   original so the pitch and the ring's length match. The tesla is a zap, an arc's crackle of ragged sparks with a
   snap and a falling tone, kept under 7 kHz; the frost tower, which pulses every second, is a
