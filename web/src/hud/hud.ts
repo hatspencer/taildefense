@@ -210,9 +210,10 @@ export class Hud {
     const hpBar = el('div', 'bar', nameCol);
     const hp = el('div', 'fill', hpBar);
     const hpTxt = el('div', 'txt', hpBar);
-    // Stamina runs along the foot of the health bar: hold Space to sprint.
-    const stam = el('div', 'stam', hpBar);
-    hpBar.title = 'Health · the strip along the bottom is stamina, spent sprinting (hold Space)';
+    // Stamina has its own bar under health: hold Space to sprint.
+    const stamBar = el('div', 'bar stamina', nameCol);
+    const stam = el('div', 'fill stam', stamBar);
+    stamBar.title = 'Stamina, spent sprinting (hold Space)';
     const gun = el('div', 'gun', hero);
     const weapon = el('div', 'wname', gun);
     const ammoNum = el('div', 'ammo crt', gun);
@@ -467,7 +468,7 @@ export class Hud {
       ['<kbd>T</kbd>', 'the next turret: selects it (upgrade / sell) and looks at it; again for the one after'],
       ['<kbd>N</kbd>', 'hold: look at the generator · twice: walk back to it'],
       ['Wheel', 'zoom · Alt+wheel or middle-drag: rotate'],
-      ['<kbd>Space</kbd>', 'hold: sprint, until your stamina (the strip under your health) runs out · tap: back to your hero · double tap: lock the camera to it'],
+      ['<kbd>Space</kbd>', 'hold: sprint, until your stamina (the blue bar under your health) runs out · tap: back to your hero · double tap: lock the camera to it'],
       ['Arrows / screen edge', 'look around; walking brings the camera back'],
       ['Minimap', 'left-click/drag: look there · right-click: move there'],
       ['<kbd>P</kbd>', 'pause or resume the game, for everyone'],
