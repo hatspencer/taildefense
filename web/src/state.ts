@@ -172,7 +172,7 @@ export class Game {
 
   private hideUnseen(f: Frame, serial: number): void {
     const v = this.vision!;
-    v.update(f, this.welcome!);
+    v.update(f, this.welcome!, this.fogged());
     let n = 0;
     for (let i = 0; i < f.nCreeps; i++) {
       if (!v.sees(f.cX[i], f.cY[i])) { this.hiddenAt[f.cId[i]] = serial; continue; }

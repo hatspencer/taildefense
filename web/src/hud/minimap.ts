@@ -101,7 +101,8 @@ export class Minimap {
   }
 
   // Fog of war: unseen ground goes dark, ground seen before stays dim. Crates, creeps and the
-  // team are drawn over it; creeps out of sight are not in the frame at all.
+  // team are drawn over it; creeps out of sight are not in the frame at all. In thick fog it
+  // is only what you and the structures see, so teammates' sight doesn't show where they are.
   private drawFog(): void {
     const v = this.ctl.game.vision;
     if (!v) return;
@@ -114,8 +115,9 @@ export class Minimap {
     if (v.version !== this.fogVersion) {
       this.fogVersion = v.version;
       const d = this.fogImg!.data, never = this.ctl.game.welcome?.dark ? 255 : 235;
-      for (let i = 0; i < v.now.length; i++) {
-        d[i * 4 + 3] = v.now[i] ? 0 : v.seen[i] ? 130 : never;
+      const fog = this.ctl.game.fogged(), now = fog ? v.ownNow : v.now, seen = fog ? v.ownSeen : v.seen;
+      for (let i = 0; i < now.length; i++) {
+        d[i * 4 + 3] = now[i] ? 0 : seen[i] ? 130 : never;
       }
       this.fog.getContext('2d')!.putImageData(this.fogImg!, 0, 0);
     }
@@ -173,8 +175,13 @@ export class Minimap {
     }
     c.fillStyle = '#d04a34';
     const d = Math.max(1.5, sx * 1.1);
-    for (let i = 0; i < f.nCreeps; i++) c.fillRect(f.cX[i] * sx - d / 2, f.cY[i] * sy - d / 2, d, d);
-    const blink = Math.floor(now / 400) % 2 === 0, fog = g.fogged();
+    // In thick fog, creeps only a teammate sees would show where the teammate is.
+    const fog = g.fogged(), own = fog && g.vision;
+    for (let i = 0; i < f.nCreeps; i++) {
+      if (own && !own.sees(f.cX[i], f.cY[i], true)) continue;
+      c.fillRect(f.cX[i] * sx - d / 2, f.cY[i] * sy - d / 2, d, d);
+    }
+    const blink = Math.floor(now / 400) % 2 === 0;
     for (let i = 0; i < f.nPlayers; i++) {
       const p = f.players[i];
       if (fog && p.id !== wd.you) continue;

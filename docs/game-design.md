@@ -414,7 +414,9 @@ Light weather counts as a fraction of its heavy form for every effect (drizzle 0
 shower 0.5, snow 0.4), on screen and in the sim alike.
 
 **Fog hides teammates.** In thick fog (strength above 0.4), other players vanish from the
-minimap. Their figures and names stay visible in the world, but their health bars, search and
+minimap, and with fog of war so does what they see: the minimap lights only what your own
+survivor and the structures see, and shows only the creeps in it, so neither a moving pool of
+sight nor a crowd of creeps gives a teammate away. Their figures and names stay visible in the world, but their health bars, search and
 revive rings and respawn countdown are hidden. A downed teammate's call says "somewhere in the
 fog" instead of where. The team has to talk ("I'm at the bus north of the base") and stick
 together. This is client-side only. The host still sends everything, so it is a game feel
