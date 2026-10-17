@@ -266,10 +266,13 @@ const PISTOL: Gun = {
   boom: 1, boomF0: 135, boomF1: 45, boomTau: 0.05, drive: 3.2, tail: 0.32, tailTau: 0.17, tailF: 750,
   echoes: [[0.12, 0.24], [0.27, 0.11], [0.5, 0.05]],
 };
+// The shotgun is a 12 gauge: the widest, hardest blast of the guns, with more crack than a
+// thump, a punch deeper than anything hand-held but the rifle, and a report that rolls off
+// the treeline three times over.
 const SHOTGUN: Gun = {
-  len: 1.4, crack: 0.6, crackTau: 0.002, blast: 1.2, blastTau: 0.05, blastF0: 3800, blastF1: 450, body: 0.35, bodyF: 900,
-  boom: 1, boomF0: 110, boomF1: 38, boomTau: 0.075, drive: 3.5, tail: 0.35, tailTau: 0.25, tailF: 700,
-  echoes: [[0.13, 0.28], [0.31, 0.12]],
+  len: 1.8, crack: 1, crackTau: 0.0012, blast: 1.25, blastTau: 0.045, blastF0: 5600, blastF1: 520, body: 0.45, bodyF: 850,
+  boom: 1.05, boomF0: 115, boomF1: 36, boomTau: 0.07, drive: 3.6, tail: 0.4, tailTau: 0.26, tailF: 680,
+  echoes: [[0.14, 0.28], [0.33, 0.14], [0.62, 0.06]],
 };
 // The SMG is a 9 mm machine pistol at eleven rounds a second: a snappy crack and a hard,
 // tight punch in the upper mids, a boom short enough not to smear, and the bolt slamming
@@ -320,13 +323,18 @@ function brass(b: Buf, r: R, at: number, gain: number): void {
   [0, 0.085, 0.14].forEach((d, k) => ping(b, at + d + r() * 0.01, [base, base * 1.47, base * 2.09, base * 2.7], 0.03, gain / (1 + k * 1.5)));
 }
 
-// A pump worked back and forward.
+// A pump worked back and forward: the fore-end racked back, the spent hull thrown out and
+// landing, a hollow plastic tock with the brass head ticking, then the fore-end slammed home.
 function pump(b: Buf, r: R, at: number, gain: number): void {
   click(b, r, at, 2200, gain, 0.004, 380);
-  slide(b, r, at + 0.005, 0.07, 1800, gain * 0.5);
-  click(b, r, at + 0.08, 1500, gain * 1.1, 0.005, 300);
-  slide(b, r, at + 0.14, 0.06, 2000, gain * 0.5);
-  click(b, r, at + 0.2, 2600, gain * 1.3, 0.004, 520);
+  slide(b, r, at + 0.005, 0.08, 1700, gain * 0.6);
+  clack(b, r, at + 0.09, 1500, gain * 1.1, 260);
+  const land = at + 0.38 + r() * 0.05;
+  click(b, r, land, 900, gain * 0.5, 0.006, 620);
+  ping(b, land + 0.002, [3100, 4550, 6400], 0.02, gain * 0.12);
+  click(b, r, land + 0.09 + r() * 0.03, 1000, gain * 0.2, 0.005, 680);
+  slide(b, r, at + 0.15, 0.06, 2000, gain * 0.5);
+  clack(b, r, at + 0.21, 2500, gain * 1.3, 340);
 }
 
 // A bolt lifted, drawn, pushed home and turned down.

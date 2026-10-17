@@ -621,7 +621,11 @@ about -29, ambience -32 to -42, footsteps under -45.
   sniper tower are told apart by ear. The pistol is heavy, a desert eagle rather than a 9 mm,
   because it is the gun most of a game is played with and a weak snap makes it feel weak. The
   rifle is a full-power bolt action, a springfield or an AWP: the sharpest crack, the deepest
-  boom of the guns and the longest report, then the bolt. The SMG is a 9 mm machine pistol: a
+  boom of the guns and the longest report, then the bolt. The shotgun is a 12 gauge: the widest, hardest
+  blast with more crack than thump, a punch deeper than anything hand-held but the rifle and a
+  report rolling off the treeline three times, a little under the rifle so the rifle stays the
+  biggest shot; then the pump racked, the spent hull landing with a plastic tock, and the
+  fore-end slammed home. The SMG is a 9 mm machine pistol: a
   snappy crack and a tight punch with a short boom, so eleven rounds a second stay apart, and
   the bolt clacking home under each one, the clatter that makes a burst sound like a machine. The crowbar is Half-Life's: a swish
   and a struck pipe ringing out round 1.1 kHz for most of a second, measured against the
