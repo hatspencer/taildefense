@@ -420,44 +420,59 @@ function thunder(sr: number, r: R): Buf {
   return b.normalize(0.95).fadeOut(0.3);
 }
 
+// A frost tower pulses every second, so its sound is short and soft: a cold gust pushed out,
+// ice crackling as it forms on whatever it reached, and a glint of glass that dies at once.
+// No sustained high tones, which is what made the old one tiring.
 function frost(sr: number, r: R): Buf {
-  const b = new Buf(sr, 1.5);
-  // Ice forming: a fizz of tiny high clicks, then a cold shimmer of glassy partials.
-  debris(b, r, 0, 0.5, 45, 4000, 9500, 0.25);
-  const parts = [2350, 3120, 4710, 5930, 7400].map((f) => jit(r, f, 0.04));
-  const trem = parts.map(() => [r() * 6 + 4, r() * TAU]);
+  const b = new Buf(sr, 0.9);
+  const sv = new SVF(sr), lo = jit(r, 550, 0.1), hi = jit(r, 3400, 0.1);
   for (let i = 0; i < b.len; i++) {
     const t = i / sr;
-    let x = 0;
-    for (let k = 0; k < parts.length; k++) x += Math.sin(TAU * parts[k] * t) * (0.6 + 0.4 * Math.sin(TAU * trem[k][0] * t + trem[k][1])) / (1 + k * 0.5);
-    b.d[i] += x * ad(t, 0.04, 0.45) * 0.25;
+    sv.run(r() * 2 - 1, lo + (hi - lo) * Math.exp(-t / 0.12), 0.9);
+    b.d[i] += (sv.low * 0.5 + sv.band) * ad(t, 0.018, 0.16) * 0.55;
   }
-  whoosh(b, r, 0, 0.5, 7000, 3000, 0.5, 0.7);
-  return b.normalize(0.75).fadeOut(0.1);
+  thud(b, r, 0, 95, 50, 0.05, 0.35, 0.3, 500);
+  // The crackle: little sharp ticks, crowded at first and thinning out, each ringing at its
+  // own pitch the way ice cracks do.
+  for (let k = 0; k < 34; k++) {
+    const u = Math.pow(r(), 1.8), f = 1700 + r() * 3600;
+    click(b, r, 0.02 + u * 0.55, f, (0.25 + r() * 0.35) * Math.exp(-u * 2.2), 0.0012 + r() * 0.002, f * (0.5 + r() * 0.3));
+  }
+  const glass = [1870, 2790, 4130].map((f) => jit(r, f, 0.05));
+  ping(b, 0.03, glass, 0.12, 0.09);
+  return b.normalize(0.75).fadeOut(0.08);
 }
 
+// An arc jumping: a hard snap, then the crackle of the spark itself (impulses at a ragged
+// 150 to 400 a second, each ringing in the upper mids), a buzz thrown about in pitch and a
+// zap falling through it. Bright but kept under 7 kHz, where a tower firing every second
+// would hiss.
 function tesla(sr: number, r: R): Buf {
-  const b = new Buf(sr, 0.4);
-  // An arc: a mains-like buzz whose pitch is thrown about, torn by a few crackles, with a zap
-  // falling through it as the charge lands. Kept out of the top octave, where a tower firing
-  // every second would only hiss.
-  const sv = new SVF(sr), top = new LP1(sr), top2 = new LP1(sr), fm = slowNoise(r, sr, 0.4, 60);
-  const z0 = jit(r, 2200, 0.15), z1 = jit(r, 380, 0.15);
-  let ph = 0, zp = 0, prev = 0;
+  const b = new Buf(sr, 0.35);
+  const len = jit(r, 0.2, 0.2);
+  const ring = new SVF(sr), buzz = new SVF(sr), top = new LP1(sr), top2 = new LP1(sr), fm = slowNoise(r, sr, 0.35, 80);
+  const z0 = jit(r, 3200, 0.15), z1 = jit(r, 500, 0.15);
+  let next = 0, ph = 0, zp = 0, rf = 2500, kick = 0;
   for (let i = 0; i < b.len; i++) {
     const t = i / sr;
-    ph += (110 + fm[i] * 45) / sr;
+    const e = t < len ? ad(t, 0.0008, len * 0.45) : ad(t, 0.0008, len * 0.45) * Math.exp(-(t - len) / 0.012);
+    if (t >= next) {
+      // The next spark: a ragged gap, now and then a longer one where the arc stutters.
+      next = t + (r() < 0.12 ? 0.006 + r() * 0.01 : 1 / (150 + r() * 250));
+      kick = (r() < 0.5 ? -1 : 1) * (0.5 + r() * 0.8);
+      rf = 1800 + r() * 3200;
+    } else kick = 0;
+    ring.run(kick * 12, rf, 6);
+    ph += (120 + fm[i] * 70) / sr;
     ph -= Math.floor(ph);
-    const n = r() * 2 - 1;
-    const crackle = r() < 0.012 * Math.exp(-t / 0.08) ? (r() * 2 - 1) * 3 : 0;
-    sv.run((1 - 2 * ph) + (n - prev) * 0.5 + crackle, jit(r, 1500, 0.02), 0.9);
-    prev = n;
-    zp += TAU * (z1 + (z0 - z1) * Math.exp(-t / 0.035)) / sr;
-    const zap = Math.tanh(Math.sin(zp) * 3) * ad(t, 0.001, 0.05) * 0.5;
-    const x = sat((sv.band + sv.low * 0.3) * ad(t, 0.002, 0.09) * 1.5 + zap, 2.5);
-    b.d[i] = top2.run(top.run(x, 5000), 5000);
+    buzz.run((ph < 0.5 ? 1 : -1) + (r() * 2 - 1) * 0.6, 1300, 1.1);
+    zp += TAU * (z1 + (z0 - z1) * Math.exp(-t / 0.03)) / sr;
+    const zap = Math.tanh(Math.sin(zp) * 4) * ad(t, 0.001, 0.045) * 0.55;
+    const snap = (r() * 2 - 1) * ad(t, 0.0002, 0.0025) * 1.6;
+    const x = sat((ring.band * 0.9 + buzz.band * 0.6) * e + zap + snap, 2.2);
+    b.d[i] = top2.run(top.run(x, 7000), 7000);
   }
-  return b.normalize(0.8).fadeOut();
+  return b.normalize(0.8).fadeOut(0.03);
 }
 
 // --- creeps -------------------------------------------------------------------------------

@@ -18,7 +18,7 @@ const TURRET: Record<number, string> = { [K_GUN]: 'turretGun', [K_CANNON]: 'cann
 // How loud each is at the listener, and how many of it one tick may play.
 const LOUD: Record<string, number> = {
   pistol: 0.9, shotgun: 1, smg: 0.6, rifle: 1.15, minigun: 0.5, rocket: 0.8, missile: 0.45, crowbar: 0.7,
-  turretGun: 0.5, cannon: 0.95, tesla: 0.5, sniper: 0.95, pod: 0.4, doorGun: 0.7,
+  turretGun: 0.5, cannon: 0.95, tesla: 0.45, sniper: 0.95, pod: 0.4, doorGun: 0.7,
   spit: 0.5, boneThrow: 0.5, boneLand: 0.45, dash: 0.6,
 };
 const CAP: Record<string, number> = { minigun: 6, smg: 5, turretGun: 5 };
@@ -279,7 +279,7 @@ export class Sound {
       switch (f.bKind[i]) {
         case BlastKind.Explosion: at(r < 1.6 ? 'explosionS' : r < 3 ? 'explosion' : 'explosionL', 1.2, 2.2); break;
         case BlastKind.Airstrike: at('explosionL', 1.4, 2.5, 0.96); break;
-        case BlastKind.Frost: at('frost', 0.5); break;
+        case BlastKind.Frost: at('frost', 0.8); break;
         case BlastKind.Concussion: at('concussion', 1, 1.8); break;
         case BlastKind.Loot: loot = true; at(r <= 1.01 ? 'jackpot' : 'lootFound', 0.7); break;
         case BlastKind.Ambush: at('ambush', 1, 2); break;

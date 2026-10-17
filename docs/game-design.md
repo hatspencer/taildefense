@@ -623,7 +623,9 @@ about -29, ambience -32 to -42, footsteps under -45.
   rifle is a full-power bolt action, a springfield or an AWP: the sharpest crack, the deepest
   boom of the guns and the longest report, then the bolt. The crowbar is Half-Life's: a swish
   and a struck pipe ringing out round 1.1 kHz for most of a second, measured against the
-  original so the pitch and the ring's length match.
+  original so the pitch and the ring's length match. The tesla is a zap, an arc's crackle of ragged sparks with a
+  snap and a falling tone, kept under 7 kHz; the frost tower, which pulses every second, is a
+  short cold gust with ice crackling and a glint of glass, with nothing sustained up high.
 - **Heard round the camera, outdoors.** Distance makes a sound quieter, darker (low-passed)
   and wetter, and the screen position pans it. One shared reverb is open ground with buildings
   round it, not a hall.
