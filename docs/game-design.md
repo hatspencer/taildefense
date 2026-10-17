@@ -340,8 +340,10 @@ the long way round, or not at all. Map generation tries the spot again elsewhere
   rocket launcher, for daytime sight (12, the rifle's scope doubles it) at night, worn instead
   of brutal's flashlight, so all round, not just ahead. Sold only on hard and brutal, where
   there is a night. Bought once and kept through being downed, like the gear. At night they show on
-  the survivor and their portrait, green lenses over the eyes, so the team knows whose eyes to trust in the dark,
-  and their sight is everyone's, as any survivor's is.
+  the survivor and their portrait: a binocular set on a head harness in place of the hat, its two
+  lenses glowing, so in the dark a goggled survivor is a pair of green eyes and the team knows
+  whose eyes to trust; their sight is everyone's, as any survivor's is. The glow throws no cone
+  ahead: the sight is all round, and a beam would read as the flashlight's.
 - **The generator heals, slowly.** Standing right by it (within a step and a half of its
   sides) gives back 2 HP a second, mid-wave too: a place to catch your breath, not to stand
   in a fight.
@@ -438,6 +440,45 @@ choice, not a cheat guard.
   looking the way they aim, flinching red when hit, cut and bloodied as health drops, a plaster
   while a medkit works, eyes down to reload or search, mouth open in a taunt, slumped when down.
 
+## Models
+
+- **Organic, not boxes.** Survivors and creeps are modelled in Blender in the spirit of Project
+  Zomboid (`docs/artdirection.png`): bodies of fused ellipsoids, one skin from hips to neck,
+  sculpted heads with faces that read from the camera. Low-poly and flat-coloured so they
+  keep the pixelated look and a horde still draws in one call per kind.
+- **Survivors** are one skinned body each, with clothes, hair, hats and gear laid on it as
+  pieces, so ten archetypes and every random look come from one set of parts.
+- **The dead look like the people they were.** Creeps are posed as zombies in the model
+  itself: hunched, heads pushed forward, knees bent, hands hooked. Their clothes are torn and
+  bloodied but stay in the colours the page swaps per creep, so a horde is still a crowd. A
+  walker in a torn short-sleeved shirt; a runner lunging with its shirt hanging open; a bald
+  crawler on its knees and hands; the brute a builder in an orange hi-vis vest and a hardhat;
+  the spitter's belly swollen out of its shirt with boils that swell as it fills; the hurler
+  gaunt and barefoot in a tank top and shorts, bone through its back.
+- **The bosses are made of people.** The abomination is several bodies fused into one hunched
+  hulk: an arm swollen to a club, another torso sunk in its back with its own head and arm,
+  a fourth arm out of its ribs. The broodmother is a starved woman on long legs, her belly a
+  vast veined sac bursting out of her gown, egg sacs on her back, lank hair over her face.
+- **Guns and turrets are scavenged kit.** Each weapon is a real one a survivor would pick up
+  (a service pistol, a pump shotgun with a wooden stock, a compact SMG, a scoped hunting
+  rifle, a minigun fed from an ammo can, a tube launcher, a red crowbar), modelled a little
+  chunky so it reads in the hand, with tape and paint in the carrier's colour so a dropped
+  gun still says whose it was. Turrets are built from what lies about: a machine gun behind a
+  steel shield in a sandbag nest, a mortar in a horseshoe of sandbags, cryo tanks piped up to
+  prongs that hold the frost crystal, car batteries wired to a coil on stacked insulators, a
+  plank watchtower with a rifle on a bipod, a gunship's rocket pod on a turntable. The
+  crystal and the coil's ball stay glowing, open to the sky, so they read from the camera.
+- **Ruins are built of something.** Each wall style is modelled as one tile of wall, of what
+  it was built of: two-brick-thick courses stepping down where the top fell, dressed
+  fieldstone with a capstone, cinder blocks with rebar bent out of the cores, a barn's boards
+  each broken at its own height, faded clapboard on a brick footing, an outpost's concrete
+  with rust weeping down it and sandbags on top, the shop's painted block, the church's
+  ashlar. What fell off the top lies at its foot. Lone rock tiles are junk heaps of masonry with a crate
+  and a tyre. Tiles join along a run, each at its own height and turned either way, so a run
+  reads as one broken wall rather than one tile over and over.
+- **Size stays the rules'.** A creep stands about as tall for its collision radius as before, so how
+  big it looks is still how big it is to hit.
+
 ## Puppets: how bodies move
 
 - **Every body is a puppet** on one 12-joint skeleton (chest, head, two arms and two legs of two
@@ -446,14 +487,30 @@ choice, not a cheat guard.
 - **Feet don't slide.** The gait advances with distance actually travelled, so a slowed creep
   shuffles and a runner bounds. Survivors split upper and lower body: legs follow the movement,
   the torso follows the aim, so strafing and backpedalling read. Hands hold each gun by IK.
+- **Long guns are shouldered.** The shotgun, rifle and SMG sit with the stock in the right
+  shoulder at eye level, the shoulders turned off the aim and the head looking along the
+  barrel, as anyone shoulders a long gun; the pistol is held out in both hands, the launcher
+  rests on the shoulder and the minigun is braced at the hip. Guns in the hand are drawn at
+  three quarters of their size on the ground: the figures are stylised short, and a full-size
+  long gun puts its forend out of the off hand's reach.
+- **Clothes move with what they lie on.** A vest, plate carrier or bib follows the torso alone,
+  never the arms, so raising a gun can't pull it off the shoulder; only a jacket's sleeves follow
+  the arms. Their edges are cut straight into the body's surface rather than following its
+  triangles, and straps go over the shoulder flat on it.
 - **Springs carry the weight.** Lean, recoil, flinch, a pack bouncing and hair swinging all run
   through damped springs, so motion settles instead of snapping.
 - **Creeps are crowds of people.** Shirt, trousers, skin and hair are picked per creep, and each
   one has its own gait offset and head tilt. A badly hurt walker or runner may lose an arm.
 - **Creeps are skinned on the GPU** so thousands can animate at once. The CPU only writes a few
   numbers per creep each frame.
-- **The dead stay a while.** A killed creep falls the way it was facing, or is thrown by a
-  blast, lies there, then sinks into the ground.
+- **The dead stay a while.** A killed creep's knees give, then it topples flat, mostly on its
+  face the way it was going and sometimes onto its back, its legs straightening as it lands
+  and whatever would go into the ground (a hunched head, an outflung arm) lying on it. Thrown
+  by a blast, it is flung up first. It lies there a few seconds, then sinks through the ground
+  until nothing is left above, so the field clears without anything popping out of sight.
+- **Burning creeps beat at themselves.** Both hands at the chest, slapping at the flames,
+  the trunk twisting and doubling over and the legs staggering: it reads as burning at a
+  glance without arms flung out across the crowd.
 - **Blows are telegraphed.** Every creep winds up before it hits: walkers claw and bite, runners
   coil and pounce, swarmers rear and lunge, brutes slam both fists down (with a dust ring),
   spitters swell and whip the head forward, and the abomination rears and sweeps several arms.

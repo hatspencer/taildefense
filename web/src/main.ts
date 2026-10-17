@@ -139,7 +139,7 @@ async function main(): Promise<void> {
   const turretHeight = (x: number, y: number) => {
     const s = game.structAtTile(Math.floor(x), Math.floor(y));
     const k = s >= 0 ? game.cur.sKind[s] : 0;
-    return k === K_GUN ? 0.75 : k === K_CANNON ? 0.86 : k === K_FROST ? 1.5 : k === K_TESLA ? 1.6 : k === K_SNIPER ? 2.02 : k === K_MISSILE ? 0.95 : 1.0;
+    return k === K_GUN ? 0.75 : k === K_CANNON ? 0.72 : k === K_FROST ? 1.5 : k === K_TESLA ? 1.6 : k === K_SNIPER ? 2.02 : k === K_MISSILE ? 0.95 : 1.0;
   };
 
   const handlers: Handlers = {
@@ -238,6 +238,12 @@ async function main(): Promise<void> {
     if (P.has('score')) hud.showScore(true);
     if (P.has('menu')) hud.toggleMenu();
     if (P.has('f3')) hud.toggleStats();
+    // site=N: the view on the Nth ruined house, for its walls.
+    if (P.has('site') && !cam) {
+      const houses = (game.welcome?.sites ?? []).filter((s) => s.kind === SiteKind.House);
+      const s = houses[(Number(P.get('site')) || 0) % Math.max(1, houses.length)];
+      if (s) { rig.follow = false; rig.center(s.x + s.w / 2, s.y + s.h / 2); rig.setDist(Number(P.get('dist')) || 14); }
+    }
     const sel = P.get('sel');
     if (sel) {
       const [t, id] = sel.split(':');
@@ -296,7 +302,7 @@ async function main(): Promise<void> {
     if (wd && game.frames > 1) {
       if (!hooksApplied && game.cur.nPlayers > 0) applyHooks();
       if (labMode && !lab) {
-        lab = new Lab(game, wd.core.x, wd.core.y, P.has('gun') ? Number(P.get('gun')) : -1);
+        lab = new Lab(game, wd.core.x, wd.core.y, P.has('gun') ? Number(P.get('gun')) : -1, P.has('still'), P.has('nv'));
         (transport as DemoHost).halt();
         const [lx, ly] = lab.center(P.get('lab') ?? '');
         rig.follow = false; rig.center(lx, ly); rig.setDist(Number(P.get('dist')) || 26);
