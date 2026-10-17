@@ -533,7 +533,12 @@ about -29, ambience -32 to -42, footsteps under -45.
   first, a resonant body in the mids where the bang is, a low boom falling in pitch, a tail
   rolling away and echoes off the treeline. Then the action: the shotgun's pump, the rifle's
   bolt, the pistol's brass bouncing. Each gun has its own numbers, so a pistol, an SMG and a
-  sniper tower are told apart by ear.
+  sniper tower are told apart by ear. The pistol is heavy, a desert eagle rather than a 9 mm,
+  because it is the gun most of a game is played with and a weak snap makes it feel weak. The
+  rifle is a full-power bolt action, a springfield or an AWP: the sharpest crack, the deepest
+  boom of the guns and the longest report, then the bolt. The crowbar is Half-Life's: a swish
+  and a struck pipe ringing out round 1.1 kHz for most of a second, measured against the
+  original so the pitch and the ring's length match.
 - **Heard round the camera, outdoors.** Distance makes a sound quieter, darker (low-passed)
   and wetter, and the screen position pans it. One shared reverb is open ground with buildings
   round it, not a hall.
