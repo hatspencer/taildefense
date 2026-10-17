@@ -319,7 +319,7 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .wslot.cur .key { color: #5c4210; }
 .wslot.reloading::after { content: ""; position: absolute; left: 3px; right: 3px; bottom: 2px; height: 3px; background: repeating-linear-gradient(90deg, var(--tape) 0 4px, transparent 4px 7px); animation: wreload .5s steps(3) infinite; }
 @keyframes wreload { to { background-position: 7px 0; } }
-.wslot.med { margin-left: 6px; }
+.wslot.med { margin-right: 6px; }
 .wslot.med.owned { color: #ffd8d0; background: #6a2a22; }
 .wslot.med.cur { color: var(--screen); background: #e05a40; box-shadow: 0 0 0 2px #e05a40, 0 0 0 4px var(--black); }
 
