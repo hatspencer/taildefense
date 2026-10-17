@@ -27,7 +27,7 @@ export class Lab {
     this.y0 = cy + 9;
   }
 
-  // Where to look: the whole bench, or one creep row (0..5), or the survivors ('h'), or one
+  // Where to look: the whole bench, or one creep row (0..7), or the survivors ('h'), or one
   // of them ('h0'..'h7').
   center(at = ''): [number, number] {
     if (/^h\d$/.test(at)) { const i = Number(at[1]); return [this.x0 + COLS.length * DX + 2.5 + (i % 2) * 3.4, this.y0 + Math.floor(i / 2) * DY]; }

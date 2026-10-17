@@ -38,7 +38,7 @@ everything it knows, a terrain message follows).
 ```jsonc
 {
   "t": "welcome",
-  "proto": 14,
+  "proto": 16,
   "version": "a1b2c3d",
   "you": 0,                    // your player id
   "w": 352, "h": 220,          // map size in tiles
@@ -87,11 +87,11 @@ everything it knows, a terrain message follows).
     }
   ],
   "gear": [ {"name": "Armor", "info": "+25 max HP", "costs": [90, 153, 260, 442, 752]} ],
-                               // 0 Armor, 1 Boots, 2 Medkit, 3 Scavenger (luck when searching)
+                               // 0 Armor, 1 Boots, 2 Vitamins (regeneration), 3 Scavenger (luck when searching)
   "abilities": [               // index = ability slot 0..3; "key" is what the client binds it to (Q Shift F V)
     {"name": "Signature", "key": "Q", "desc": "the equipped weapon's own ability",
      "target": "point", "range": 0, "cool": [0, 0, 0], "costs": [0, 0, 0], "always": true},
-    {"name": "Grenade", "key": "W", "desc": "...", "target": "point", "range": 11,
+    {"name": "Grenade", "key": "Shift", "desc": "...", "target": "point", "range": 11,
      "radius": [2.5, 3, 3.5], "cool": [9, 8, 7], "costs": [200, 450, 800], "always": false}
   ],
   "structs": [                 // index = struct kind; 0 is "none"
@@ -117,7 +117,14 @@ everything it knows, a terrain message follows).
     {"name": "School bus", "search": 4},
     {"name": "Army truck", "search": 3.5},
     {"name": "Gas station", "search": 5},
-    {"name": "Fuel pump", "search": 0}       // not loot: see below
+    {"name": "Fuel pump", "search": 0},      // not loot: see below
+    {"name": "Fire engine", "search": 3},
+    {"name": "Armoured van", "search": 4.5},
+    {"name": "Camper van", "search": 3},
+    {"name": "Motorbike", "search": 1},
+    {"name": "Crashed plane", "search": 6},
+    {"name": "Engine", "search": 0},         // the plane's: not loot, see below
+    {"name": "Church", "search": 2.5}        // not loot: its bell, see below
   ],
   "sites": [                   // index = site id, used in the loot command
     {"kind": 0, "x": 40, "y": 30, "w": 8, "h": 6,  // tiles covered: the house with its walls
@@ -150,11 +157,13 @@ loot guards and how long a downed survivor can be revived.
 
 Loot sites are fixed for a map. A house is a ruin of rock tiles with a doorway; the
 searcher stands inside at `sx, sy`; an outpost is a walled fort searched in its keep. A wreck
-(kinds 1 and 4..8: car, pickup, police cruiser, ambulance, school bus, army truck) or a crate
-covers one tile and is not solid; the client draws the vehicle round it. Pickups and
-ambulances lean towards gear, cruisers and army trucks towards weapons; an ambulance's kit
-heals the searcher, a bus gives two finds and often hides a nest, and an army truck is always
-guarded.
+(kinds 1, 4..8 and 11..14: car, pickup, police cruiser, ambulance, school bus, army truck, fire
+engine, armoured van, camper van, motorbike) lies along its road at `yaw` and is solid to
+survivors, a box the size of its model; creeps climb over. A crate covers one tile and is not
+solid. Pickups, ambulances and fire engines lean towards gear, cruisers and army trucks
+towards weapons, and the armoured van towards gold; an ambulance's kit heals the searcher, a
+fire engine always holds a medkit, a bus gives two finds and often hides a nest, a camper van
+may hide one, and army trucks and armoured vans are always guarded.
 Every map has one gas station (kind 9), beside a road out near the edge: `x, y, w, h` is its
 shop, a walled room searched at its counter, and its search always gives a weapon the
 searcher does not have yet. Its fuel pumps (kind 10, one tile each) stand on the concrete lot
@@ -165,6 +174,11 @@ hurts survivors as well as creeps, sets off the pumps beside it, and leaves burn
 (effect kind 2). A standing pump blocks survivors like a wreck. The station's garrison sleeps
 round the pumps, and more creeps hide in the shop: they burst out at the first survivor on
 the lot, and again when someone starts on the counter.
+Every map has one crashed plane (kind 15) out in the wilds: `sx, sy` is beside the hull,
+where its hold is searched, and `yaw` is its heading. The hull and the broken-off tail are
+solid. Its two engines (kind 16) are like the pumps: sites only to share the list and the
+searched bit (blown up), and a shot or blast that reaches one sets it off. A garrison sleeps in
+the wreckage, and more creeps come out at the first survivor in it and again at the hold.
 Every map has one church (kind 17) out on the outskirts: `x, y, w, h` is its nave, walled,
 and its bell tower stands beyond the nave's end wall, three tiles deep and centred on it, the
 way `yaw` points (a multiple of a right angle, towards the map's middle). It is not loot: the
@@ -326,8 +340,8 @@ u16  nDeaths          creeps that died this tick
 u16  nEffects         lasting effects, the full current list every frame
   u8   kind           1 grenade in flight (x0,y0 -> x,y), 2 napalm pool, 3 airstrike target,
                       4 supply drop: a Huey flying in from x0,y0 to hover over x,y (eased in over
-                      all but the last 3 s); the crate lands at x,y when it ends, 5 a warlord's
-                      slam coming down on every survivor within r of x,y when it ends,
+                      all but the last 3 s); the crate lands at x,y when it ends, 5 a brute's or an
+                      abomination's slam coming down on everything within r of x,y when it ends,
                       6 a broodmother's sac of bile: she rears back at x0,y0 for its first 0.7 s,
                       then it arcs to x,y and bursts within r when it ends, 7 a pool of acid
   u16  x0, y0, x, y q8
@@ -369,7 +383,7 @@ integers. The host checks everything; a refusal comes back as a `toast` with lev
 {"op": "attack",  "id": 1234}               // chase and shoot one creep
 {"op": "stop"}                               // drop the order, fight what comes in range
 {"op": "hold"}                               // stand still, fight what comes in range
-{"op": "ability", "slot": 1, "x": 150, "y": 98}  // cast Q W E R (slot 0..3) at a point
+{"op": "ability", "slot": 1, "x": 150, "y": 98}  // cast Q Shift F V (slot 0..3) at a point
 {"op": "build",   "kind": 5, "tx": 150, "ty": 96}  // walk to the tile and build there
 {"op": "repair",  "s": 12}                   // walk to struct 12 and repair it (costs gold)
 {"op": "loot",    "site": 3}                 // walk to site 3 and search it
