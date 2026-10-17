@@ -312,9 +312,11 @@ the long way round, or not at all. Map generation tries the spot again elsewhere
   co-op tower defense with thousands of creeps, not an aim game; your hands are for walking,
   abilities and building.
 - **Fighting first, building second, as in Overwatch.** The keys under the left hand are for
-  the fight: Q the ultimate, Shift, F and V the grenade, dash and airstrike, cast at the cursor
-  the moment the key goes down. There is no aim mode: an aim-then-click step was a beat too slow
-  in a crowd, and the cursor is already where you look. Right-click only focuses fire on a
+  the fight: Q the ultimate, Shift, F and V the grenade, dash and airstrike. Dash and airstrike
+  cast at the cursor the moment the key goes down: an aim-then-click step was a beat too slow in
+  a crowd. The grenade keeps one: Shift shows its range and blast, a left-click throws, Esc
+  cancels; playing without it, a throw went wherever the cursor happened to be, and the grenade
+  is the ability you place with care. Right-click only focuses fire on a
   creep; it used to cast the signature off a creep, which went off whenever a click missed.
   E is "use": a downed teammate, loot site or supply crate right beside you comes first, so a
   hero out looting searches the wreck at hand whatever is selected. Otherwise it uses what is

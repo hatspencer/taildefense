@@ -451,7 +451,7 @@ export class Hud {
       ['<kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>', 'walk, the way the view faces; the camera follows while you walk. Your hero shoots the nearest creep on its own'],
       ['<kbd>E</kbd>', 'use: a downed teammate, weapon on the ground, loot site or supply crate right beside you first, else what is under the cursor, else the nearest thing. A downed teammate: revive them (stay close until the bar fills) · a dropped weapon: pick it up, upgrades and all · a loot site: search it · a damaged structure: repair · the armory: shop · a creep: focus your fire on it'],
       ['<kbd>Q</kbd>', "the weapon's ultimate, once its meter is full: fighting fills it (damage you deal yourself, and revives)"],
-      ['<kbd>Shift</kbd> <kbd>F</kbd> <kbd>V</kbd>', 'grenade, dash, airstrike, bought at the armory: cast at the cursor the moment you press'],
+      ['<kbd>Shift</kbd> <kbd>F</kbd> <kbd>V</kbd>', 'grenade, dash, airstrike, bought at the armory. Shift aims the grenade: left-click where to throw it, Esc or right-click cancels. F and V cast at the cursor the moment you press'],
       ['Right-click', 'on a creep: focus fire on it'],
       ['<kbd>Alt</kbd> + left-click, or <kbd>Z</kbd> then click', 'ping the spot for the whole team, in the world or on the map: on a creep it warns, on a loot site it marks loot, on a structure it calls to defend it'],
       ['<kbd>H</kbd> twice', 'between waves: rebuild every structure the creeps destroyed (its outline stays) and repair everything damaged; the first press names the price'],
@@ -826,6 +826,7 @@ export class Hud {
       if (!a) continue;
       if (s.name !== a.name) { s.name = a.name; s.icon.innerHTML = iconFor(a.name); }
       setClass(s.root, 'locked', a.level <= 0);
+      if (i > 0) setClass(s.root, 'active', this.ctl.mode.k === 'ability' && this.ctl.mode.slot === i);
       setText(s.key, a.key);
       if (s.pipsFor !== a.level * 10 + a.maxLevel) {
         s.pipsFor = a.level * 10 + a.maxLevel;
@@ -999,7 +1000,8 @@ export class Hud {
   private updateMode(): void {
     const m = this.ctl.mode;
     let s = '';
-    if (m.k === 'build') {
+    if (m.k === 'ability') { const a = this.ctl.ability(m.slot); s = `${a?.name ?? 'Ability'}: left-click where to throw · Esc cancels`; }
+    else if (m.k === 'build') {
       const d = this.ctl.game.welcome?.structs[m.kind];
       const sticky = d?.name === 'Wall' || d?.name === 'Gate';
       s = `Place ${d?.name ?? ''} (${d?.price ?? 0}g): left-click${sticky ? ', again for the next' : ' · Shift keeps placing'} · Esc stops`;
