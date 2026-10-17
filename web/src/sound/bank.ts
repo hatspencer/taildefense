@@ -180,17 +180,28 @@ function vox(b: Buf, r: R, at: number, v: Vox): void {
   }
 }
 
-// A siren wound up by hand or motor: the pitch rides a curve, the tone is rich in odd
-// harmonics, and a second rotor a hair out of tune beats against the first.
-function siren(sr: number, len: number, pitch: (t: number) => number, env: (t: number) => number): Buf {
-  const b = new Buf(sr, len), lp = new LP1(sr), lp2 = new LP1(sr);
+// A siren on a pole across town, motor-driven: two rotors a minor third apart, each chopping
+// air through its ports, so the tone is a buzz with wind in it, louder the faster it turns.
+// The head turns, sweeping it towards you and away, and the hills send it back late.
+function siren(sr: number, r: R, len: number, top: number, pitch: (t: number) => number, env: (t: number) => number): Buf {
+  const b = new Buf(sr, len + 1.6), lp = new LP1(sr), lp2 = new LP1(sr), horn = new SVF(sr);
+  const turn = 1 / jit(r, 3, 0.15), tp = r() * TAU;
+  // A port opening: half a sine cubed, rich in harmonics; its mean taken out.
+  const port = (p: number) => Math.pow(Math.max(0, Math.sin(TAU * p)), 3) - 0.212;
   let p1 = 0, p2 = 0;
-  for (let i = 0; i < b.len; i++) {
-    const t = i / sr, f = pitch(t);
-    p1 += TAU * f / sr; p2 += TAU * f * 1.013 / sr;
-    let x = 0;
-    for (let k = 1; k <= 7; k += 2) x += (Math.sin(p1 * k) + 0.8 * Math.sin(p2 * k)) / Math.pow(k, 1.3);
-    b.d[i] = lp2.run(lp.run(x, 2600), 2600) * env(t);
+  for (let i = 0; i < len * sr; i++) {
+    const t = i / sr, f = pitch(t), head = Math.sin(TAU * turn * t + tp);
+    const dop = 1 + 0.004 * Math.cos(TAU * turn * t + tp);
+    p1 += f * dop / sr; p1 -= Math.floor(p1);
+    p2 += f * 1.19 * dop / sr; p2 -= Math.floor(p2);
+    const x = port(p1) + 0.85 * port(p2), air = (r() * 2 - 1) * (0.25 + Math.abs(x) * 0.4);
+    const y = lp2.run(lp.run(x + air * 0.5, 3000), 3000) + horn.run(x, 850, 0.8).band * 0.6;
+    b.d[i] = sat(y * 1.6, 1.4) * env(t) * Math.min(1, 0.3 + 0.7 * f / top) * (0.7 + 0.3 * head);
+  }
+  const dry = b.d.slice(0, Math.ceil(len * sr));
+  for (const [delay, gain] of [[0.42, 0.3], [0.95, 0.17], [1.5, 0.09]]) {
+    const a = new LP1(sr), c = new LP1(sr), o = Math.floor(delay * sr);
+    for (let i = 0; i < dry.length && o + i < b.len; i++) b.d[o + i] += c.run(a.run(dry[i], 1800), 1800) * gain;
   }
   return b.normalize(0.8).fadeOut(0.1);
 }
@@ -272,10 +283,12 @@ const RIFLE: Gun = {
   boom: 1.05, boomF0: 105, boomF1: 32, boomTau: 0.07, drive: 3.6, tail: 0.5, tailTau: 0.34, tailF: 750,
   echoes: [[0.19, 0.34], [0.46, 0.2], [0.85, 0.1], [1.35, 0.05]],
 };
+// The minigun fires full rifle rounds, 22 a second: each a short, hard slam with a real boom
+// under it, and a tail long enough that the rounds run together into one ripping roar.
 const MINIGUN: Gun = {
-  len: 0.3, crack: 0.4, crackTau: 0.0007, blast: 0.9, blastTau: 0.009, blastF0: 5500, blastF1: 2200, body: 0.35, bodyF: 1800,
-  boom: 0.4, boomF0: 230, boomF1: 100, boomTau: 0.01, drive: 2, tail: 0.08, tailTau: 0.05, tailF: 1500,
-  echoes: [],
+  len: 0.5, crack: 0.9, crackTau: 0.0006, blast: 1.1, blastTau: 0.013, blastF0: 6500, blastF1: 1100, body: 0.5, bodyF: 1150,
+  boom: 0.95, boomF0: 150, boomF1: 52, boomTau: 0.022, drive: 3.4, tail: 0.24, tailTau: 0.1, tailF: 850,
+  echoes: [[0.09, 0.12], [0.21, 0.05]],
 };
 const TURRET_GUN: Gun = {
   len: 0.6, crack: 0.7, crackTau: 0.001, blast: 1, blastTau: 0.016, blastF0: 5500, blastF1: 1100, body: 0.35, bodyF: 1300,
@@ -321,6 +334,53 @@ function bolt(b: Buf, r: R, at: number, gain: number): void {
   slide(b, r, at + 0.2, 0.08, 2800, gain * 0.45);
   click(b, r, at + 0.28, 2400, gain * 1.1, 0.004, 700);
   click(b, r, at + 0.34, 3400, gain * 0.9, 0.003, 1100);
+}
+
+// A heavy part slamming home: a click, the gun's body knocked low under it and a short ring of
+// steel. A slide or a bolt going forward, a magazine seated, a cover shut.
+function clack(b: Buf, r: R, at: number, f: number, gain: number, low = 300): void {
+  click(b, r, at, f, gain, 0.003, f * 0.55);
+  thud(b, r, at, low, low * 0.6, 0.012, gain * 0.7, 0.4, 2500);
+  ping(b, at + 0.001, [f * 0.83, f * 1.37, f * 2.21], 0.025, gain * 0.25);
+}
+
+// The rifle's ultimate, a railgun: no powder, a slug thrown by a magnetic field. A snap of
+// discharge, an electric tone diving five octaves as the slug leaves, the air torn and fizzing
+// behind it, the slug's weight in the low end, the rails ringing like struck steel, and the
+// capacitors whining back up to the click of the next shot ready.
+function railgun(sr: number, r: R): Buf {
+  const b = new Buf(sr, 1.6);
+  const tear = new SVF(sr), f0 = jit(r, 5200, 0.08), f1 = jit(r, 110, 0.1);
+  let p1 = 0, p2 = 0;
+  for (let i = 0; i < Math.ceil(sr * 0.6); i++) {
+    const t = i / sr, n = r() * 2 - 1;
+    const snap = n * ad(t, 0.0001, 0.0015) * 1.5;
+    const f = f1 + (f0 - f1) * Math.exp(-t / 0.045);
+    p1 += TAU * f / sr; p2 += TAU * f * 1.502 / sr;
+    const zap = (Math.sin(p1) + 0.5 * Math.sin(p2)) * ad(t, 0.0005, 0.09) * 0.7;
+    const fizz = tear.run(n, 900 + 7000 * Math.exp(-t / 0.06), 1.2).band * ad(t, 0.001, 0.12) * (r() < 0.3 ? 1.6 : 0.9);
+    b.d[i] = sat(snap + zap + fizz, 2.5);
+  }
+  thud(b, r, 0, 90, 30, 0.12, 0.9, 0.3, 400);
+  const f = jit(r, 1180, 0.05);
+  ping(b, 0.002, [f, f * 1.41, f * 2.13, f * 2.97, f * 3.6], 0.35, 0.18);
+  ping(b, 0.002, [f * 1.006], 0.5, 0.08);
+  // The shot off the treeline, before the whine.
+  const core = b.d.slice(0, Math.ceil(sr * 0.3));
+  for (const [delay, gain] of [[0.2, 0.25], [0.48, 0.1]]) {
+    const a = new LP1(sr), c = new LP1(sr), o = Math.floor(jit(r, delay, 0.1) * sr);
+    for (let i = 0; i < core.length && o + i < b.len; i++) b.d[o + i] += c.run(a.run(core[i], 1400), 1400) * gain;
+  }
+  const w0 = 0.3, wl = 0.75, o = Math.floor(w0 * sr);
+  let ph = 0;
+  for (let i = 0; i < wl * sr && o + i < b.len; i++) {
+    const u = i / sr / wl;
+    ph += TAU * 300 * Math.pow(8, u) / sr;
+    const e = Math.min(1, u * 3) * Math.min(1, (1 - u) / 0.04) * (1 + 0.3 * Math.sin(TAU * 100 * i / sr));
+    b.d[o + i] += (Math.sin(ph) + 0.3 * Math.sin(2 * ph)) * e * 0.05;
+  }
+  click(b, r, w0 + wl, 3200, 0.15, 0.002, 2400);
+  return b.normalize(0.95).fadeOut(0.05);
 }
 
 function rocketLaunch(sr: number, r: R, small: boolean): Buf {
@@ -401,23 +461,38 @@ function concussion(sr: number, r: R, big: boolean): Buf {
   return b.normalize(0.9).fadeOut(0.1);
 }
 
+// Thunder near enough to matter: the channel crackles along its length as it forms, ripping
+// faster and faster into the clap, a crack and a boom felt in the chest. Then the roll: the
+// same clap arriving again from each stretch of the bolt further off, later and darker,
+// swelling and fading unevenly for seconds over a deep bed. Now and then it is further off,
+// all roll and no rip.
 function thunder(sr: number, r: R): Buf {
-  const b = new Buf(sr, 5.5);
-  // The stroke: several cracks a few hundredths of a second apart, branch after branch.
-  let prev = 0;
-  const bursts = [0, 0.025 + r() * 0.02, 0.06 + r() * 0.03, 0.1 + r() * 0.04];
-  for (const at of bursts) {
-    const o = Math.floor(at * sr), g = 0.6 + r() * 0.4;
-    for (let i = 0; i < sr * 0.08; i++) { const n = r() * 2 - 1; b.d[o + i] += (n - prev) * ad(i / sr, 0.0003, 0.012) * g; prev = n; }
+  const b = new Buf(sr, 7);
+  const near = r() < 0.75, clap = near ? 0.2 + r() * 0.12 : 0.03;
+  if (near) {
+    for (let t = 0; t < clap;) {
+      const u = t / clap;
+      click(b, r, t, 1500 + r() * 3500, (0.12 + 0.7 * u * u) * (0.5 + r()), 0.0008 + r() * 0.002);
+      t += (0.3 + r() * 1.4) / (50 + 1400 * u * u);
+    }
+    roar(b, r, clap, 0.5, 6000, 500, 0.0005, 0.04, 1.2, 3);
   }
-  roar(b, r, 0, 1.2, 2500, 400, 0.002, 0.25, 0.6, 2);
-  // The roll: deep, swelling and fading unevenly for seconds.
-  const lp = new LP1(sr), lp2 = new LP1(sr), swell = slowNoise(r, sr, 5.5, 3), comp = Math.sqrt(sr / (2 * 160));
+  roar(b, r, clap, 1.8, near ? 2500 : 900, 160, 0.004, 0.35, 0.9, 2.5);
+  thud(b, r, clap, 70, 26, 0.3, near ? 1.3 : 0.8, 0.5, 300);
+  let at = clap + 0.25 + r() * 0.2, g = 0.85;
+  while (at < 5.6) {
+    const dark = Math.min(1, (at - clap) / 5);
+    roar(b, r, at, 2, jit(r, 1000 * (1 - 0.75 * dark), 0.3), 90, 0.03 + r() * 0.15, 0.25 + r() * 0.45, g * (0.5 + r() * 0.6), 1.5);
+    if (r() < 0.5) thud(b, r, at, 55, 28, 0.2 + r() * 0.2, g * 0.6, 0.6, 250);
+    at += 0.18 + r() * 0.7;
+    g *= 0.8 + r() * 0.12;
+  }
+  const lp = new LP1(sr), lp2 = new LP1(sr), swell = slowNoise(r, sr, 7, 2.5), comp = Math.sqrt(sr / (2 * 140));
   for (let i = 0; i < b.len; i++) {
     const t = i / sr, s = Math.max(0, 0.5 + swell[i]);
-    b.d[i] += lp2.run(lp.run(r() * 2 - 1, 160), 160) * comp * s * s * ad(t, 0.3, 1.6) * 1.1;
+    b.d[i] += lp2.run(lp.run(r() * 2 - 1, 140), 140) * comp * s * s * ad(t - clap, 0.5, 2.2) * 0.6;
   }
-  return b.normalize(0.95).fadeOut(0.3);
+  return b.normalize(0.95).fadeOut(0.4);
 }
 
 // A frost tower pulses every second, so its sound is short and soft: a cold gust pushed out,
@@ -610,41 +685,63 @@ function revived(sr: number, r: R, pitch: number): Buf {
   return b.normalize(0.7).fadeOut();
 }
 
-// Reloading, the way each gun is: [start, end].
+// Reloading, the way each gun is: [start, end]. Built of clicks, metal sliding on metal and
+// clacks, the heavy parts going home, which are what make a reload sound solid.
 function reload(sr: number, r: R, w: number, end: boolean): Buf {
-  const b = new Buf(sr, 0.6);
+  const b = new Buf(sr, 0.8);
   switch (w) {
-    case 0: // pistol: the magazine drops out; in, then the slide released home
-      if (!end) { click(b, r, 0, 2600, 0.7, 0.003, 1200); slide(b, r, 0.02, 0.08, 3000, 0.4); } else {
-        slide(b, r, 0, 0.06, 2600, 0.4); click(b, r, 0.06, 1600, 1, 0.004, 700); click(b, r, 0.2, 2200, 1, 0.003, 1300);
+    case 0: // pistol: the release pressed, the magazine out and clattering down; in, seated, and the slide let go
+      if (!end) {
+        click(b, r, 0, 3200, 0.5, 0.002, 1600); slide(b, r, 0.01, 0.06, 2600, 0.35);
+        clack(b, r, 0.3, 1800, 0.35, 420); click(b, r, 0.37, 2300, 0.15, 0.002, 1200);
+      } else {
+        slide(b, r, 0, 0.05, 2200, 0.35); clack(b, r, 0.05, 1600, 0.8, 260); clack(b, r, 0.24, 2400, 1.1, 340);
       }
       break;
-    case 1: // shotgun: a shell thumbed in; the pump racked
-      if (!end) { slide(b, r, 0, 0.05, 1600, 0.5); click(b, r, 0.05, 1500, 0.8, 0.004, 400); } else pump(b, r, 0.02, 0.9);
-      break;
-    case 2: // SMG: the magazine out; in, then the bolt racked
-      if (!end) { click(b, r, 0, 2400, 0.7, 0.003, 1000); slide(b, r, 0.02, 0.07, 2800, 0.4); } else {
-        click(b, r, 0, 1500, 1, 0.004, 650); slide(b, r, 0.12, 0.07, 2400, 0.5); click(b, r, 0.2, 2000, 0.9, 0.004, 900); click(b, r, 0.27, 2600, 1, 0.003, 1200);
+    case 1: // shotgun: a shell thumbed into the tube; the pump racked back to its stop and slammed forward
+      if (!end) { slide(b, r, 0, 0.06, 1400, 0.45); clack(b, r, 0.06, 1300, 0.6, 220); } else {
+        click(b, r, 0, 1800, 0.6, 0.003, 500); slide(b, r, 0.01, 0.08, 1500, 0.5); clack(b, r, 0.09, 1400, 0.9, 200);
+        slide(b, r, 0.15, 0.06, 1700, 0.45); clack(b, r, 0.21, 2000, 1.2, 260);
       }
       break;
-    case 3: // rifle: the bolt opened; rounds pressed in and the bolt closed
-      if (!end) { click(b, r, 0, 3000, 0.7, 0.003, 900); slide(b, r, 0.03, 0.09, 2600, 0.5); click(b, r, 0.12, 2000, 0.8, 0.004, 600); } else {
-        click(b, r, 0, 1700, 0.6, 0.004, 500); slide(b, r, 0.08, 0.08, 2800, 0.45); click(b, r, 0.16, 2400, 1, 0.004, 700); click(b, r, 0.22, 3400, 0.8, 0.003, 1100);
+    case 2: // SMG: the magazine out; in and slapped home, then the charging handle drawn and let fly
+      if (!end) { click(b, r, 0, 3000, 0.5, 0.002, 1400); slide(b, r, 0.01, 0.05, 2600, 0.35); clack(b, r, 0.07, 1700, 0.45, 300); } else {
+        slide(b, r, 0, 0.04, 2200, 0.3); clack(b, r, 0.04, 1500, 0.8, 240); thud(b, r, 0.045, 160, 110, 0.02, 0.4, 0.8, 900);
+        click(b, r, 0.2, 2600, 0.5, 0.003, 1100); slide(b, r, 0.21, 0.05, 2800, 0.35); clack(b, r, 0.29, 2200, 1.1, 320);
       }
       break;
-    case 4: // minigun: the ammo box unlatched; the belt fed in and the cover slammed
-      if (!end) { thud(b, r, 0, 300, 180, 0.03, 0.6, 0.6); click(b, r, 0.01, 1200, 0.8, 0.005, 400); } else {
-        for (let k = 0; k < 8; k++) click(b, r, k * 0.025, 1800 + r() * 600, 0.45, 0.003, 900);
-        thud(b, r, 0.25, 260, 150, 0.04, 0.8, 0.6); click(b, r, 0.25, 1300, 1, 0.005, 500);
+    case 3: // rifle: the bolt lifted and drawn to its stop; a clip of rounds pressed in, the bolt run home and turned down
+      if (!end) { click(b, r, 0, 2600, 0.6, 0.003, 900); slide(b, r, 0.03, 0.09, 2400, 0.45); clack(b, r, 0.12, 1900, 0.6, 300); } else {
+        slide(b, r, 0, 0.12, 1800, 0.35);
+        for (let k = 0; k < 5; k++) click(b, r, 0.01 + k * 0.022 + r() * 0.006, 2400 + r() * 800, 0.25, 0.002, 1700);
+        ping(b, 0.15, [3100, 4600], 0.02, 0.08);
+        slide(b, r, 0.2, 0.08, 2600, 0.45); clack(b, r, 0.28, 1700, 1, 320); click(b, r, 0.34, 3000, 0.7, 0.003, 1000);
       }
       break;
-    case 5: // rocket launcher: the tube opened; a rocket slid in and latched
-      if (!end) { thud(b, r, 0, 180, 110, 0.04, 0.5, 0.4); click(b, r, 0, 1000, 0.6, 0.005, 700); } else {
-        slide(b, r, 0, 0.18, 1400, 0.6); thud(b, r, 0.2, 160, 100, 0.04, 0.7, 0.5); click(b, r, 0.2, 1400, 0.9, 0.004, 750);
+    case 4: // minigun: the feed cover unlatched, the empty box out and dropped; the belt fed link by link, the cover slammed and the barrels given a turn
+      if (!end) {
+        clack(b, r, 0, 1100, 0.6, 200); slide(b, r, 0.1, 0.1, 1200, 0.3);
+        thud(b, r, 0.3, 140, 80, 0.05, 0.9, 0.6, 700); debris(b, r, 0.31, 0.15, 6, 1500, 3500, 0.25);
+      } else {
+        for (let k = 0; k < 10; k++) click(b, r, k * 0.022, 1600 + r() * 900, 0.35, 0.0025, 1100 + r() * 600);
+        clack(b, r, 0.25, 1000, 1.2, 180); thud(b, r, 0.25, 120, 70, 0.06, 0.8, 0.5, 600);
+        const o = Math.floor(0.36 * sr);
+        let ph = 0;
+        for (let i = 0; i < 0.35 * sr; i++) {
+          const t = i / sr;
+          ph += (200 + 900 * Math.min(1, t / 0.15)) / sr; ph -= Math.floor(ph);
+          b.d[o + i] += (1 - 2 * ph) * ad(t, 0.05, 0.08) * 0.12;
+        }
+      }
+      break;
+    case 5: // rocket launcher: the tube's latch opened, the tube hollow; a rocket slid in, latched, and armed
+      if (!end) { clack(b, r, 0, 900, 0.6, 180); ping(b, 0.005, [310, 760, 1290], 0.09, 0.15); } else {
+        slide(b, r, 0, 0.2, 1000, 0.55); ping(b, 0.02, [290, 700], 0.12, 0.08); clack(b, r, 0.21, 1100, 1, 170);
+        pip(b, 0.38, 2100, 0.04, 0.1); pip(b, 0.44, 2800, 0.06, 0.1);
       }
       break;
   }
-  return b.normalize(0.7).fadeOut();
+  return b.normalize(0.8).fadeOut();
 }
 
 function weaponSwitch(sr: number, r: R): Buf {
@@ -848,17 +945,19 @@ function jets(sr: number, r: R): Buf {
 
 // --- the game's own -----------------------------------------------------------------------
 
-// The air-raid siren: winding up, holding, winding down.
-function sirenWave(sr: number): Buf {
-  return siren(sr, 6, (t) => t < 2.2 ? 150 + 410 * Math.sin(t / 2.2 * Math.PI / 2) : t < 3.4 ? 560 : 560 - 360 * Math.min(1, (t - 3.4) / 2.6),
-    (t) => Math.min(1, t / 0.6) * (t > 4 ? Math.max(0, (6 - t) / 2) : 1));
+// The air-raid siren: the motor winding up, holding, and winding down when it is cut.
+function sirenWave(sr: number, r: R): Buf {
+  return siren(sr, r, 6, 560, (t) => t < 3.4 ? 60 + 500 * (1 - Math.exp(-t / 0.9)) : 60 + 495 * Math.exp(-(t - 3.4) / 1.5),
+    (t) => Math.min(1, t / 0.3) * (t > 4.2 ? Math.max(0, (6 - t) / 1.8) : 1));
 }
-function sirenClear(sr: number): Buf {
-  return siren(sr, 4, (t) => t < 1 ? 160 + 260 * Math.sin(t * Math.PI / 2) : t < 2.4 ? 420 : 420 - 250 * (t - 2.4) / 1.6,
-    (t) => Math.min(1, t / 0.4) * (t > 2.6 ? Math.max(0, (4 - t) / 1.4) : 1) * 0.8);
+// The all clear: wound up quickly to one steady, lower tone, and let go.
+function sirenClear(sr: number, r: R): Buf {
+  return siren(sr, r, 4.5, 450, (t) => t < 3 ? 60 + 390 * (1 - Math.exp(-t / 0.5)) : 60 + 388 * Math.exp(-(t - 3) / 1),
+    (t) => Math.min(1, t / 0.2) * (t > 3.2 ? Math.max(0, (4.5 - t) / 1.3) : 1) * 0.8);
 }
-function sirenOver(sr: number): Buf {
-  return siren(sr, 5, (t) => 560 * Math.exp(-t / 1.6) + 40, (t) => Math.min(1, t / 0.1) * Math.max(0, 1 - t / 5));
+// The end: the siren already screaming, its power gone, groaning all the way down.
+function sirenOver(sr: number, r: R): Buf {
+  return siren(sr, r, 5.5, 560, (t) => 35 + 525 * Math.exp(-t / 1.7), (t) => Math.min(1, t / 0.1) * Math.max(0, 1 - t / 5.5));
 }
 
 // The generator's alarm: a two-tone klaxon, the base calling for help.
@@ -927,16 +1026,23 @@ function fire(sr: number, r: R): Buf {
   return out.normalize(0.7);
 }
 
-// A minigun's motor and barrels spinning: played faster or slower as it spins up and down.
+// A minigun's motor and six barrels spinning: the motor's whine, the barrels chopping the air
+// six times a turn, the gears growling under it and the feed rattling. Played faster or slower
+// as it spins up and down. Every tone is a whole number of cycles a second, so it loops.
 function spin(sr: number, r: R): Buf {
-  const b = new Buf(sr, 1);
+  const b = seamless(sr, 1, 0.1, (b) => {
+    const sv = new SVF(sr);
+    for (let i = 0; i < b.len; i++) {
+      const t = i / sr, chop = Math.pow(0.5 + 0.5 * Math.sin(TAU * 300 * t), 6);
+      b.d[i] = sv.run(r() * 2 - 1, 2200, 0.9).band * (0.15 + chop * 0.5);
+    }
+    for (let k = 0; k < 40; k++) click(b, r, r() * (b.len / sr - 0.01), 1800 + r() * 2000, 0.12 + r() * 0.1, 0.0015, 1500 + r() * 800);
+  });
   const lp = new LP1(sr);
-  // The filter runs a tenth of a second before the loop starts, so the loop has no seam.
   for (let i = -Math.floor(sr * 0.1); i < b.len; i++) {
-    const t = i / sr;
-    const saw = 1 - 2 * (((180 * t) % 1 + 1) % 1);
-    const y = lp.run(saw, 900) * 0.5 + Math.sin(TAU * 1080 * t) * 0.12 + (r() * 2 - 1) * 0.1 * Math.pow(0.5 + 0.5 * Math.sin(TAU * 36 * t), 8);
-    if (i >= 0) b.d[i] = y;
+    const t = i / sr, saw = 1 - 2 * (((90 * t) % 1 + 1) % 1);
+    const y = lp.run(saw, 500) * 0.6 + Math.sin(TAU * 300 * t) * 0.25 + Math.sin(TAU * 1080 * t) * 0.1 + Math.sin(TAU * 1620 * t) * 0.04;
+    if (i >= 0) b.d[i] += y;
   }
   return b.normalize(0.6);
 }
@@ -1088,6 +1194,7 @@ export const RECIPES: Record<string, [number, Maker, number?]> = {
   smg: [5, gun(SMG)],
   rifle: [3, gun(RIFLE, (b, r) => { bolt(b, r, 0.3, 0.14); brass(b, r, 0.5, 0.04); })],
   minigun: [6, gun(MINIGUN)],
+  railgun: [3, railgun],
   rocket: [3, (sr, r) => rocketLaunch(sr, r, false)],
   missile: [3, (sr, r) => rocketLaunch(sr, r, true)],
   crowbar: [3, crowbar],
@@ -1132,9 +1239,9 @@ export const RECIPES: Record<string, [number, Maker, number?]> = {
   switch: [2, weaponSwitch],
   medkit: [1, medkit],
   tinnitus: [1, tinnitus],
-  sirenWave: [1, sirenWave, LOW],
-  sirenClear: [1, sirenClear, LOW],
-  sirenOver: [1, sirenOver, LOW],
+  sirenWave: [2, sirenWave, LOW],
+  sirenClear: [2, sirenClear, LOW],
+  sirenOver: [2, sirenOver, LOW],
   klaxon: [1, klaxon, LOW],
   beep: [1, (sr) => beep(sr, false)],
   beepGo: [1, (sr) => beep(sr, true)],
@@ -1156,9 +1263,10 @@ export const LOOPS = new Set(['rotor', 'fire', 'spin', 'rain', 'wind', 'crickets
 // Level corrections in dB, from measuring every sound's loudness (K-weighted, 400 ms) against
 // the level it is played at, where one stood far out of line with the rest of its kind: the
 // player's shout was the loudest thing in the game, the big ones' groans as loud as a shotgun,
-// and the reloads lost under the gun they reload.
+// the reloads lost under the gun they reload, and the minigun's dropped ammo box louder than them all.
 const TRIM: Record<string, number> = {
   shout_m: -6, shout_f: -6, groan5: -6, groan3: -5, groan7: -4, groan1: -3, retch: -5, ignite: -4.5, windup: -2.5,
+  reload4: -3.5, reload1: 2, reload5: 1.5, reloaded0: 1.5,
   radio_chat: 5, radio_here: 4, radio_danger: 5, radio_loot: 4, radio_defend: 3, radio_good: 4, radio_bad: 4, radio_error: 4, beep: 3,
 };
 for (const k of ['chat', 'here', 'danger', 'loot', 'defend', 'good', 'bad', 'error']) RECIPES['radio_' + k] = [1, (sr, r) => radio(sr, r, k)];

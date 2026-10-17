@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import {
   BlastKind, CF_ASLEEP, CF_WINDUP, MAX_CREEPS, CF_STRIKE, EffectKind, Phase, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_FIRING, PF_HURT,
-  PF_RELOADING, PingKind, TRACER_HELI, TRACER_SHARD, type Player, TURRET_TRACKS, WET, Weather,
+  PF_RELOADING, PingKind, TRACER_HELI, TRACER_SHARD, TRACER_ULT, type Player, TURRET_TRACKS, WET, Weather,
 } from '../protocol';
 import { K_CANNON, K_CORE, K_GUN, K_MISSILE, K_SNIPER, K_TESLA } from '../scene/structs';
 import type { Game } from '../state';
@@ -14,10 +14,12 @@ import { type Loop, type Placed, Prio, Synth } from './synth';
 
 const GUN = ['pistol', 'shotgun', 'smg', 'rifle', 'minigun', 'rocket', 'crowbar'];
 const MINIGUN = 4;
+// A shot under an ultimate sounds like the gun's own, but for the rifle's, which is a railgun.
+const ULT: Record<number, string> = { 3: 'railgun' };
 const TURRET: Record<number, string> = { [K_GUN]: 'turretGun', [K_CANNON]: 'cannon', [K_TESLA]: 'tesla', [K_SNIPER]: 'sniper', [K_MISSILE]: 'pod' };
 // How loud each is at the listener, and how many of it one tick may play.
 const LOUD: Record<string, number> = {
-  pistol: 0.9, shotgun: 1, smg: 0.6, rifle: 1.15, minigun: 0.5, rocket: 0.8, missile: 0.45, crowbar: 0.7,
+  pistol: 0.9, shotgun: 1, smg: 0.6, rifle: 1.15, railgun: 1.15, minigun: 0.7, rocket: 0.8, missile: 0.45, crowbar: 0.7,
   turretGun: 0.5, cannon: 0.95, tesla: 0.45, sniper: 0.95, pod: 0.4, doorGun: 0.7,
   spit: 0.5, boneThrow: 0.5, boneLand: 0.45, dash: 0.6,
 };
@@ -129,7 +131,7 @@ export class Sound {
       const p = game.cur.player(id);
       const on = !paused && now < s.until;
       s.rate += ((on ? 1 : 0.25) - s.rate) * (on ? 0.12 : 0.04);
-      const at = p ? this.place(p.x, p.y, 0.32 * Math.min(1, (s.rate - 0.25) / 0.5 + 0.15), 1) : null;
+      const at = p ? this.place(p.x, p.y, 0.45 * Math.min(1, (s.rate - 0.25) / 0.5 + 0.15), 1) : null;
       if (!at || (!on && s.rate < 0.3)) { s.loop.stop(); this.spins.delete(id); continue; }
       s.loop.set(at, s.rate);
     }
@@ -234,7 +236,7 @@ export class Sound {
     const groups = new Map<string, Shot[]>();
     const me = f.player(wd.you), alive = !!me && (me.flags & PF_ALIVE) !== 0;
     const add = (name: string, x: number, y: number, extra?: number, mine = false) => {
-      const p = this.place(x, y, LOUD[name] ?? 0.6, name === 'cannon' || name === 'sniper' || name === 'rifle' ? 1.6 : 1.2);
+      const p = this.place(x, y, LOUD[name] ?? 0.6, name === 'cannon' || name === 'sniper' || name === 'rifle' || name === 'railgun' ? 1.6 : 1.2);
       if (!p) return;
       let g = groups.get(name);
       if (!g) groups.set(name, g = []);
@@ -250,9 +252,11 @@ export class Sound {
       else if (k === 5) {
         const s = game.structAtTile(Math.floor(x0), Math.floor(y0));
         add(s >= 0 && f.sKind[s] === K_MISSILE ? 'missile' : 'rocket', x0, y0);
-      } else if (GUN[k]) {
-        add(GUN[k], x0, y0, undefined, alive && Math.abs(x0 - me!.x) < 1.2 && Math.abs(y0 - me!.y) < 1.2);
-        if (k === MINIGUN) this.spinning(f.players, f.nPlayers, x0, y0);
+      } else if (k === 5 + TRACER_ULT) add('rocket', x0, y0);
+      else if (GUN[k % TRACER_ULT]) {
+        const w = k % TRACER_ULT;
+        add(k >= TRACER_ULT ? ULT[w] ?? GUN[w] : GUN[w], x0, y0, undefined, alive && Math.abs(x0 - me!.x) < 1.2 && Math.abs(y0 - me!.y) < 1.2);
+        if (w === MINIGUN) this.spinning(f.players, f.nPlayers, x0, y0);
       }
     }
     for (const [name, list] of groups) {
@@ -284,7 +288,7 @@ export class Sound {
         case BlastKind.Loot: loot = true; at(r <= 1.01 ? 'jackpot' : 'lootFound', 0.7); break;
         case BlastKind.Ambush: at('ambush', 1, 2); break;
         case BlastKind.Taunt: at('shout_' + this.voiceOf(f.players, f.nPlayers, x, y), 0.9); break;
-        case BlastKind.Lightning: at('thunder', 1.3, 8); break;
+        case BlastKind.Lightning: at('thunder', 1.1, 8); break;
         case BlastKind.Revived: at('revived_' + this.voiceOf(f.players, f.nPlayers, x, y), 0.7); break;
         case BlastKind.GuardsWake: if (this.once('alert', 2)) at('alert', 0.75, 1.6); break;
         case BlastKind.Bell: at('bell', 1, 12); break;

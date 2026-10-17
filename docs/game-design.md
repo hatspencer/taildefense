@@ -626,6 +626,26 @@ about -29, ambience -32 to -42, footsteps under -45.
   original so the pitch and the ring's length match. The tesla is a zap, an arc's crackle of ragged sparks with a
   snap and a falling tone, kept under 7 kHz; the frost tower, which pulses every second, is a
   short cold gust with ice crackling and a glint of glass, with nothing sustained up high.
+  The minigun fires full rifle rounds, so each is a hard slam with a boom under it and a tail
+  long enough that 22 a second run together into one roar, over a motor, six barrels chopping
+  the air and the feed rattling. A shot under an ultimate sounds like the gun's own, except the
+  rifle's Railgun, which has no powder: a snap of discharge, an electric tone diving five
+  octaves, the air fizzing behind the slug, the rails ringing and the capacitors whining back
+  up to a click.
+- **Reloads are built of clacks.** A click and metal sliding on metal is the light half of
+  handling a gun; what makes a reload sound solid is the heavy parts going home, each a click
+  with the gun's body knocked low under it and a short ring of steel. Each gun reloads its own
+  way: the pistol's magazine clattering down and its slide let go, the SMG's magazine slapped
+  home and its handle let fly, the rifle's clip pressed in round by round, the minigun's box
+  dropped, its belt fed link by link and its barrels given a turn, the launcher's rocket latched
+  and armed with two beeps.
+- **The siren is a machine across town,** not a tone: two rotors a minor third apart chopping
+  air, a buzz with wind in it that grows louder as the motor winds up, swept towards you and
+  away as the head turns, and sent back late by the hills. The wave's siren winds up, holds and
+  is cut; the all clear holds one lower steady tone; the end groans all the way down.
+- **Thunder rips, then booms, then rolls.** A close bolt crackles along its length faster and
+  faster into the clap; the roll is that clap arriving again from each stretch of the bolt
+  further off, later and darker, for five seconds. One in four is further off, all roll.
 - **Heard round the camera, outdoors.** Distance makes a sound quieter, darker (low-passed)
   and wetter, and the screen position pans it. One shared reverb is open ground with buildings
   round it, not a hall.
