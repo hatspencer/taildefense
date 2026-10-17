@@ -254,21 +254,21 @@ export class Hud {
     this.taunt = { ...ts, cap };
 
     const ws = el('div', 'weapons', actions);
-    for (let i = 0; i < WEAPON_SLOTS; i++) {
-      const w = el('div', 'wslot', ws);
-      el('span', 'key', w, i === CROWBAR ? '0' : String(i + 1));
-      el('span', 'nm', w);
-      w.onclick = () => { const me = ctl.me(); if (me && me.owned & (1 << i)) ctl.send({ op: 'select', w: i }); else ctl.openArmory(true); };
-      this.tipOn(w, () => this.weaponTip(i));
-      this.wslots.push(w);
-    }
-    // The medkit sits after the weapons on 8.
+    // The medkit comes first, on 1; the weapons follow on 2 to 7, the crowbar on 0.
     const med = el('div', 'wslot med', ws);
     el('span', 'key', med, '1');
     el('span', 'nm', med);
     med.onclick = () => { const me = ctl.me(); if (me && me.medkits > 0) ctl.medkit(); else ctl.openArmory(true); };
     this.tipOn(med, () => this.medkitTip());
     this.med = med;
+    for (let i = 0; i < WEAPON_SLOTS; i++) {
+      const w = el('div', 'wslot', ws);
+      el('span', 'key', w, i === CROWBAR ? '0' : String(i + 2));
+      el('span', 'nm', w);
+      w.onclick = () => { const me = ctl.me(); if (me && me.owned & (1 << i)) ctl.send({ op: 'select', w: i }); else ctl.openArmory(true); };
+      this.tipOn(w, () => this.weaponTip(i));
+      this.wslots.push(w);
+    }
     this.card = el('div', 'card panel', bottom);
 
     this.armory = new Armory(root, ctl);
