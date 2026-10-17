@@ -100,6 +100,39 @@ func TestDeltasTrackTheWorld(t *testing.T) {
 	}
 }
 
+// A restart's new map has fewer structures than the old one had by the end: none of the old
+// ones may linger on the client, where the host has nothing to sell or destroy.
+func TestNoStructureOutlivesAShorterList(t *testing.T) {
+	w := newWorldWithCreeps(0)
+	var e Encoder
+	r := NewReplica(w.W, w.H, w.Terrain, 0, w.Seed)
+	n := len(w.Structs)
+	for i := 0; i < 20; i++ {
+		s := w.Structs[0]
+		s.Alive, s.Kind, s.X = true, game.STurretGun, s.X+int16(i+1)
+		w.Structs = append(w.Structs, s)
+	}
+	e.Delta(w, nil)
+	if err := r.Apply(e.Key(w, nil)); err != nil {
+		t.Fatal(err)
+	}
+	w.Structs = w.Structs[:n]
+	if err := r.Apply(e.Delta(w, nil)); err != nil {
+		t.Fatal(err)
+	}
+	late := NewReplica(w.W, w.H, w.Terrain, 0, w.Seed)
+	if err := late.Apply(e.Key(w, nil)); err != nil {
+		t.Fatal(err)
+	}
+	for name, rr := range map[string]*Replica{"delta": r, "key": late} {
+		for i := n; i < len(rr.Structs); i++ {
+			if rr.Structs[i].Alive || rr.Structs[i].Ghost {
+				t.Errorf("%s: structure %d past the world's %d is still there: %+v", name, i, n, rr.Structs[i])
+			}
+		}
+	}
+}
+
 func TestATruncatedFrameIsAnErrorNotAPanic(t *testing.T) {
 	w := newWorldWithCreeps(50)
 	var e Encoder

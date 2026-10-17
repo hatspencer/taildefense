@@ -222,8 +222,12 @@ func (e *Encoder) Delta(w *game.World, atArmory func(*game.Player) bool) []byte 
 		e.structs = append(e.structs, structRec{})
 	}
 	nShape, nHP := 0, 0
-	for i := range w.Structs {
-		r := structOf(&w.Structs[i])
+	for i := range e.structs {
+		// One past the world's list (a restart's new map has fewer) is sent once as gone.
+		var r structRec
+		if i < len(w.Structs) {
+			r = structOf(&w.Structs[i])
+		}
 		o := &e.structs[i]
 		o.shapeDirty = r.alive != o.alive || r.ghost != o.ghost || r.kind != o.kind || r.level != o.level || r.lv != o.lv || r.max != o.max || r.x != o.x || r.y != o.y
 		o.hpDirty = !o.shapeDirty && r.hp != o.hp
@@ -249,6 +253,8 @@ func (e *Encoder) Delta(w *game.World, atArmory func(*game.Player) bool) []byte 
 			b.u16(e.structs[i].hp)
 		}
 	}
+	// Key frames list only what the world has.
+	e.structs = e.structs[:len(w.Structs)]
 	events(b, w)
 	// Ground first seen this tick, at night, in tile order.
 	b.uv(uint64(len(w.Found)))
