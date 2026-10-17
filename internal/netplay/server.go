@@ -590,6 +590,8 @@ func Exec(w *game.World, pl *game.Player, c Cmd) (string, error) {
 func (s *Server) restart() {
 	nw := s.world.Restart(uint64(time.Now().UnixNano()))
 	s.world = nw
+	// Nothing sent about the old map is a base for the new one: every peer gets a key frame.
+	s.enc = Encoder{}
 	for _, p := range s.peers {
 		p.player = nw.Players[p.player.ID]
 		p.needKey = true
