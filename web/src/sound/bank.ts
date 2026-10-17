@@ -248,10 +248,12 @@ function bellNote(b: Buf, r: R, at: number, f: number, len: number, gain: number
 
 // --- weapons ------------------------------------------------------------------------------
 
+// The pistol is a big-bore magnum, a desert eagle: no 9 mm snap but a heavy slam, a deep
+// boom for a handgun and a report that carries.
 const PISTOL: Gun = {
-  len: 0.9, crack: 0.9, crackTau: 0.0012, blast: 1, blastTau: 0.02, blastF0: 6000, blastF1: 900, body: 0.42, bodyF: 1400,
-  boom: 0.7, boomF0: 170, boomF1: 60, boomTau: 0.03, drive: 2.5, tail: 0.22, tailTau: 0.1, tailF: 900,
-  echoes: [[0.11, 0.18], [0.23, 0.07]],
+  len: 1.2, crack: 1.1, crackTau: 0.001, blast: 1.15, blastTau: 0.032, blastF0: 5200, blastF1: 650, body: 0.5, bodyF: 1000,
+  boom: 1, boomF0: 135, boomF1: 45, boomTau: 0.05, drive: 3.2, tail: 0.32, tailTau: 0.17, tailF: 750,
+  echoes: [[0.12, 0.24], [0.27, 0.11], [0.5, 0.05]],
 };
 const SHOTGUN: Gun = {
   len: 1.4, crack: 0.6, crackTau: 0.002, blast: 1.2, blastTau: 0.05, blastF0: 3800, blastF1: 450, body: 0.35, bodyF: 900,
@@ -263,10 +265,12 @@ const SMG: Gun = {
   boom: 0.45, boomF0: 200, boomF1: 80, boomTau: 0.016, drive: 2, tail: 0.15, tailTau: 0.07, tailF: 1200,
   echoes: [[0.09, 0.1]],
 };
+// The rifle is a full-power bolt action, a springfield or an AWP: the sharpest crack in the
+// game, a boom down where the cannon is and a report that rolls on for two seconds.
 const RIFLE: Gun = {
-  len: 2, crack: 1.3, crackTau: 0.0007, blast: 1, blastTau: 0.03, blastF0: 7500, blastF1: 1100, body: 0.45, bodyF: 1200,
-  boom: 0.7, boomF0: 125, boomF1: 42, boomTau: 0.05, drive: 3, tail: 0.4, tailTau: 0.22, tailF: 900,
-  echoes: [[0.17, 0.3], [0.43, 0.14], [0.8, 0.06]],
+  len: 2.6, crack: 1.7, crackTau: 0.0005, blast: 1.05, blastTau: 0.034, blastF0: 8500, blastF1: 900, body: 0.4, bodyF: 1050,
+  boom: 1.05, boomF0: 105, boomF1: 32, boomTau: 0.07, drive: 3.6, tail: 0.5, tailTau: 0.34, tailF: 750,
+  echoes: [[0.19, 0.34], [0.46, 0.2], [0.85, 0.1], [1.35, 0.05]],
 };
 const MINIGUN: Gun = {
   len: 0.3, crack: 0.4, crackTau: 0.0007, blast: 0.9, blastTau: 0.009, blastF0: 5500, blastF1: 2200, body: 0.35, bodyF: 1800,
@@ -339,19 +343,27 @@ function rocketLaunch(sr: number, r: R, small: boolean): Buf {
   return b.normalize(0.9).fadeOut(0.05);
 }
 
+// The crowbar is Half-Life's: a short swish, then the bar ringing out like a struck pipe. Two
+// modes a few hertz apart round 1.1 kHz beat as it rings, over the clank of the blow's first
+// hundredths of a second.
 function crowbar(sr: number, r: R): Buf {
-  const b = new Buf(sr, 0.45);
-  const sv = new SVF(sr);
-  for (let i = 0; i < b.len; i++) {
+  const b = new Buf(sr, 0.8);
+  whoosh(b, r, 0, 0.09, 700, 1900, 0.35, 1.4);
+  const at = 0.07, o = Math.floor(at * sr), f = jit(r, 1095, 0.04), beat = 18 + r() * 14;
+  const clank = [1.31, 1.8, 2.01, 2.47, 2.92, 3.47].map((k) => f * jit(r, k, 0.03));
+  const ph = Array.from({ length: 12 }, () => r() * TAU);
+  for (let i = 0; o + i < b.len; i++) {
     const t = i / sr;
-    const e = bump(t, 0.09, 0.05);
-    sv.run(r() * 2 - 1, 450 + 1400 * e, 1.6);
-    b.d[i] += sv.band * e * 0.9;
+    let x = (Math.sin(TAU * f * t + ph[0]) + 0.4 * Math.sin(TAU * (f + beat) * t + ph[1])) * Math.exp(-t / 0.3);
+    x += 0.22 * Math.sin(TAU * f * 1.39 * t + ph[2]) * Math.exp(-t / 0.1);
+    x += 0.18 * Math.sin(TAU * f * 2.8 * t + ph[3]) * Math.exp(-t / 0.12);
+    x += 0.1 * Math.sin(TAU * f * 0.395 * t + ph[4]) * Math.exp(-t / 0.3);
+    x += 0.14 * Math.sin(TAU * f * 0.115 * t + ph[5]) * Math.exp(-t / 0.35);
+    for (let k = 0; k < clank.length; k++) x += 0.35 * Math.sin(TAU * clank[k] * t + ph[6 + k]) * Math.exp(-t / 0.012);
+    b.d[o + i] += x * ad(t, 0.0004, 1e9) * 0.5;
   }
-  // The blow landing on something soft and heavy.
-  thud(b, r, 0.12, 140, 65, 0.03, 0.8, 0.8, 1400);
-  click(b, r, 0.12, 900, 0.3, 0.006);
-  return b.normalize(0.85).fadeOut();
+  click(b, r, at, 2200, 0.3, 0.003);
+  return b.normalize(0.85).fadeOut(0.06);
 }
 
 // --- explosions and the weather -------------------------------------------------------------
@@ -1059,7 +1071,7 @@ export const RECIPES: Record<string, [number, Maker, number?]> = {
   pistol: [4, gun(PISTOL, (b, r) => brass(b, r, 0.3 + r() * 0.08, 0.05))],
   shotgun: [3, gun(SHOTGUN, (b, r) => pump(b, r, 0.36, 0.12))],
   smg: [5, gun(SMG)],
-  rifle: [3, gun(RIFLE, (b, r) => { bolt(b, r, 0.5, 0.1); brass(b, r, 0.72, 0.04); })],
+  rifle: [3, gun(RIFLE, (b, r) => { bolt(b, r, 0.3, 0.14); brass(b, r, 0.5, 0.04); })],
   minigun: [6, gun(MINIGUN)],
   rocket: [3, (sr, r) => rocketLaunch(sr, r, false)],
   missile: [3, (sr, r) => rocketLaunch(sr, r, true)],

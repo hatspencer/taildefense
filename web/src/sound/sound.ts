@@ -17,7 +17,7 @@ const MINIGUN = 4;
 const TURRET: Record<number, string> = { [K_GUN]: 'turretGun', [K_CANNON]: 'cannon', [K_TESLA]: 'tesla', [K_SNIPER]: 'sniper', [K_MISSILE]: 'pod' };
 // How loud each is at the listener, and how many of it one tick may play.
 const LOUD: Record<string, number> = {
-  pistol: 0.75, shotgun: 1, smg: 0.6, rifle: 1, minigun: 0.5, rocket: 0.8, missile: 0.45, crowbar: 0.6,
+  pistol: 0.9, shotgun: 1, smg: 0.6, rifle: 1.15, minigun: 0.5, rocket: 0.8, missile: 0.45, crowbar: 0.7,
   turretGun: 0.5, cannon: 0.95, tesla: 0.5, sniper: 0.95, pod: 0.4, doorGun: 0.7,
   spit: 0.5, boneThrow: 0.5, boneLand: 0.45, dash: 0.6,
 };
