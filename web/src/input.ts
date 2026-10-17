@@ -199,7 +199,8 @@ export class Input {
       if (kind !== undefined) { ctl.startBuild(kind); return; }
     }
     const slot = KEYS.indexOf(up);
-    if (slot >= 0) { ctl.startAbility(slot); return; }
+    if (slot === 0) { ctl.cancel(); ctl.signature(); return; }
+    if (slot > 0) { ctl.startAbility(slot); return; }
     if (k === '8') { ctl.medkit(); return; }
     if (k >= '0' && k <= '6') { const w = k === '0' ? CROWBAR : Number(k) - 1; const me = ctl.me(); if (me && me.owned & (1 << w)) ctl.send({ op: 'select', w }); return; }
     switch (up) {

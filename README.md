@@ -85,8 +85,9 @@ faces, however the camera is turned, and the camera follows while you walk.
 |---|---|
 | W A S D | walk |
 | E | use what is under the cursor, or else the nearest thing: revive a downed teammate, pick up a dropped weapon, search a loot site, repair a damaged building, shop at the armory (walking there first); on a creep, focus fire on it |
-| right-click | on a creep, focus fire on it; anywhere else, the equipped weapon's signature, at the cursor |
-| Shift / F / Q | abilities: grenade, dash, airstrike; aim with the cursor and left-click |
+| Q | the equipped weapon's signature, at the cursor |
+| right-click | on a creep, focus fire on it; anywhere else, the signature, as Q |
+| Shift / F / X | abilities: grenade, dash, airstrike; aim with the cursor and left-click |
 | H | hold position |
 | 1-6, 0, R | equip a weapon (0 is the crowbar, on brutal), reload (or the reload button) |
 | 8 | use a medkit |
