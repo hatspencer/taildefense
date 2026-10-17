@@ -40,7 +40,7 @@ Six turrets, from the build menu (B):
 |---|---|---|
 | Gun turret (T) | 120 | fast single shots at the nearest creep |
 | Cannon (C) | 240 | slow shells that burst on a crowd |
-| Frost tower (F) | 180 | pulses cold round itself, slowing everything in reach |
+| Frost tower (I) | 180 | pulses cold round itself, slowing everything in reach |
 | Tesla coil (L) | 320 | lightning that jumps from creep to creep |
 | Sniper tower (N) | 380 | a heavy round every few seconds from far off, at the toughest creep it can see; the answer to brutes and bosses, whose armour shrugs off a gun turret |
 | Missile battery (M) | 420 | a salvo of small rockets, each at a different creep |

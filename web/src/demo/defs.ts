@@ -121,7 +121,7 @@ export const STRUCTS: StructDef[] = [
   { name: 'Gate', price: 45, hp: 320, w: 1, h: 1, range: 0, turret: false, key: 'G', desc: 'Players walk through, creeps break it down.', upgrade: up(45), upgradable: true },
   turret(5, { name: 'Gun turret', price: 120, hp: 220, key: 'T', desc: 'Fast single shots at the nearest creep.', special: '+1 pierce' }),
   turret(6, { name: 'Cannon', price: 240, hp: 280, key: 'C', desc: 'Slow shells that burst on a crowd.', special: '+blast radius' }),
-  turret(7, { name: 'Frost tower', price: 180, hp: 220, key: 'F', desc: 'Pulses cold, slowing everything around it.', special: '+slow time' }),
+  turret(7, { name: 'Frost tower', price: 180, hp: 220, key: 'I', desc: 'Pulses cold, slowing everything around it.', special: '+slow time' }),
   turret(8, { name: 'Tesla coil', price: 320, hp: 220, key: 'L', desc: 'Lightning that jumps from creep to creep.', special: '+2 jumps, further' }),
   turret(9, { name: 'Sniper tower', price: 380, hp: 200, key: 'N', desc: 'A slow, heavy round from far off at the toughest creep it can see.', special: '+1 pierce' }),
   turret(10, { name: 'Missile battery', price: 420, hp: 260, key: 'M', desc: 'A salvo of small rockets, each at a different creep.', special: '+1 missile' }),
