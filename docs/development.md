@@ -24,6 +24,10 @@ camera-controls, esbuild). `web/PROTOCOL.md` is the contract between `td` and th
 the end: the evac Huey flying in to the helipad, boarding (E), lift-off and the field report.
 The demo plays sound at 70 after the first click; `#demo&vol=0` silences it, `#demo&vol=40` sets it.
 The demo and the lab are a bundle of their own, `demo.js`, which the page fetches only for `#demo` and `#lab`.
+F3's `sound` line shows the voices playing and the most at once, the sounds dropped and taken
+over since the last frame, the output's peak in dBFS and the compressor's pull in dB. The demo
+leaves the sound engine at `window.tdSound`, whose `synth.plays`, `drops` and `steals` count
+every sound by name, for a browser test to read.
 `#lab` is the animation bench: every creep kind walking, idle, attacking, hit, burning, asleep
 and dying, beside the survivors' poses; `#lab=0`…`#lab=10` looks at one creep row, `#lab=h` at the
 survivors (`#lab=h0`…`#lab=h9` at one of them), and `&dist=11` brings the camera in.

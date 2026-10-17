@@ -1,11 +1,11 @@
 import * as THREE from 'three/webgpu';
 import {
-  BlastKind, CF_ASLEEP, MAX_CREEPS, CF_STRIKE, EffectKind, Phase, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_HURT, PF_RELOADING,
-  PingKind, TRACER_HELI, TRACER_SHARD, type Player, TURRET_TRACKS,
+  BlastKind, CF_ASLEEP, CF_WINDUP, MAX_CREEPS, CF_STRIKE, EffectKind, Phase, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_FIRING, PF_HURT,
+  PF_RELOADING, PingKind, TRACER_HELI, TRACER_SHARD, type Player, TURRET_TRACKS, WET, Weather,
 } from '../protocol';
 import { K_CANNON, K_CORE, K_GUN, K_MISSILE, K_SNIPER, K_TESLA } from '../scene/structs';
 import type { Game } from '../state';
-import { type Loop, type Placed, Synth } from './synth';
+import { type Loop, type Placed, Prio, Synth } from './synth';
 
 // What the game sounds like: reads each frame as it arrives (the shots, blasts and deaths of
 // that tick, and what changed since the last one) and plays it, placed round the point the
@@ -36,8 +36,17 @@ const AHEAD = 0.03;
 // Footsteps: how loud a survivor's, a creep's and a big one's are, and how many of the dead
 // may step in one tick. Steps are the first sounds let go when many are playing.
 const STEP = 0.11, CREEP_STEP = 0.08, BIG_STEP = 0.22, CREEP_STEPS = 2, STEP_BUSY = 0.8;
+// The least time between two blows landing, alone and in the thick of a crowd: blows are the
+// commonest sound of a wave, and one played every tick was a drum roll that hid the rest.
+const STRIKE_GAP0 = 0.12, STRIKE_GAP1 = 0.28;
+// Your kills: at most this often, rising this much in pitch with each in quick succession.
+const KILL_GAP = 0.07, KILL_RISE = 0.025, KILL_STREAK = 0.6;
+// Below this share of health, your heart is heard, at this many beats a second.
+const HEART = 0.25, HEART_GAP = 0.85;
+// How loud the ambience is at most: the rain, the wind, the night and the generator.
+const RAIN = 0.16, WIND = 0.12, NIGHT = 0.05, HUM = 0.12;
 
-interface Shot { x: number; y: number; vol: number; extra?: number; p?: Placed }
+interface Shot { x: number; y: number; vol: number; extra?: number; p?: Placed; mine?: boolean }
 
 export class Sound {
   readonly synth: Synth;
@@ -64,6 +73,14 @@ export class Sound {
   private rotor: Loop | null = null;
   private fire: Loop | null = null;
   private spins = new Map<number, { loop: Loop; until: number; rate: number }>();
+  // The ambience: rain and wind in two loops each, apart in time and either side, so they
+  // are wide rather than a point in the middle; the night's crickets; the generator's hum.
+  private amb = new Map<string, Loop>();
+  private crowd = 0;
+  // Whether each creep was winding up a blow in the last frame, by id.
+  private cWind = new Uint8Array(MAX_CREEPS);
+  private pKills = new Uint32Array(256); private pUlt = new Float32Array(256);
+  private killAt = 0; private streak = 0; private heartDue = 0;
 
   constructor(volume: number) {
     this.synth = new Synth(volume);
@@ -80,6 +97,8 @@ export class Sound {
     this.fire?.stop(); this.fire = null;
     for (const s of this.spins.values()) s.loop.stop();
     this.spins.clear();
+    for (const l of this.amb.values()) l.stop();
+    this.amb.clear();
   }
 
   // listen puts the ears where the camera looks; called every drawn frame, it also moves the
@@ -114,6 +133,35 @@ export class Sound {
       if (!at || (!on && s.rate < 0.3)) { s.loop.stop(); this.spins.delete(id); continue; }
       s.loop.set(at, s.rate);
     }
+    this.ambience(game, paused);
+  }
+
+  // The weather heard as well as seen, the night's insects (quiet when the dead are about),
+  // and the generator's hum round the base. Rain also muffles the world a little, as it
+  // muffles gunfire for the creeps; a pause muffles it a lot.
+  private ambience(game: Game, paused: boolean): void {
+    const f = game.cur, wd = game.welcome!, amt = f.weatherAmt;
+    const wet = (WET[f.weather] ?? 0) * amt;
+    const windy = (f.weather === Weather.Storm ? 1 : f.weather === Weather.HeavySnow ? 0.9 : f.weather === Weather.Snow ? 0.5
+      : f.weather === Weather.Fog ? 0.25 : f.weather === Weather.Thunder || f.weather === Weather.Rain ? 0.3 : 0.12) * Math.max(amt, 0.4);
+    const night = wd.dark ? Math.max(0, 1 - this.crowd * 2) * (1 - wet) : 0;
+    const zoom = 1 - 0.35 * Math.min(1, Math.max(0, (this.dist - 12) / 63));
+    const set = (key: string, name: string, vol: number, pan: number, rate = 1) => {
+      let l = this.amb.get(key);
+      if (vol < 0.004) { if (l) { l.stop(); this.amb.delete(key); } return; }
+      if (!l) { const n = this.synth.loop(name, 'amb'); if (!n) return; this.amb.set(key, l = n); }
+      l.set({ vol: vol * zoom, pan, far: 0 }, rate);
+    };
+    set('rainL', 'rain', RAIN * wet, -0.7); set('rainR', 'rain', RAIN * wet, 0.7, 0.97);
+    set('windL', 'wind', WIND * windy, -0.6, 1 + 0.15 * windy); set('windR', 'wind', WIND * windy, 0.6, 0.96 + 0.15 * windy);
+    set('night', 'crickets', NIGHT * night, 0);
+    const core = this.place(wd.core.x, wd.core.y, HUM, 0.5);
+    let hum = this.amb.get('hum');
+    if (core && f.phase !== Phase.Over) {
+      if (!hum) { const n = this.synth.loop('hum', 'world'); if (n) this.amb.set('hum', hum = n); }
+      hum?.set(core);
+    } else if (hum) { hum.stop(); this.amb.delete('hum'); }
+    this.synth.mood(paused ? 900 : 20000 * Math.pow(0.35, wet), paused ? 0.4 : 1 - 0.5 * Math.min(1, this.synth.busy * 1.5));
   }
 
   private keep(l: Loop | null, name: string, p: Placed | null): Loop | null {
@@ -152,8 +200,11 @@ export class Sound {
     return true;
   }
 
+  // A cue from the radio or the game: the world steps back a little for it.
   ui(name: string, loud = 0.5, gap = 0.25): void {
-    if (this.once('ui:' + name, gap)) this.synth.play(name, this.flat(loud), 0, 1, true);
+    if (!this.once('ui:' + name, gap)) return;
+    this.synth.play(name, this.flat(loud), 0, 1, Prio.Cue);
+    this.synth.duckWorld(3, 0.35);
   }
 
   onFrame(game: Game): void {
@@ -179,13 +230,15 @@ export class Sound {
     const crowd = Math.min(1, Math.max(0, (near - CROWD0) / (CROWD1 - CROWD0)));
 
     // Shots: grouped by sound, the nearest few of each played, spread across the tick.
+    // Your own shots come first: the gun in your hands is the sound that answers you.
     const groups = new Map<string, Shot[]>();
-    const add = (name: string, x: number, y: number, extra?: number) => {
+    const me = f.player(wd.you), alive = !!me && (me.flags & PF_ALIVE) !== 0;
+    const add = (name: string, x: number, y: number, extra?: number, mine = false) => {
       const p = this.place(x, y, LOUD[name] ?? 0.6, name === 'cannon' || name === 'sniper' || name === 'rifle' ? 1.6 : 1.2);
       if (!p) return;
       let g = groups.get(name);
       if (!g) groups.set(name, g = []);
-      g.push({ x, y, vol: p.vol, extra, p });
+      g.push({ x, y, vol: p.vol, extra, p, mine });
     };
     for (let i = 0; i < f.nTracers; i++) {
       const k = f.tKind[i], x0 = f.tX0[i], y0 = f.tY0[i], x1 = f.tX1[i], y1 = f.tY1[i];
@@ -198,20 +251,20 @@ export class Sound {
         const s = game.structAtTile(Math.floor(x0), Math.floor(y0));
         add(s >= 0 && f.sKind[s] === K_MISSILE ? 'missile' : 'rocket', x0, y0);
       } else if (GUN[k]) {
-        add(GUN[k], x0, y0);
+        add(GUN[k], x0, y0, undefined, alive && Math.abs(x0 - me!.x) < 1.2 && Math.abs(y0 - me!.y) < 1.2);
         if (k === MINIGUN) this.spinning(f.players, f.nPlayers, x0, y0);
       }
     }
     for (const [name, list] of groups) {
       const cap = CREEPY.has(name) ? Math.max(1, Math.round(3 - 2 * crowd)) : CAP[name] ?? 4;
-      list.sort((a, b) => b.vol - a.vol);
+      list.sort((a, b) => (b.mine ? 1 : 0) - (a.mine ? 1 : 0) || b.vol - a.vol);
       const n = Math.min(cap, list.length);
       // More than are played: the ones played stand in for the rest, a little louder.
       const more = list.length > n ? 1 + 0.18 * Math.log2(list.length / n) : 1;
       for (let j = 0; j < n; j++) {
         const s = list[j], p = { ...s.p!, vol: s.vol * more };
         const at = t0 + (s.extra ?? (j / n) * TICK + Math.random() * 0.008);
-        this.synth.play(name, p, at);
+        this.synth.play(name, p, at, 1, s.mine ? Prio.Own : undefined);
       }
     }
 
@@ -254,12 +307,16 @@ export class Sound {
     }
 
     // Blows landing, and the groaning of the dead nearby.
+    // The nearest blow of the tick, and the nearest big one's, each no more often than its gap.
     strikes.sort((a, b) => b.vol - a.vol);
-    for (let j = 0; j < Math.min(crowd > 0.5 ? 1 : 2, strikes.length); j++) {
-      const s = strikes[j], big = BIG.has(s.extra!);
+    for (const big of [false, true]) {
+      const s = strikes.find((q) => BIG.has(q.extra!) === big);
+      if (!s || !this.once(big ? 'strikeBig' : 'strike', big ? 0.2 : STRIKE_GAP0 + (STRIKE_GAP1 - STRIKE_GAP0) * crowd)) continue;
       const p = this.place(s.x, s.y, big ? 0.9 : 0.5);
       if (p) this.synth.play(big ? 'strikeBig' : 'strike', p, t0 + Math.random() * TICK);
     }
+    this.crowd = crowd;
+    this.windups(game, t0, hear);
     this.groan(game, near, hear, crowd);
     this.steps(game, t0, hear, crowd);
 
@@ -335,6 +392,23 @@ export class Sound {
     }
   }
 
+  // A big one drawing up to strike, heard before the blow: the nearest one that has just
+  // started, at most a few a second.
+  private windups(game: Game, t0: number, hear: number): void {
+    const f = game.cur;
+    let best = -1, bd = Infinity;
+    for (let i = 0; i < f.nCreeps; i++) {
+      const id = f.cId[i], wind = f.cFlags[i] & CF_WINDUP ? 1 : 0, was = this.cWind[id];
+      this.cWind[id] = wind;
+      if (!wind || was || !BIG.has(f.cKind[i])) continue;
+      const d = Math.hypot(f.cX[i] - this.lx, f.cY[i] - this.ly);
+      if (d < hear && d < bd) { bd = d; best = i; }
+    }
+    if (best < 0 || !this.once('windup', 0.3)) return;
+    const p = this.place(f.cX[best], f.cY[best], 0.6);
+    if (p) this.synth.play('windup', p, t0, f.cKind[best] === 3 ? 1.1 : 0.85);
+  }
+
   private spinning(ps: Player[], n: number, x: number, y: number): void {
     for (let i = 0; i < n; i++) {
       const p = ps[i];
@@ -397,19 +471,33 @@ export class Sound {
       const g = voice(p);
       const here = (loud: number) => mine ? this.flat(loud) : this.place(p.x, p.y, loud * 0.8);
       if (p.flags & PF_HURT && !(was & PF_HURT) && p.flags & PF_ALIVE && this.once('hurt' + id, 0.45)) {
-        const q = here(0.75); if (q) this.synth.play('hurt_' + g, q);
+        const q = here(0.75); if (q) this.synth.play('hurt_' + g, q, 0, 1, mine ? Prio.Own : undefined);
       }
-      if (was & PF_ALIVE && !(p.flags & PF_ALIVE)) { const q = here(0.9); if (q) this.synth.play('down_' + g, q, 0, 1, mine); }
+      if (was & PF_ALIVE && !(p.flags & PF_ALIVE)) { const q = here(0.9); if (q) this.synth.play('down_' + g, q, 0, 1, mine ? Prio.Cue : undefined); }
       if (!mine) continue;
       // Yours only: the gun in your hands, the kit on your back, the money in your pocket.
       const alive = (p.flags & PF_ALIVE) !== 0;
-      if (alive && p.cur !== this.pCur[id]) this.synth.play('switch', this.flat(0.5));
+      if (alive && p.cur !== this.pCur[id]) this.synth.play('switch', this.flat(0.7), 0, 1, Prio.Own);
       else if (alive && p.cur < 6) {
-        if (p.flags & PF_RELOADING && !(was & PF_RELOADING)) this.synth.play('reload' + p.cur, this.flat(0.55));
-        if (!(p.flags & PF_RELOADING) && was & PF_RELOADING) this.synth.play('reloaded' + p.cur, this.flat(0.6));
+        if (p.flags & PF_RELOADING && !(was & PF_RELOADING)) this.synth.play('reload' + p.cur, this.flat(1), 0, 1, Prio.Own);
+        if (!(p.flags & PF_RELOADING) && was & PF_RELOADING) this.synth.play('reloaded' + p.cur, this.flat(1), 0, 1, Prio.Own);
       }
       if (p.heal > 0 && this.pHeal[id] <= 0) this.synth.play('medkit', this.flat(0.55));
-      if (p.stunned && !this.pStun[id]) this.synth.play('tinnitus', this.flat(0.5), 0, 1, true);
+      // A kill of your own shooting: a knock, rising a little with each one in quick succession.
+      if (alive && p.kills > this.pKills[id] && p.flags & PF_FIRING) {
+        const now = performance.now() / 1000;
+        if (now - this.killAt > KILL_GAP) {
+          this.streak = now - this.killAt < KILL_STREAK ? Math.min(8, this.streak + 1) : 0;
+          this.killAt = now;
+          this.synth.play('kill', this.flat(0.85), 0, 1 + KILL_RISE * this.streak);
+        }
+      }
+      if (alive && p.ult >= 1 && this.pUlt[id] < 1) this.synth.play('ultReady', this.flat(0.45));
+      if (alive && p.hp > 0 && p.hp < p.maxHp * HEART) {
+        const now = performance.now() / 1000;
+        if (now >= this.heartDue) { this.heartDue = now + HEART_GAP; this.synth.play('heart', this.flat(0.4)); }
+      }
+      if (p.stunned && !this.pStun[id]) this.synth.play('tinnitus', this.flat(0.5), 0, 1, Prio.Cue);
       const ups = upgrades(p), buys = purchases(p);
       if (p.flags & PF_ARMORY && !loot) {
         if (ups > this.pUps[id]) this.synth.play('upgrade', this.flat(0.55));
@@ -432,7 +520,7 @@ export class Sound {
       }
       if (f.sAlive[i] && f.sKind[i] === K_CORE) {
         const hp = f.sHp[i];
-        if (this.coreHp >= 0 && hp < this.coreHp && f.phase === Phase.Wave && this.once('klaxon', 7)) this.synth.play('klaxon', this.flat(0.35), 0, 1, true);
+        if (this.coreHp >= 0 && hp < this.coreHp && f.phase === Phase.Wave && this.once('klaxon', 7)) { this.synth.play('klaxon', this.flat(0.35), 0, 1, Prio.Cue); this.synth.duckWorld(4, 0.8); }
         this.coreHp = hp;
       }
     }
@@ -444,11 +532,11 @@ export class Sound {
     if (this.phase >= 0 && f.phase !== this.phase) {
       sirens = true;
       const s = f.phase === Phase.Wave ? 'sirenWave' : f.phase === Phase.Over ? 'sirenOver' : this.phase === Phase.Wave ? 'sirenClear' : '';
-      if (s) this.synth.play(s, this.flat(s === 'sirenClear' ? 0.4 : 0.5), 0, 1, true);
+      if (s) { this.synth.play(s, this.flat(s === 'sirenClear' ? 0.4 : 0.5), 0, 1, Prio.Cue); this.synth.duckWorld(3, 2); }
     }
     if (f.phase === Phase.Build && f.pausedBy < 0) {
       const secs = Math.ceil(f.phaseLeft / 10);
-      if (secs !== this.secs && secs >= 1 && secs <= 3) this.synth.play('beep', this.flat(0.4), 0, 1, true);
+      if (secs !== this.secs && secs >= 1 && secs <= 3) this.synth.play(secs === 1 ? 'beepGo' : 'beep', this.flat(0.4), 0, 1, Prio.Cue);
       this.secs = secs;
     } else this.secs = -1;
     for (const n of f.notes) {
@@ -468,7 +556,7 @@ export class Sound {
     for (let i = 0; i < f.nPlayers; i++) {
       const p = f.players[i], id = p.id;
       this.pFlags[id] = p.flags; this.pCur[id] = p.cur; this.pHeal[id] = p.heal; this.pStun[id] = p.stunned ? 1 : 0;
-      this.pBuys[id] = purchases(p); this.pUps[id] = upgrades(p);
+      this.pBuys[id] = purchases(p); this.pUps[id] = upgrades(p); this.pKills[id] = p.kills; this.pUlt[id] = p.ult;
     }
     this.nStructs = f.nStructs;
     for (let i = 0; i < f.nStructs; i++) {
