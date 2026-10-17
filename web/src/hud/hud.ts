@@ -5,7 +5,7 @@ import { cssHex, playerColor } from '../scene/util';
 import { Armory } from './armory';
 import { archetypeName } from '../scene/look';
 import { CELL, type Portraits } from '../scene/portraits';
-import { el, esc, fmtGold, setClass, setText, show } from './dom';
+import { el, esc, fmtGold, patch, setClass, setText, show } from './dom';
 import { iconFor, weatherIcon } from './icons';
 import { scoreRows } from './score';
 import { drawReport } from './shot';
@@ -869,7 +869,7 @@ export class Hud {
 
   // The right-hand command card: the build grid, or whatever is selected.
   private updateCard(): void {
-    const ctl = this.ctl, g = ctl.game, f = g.cur, wd = g.welcome!, me = ctl.me();
+    const ctl = this.ctl, g = ctl.game, f = g.cur, me = ctl.me();
     ctl.validate();
     let key: string;
     const s = ctl.sel;
@@ -880,8 +880,15 @@ export class Hud {
     else key = 'none';
     if (key === this.cardKey) return;
     this.cardKey = key;
-    const c = this.card;
-    c.innerHTML = '';
+    // Gold and HP change the card nearly every tick in a big wave: it is drawn afresh and patched
+    // onto the one on screen, which keeps its buttons, so a click on one still lands.
+    const c = el('div', this.card.className);
+    this.drawCard(c);
+    patch(this.card, c);
+  }
+
+  private drawCard(c: HTMLElement): void {
+    const ctl = this.ctl, g = ctl.game, f = g.cur, wd = g.welcome!, me = ctl.me(), s = ctl.sel;
     const gold = me ? me.gold : 0;
     const head = (title: string, aside = '', cls = '') => {
       el('h3', '', c).innerHTML = `<span class="tape ${cls}">${title}</span>${aside ? `<span class="muted">${aside}</span>` : ''}`;
