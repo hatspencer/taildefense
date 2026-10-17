@@ -88,7 +88,7 @@ everything it knows, a terrain message follows).
   ],
   "gear": [ {"name": "Armor", "info": "+25 max HP", "costs": [90, 153, 260, 442, 752]} ],
                                // 0 Armor, 1 Boots, 2 Medkit, 3 Scavenger (luck when searching)
-  "abilities": [               // index = ability slot 0..3; "key" is what the client binds it to (Q Shift F X)
+  "abilities": [               // index = ability slot 0..3; "key" is what the client binds it to (Q Shift F V)
     {"name": "Signature", "key": "Q", "desc": "the equipped weapon's own ability",
      "target": "point", "range": 0, "cool": [0, 0, 0], "costs": [0, 0, 0], "always": true},
     {"name": "Grenade", "key": "W", "desc": "...", "target": "point", "range": 11,

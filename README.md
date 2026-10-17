@@ -87,12 +87,12 @@ faces, however the camera is turned, and the camera follows while you walk.
 | E | use what is under the cursor, or else the nearest thing: revive a downed teammate, pick up a dropped weapon, search a loot site, repair a damaged building, shop at the armory (walking there first); on a creep, focus fire on it |
 | Q | the equipped weapon's signature, at the cursor |
 | right-click | on a creep, focus fire on it; anywhere else, the signature, as Q |
-| Shift / F / X | abilities: grenade, dash, airstrike; aim with the cursor and left-click |
+| Shift / F / V | abilities: grenade, dash, airstrike; aim with the cursor and left-click |
 | H | hold position |
 | 1-6, 0, R | equip a weapon (0 is the crowbar, on brutal), reload (or the reload button) |
 | 8 | use a medkit |
 | G (hold) | hold a second to drop the weapon in hand for a teammate, upgrades and all (you keep at least one) |
-| V | taunt: flip them off and shout; every creep around you comes for you for 5 s, sleeping guards too |
+| J | taunt: flip them off and shout; every creep around you comes for you for 5 s, sleeping guards too |
 | B | build: X wall, G gate, T gun turret, C cannon, F frost tower, L tesla coil, N sniper tower, M missile battery; shift keeps placing |
 | left-click | select a building, creep or player |
 | U / Delete twice | upgrade / sell the selected wall or gate (60% more HP a level); a turret upgrades a track at a time from its card |
