@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { float, mix, sin, time, uniform, vertexColor } from 'three/tsl';
+import type { Frame } from '../protocol';
 import type { Structs } from './structs';
 import { setEmissive } from './util';
 
@@ -19,6 +20,9 @@ export class Overlays {
   private ghostKind = -1;
   private foot: THREE.Mesh;
   private area: THREE.Mesh;
+  // The outlines of structures the creeps destroyed, by structure index, and what they were.
+  private ruinMat: THREE.MeshLambertNodeMaterial;
+  private ruinsAt = new Map<number, { kind: number; x: number; y: number; g: THREE.Group }>();
 
   constructor(scene: THREE.Scene, private structs: Structs) {
     scene.add(this.group);
@@ -43,6 +47,27 @@ export class Overlays {
     this.area.visible = false;
     this.area.renderOrder = 5;
     this.group.add(this.area);
+    this.ruinMat = new THREE.MeshLambertNodeMaterial({ transparent: true, depthWrite: false });
+    this.ruinMat.colorNode = mix(vertexColor().rgb, uniform(new THREE.Color(0x8fb4d8)), 0.7);
+    this.ruinMat.opacityNode = sin(time.mul(2)).mul(0.05).add(0.22);
+  }
+
+  // A pale outline where each ghost stands, until it is rebuilt or built over.
+  ruins(f: Frame): void {
+    const at = this.ruinsAt;
+    for (const [i, r] of at) {
+      if (i < f.nStructs && f.sGhost[i] && f.sKind[i] === r.kind && f.sX[i] === r.x && f.sY[i] === r.y) continue;
+      this.group.remove(r.g);
+      at.delete(i);
+    }
+    for (let i = 0; i < f.nStructs; i++) {
+      if (!f.sGhost[i] || at.has(i)) continue;
+      const g = this.structs.ghost(f.sKind[i], this.ruinMat);
+      g.renderOrder = 4;
+      g.position.set(f.sX[i] + f.sW[i] / 2, 0.02, f.sY[i] + f.sH[i] / 2);
+      this.group.add(g);
+      at.set(i, { kind: f.sKind[i], x: f.sX[i], y: f.sY[i], g });
+    }
   }
 
   private get(name: RingName): THREE.Mesh {

@@ -38,7 +38,7 @@ everything it knows, a terrain message follows).
 ```jsonc
 {
   "t": "welcome",
-  "proto": 16,
+  "proto": 17,
   "version": "a1b2c3d",
   "you": 0,                    // your player id
   "w": 352, "h": 220,          // map size in tiles
@@ -82,24 +82,26 @@ everything it knows, a terrain message follows).
       "special": "+1 pierce",
       "costs": [[60, 93, 144, 223, 346], ...],      // [track][level] price to go level -> level+1
       "values": [["14 dmg", "17 dmg", ...], ...],   // [track][level 0..5] what the track gives
-      "sig": {"name": "Fan the hammer", "desc": "...", "cool": 8, "range": 14, "radius": 0, "target": "point"}
-      // radius: area round the point; with "cone" (half-angle, radians) it is a cone's reach in front
+      "ult": {"name": "Dead Eye", "desc": "...", "time": 1.5, "range": 0, "radius": 0, "target": "self"}
+      // the ultimate on Q: time s it runs (0 for the launcher's one-shot MIRV), range and radius
+      // for a "point" ultimate cast at the cursor
     }
   ],
   "gear": [ {"name": "Armor", "info": "+25 max HP", "costs": [90, 153, 260, 442, 752]} ],
                                // 0 Armor, 1 Boots, 2 Vitamins (regeneration), 3 Scavenger (luck when searching)
   "abilities": [               // index = ability slot 0..3; "key" is what the client binds it to (Q Shift F V)
-    {"name": "Signature", "key": "Q", "desc": "the equipped weapon's own ability",
-     "target": "point", "range": 0, "cool": [0, 0, 0], "costs": [0, 0, 0], "always": true},
-    {"name": "Grenade", "key": "Shift", "desc": "...", "target": "point", "range": 11,
-     "radius": [2.5, 3, 3.5], "cool": [9, 8, 7], "costs": [200, 450, 800], "always": false}
+    {"name": "Ultimate", "key": "Q", "desc": "the equipped weapon's ultimate",
+     "target": "point", "range": 0, "cool": [0], "costs": [0], "always": true},
+    {"name": "Grenade", "key": "Shift", "desc": "...", "target": "point", "range": 12,
+     "radius": [3, 3.5, 4, 4.5, 5], "cool": [8, 7, 6, 5.5, 5], "costs": [200, 400, 700, 1100, 1600],
+     "always": false}           // each array is as long as the ability's top level
   ],
   "structs": [                 // index = struct kind; 0 is "none"
     {"name": "Wall", "price": 20, "hp": 320, "w": 1, "h": 1, "range": 0, "turret": false,
-     "key": "X", "desc": "...", "upgrade": [0, 16, 32, 48, 64],   // [level] price level -> level+1
+     "key": "1", "desc": "...", "upgrade": [0, 16, 32, 48, 64],   // [level] price level -> level+1
      "upgradable": true},      // turrets, walls and gates go up levels; a wall only gets tougher
     {"name": "Gun turret", "price": 120, "hp": 220, "w": 1, "h": 1, "range": 9, "turret": true,
-     "key": "T", "desc": "...", "upgradable": true,
+     "key": "3", "desc": "...", "upgradable": true,
      "upgrade": [36, 54, 81, 122, 182],              // a turret: price to raise any track from level
      "ranges": [9, 9.7, 10.4, 11.2, 11.9, 12.6],     // reach at each range track level 0..5
      "special": "+1 pierce",                         // what the special track adds a level
@@ -197,9 +199,11 @@ if you dare; the frame carries how many are left per site. Better guarded sites 
 loot, and the guard level caps it: unguarded sites never give more than a common find, bar
 now and then.
 
-The signature ability (slot 0, Q) depends on the equipped weapon: its name, cooldown and range
-are in `weapons[cur].sig`. It is always available at level 1. Slots 1–3 start at level 0
-(locked) and are bought at the armory up to level 3; `costs[l]` is the price of l -> l+1 and
+The ultimate (slot 0, Q) depends on the equipped weapon: its name, duration and range are in
+`weapons[cur].ult`. It has no cooldown but a meter, the player's `ult` byte, that damage and
+revives fill; it casts only when full, and not while one is running. Slots 1–3 start at level 0
+(locked) and are bought at the armory up to the length of their `costs` (the grenade 5, the
+others 3); `costs[l]` is the price of l -> l+1 and
 `cool[l-1]` the cooldown at level l, `radius[l-1]` the area at level l. A turret's
 `ranges[l-1]` is its reach at level l (absent for walls and gates).
 
@@ -270,8 +274,9 @@ u8   nPlayers
                         4-6 skin tone (0 deepest .. 7 palest), 7-8 body (0 masc, 1 fem, else androgynous),
                         9-12 hair style, 13-15 hair colour, 16-17 facial hair, 18-19 build,
                         20-21 height, 22-23 glasses when both are 0
-  u8   buff           0 none, else the weapon kind whose signature buff is running
+  u8   buff           0 none, else the weapon kind + 1 whose ultimate is running
   u8   buffLeft       deciseconds
+  u8   ult            the ultimate's meter, 0..255 (255 full: Q casts it)
   4 × (u8 level, u16 cooldown deciseconds left)     ability slots 0..3
   u8   medkits        carried
   u8   heal           deciseconds of a medkit's healing left
@@ -296,7 +301,8 @@ u8   nGuns            weapons survivors dropped, lying on the ground (at most 32
   u8   by             the player id who dropped it
 
 u16  nStructs         the whole list; the index is the struct id used in commands
-  u8   alive          dead slots are kept (alive 0) so ids stay stable
+  u8   alive          0 gone (dead slots are kept so ids stay stable), 1 standing, 2 a ghost:
+                      destroyed, drawn pale until fixAll rebuilds it or something is built over it
   u8   kind
   u16  x, u16 y       top-left tile
   u8   w, u8 h        tiles
@@ -323,7 +329,7 @@ u16  nCreeps
 u16  nTracers         shots fired this tick
   u16  x0, y0, x1, y1 q8
   u8   kind           0..6 player weapon kind (6 the crowbar: a swing, the survivor to its
-                      reach), 16+structKind turret shot (a missile battery's is a one-tile stub at launch; its missiles fly as 5, rocket, tracers), 32 spitter spit, 35 a hurler's bone, 33 dash (the hero's leap, start to end), 34 the Huey's door gunner
+                      reach), 8 + weapon kind the same under its ultimate (drawn red and wider), 16+structKind turret shot (a missile battery's is a one-tile stub at launch; its missiles fly as 5, rocket, tracers), 32 spitter spit, 35 a hurler's bone, 33 dash (the hero's leap, start to end), 34 the Huey's door gunner
                       (x0,y0 is the Huey over the ground; it fires from the air)
 u16  nBlasts          explosions and pulses this tick
   u16  x, y q8
@@ -383,6 +389,7 @@ integers. The host checks everything; a refusal comes back as a `toast` with lev
 {"op": "attack",  "id": 1234}               // chase and shoot one creep
 {"op": "stop"}                               // drop the order, fight what comes in range
 {"op": "hold"}                               // stand still, fight what comes in range
+{"op": "fixAll"}                             // between waves: rebuild every ghost, repair all damaged
 {"op": "ability", "slot": 1, "x": 150, "y": 98}  // cast Q Shift F V (slot 0..3) at a point
 {"op": "build",   "kind": 5, "tx": 150, "ty": 96}  // walk to the tile and build there
 {"op": "repair",  "s": 12}                   // walk to struct 12 and repair it (costs gold)

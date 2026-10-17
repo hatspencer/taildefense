@@ -52,6 +52,7 @@ type PlayerView struct {
 	Gear                                       [game.NumGear]uint8
 	Buff                                       uint8   // 0 none, else the weapon kind + 1
 	BuffLeft                                   float32 // seconds
+	Ult                                        float32 // the ultimate's meter, 0..1
 	Abil                                       [game.NumAbilities]AbilityView
 }
 
@@ -77,6 +78,7 @@ type Effect struct {
 // StructView is a structure as a client sees it.
 type StructView struct {
 	Alive     bool
+	Ghost     bool // destroyed, waiting to be rebuilt
 	Kind      game.StructKind
 	X, Y      int
 	W, H      int
@@ -267,7 +269,7 @@ func (r *Replica) Apply(p []byte) error {
 	// Structures.
 	if key {
 		for i := range r.Structs {
-			r.Structs[i].Alive = false
+			r.Structs[i].Alive, r.Structs[i].Ghost = false, false
 		}
 	}
 	ns := int(d.uv())
@@ -280,7 +282,8 @@ func (r *Replica) Apply(p []byte) error {
 			r.Structs = append(r.Structs, StructView{})
 		}
 		var s StructView
-		s.Alive = d.u8() == 1
+		st := d.u8()
+		s.Alive, s.Ghost = st == 1, st == 2
 		s.Kind = game.StructKind(d.u8())
 		s.X, s.Y = int(d.u16()), int(d.u16())
 		s.W, s.H = int(d.u8()), int(d.u8())
@@ -489,6 +492,7 @@ func (r *Replica) header(d *dec) {
 		}
 		p.Buff = d.u8()
 		p.BuffLeft = float32(d.u8()) / 10
+		p.Ult = float32(d.u8()) / 255
 		for a := range p.Abil {
 			p.Abil[a].Lv = d.u8()
 			p.Abil[a].Cool = float32(d.u16()) / 10

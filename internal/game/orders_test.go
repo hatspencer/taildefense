@@ -181,16 +181,24 @@ func TestAbilities(t *testing.T) {
 		t.Fatal("the grenade did no damage")
 	}
 
-	// Every weapon's signature casts.
+	// Every weapon's ultimate casts on a full meter, and not on an empty one.
 	for k := WeaponKind(0); k < NumWeapons; k++ {
 		p.Weapons[k].Owned = true
 		p.Cur = k
-		p.Abil[AbSignature].Cool = 0
-		if err := w.Cast(p, AbSignature, p.X+4, p.Y); err != nil {
-			t.Fatalf("%s: %v", Signatures[k].Name, err)
+		p.BuffLeft, p.Ult = 0, .5
+		if w.Cast(p, AbUltimate, p.X+4, p.Y) == nil {
+			t.Fatalf("%s cast half charged", Ultimates[k].Name)
+		}
+		p.Ult = 1
+		if err := w.Cast(p, AbUltimate, p.X+4, p.Y); err != nil {
+			t.Fatalf("%s: %v", Ultimates[k].Name, err)
+		}
+		if p.Ult != 0 {
+			t.Fatalf("%s left the meter at %.2f", Ultimates[k].Name, p.Ult)
 		}
 		w.Step()
 	}
+	p.BuffLeft = 0
 
 	// A dash stops at walls.
 	core := &w.Structs[w.Core]

@@ -69,7 +69,7 @@ export class Armory {
         if (wi === CROWBAR && !owned) return; // never sold
         const tr = el('tr', '', t);
         const n = el('td', '', tr);
-        n.innerHTML = `<span class="wname">${esc(w.name)}</span> <kbd>${wi === CROWBAR ? 0 : wi + 1}</kbd><br><span class="muted small">${esc(w.fire)} · range ${w.range} · Q: ${esc(w.sig.name)}</span>`;
+        n.innerHTML = `<span class="wname">${esc(w.name)}</span> <kbd>${wi === CROWBAR ? 0 : wi + 2}</kbd><br><span class="muted small">${esc(w.fire)} · range ${w.range} · Q: ${esc(w.ult.name)}</span>`;
         const act = el('td', '', tr);
         if (!owned) btn(act, `Buy <span class="gold">${fmtGold(w.price)}g</span>`, w.price, true, () => ctl.send({ op: 'buyWeapon', w: wi }), 'primary');
         else if (me.cur === wi) el('span', 'muted', act, 'equipped');
@@ -101,7 +101,7 @@ export class Armory {
       const m = wd.medkit;
       if (m) {
         const tr = el('tr', '', t), full = me.medkits >= m.max;
-        el('td', 'wname', tr).innerHTML = 'Medkit <kbd>8</kbd>';
+        el('td', 'wname', tr).innerHTML = 'Medkit <kbd>1</kbd>';
         el('td', '', tr, `+${Math.round(m.heal * 100)}% HP over ${m.time}s; a hit cuts it short`);
         el('td', '', tr).innerHTML = `${me.medkits}/${m.max} ${pips(me.medkits, m.max)}`;
         btn(el('td', '', tr), full ? 'full' : `Buy <span class="gold">${fmtGold(m.cost)}g</span>`, m.cost, !full, () => ctl.send({ op: 'buyMedkit' }), 'primary');
@@ -121,9 +121,9 @@ export class Armory {
         const tr = el('tr', '', t);
         el('td', '', tr).innerHTML = `<kbd>${esc(a.key)}</kbd>`;
         if (si === 0) {
-          const sig = wd.weapons[me.cur]?.sig;
-          el('td', '', tr).innerHTML = `<span class="wname">${esc(sig?.name ?? a.name)}</span><br><span class="muted">${esc(sig?.desc ?? a.desc)} · changes with the equipped weapon</span>`;
-          el('td', 'muted', tr, 'always');
+          const u = wd.weapons[me.cur]?.ult;
+          el('td', '', tr).innerHTML = `<span class="wname">${esc(u?.name ?? a.name)}</span><br><span class="muted">${esc(u?.desc ?? a.desc)} · the equipped weapon's ultimate; fighting fills its meter</span>`;
+          el('td', 'muted', tr, `${Math.floor(me.ult * 100)}%`);
           el('td', '', tr);
           return;
         }

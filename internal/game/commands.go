@@ -356,6 +356,80 @@ func (w *World) Build(p *Player, k StructKind, x, y int) error {
 	return nil
 }
 
+// FixCost is what FixAll would cost now: every ghost rebuilt and every damaged structure
+// mended, at the price building and repairing them one by one would take.
+func (w *World) FixCost() int32 {
+	var cost int32
+	for i := range w.Structs {
+		s := &w.Structs[i]
+		if s.Ghost {
+			cost += Structs[s.Kind].Price
+		} else if s.Alive && !s.mended() {
+			cost += repairCost(s)
+		}
+	}
+	return cost
+}
+
+// repairCost is the gold mending s to full costs, rounded up.
+func repairCost(s *Structure) int32 {
+	return int32(math.Ceil(float64((s.MaxHP - s.HP) * RepairRate(s))))
+}
+
+// FixAll is the base put back between waves in one go: every ghost of a structure the creeps
+// destroyed is rebuilt where it stood, at its price and its first level, and then everything
+// damaged is mended, wherever the survivor stands. What the gold does not stretch to is left;
+// a ghost whose ground is taken stays a ghost. It returns how many were rebuilt and mended.
+func (w *World) FixAll(p *Player) (rebuilt, mended int, err error) {
+	if w.Phase != PhaseBuild {
+		return 0, 0, errors.New("rebuild and repair only between waves")
+	}
+	if !p.Alive {
+		return 0, 0, errors.New("you are down")
+	}
+	short := false
+	for i := range w.Structs {
+		s := &w.Structs[i]
+		if !s.Ghost {
+			continue
+		}
+		k, x, y, owner := s.Kind, int(s.X), int(s.Y), s.Owner
+		if e := w.canBuild(p, k, x, y, false); e != nil {
+			short = short || errors.Is(e, errBroke)
+			continue
+		}
+		s.Ghost = false
+		p.Gold -= Structs[k].Price
+		w.place(k, x, y, owner)
+		p.Tally.Built++
+		rebuilt++
+	}
+	for i := range w.Structs {
+		s := &w.Structs[i]
+		if !s.Alive || s.mended() {
+			continue
+		}
+		c := repairCost(s)
+		if p.Gold < c {
+			short = true
+			continue
+		}
+		p.Gold -= c
+		s.HP = s.MaxHP
+		mended++
+	}
+	if rebuilt == 0 && mended == 0 {
+		if short {
+			return 0, 0, fmt.Errorf("%w to rebuild or repair anything", errBroke)
+		}
+		return 0, 0, errors.New("nothing to rebuild or repair")
+	}
+	if short {
+		w.toast(p, 2, "not enough gold for the rest")
+	}
+	return rebuilt, mended, nil
+}
+
 // Nearest returns the index of the closest live structure within r of the player, optionally
 // only turrets, or -1.
 func (w *World) Nearest(p *Player, r float32, turretsOnly bool) int {

@@ -22,13 +22,12 @@ type creepDef struct {
 	Windup float32 `json:"windup"`
 }
 
-type sigDef struct {
+type ultDef struct {
 	Name   string  `json:"name"`
 	Desc   string  `json:"desc"`
-	Cool   float32 `json:"cool"`
+	Time   float32 `json:"time"`
 	Range  float32 `json:"range"`
 	Radius float32 `json:"radius"`
-	Cone   float32 `json:"cone,omitempty"`
 	Target string  `json:"target"`
 }
 
@@ -41,7 +40,7 @@ type weaponDef struct {
 	Special string     `json:"special"`
 	Costs   [][]int32  `json:"costs"`
 	Values  [][]string `json:"values"`
-	Sig     sigDef     `json:"sig"`
+	Ult     ultDef     `json:"ult"`
 }
 
 type gearDef struct {
@@ -206,12 +205,12 @@ func welcome(wel netplay.Welcome, core point, host, hint string, hosting bool) w
 			wd.Costs = append(wd.Costs, costs)
 			wd.Values = append(wd.Values, values)
 		}
-		s := game.Signatures[k]
-		target := "point"
-		if s.Self {
-			target = "self"
+		u := game.Ultimates[k]
+		target := "self"
+		if u.Range > 0 {
+			target = "point"
 		}
-		wd.Sig = sigDef{s.Name, s.Desc, s.Cool, s.Range, s.Radius, s.Cone, target}
+		wd.Ult = ultDef{u.Name, u.Desc, u.Time, u.Range, u.Radius, target}
 		m.Weapons = append(m.Weapons, wd)
 	}
 	for g := game.Gear(0); g < game.NumGear; g++ {
@@ -223,7 +222,7 @@ func welcome(wel netplay.Welcome, core point, host, hint string, hosting bool) w
 	}
 	for _, a := range game.Abilities {
 		m.Abilities = append(m.Abilities, abilityDef{Name: a.Name, Key: a.Key, Desc: a.Desc, Target: "point",
-			Range: a.Range, Radius: a.Radius[:], Cool: a.Cool[:], Costs: a.Costs[:], Always: a.Always})
+			Range: a.Range, Radius: a.Radius[:a.Max], Cool: a.Cool[:a.Max], Costs: a.Costs[:a.Max], Always: a.Always})
 	}
 	for k, d := range game.Structs {
 		sk := game.StructKind(k)

@@ -6,20 +6,20 @@ import (
 	"math"
 )
 
-// Ability slots, cast with Q (or right-click), Shift, F and V.
+// Ability slots: the weapon's ultimate on Q, then the bought abilities on Shift, F and V.
 const (
-	AbSignature = iota // the equipped weapon's own ability, always there
+	AbUltimate = iota // the equipped weapon's ultimate, charged by fighting
 	AbGrenade
 	AbDash
 	AbAirstrike
 	NumAbilities
 )
 
-// MaxAbilityLevel is the highest level of a bought ability.
-const MaxAbilityLevel = 3
+// MaxAbilityLevel is the most levels any bought ability has; each has its own Max.
+const MaxAbilityLevel = 5
 
 // AbilityDef is one ability slot. Cool and Costs are per level: Cool[l-1] at level l,
-// Costs[l] to go from l to l+1.
+// Costs[l] to go from l to l+1, for the first Max of them.
 type AbilityDef struct {
 	Name   string
 	Key    string // what the client binds it to
@@ -28,61 +28,128 @@ type AbilityDef struct {
 	Radius [MaxAbilityLevel]float32 // area hit, per level; 0 for none
 	Cool   [MaxAbilityLevel]float32
 	Costs  [MaxAbilityLevel]int32
-	Always bool // owned from the start, not bought
+	Max    uint8 // its highest level
+	Always bool  // owned from the start, not bought
 }
 
 // Abilities is indexed by slot.
 var Abilities = [NumAbilities]AbilityDef{
-	AbSignature: {Name: "Signature", Key: "Q", Desc: "The equipped weapon's own ability; stronger with its special upgrades.", Always: true},
-	AbGrenade:   {Name: "Grenade", Key: "Shift", Desc: "Lobbed at a point, bursts after a moment. Bigger and harder each level.", Range: 11, Radius: [3]float32{2.5, 3, 3.5}, Cool: [3]float32{9, 8, 7}, Costs: [3]int32{200, 450, 800}},
-	AbDash:      {Name: "Dash", Key: "F", Desc: "Leap towards a point, out of a crowd. Further and sooner each level.", Range: 5, Cool: [3]float32{10, 8, 6}, Costs: [3]int32{150, 350, 650}},
-	AbAirstrike: {Name: "Airstrike", Key: "V", Desc: "Mark a point anywhere near; two seconds later it is levelled.", Range: 40, Radius: [3]float32{5, 6, 7}, Cool: [3]float32{75, 65, 55}, Costs: [3]int32{600, 1200, 2000}},
+	AbUltimate: {Name: "Ultimate", Key: "Q", Desc: "The equipped weapon's ultimate, charged by fighting.", Max: 1, Always: true},
+	AbGrenade: {Name: "Grenade", Key: "Shift", Desc: "Lobbed at a point, bursts after a moment. Bigger, harder and sooner each level; from level 4 it leaves the ground burning.",
+		Range: 12, Radius: [5]float32{3, 3.5, 4, 4.5, 5}, Cool: [5]float32{8, 7, 6, 5.5, 5}, Costs: [5]int32{200, 400, 700, 1100, 1600}, Max: 5},
+	AbDash:      {Name: "Dash", Key: "F", Desc: "Leap towards a point, out of a crowd. Further and sooner each level.", Range: 5, Cool: [5]float32{10, 8, 6}, Costs: [5]int32{150, 350, 650}, Max: 3},
+	AbAirstrike: {Name: "Airstrike", Key: "V", Desc: "Mark a point anywhere near; two seconds later it is levelled.", Range: 40, Radius: [5]float32{5, 6, 7}, Cool: [5]float32{75, 65, 55}, Costs: [5]int32{600, 1200, 2000}, Max: 3},
 }
 
-// SigDef is a weapon's signature ability.
-type SigDef struct {
+// A grenade's blast is grenadeBase + grenadeStep a level; from grenadeFireLv it leaves a pool
+// burning for grenadeFire seconds at grenadeFireDPS a level.
+const (
+	grenadeBase    = 50
+	grenadeStep    = 70
+	grenadeFireLv  = 4
+	grenadeFire    = 4
+	grenadeFireDPS = 6
+)
+
+// UltDef is a weapon's ultimate.
+type UltDef struct {
 	Name   string
 	Desc   string
-	Cool   float32
-	Range  float32
-	Radius float32 // area round the point; for a cone, its reach
-	Cone   float32 // half-angle in radians when the area is a cone in front
-	Self   bool    // cast on the survivor, no point needed
+	Time   float32 // seconds it runs; for Dead Eye, the seconds spent marking
+	Range  float32 // for one cast at a point, how far; 0 for one on the survivor
+	Radius float32 // area round the point
 }
 
-// Signatures is indexed by WeaponKind.
-var Signatures = [NumWeapons]SigDef{
-	WPistol:   {Name: "Fan the hammer", Desc: "Six quick shots fanned towards a point, no ammo spent.", Cool: 8, Range: 14},
-	WShotgun:  {Name: "Concussion", Desc: "A blast that hurts and throws back everything in front, slowing it.", Cool: 10, Range: 7, Radius: 7, Cone: .6},
-	WSMG:      {Name: "Bullet hose", Desc: "Twice the fire rate for 4 seconds.", Cool: 14, Self: true},
-	WRifle:    {Name: "Piercing shot", Desc: "One shot through everything in a long line, five times the damage.", Cool: 9, Range: 40},
-	WMinigun:  {Name: "Overdrive", Desc: "60% more fire rate and one more pierce for 5 seconds.", Cool: 16, Self: true},
-	WLauncher: {Name: "Barrage", Desc: "Six rockets scattered round a point.", Cool: 15, Range: 24, Radius: 2.5},
-	WCrowbar:  {Name: "Haymaker", Desc: "A full swing all round that hurts three times as much and throws everything back.", Cool: 8, Self: true, Radius: 2.6},
+// Ultimates is indexed by WeaponKind.
+var Ultimates = [NumWeapons]UltDef{
+	WPistol:   {Name: "Dead Eye", Desc: "Mark every creep in sight for 1.5 seconds, walking slowly, then shoot each once: deadly to anything short of a brute.", Time: deadEyeMark},
+	WShotgun:  {Name: "Dragon's breath", Desc: "8 seconds of incendiary loads at 2.5 times the rate with no reloading: every pellet sets its creep burning and pushes it back.", Time: 8},
+	WSMG:      {Name: "Run and gun", Desc: "10 seconds of twice the fire rate with no reloading, a quarter more speed and sprinting that never tires.", Time: 10},
+	WRifle:    {Name: "Railgun", Desc: "10 seconds of every shot going through every creep in its line, without reloading.", Time: 10},
+	WMinigun:  {Name: "Overdrive", Desc: "10 seconds of 80% more fire rate, two more pierce, half the spread and no reloading, in red-hot rounds.", Time: 10},
+	WLauncher: {Name: "Cluster MIRV", Desc: "One rocket to a point that splits over it into ten bomblets, each hitting like a rocket.", Range: 24, Radius: mirvRadius},
+	WCrowbar:  {Name: "Berserk", Desc: "8 seconds of swinging twice as fast, every hit healing you, shrugging off slows and stuns.", Time: 8},
 }
+
+// The ultimate's charge comes from the damage a survivor deals with their own hands, and from
+// revives. Waves grow, so the meter is measured against the wave: it is full after ultWaves
+// times ultShare of the hit points in a lone survivor's wave, about what a survivor in the
+// thick of it deals in ultWaves waves while the turrets do the rest; bots fill it every
+// three or four. Turrets and burning ground add nothing, and nothing fills it while an
+// ultimate runs.
+const (
+	ultWaves     = 3
+	ultShare     = .7
+	ultPerRevive = .15
+)
+
+// ultFull is the damage that fills the meter this wave.
+func (w *World) ultFull() float32 {
+	wave := max(w.Wave, 1)
+	return ultWaves * ultShare * Budget(wave, 1) * Creeps[CWalker].HP * HPScale(wave) * w.diff().HP
+}
+
+// Dead Eye's numbers: seconds marking, walking at deadEyeWalk of the speed; how far it sees,
+// as a share past the gun's range; what each shot does to a brute or a boss.
+const (
+	deadEyeMark  = 1.5
+	deadEyeWalk  = .5
+	deadEyeReach = 1.3
+	deadEyeHeavy = 200
+)
+
+// The MIRV's bomblets and how far round its point they spread.
+const (
+	mirvBomblets = 10
+	mirvRadius   = 4.5
+)
+
+// Berserk heals this share of the damage each hit deals.
+const berserkLeech = .3
 
 // AbilityRange is how far a slot reaches for this player right now.
 func AbilityRange(p *Player, slot int) float32 {
 	switch slot {
-	case AbSignature:
-		return Signatures[p.Cur].Range
+	case AbUltimate:
+		return Ultimates[p.Cur].Range
 	case AbDash:
 		return Abilities[AbDash].Range + 1.5*float32(p.Abil[AbDash].Lv)
 	}
 	return Abilities[slot].Range
 }
 
-// playerStats is the equipped weapon's numbers with any running buff.
+// ulting reports whether p's ultimate for weapon k runs with k in hand.
+func (p *Player) ulting(k WeaponKind) bool { return p.BuffLeft > 0 && p.Buff == k && p.Cur == k }
+
+// marking reports whether p is marking targets for Dead Eye, whatever is in hand.
+func (p *Player) marking() bool { return p.BuffLeft > 0 && p.Buff == WPistol }
+
+// Charge adds to p's ultimate meter, unless one runs already.
+func (p *Player) charge(v float32) {
+	if p.BuffLeft <= 0 {
+		p.Ult = min(p.Ult+v, 1)
+	}
+}
+
+// playerStats is the equipped weapon's numbers with any running ultimate.
 func (w *World) playerStats(p *Player) Stats {
 	st := WeaponStats(p.Cur, p.Weapons[p.Cur].Lv)
 	st.Range *= w.rangeMul()
-	if p.BuffLeft > 0 && p.Buff == p.Cur {
-		switch p.Buff {
+	if p.ulting(p.Cur) {
+		switch p.Cur {
+		case WShotgun:
+			st.Rate *= 2.5
+			st.Burn = max(st.Burn, 18)
 		case WSMG:
 			st.Rate *= 2
+		case WRifle:
+			st.Pierce = 1000
 		case WMinigun:
-			st.Rate *= 1.6
-			st.Pierce++
+			st.Rate *= 1.8
+			st.Pierce += 2
+			st.Spread *= .5
+		case WCrowbar:
+			st.Rate *= 2
 		}
 	}
 	return st
@@ -106,8 +173,15 @@ func (w *World) Cast(p *Player, slot int, x, y float32) error {
 	if a.Lv == 0 {
 		return fmt.Errorf("%s is locked; buy it at the armory", Abilities[slot].Name)
 	}
-	if a.Cool > 0 {
-		return fmt.Errorf("%s is ready in %.0fs", w.abilityName(p, slot), math.Ceil(float64(a.Cool)))
+	if slot == AbUltimate {
+		if p.BuffLeft > 0 {
+			return fmt.Errorf("%s is still going", Ultimates[p.Buff].Name)
+		}
+		if p.Ult < 1 {
+			return fmt.Errorf("%s is charging (%.0f%%)", Ultimates[p.Cur].Name, math.Floor(float64(p.Ult*100)))
+		}
+	} else if a.Cool > 0 {
+		return fmt.Errorf("%s is ready in %.0fs", Abilities[slot].Name, math.Ceil(float64(a.Cool)))
 	}
 	if r := AbilityRange(p, slot); r > 0 {
 		dx, dy := x-p.X, y-p.Y
@@ -121,14 +195,13 @@ func (w *World) Cast(p *Player, slot int, x, y float32) error {
 	defer func() { w.shooter = -1 }()
 	owner := int8(p.ID)
 	switch slot {
-	case AbSignature:
-		w.signature(p, x, y, ang)
-		a.Cool = Signatures[p.Cur].Cool
+	case AbUltimate:
+		w.ultimate(p, x, y)
 		return nil
 	case AbGrenade:
 		const flight = .7
 		w.Effects = append(w.Effects, Effect{Kind: EffGrenade, X0: p.X, Y0: p.Y, X: x, Y: y, R: Abilities[AbGrenade].Radius[a.Lv-1],
-			Left: flight, Total: flight, Damage: 20 + 70*lv, Owner: owner})
+			Left: flight, Total: flight, Damage: grenadeBase + grenadeStep*lv, Owner: owner, Lv: a.Lv})
 	case AbDash:
 		w.dash(p, ang, sqrt32((x-p.X)*(x-p.X)+(y-p.Y)*(y-p.Y)))
 	case AbAirstrike:
@@ -141,55 +214,66 @@ func (w *World) Cast(p *Player, slot int, x, y float32) error {
 	return nil
 }
 
-func (w *World) abilityName(p *Player, slot int) string {
-	if slot == AbSignature {
-		return Signatures[p.Cur].Name
+// ultimate spends a full meter on the equipped weapon's ultimate. Most run for a while,
+// through playerStats and the firing loop; the MIRV goes off at once and Dead Eye shoots when
+// its marking is done (see deadEye).
+func (w *World) ultimate(p *Player, x, y float32) {
+	p.Ult = 0
+	if p.Cur == WLauncher {
+		st := w.playerStats(p)
+		const speed = 22
+		dx, dy := x-p.X, y-p.Y
+		d := sqrt32(dx*dx+dy*dy) + 1e-6
+		p.Aim = float32(math.Atan2(float64(dy), float64(dx)))
+		w.Rockets = append(w.Rockets, Projectile{X: p.X, Y: p.Y, VX: dx / d * speed, VY: dy / d * speed,
+			TTL: d / speed, Damage: st.Damage, Blast: st.Blast, Owner: int8(p.ID), Cluster: mirvBomblets})
+		return
 	}
-	return Abilities[slot].Name
+	p.Buff, p.BuffLeft = p.Cur, Ultimates[p.Cur].Time
+	w.note(1, "%s: %s!", p.Name, Ultimates[p.Cur].Name)
 }
 
-// signature is the equipped weapon's ability. Its punch grows with the weapon's special
-// track, so upgrading a weapon also upgrades its Q.
-func (w *World) signature(p *Player, x, y, ang float32) {
-	st := w.playerStats(p)
-	pow := 1 + .2*float32(p.Weapons[p.Cur].Lv[TrackSpecial])
+// deadEye is Dead Eye's volley, once the marking is done: one shot at every creep the survivor
+// can see within reach. Anything short of a brute dies; a brute or a boss takes a heavy round.
+func (w *World) deadEye(p *Player) {
+	if !p.Alive {
+		return
+	}
+	st := WeaponStats(WPistol, p.Weapons[WPistol].Lv)
+	reach := st.Range * w.rangeMul() * deadEyeReach
 	owner := int8(p.ID)
-	kind := uint8(p.Cur)
-	p.Aim = ang
-	switch p.Cur {
-	case WPistol:
-		for i := 0; i < 6; i++ {
-			a := ang + (float32(i)-2.5)*.07
-			w.hitscan(owner, p.X, p.Y, a, st.Range, st.Damage*1.5*pow, st.Pierce+1, 0, kind)
+	w.shooter = owner
+	w.grid.each(p.X, p.Y, reach, func(i int32) bool {
+		c := &w.Creeps[i]
+		dx, dy := c.X-p.X, c.Y-p.Y
+		if c.HP <= 0 || dx*dx+dy*dy > reach*reach || w.hidden(c) || !w.clearShot(p.X, p.Y, c.X, c.Y) {
+			return true
 		}
-	case WShotgun:
-		reach, half := Signatures[WShotgun].Radius, Signatures[WShotgun].Cone
-		dx, dy := float32(math.Cos(float64(ang))), float32(math.Sin(float64(ang)))
-		w.knockBack(p, owner, dx, dy, reach, float32(math.Cos(float64(half))), st.Damage*4*pow)
-		w.Blasts = append(w.Blasts, Blast{p.X + dx*2, p.Y + dy*2, reach, 3})
-	case WCrowbar:
-		reach := Signatures[WCrowbar].Radius
-		w.knockBack(p, owner, 1, 0, reach, -1, st.Damage*3*pow)
-		w.Blasts = append(w.Blasts, Blast{p.X, p.Y, reach, 3})
-	case WSMG, WMinigun:
-		p.Buff = p.Cur
-		p.BuffLeft = 4
-		if p.Cur == WMinigun {
-			p.BuffLeft = 5
+		dmg := float32(deadEyeHeavy)
+		if c.Kind != CBrute && !c.Kind.Boss() {
+			// Enough to kill outright, armour and all.
+			dmg = c.HP + Creeps[c.Kind].Armor + 1
+			dmg = max(dmg, c.HP*4)
 		}
-	case WRifle:
-		w.hitscan(owner, p.X, p.Y, ang, Signatures[WRifle].Range, st.Damage*5*pow, 1000, 0, kind)
-	case WLauncher:
-		const speed = 22
-		for i := 0; i < 6; i++ {
-			a := w.rng.Float32() * 2 * math.Pi
-			r := w.rng.Float32() * Signatures[WLauncher].Radius
-			tx, ty := x+float32(math.Cos(float64(a)))*r, y+float32(math.Sin(float64(a)))*r
-			dx, dy := tx-p.X, ty-p.Y
-			d := sqrt32(dx*dx+dy*dy) + 1e-6
-			w.Rockets = append(w.Rockets, Projectile{X: p.X, Y: p.Y, VX: dx / d * speed, VY: dy / d * speed,
-				TTL: d / speed, Damage: st.Damage * .8 * pow, Blast: st.Blast, Owner: owner})
-		}
+		w.damage(i, dmg, owner)
+		w.tracer(p.X, p.Y, c.X, c.Y, uint8(WPistol)+TracerUlt)
+		return true
+	})
+	w.shooter = -1
+}
+
+// TracerUlt is added to a weapon's tracer kind for a shot fired under its ultimate.
+const TracerUlt = 8
+
+// mirv scatters the cluster rocket's bomblets round where it burst.
+func (w *World) mirv(r *Projectile) {
+	for i := 0; i < int(r.Cluster); i++ {
+		a := w.rng.Float32() * 2 * math.Pi
+		d := mirvRadius * sqrt32(w.rng.Float32())
+		x, y := r.X+float32(math.Cos(float64(a)))*d, r.Y+float32(math.Sin(float64(a)))*d
+		flight := .35 + .3*w.rng.Float32()
+		w.Effects = append(w.Effects, Effect{Kind: EffGrenade, X0: r.X, Y0: r.Y, X: x, Y: y, R: r.Blast,
+			Left: flight, Total: flight, Damage: r.Damage, Owner: r.Owner})
 	}
 }
 
@@ -239,6 +323,10 @@ func (w *World) stepEffects() {
 		case EffGrenade:
 			if e.Left <= 0 {
 				w.explode(e.X, e.Y, e.R, e.Damage, e.Owner, 0)
+				if e.Lv >= grenadeFireLv {
+					w.Effects = append(w.Effects, Effect{Kind: EffNapalm, X0: e.X, Y0: e.Y, X: e.X, Y: e.Y, R: e.R * .7,
+						Left: grenadeFire, Total: grenadeFire, Damage: grenadeFireDPS * float32(e.Lv), Owner: e.Owner})
+				}
 			}
 		case EffDrop:
 			w.stepDrop(&e)
@@ -271,14 +359,14 @@ func (w *World) stepEffects() {
 
 // BuyAbility raises a bought ability's level.
 func (w *World) BuyAbility(p *Player, slot int) error {
-	if slot <= AbSignature || slot >= NumAbilities {
+	if slot <= AbUltimate || slot >= NumAbilities {
 		return errors.New("that ability cannot be bought")
 	}
 	if !w.atArmory(p) {
 		return errNotAtArmory
 	}
 	a := &p.Abil[slot]
-	if a.Lv >= MaxAbilityLevel {
+	if a.Lv >= Abilities[slot].Max {
 		return errMaxed
 	}
 	if err := w.pay(p, Abilities[slot].Costs[a.Lv]); err != nil {
@@ -286,35 +374,4 @@ func (w *World) BuyAbility(p *Player, slot int) error {
 	}
 	a.Lv++
 	return nil
-}
-
-// knockBack hurts everything within reach of p and inside the cone round dx, dy (cosHalf -1
-// for all round), slows it and throws it back.
-func (w *World) knockBack(p *Player, owner int8, dx, dy, reach, cosHalf, dmg float32) {
-	w.grid.each(p.X, p.Y, reach, func(i int32) bool {
-		c := &w.Creeps[i]
-		ox, oy := c.X-p.X, c.Y-p.Y
-		dd := ox*ox + oy*oy
-		if dd > reach*reach || dd < 1e-6 {
-			return true
-		}
-		d := sqrt32(dd)
-		if cosHalf > -1 && (ox*dx+oy*dy)/d < cosHalf {
-			return true
-		}
-		w.damage(i, dmg, owner)
-		c.Slow = 2
-		// Thrown back, less the bigger the creep and the further it was.
-		push := (3 - d*.3) / (1 + Creeps[c.Kind].Radius)
-		if !c.Kind.Boss() && push > 0 {
-			for s := 0; s < 6; s++ {
-				nx, ny := c.X+ox/d*push/6, c.Y+oy/d*push/6
-				if ok, _ := w.creepFree(nx, ny); !ok {
-					break
-				}
-				c.X, c.Y = nx, ny
-			}
-		}
-		return true
-	})
 }

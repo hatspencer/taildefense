@@ -656,6 +656,7 @@ func (w *World) hurtPlayer(p *Player, dmg float32) {
 		p.Firing = false
 		p.Order = Order{}
 		p.Search, p.Revived, p.Emote, p.EmoteLeft = 0, 0, 0, 0
+		p.BuffLeft = 0
 		w.note(2, "%s is down  ·  revive them within %.0fs or they are back at the base", p.Name, p.Respawn)
 	}
 }
@@ -799,19 +800,47 @@ func (w *World) tracer(x0, y0, x1, y1 float32, kind uint8) {
 func (w *World) shoot(p *Player, st Stats, ang float32) {
 	owner := int8(p.ID)
 	kind := uint8(p.Cur)
+	ult := p.ulting(p.Cur)
+	if ult {
+		kind += TracerUlt
+	}
 	switch Weapons[p.Cur].Fire {
 	case FireMelee:
-		w.melee(owner, p.X, p.Y, ang, st.Range, st.Spread, st.Damage, kind)
+		hits := w.melee(owner, p.X, p.Y, ang, st.Range, st.Spread, st.Damage, kind)
+		if ult && p.Cur == WCrowbar {
+			p.HP = min(p.MaxHP, p.HP+float32(hits)*st.Damage*berserkLeech)
+		}
 	case FireRocket:
 		a := ang + (w.rng.Float32()*2-1)*st.Spread
 		const speed = 22
 		w.Rockets = append(w.Rockets, Projectile{X: p.X, Y: p.Y, VX: float32(math.Cos(float64(a))) * speed, VY: float32(math.Sin(float64(a))) * speed,
 			TTL: st.Range / speed, Damage: st.Damage, Blast: st.Blast, Owner: owner})
 	default:
+		w.shove = ult && p.Cur == WShotgun
 		for k := 0; k < st.Pellets; k++ {
 			a := ang + (w.rng.Float32()*2-1)*st.Spread
 			w.hitscan(owner, p.X, p.Y, a, st.Range, st.Damage, st.Pierce, st.Burn, kind)
 		}
+		w.shove = false
+	}
+}
+
+// shoveStep is how far one Dragon's breath pellet pushes a creep back, before its size.
+const shoveStep = .3
+
+// push moves creep i up to d along dx, dy, as far as it is free to go; bosses stand firm.
+func (w *World) push(i int32, dx, dy, d float32) {
+	c := &w.Creeps[i]
+	if c.Kind.Boss() {
+		return
+	}
+	d /= 1 + Creeps[c.Kind].Radius
+	for s := 0; s < 3; s++ {
+		nx, ny := c.X+dx*d/3, c.Y+dy*d/3
+		if ok, _ := w.creepFree(nx, ny); !ok {
+			break
+		}
+		c.X, c.Y = nx, ny
 	}
 }
 
@@ -866,6 +895,9 @@ func (w *World) hitscan(owner int8, x, y, ang, rng, dmg float32, pierce int, bur
 		w.damage(cands[k].i, dmg, owner)
 		if burn > 0 {
 			w.ignite(cands[k].i, burn)
+		}
+		if w.shove {
+			w.push(cands[k].i, dx, dy, shoveStep)
 		}
 		if k == n-1 && n == pierce+1 {
 			endT = cands[k].t
@@ -924,7 +956,7 @@ const meleeHits = 3
 
 // melee is a swing: the nearest few creeps within reach and within half radians of the aim
 // are hit. One tracer, from the survivor along the swing, lets the client draw it.
-func (w *World) melee(owner int8, x, y, ang, reach, half, dmg float32, kind uint8) {
+func (w *World) melee(owner int8, x, y, ang, reach, half, dmg float32, kind uint8) int {
 	dx, dy := float32(math.Cos(float64(ang))), float32(math.Sin(float64(ang)))
 	cosHalf := float32(math.Cos(float64(half)))
 	cands := w.hitBuf[:0]
@@ -946,11 +978,13 @@ func (w *World) melee(owner int8, x, y, ang, reach, half, dmg float32, kind uint
 			cands[b], cands[b-1] = cands[b-1], cands[b]
 		}
 	}
-	for k := 0; k < min(len(cands), meleeHits); k++ {
+	hits := min(len(cands), meleeHits)
+	for k := 0; k < hits; k++ {
 		w.damage(cands[k].i, dmg, owner)
 	}
 	w.hitBuf = cands[:0]
 	w.tracer(x, y, x+dx*reach, y+dy*reach, kind)
+	return hits
 }
 
 func (w *World) ignite(i int32, dps float32) {
@@ -978,9 +1012,12 @@ func (w *World) damage(i int32, dmg float32, owner int8) {
 	if owner >= 0 {
 		c.LastHit = owner
 		if int(owner) < len(w.Players) {
-			w.Players[owner].Damage += float64(d)
+			p := w.Players[owner]
+			p.Damage += float64(d)
 			if w.turretFire {
-				w.Players[owner].Tally.Turret += float64(d)
+				p.Tally.Turret += float64(d)
+			} else if !w.burning {
+				p.charge(d / w.ultFull())
 			}
 		}
 	}
@@ -1168,7 +1205,8 @@ func (w *World) stepRockets() {
 		r.Y += r.VY * Dt
 		r.TTL -= Dt
 		boom := r.TTL <= 0 || w.blocksShot(int(r.X), int(r.Y))
-		if !boom {
+		// A cluster rocket flies over the crowd to its point.
+		if !boom && r.Cluster == 0 {
 			// A rocket flies on through what nobody can see.
 			if t := w.nearestCreep(r.X, r.Y, .9); t >= 0 && !w.hidden(&w.Creeps[t]) {
 				boom = true
@@ -1186,10 +1224,17 @@ func (w *World) stepRockets() {
 			}
 			w.turretFire = r.Turret
 			w.explode(r.X, r.Y, r.Blast, r.Damage, r.Owner, 0)
+			if r.Cluster > 0 {
+				w.mirv(&r)
+			}
 			w.shooter, w.turretFire = -1, false
 			continue
 		}
-		w.tracer(r.X-r.VX*Dt, r.Y-r.VY*Dt, r.X, r.Y, uint8(WLauncher))
+		kind := uint8(WLauncher)
+		if r.Cluster > 0 {
+			kind += TracerUlt
+		}
+		w.tracer(r.X-r.VX*Dt, r.Y-r.VY*Dt, r.X, r.Y, kind)
 		live = append(live, r)
 	}
 	w.Rockets = live
@@ -1239,5 +1284,7 @@ func (w *World) reap() {
 		}
 		w.Blasts = append(w.Blasts, Blast{s.CX(), s.CY(), 1.5, 0})
 		w.remove(i)
+		// Its outline stays, to be put back between waves (FixAll).
+		s.Ghost = Structs[s.Kind].Price > 0
 	}
 }

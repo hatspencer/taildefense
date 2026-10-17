@@ -93,6 +93,19 @@ export class Input {
     this.hud.flash(`turret ${n + 1} of ${list.length}`);
   }
 
+  // H: every ghost rebuilt and every damaged structure mended, after a press that names the
+  // price; a second within SELL_CONFIRM ms pays it.
+  private fixArm = 0;
+  private fixAll(): void {
+    const ctl = this.ctl, now = performance.now();
+    if (now - this.fixArm < SELL_CONFIRM) { this.fixArm = 0; ctl.fixAll(); return; }
+    const c = ctl.fixCost();
+    if (!c.ghosts && !c.damaged) { ctl.fixAll(); return; }
+    this.fixArm = now;
+    const what = [c.ghosts ? `rebuild ${c.ghosts}` : '', c.damaged ? `repair ${c.damaged}` : ''].filter(Boolean).join(' and ');
+    this.hud.flash(`H again to ${what} for ${c.gold}g`);
+  }
+
   // Delete: the first press asks, a second within SELL_CONFIRM ms sells the selected structure.
   // Selling is not on a letter, where a wall meant for the build card's X could sell one.
   private sellArm = { s: -1, at: 0 };
@@ -179,9 +192,9 @@ export class Input {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (k.startsWith('Arrow')) { e.preventDefault(); this.keys.add(k); return; }
     if (STEER[e.code]) { e.preventDefault(); this.steer.add(e.code); return; }
-    // Shift on its own is an ability, except while placing or pinging, where it keeps the mode.
+    // Shift on its own is the grenade, except while placing or pinging, where it keeps the mode.
     if (k === 'Shift') {
-      if (!e.repeat && ctl.mode.k !== 'build' && ctl.mode.k !== 'ping' && !hud.buildCard) ctl.startAbility(1);
+      if (!e.repeat && ctl.mode.k !== 'build' && ctl.mode.k !== 'ping' && !hud.buildCard) ctl.cast(1);
       return;
     }
     // Space: held, sprint; tapped, back to the hero (twice quickly locks the camera to it).
@@ -192,20 +205,21 @@ export class Input {
     }
     if (e.repeat) return;
 
-    // The build card takes its own hotkeys first.
+    // While the build bar is open the number keys pick what to place (1 wall to 8 missile
+    // battery); otherwise they are the medkit and the weapons.
     if (hud.buildCard) {
       const wd = ctl.game.welcome;
       const kind = wd?.buildable.find((b) => wd.structs[b]?.key.toUpperCase() === up);
       if (kind !== undefined) { ctl.startBuild(kind); return; }
     }
     const slot = KEYS.indexOf(up);
-    if (slot === 0) { ctl.cancel(); ctl.signature(); return; }
-    if (slot > 0) { ctl.startAbility(slot); return; }
-    if (k === '8') { ctl.medkit(); return; }
-    if (k >= '0' && k <= '6') { const w = k === '0' ? CROWBAR : Number(k) - 1; const me = ctl.me(); if (me && me.owned & (1 << w)) ctl.send({ op: 'select', w }); return; }
+    if (slot >= 0) { ctl.cast(slot); return; }
+    if (k === '1') { ctl.medkit(); return; }
+    // 2 to 7 the pistol to the launcher, 0 the crowbar.
+    if (k === '0' || (k >= '2' && k <= '7')) { const w = k === '0' ? CROWBAR : Number(k) - 2; const me = ctl.me(); if (me && me.owned & (1 << w)) ctl.send({ op: 'select', w }); return; }
     switch (up) {
       case 'Z': ctl.setMode({ k: ctl.mode.k === 'ping' ? 'none' : 'ping' }); return;
-      case 'H': ctl.cancel(); ctl.send({ op: 'hold' }); return;
+      case 'H': this.fixAll(); return;
       case 'T': this.nextTurret(); return;
       case 'R': ctl.send({ op: 'reload' }); return;
       case 'B': hud.buildCard = !hud.buildCard; if (!hud.buildCard) ctl.cancel(); return;

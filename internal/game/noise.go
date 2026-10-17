@@ -66,7 +66,8 @@ func (w *World) SetSprint(p *Player, on bool) { p.Sprint = on }
 
 // stepStamina spends stamina on a sprint that moved this tick and recovers it otherwise.
 func (p *Player) stepStamina() {
-	if p.Sprinting() && p.Moving {
+	// Run and gun: a sprint that never tires.
+	if p.Sprinting() && p.Moving && !p.ulting(WSMG) {
 		p.Stamina -= sprintDrain * Dt
 		if p.Stamina <= 0 {
 			p.Stamina, p.Winded = 0, true

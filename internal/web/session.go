@@ -363,6 +363,8 @@ func (s *session) command(p []byte) bool {
 		nc = netplay.Cmd{Op: netplay.OpBuild, A: u8(c.Kind), X: float32(c.TX), Y: float32(c.TY)}
 	case "repair":
 		nc = netplay.Cmd{Op: netplay.OpRepair, T: u16(c.S)}
+	case "fixAll":
+		nc = netplay.Cmd{Op: netplay.OpFixAll}
 	case "loot":
 		nc = netplay.Cmd{Op: netplay.OpLoot, T: u16(c.Site)}
 	case "upgradeStruct":

@@ -56,12 +56,16 @@ export const enum EffectKind { Grenade = 1, Napalm = 2, AirTarget = 3, Drop = 4,
 export const LOB_WINDUP = 0.7;
 // The door gunner's shots, from the Huey in the air.
 export const TRACER_HELI = 34, TRACER_SHARD = 35;
+// Added to a weapon's tracer kind for a shot fired under its ultimate.
+export const TRACER_ULT = 8;
 
 export interface CreepDef { name: string; hp: number; speed: number; radius: number; size: number; ranged: boolean; bounty: number; rate?: number; windup?: number }
-export interface SigDef { name: string; desc: string; cool: number; range: number; radius?: number; cone?: number; target: string }
+// A weapon's ultimate: time, how long it runs (Dead Eye: its marking); range and radius for one
+// cast at a point (target 'point'), else 0 (target 'self').
+export interface UltDef { name: string; desc: string; time: number; range: number; radius: number; target: string }
 export interface WeaponDef {
   name: string; short: string; price: number; range: number; fire: string; special: string;
-  costs: number[][]; values: string[][]; sig: SigDef;
+  costs: number[][]; values: string[][]; ult: UltDef;
 }
 export interface GearDef { name: string; info: string; costs: number[] }
 export interface AbilityDef {
@@ -161,6 +165,8 @@ export type Command =
   | { op: 'ability'; slot: number; x: number; y: number }
   | { op: 'build'; kind: number; tx: number; ty: number }
   | { op: 'repair' | 'sell'; s: number }
+  // Rebuilds every ghost and mends every damaged structure, between waves.
+  | { op: 'fixAll' }
   // track: which of a turret's tracks (TTrack); a wall or gate ignores it.
   | { op: 'upgradeStruct'; s: number; track: number }
   | { op: 'loot'; site: number }
@@ -185,6 +191,8 @@ export class Player {
   // channel: the current search's (order Loot) or revive's (order Revive) progress, 0..1.
   // revived: for a downed survivor, how far someone's revive of them is, 0..1.
   order = 0; channel = 0; revived = 0; emote = 0; emoteLeft = 0; tauntCool = 0; stamina = 1; sprinting = false; winded = false; stunned = false; goggles = false; shielded = false; look = 0; buff = 0; buffLeft = 0;
+  // The ultimate's meter, 0..1; buff is the weapon whose ultimate runs + 1, for buffLeft seconds.
+  ult = 0;
   abLevel = new Uint8Array(4); abCool = new Float32Array(4);
   // Medkits carried, and seconds of a medkit's healing left.
   medkits = 0; heal = 0;
@@ -212,7 +220,7 @@ export class Player {
     this.reload = o.reload; this.respawn = o.respawn; this.gold = o.gold; this.kills = o.kills;
     this.damage = o.damage; this.owned = o.owned; this.levels.set(o.levels); this.gear.set(o.gear);
     this.order = o.order; this.channel = o.channel; this.revived = o.revived; this.emote = o.emote;
-    this.emoteLeft = o.emoteLeft; this.tauntCool = o.tauntCool; this.stamina = o.stamina; this.sprinting = o.sprinting; this.winded = o.winded; this.stunned = o.stunned; this.goggles = o.goggles; this.shielded = o.shielded; this.look = o.look; this.buff = o.buff; this.buffLeft = o.buffLeft;
+    this.emoteLeft = o.emoteLeft; this.tauntCool = o.tauntCool; this.stamina = o.stamina; this.sprinting = o.sprinting; this.winded = o.winded; this.stunned = o.stunned; this.goggles = o.goggles; this.shielded = o.shielded; this.look = o.look; this.buff = o.buff; this.buffLeft = o.buffLeft; this.ult = o.ult;
     this.abLevel.set(o.abLevel); this.abCool.set(o.abCool); this.medkits = o.medkits; this.heal = o.heal; this.reloading = o.reloading; this.name = o.name;
     this.downs = o.downs; this.revives = o.revives; this.built = o.built; this.searched = o.searched; this.bosses = o.bosses; this.taken = o.taken; this.turret = o.turret;
   }
@@ -247,7 +255,8 @@ export class Frame {
   sites = new Uint8Array(128);
 
   nStructs = 0;
-  sAlive = new Uint8Array(256); sKind = new Uint8Array(256);
+  // sGhost: destroyed by the creeps, its outline left to be rebuilt (sAlive 0).
+  sAlive = new Uint8Array(256); sGhost = new Uint8Array(256); sKind = new Uint8Array(256);
   sX = new Uint16Array(256); sY = new Uint16Array(256);
   sW = new Uint8Array(256); sH = new Uint8Array(256);
   sHp = new Uint16Array(256); sMaxHp = new Uint16Array(256);
@@ -338,7 +347,7 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
     p.emote = d.getUint8(o + 3); p.emoteLeft = d.getUint8(o + 4) / 10; p.tauntCool = d.getUint16(o + 5, true) / 10;
     p.stamina = d.getUint8(o + 7) / 255; const sp = d.getUint8(o + 8); p.sprinting = (sp & 1) !== 0; p.winded = (sp & 2) !== 0; p.stunned = (sp & 4) !== 0; p.goggles = (sp & 8) !== 0; p.shielded = (sp & 16) !== 0;
     p.look = d.getUint32(o + 9, true);
-    p.buff = d.getUint8(o + 13); p.buffLeft = d.getUint8(o + 14) / 10; o += 15;
+    p.buff = d.getUint8(o + 13); p.buffLeft = d.getUint8(o + 14) / 10; p.ult = d.getUint8(o + 15) / 255; o += 16;
     for (let a = 0; a < 4; a++) {
       p.abLevel[a] = d.getUint8(o); p.abCool[a] = d.getUint16(o + 1, true) / 10; o += 3;
     }
@@ -366,14 +375,15 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
 
   const ns = d.getUint16(o, true); o += 2;
   if (f.sAlive.length < ns) {
-    f.sAlive = grow(f.sAlive, ns); f.sKind = grow(f.sKind, ns); f.sX = grow(f.sX, ns); f.sY = grow(f.sY, ns);
+    f.sAlive = grow(f.sAlive, ns); f.sGhost = grow(f.sGhost, ns); f.sKind = grow(f.sKind, ns); f.sX = grow(f.sX, ns); f.sY = grow(f.sY, ns);
     f.sW = grow(f.sW, ns); f.sH = grow(f.sH, ns); f.sHp = grow(f.sHp, ns); f.sMaxHp = grow(f.sMaxHp, ns);
     f.sLevel = grow(f.sLevel, ns); f.sOwner = grow(f.sOwner, ns);
   }
   if (f.sLv.length < ns * TURRET_TRACKS) f.sLv = grow(f.sLv, ns * TURRET_TRACKS);
   f.nStructs = ns;
   for (let i = 0; i < ns; i++) {
-    f.sAlive[i] = d.getUint8(o); f.sKind[i] = d.getUint8(o + 1);
+    const st = d.getUint8(o);
+    f.sAlive[i] = st === 1 ? 1 : 0; f.sGhost[i] = st === 2 ? 1 : 0; f.sKind[i] = d.getUint8(o + 1);
     f.sX[i] = d.getUint16(o + 2, true); f.sY[i] = d.getUint16(o + 4, true);
     f.sW[i] = d.getUint8(o + 6); f.sH[i] = d.getUint8(o + 7);
     f.sHp[i] = d.getUint16(o + 8, true); f.sMaxHp[i] = d.getUint16(o + 10, true);

@@ -509,6 +509,11 @@ func Exec(w *game.World, pl *game.Player, c Cmd) (string, error) {
 		if pl.Alive {
 			err = w.OrderRepair(pl, int(c.T))
 		}
+	case OpFixAll:
+		var rebuilt, mended int
+		if rebuilt, mended, err = w.FixAll(pl); err == nil {
+			msg = fixed(rebuilt, mended)
+		}
 	case OpLoot:
 		if pl.Alive {
 			err = w.OrderLoot(pl, int(c.T))
@@ -668,6 +673,7 @@ const (
 	OpDropWeapon // A weapon kind
 	OpPickup     // T the weapon on the ground's id
 	OpBuyGoggles
+	OpFixAll // rebuild every ghost and repair everything, between waves
 )
 
 // Cmd is a discrete request from a player. X and Y are tiles, sent to 1/8; T names a creep
@@ -695,4 +701,16 @@ func decodeCmd(p []byte) (Cmd, error) {
 	d := &dec{b: p}
 	c := Cmd{Op: d.u8(), A: d.u8(), B: d.u8(), X: unq(d.u16()), Y: unq(d.u16()), T: d.u16(), Text: d.str()}
 	return c, d.err
+}
+
+// fixed says what a FixAll did.
+func fixed(rebuilt, mended int) string {
+	var parts []string
+	if rebuilt > 0 {
+		parts = append(parts, fmt.Sprintf("rebuilt %d", rebuilt))
+	}
+	if mended > 0 {
+		parts = append(parts, fmt.Sprintf("repaired %d", mended))
+	}
+	return strings.Join(parts, " · ")
 }

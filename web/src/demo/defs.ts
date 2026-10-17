@@ -1,7 +1,7 @@
 import type { AbilityDef, CreepDef, StructDef, WeaponDef, Welcome } from '../protocol';
 
 // Definitions for demo mode. They follow internal/game/defs.go where that exists and invent
-// the rest (signatures, abilities) the way the host is expected to send them.
+// the rest (ultimates, abilities) the way the host is expected to send them.
 
 export const CREEPS: CreepDef[] = [
   { name: 'walker', hp: 40, speed: 1.7, radius: 0.45, size: 1, ranged: false, bounty: 3, rate: 1, windup: 0.4 },
@@ -14,22 +14,22 @@ export const CREEPS: CreepDef[] = [
   { name: 'broodmother', hp: 2600, speed: 1.05, radius: 1.3, size: 3, ranged: false, bounty: 300, rate: 0.7, windup: 0.6 },
 ];
 
-interface W0 { name: string; short: string; price: number; range: number; fire: string; special: string; dmg: number; rate: number; mag: number; reload: number; sig: WeaponDef['sig'] }
+interface W0 { name: string; short: string; price: number; range: number; fire: string; special: string; dmg: number; rate: number; mag: number; reload: number; ult: WeaponDef['ult'] }
 export const WEAPON_BASE: W0[] = [
   { name: 'Pistol', short: 'PST', price: 0, range: 14, fire: 'hitscan', special: '+1 pierce', dmg: 14, rate: 3, mag: 12, reload: 1.1,
-    sig: { name: 'Fan the hammer', desc: 'Empty the magazine in a burst towards the target point.', cool: 8, range: 14, target: 'point' } },
-  { name: 'Shotgun', short: 'SHG', price: 250, range: 9, fire: 'hitscan', special: '+2 pellets', dmg: 9, rate: 1.3, mag: 6, reload: 1.8,
-    sig: { name: 'Concussion', desc: 'A point-blank blast that knocks creeps back and stuns them.', cool: 10, range: 7, target: 'point' } },
+    ult: { name: 'Dead Eye', desc: 'Mark every creep in sight for 1.5 seconds, walking slowly, then shoot each once: deadly to anything short of a brute.', time: 1.5, range: 0, radius: 0, target: 'self' } },
+  { name: 'Shotgun', short: 'SHG', price: 250, range: 10, fire: 'hitscan', special: '+2 pellets', dmg: 13, rate: 1.3, mag: 6, reload: 1.8,
+    ult: { name: 'Dragon\'s breath', desc: '8 seconds of incendiary loads at 2.5 times the rate with no reloading: every pellet sets its creep burning and pushes it back.', time: 8, range: 0, radius: 0, target: 'self' } },
   { name: 'SMG', short: 'SMG', price: 400, range: 12, fire: 'hitscan', special: '+1 pierce', dmg: 8, rate: 11, mag: 40, reload: 1.6,
-    sig: { name: 'Bullet hose', desc: 'Double fire rate for 5 seconds.', cool: 18, range: 0, target: 'self' } },
+    ult: { name: 'Run and gun', desc: '10 seconds of twice the fire rate with no reloading, a quarter more speed and sprinting that never tires.', time: 10, range: 0, radius: 0, target: 'self' } },
   { name: 'Rifle', short: 'RFL', price: 650, range: 28, fire: 'hitscan', special: '+2 pierce', dmg: 60, rate: 1.4, mag: 5, reload: 2,
-    sig: { name: 'Piercing shot', desc: 'One shot that pierces everything along its line.', cool: 12, range: 40, target: 'point' } },
+    ult: { name: 'Railgun', desc: '10 seconds of every shot going through every creep in its line, without reloading.', time: 10, range: 0, radius: 0, target: 'self' } },
   { name: 'Minigun', short: 'MNG', price: 1400, range: 16, fire: 'hitscan', special: '+1 pierce, +burn', dmg: 9, rate: 22, mag: 150, reload: 3.5,
-    sig: { name: 'Overdrive', desc: 'No spread and +50% damage for 6 seconds.', cool: 20, range: 0, target: 'self' } },
+    ult: { name: 'Overdrive', desc: '10 seconds of 80% more fire rate, two more pierce, half the spread and no reloading, in red-hot rounds.', time: 10, range: 0, radius: 0, target: 'self' } },
   { name: 'Rocket launcher', short: 'RKT', price: 2000, range: 24, fire: 'rocket', special: '+blast radius', dmg: 140, rate: 0.8, mag: 4, reload: 2.6,
-    sig: { name: 'Barrage', desc: 'Four rockets spread around the target point.', cool: 16, range: 24, target: 'point' } },
+    ult: { name: 'Cluster MIRV', desc: 'One rocket to a point that splits over it into ten bomblets, each hitting like a rocket.', time: 0, range: 24, radius: 4.5, target: 'point' } },
   { name: 'Crowbar', short: 'BAR', price: 0, range: 1.9, fire: 'melee', special: '+wider swing', dmg: 34, rate: 1.8, mag: 1, reload: 0,
-    sig: { name: 'Haymaker', desc: 'A full swing all round that hurts three times as much and throws everything back.', cool: 8, range: 0, target: 'self' } },
+    ult: { name: 'Berserk', desc: '8 seconds of swinging twice as fast, every hit healing you, shrugging off slows and stuns.', time: 8, range: 0, radius: 0, target: 'self' } },
 ];
 
 function upgradeCost(price: number, level: number): number {
@@ -51,13 +51,13 @@ function weaponDefs(): WeaponDef[] {
       }
       costs.push(c); values.push(v);
     }
-    return { name: w.name, short: w.short, price: w.price, range: w.range, fire: w.fire, special: w.special, costs, values, sig: w.sig };
+    return { name: w.name, short: w.short, price: w.price, range: w.range, fire: w.fire, special: w.special, costs, values, ult: w.ult };
   });
 }
 
 export const ABILITIES: AbilityDef[] = [
-  { name: 'Signature', key: 'Q', desc: "the equipped weapon's own ability", target: 'point', range: 0, cool: [0, 0, 0], costs: [0, 0, 0], always: true },
-  { name: 'Grenade', key: 'Shift', desc: 'Lob a frag grenade that explodes after a short flight.', target: 'point', range: 11, cool: [9, 8, 7], costs: [200, 450, 800], always: false },
+  { name: 'Ultimate', key: 'Q', desc: "The equipped weapon's ultimate, charged by fighting.", target: 'point', range: 0, cool: [0], costs: [0], always: true },
+  { name: 'Grenade', key: 'Shift', desc: 'Lobbed at a point, bursts after a moment. Bigger, harder and sooner each level; from level 4 it leaves the ground burning.', target: 'point', range: 12, radius: [3, 3.5, 4, 4.5, 5], cool: [8, 7, 6, 5.5, 5], costs: [200, 400, 700, 1100, 1600], always: false },
   { name: 'Dash', key: 'F', desc: 'A short burst of speed towards the target point.', target: 'point', range: 5, cool: [10, 8, 6], costs: [300, 600, 1000], always: false },
   { name: 'Airstrike', key: 'V', desc: 'Call in a bombing run on the target after 3 seconds.', target: 'point', range: 40, cool: [60, 50, 40], costs: [600, 1100, 1800], always: false },
 ];
@@ -117,14 +117,14 @@ export const STRUCTS: StructDef[] = [
   { name: 'none', price: 0, hp: 0, w: 1, h: 1, range: 0, turret: false, key: '', desc: '', upgrade: [] },
   { name: 'Generator', price: 0, hp: 2500, w: 5, h: 5, range: 0, turret: false, key: '', desc: 'Powers the base. If it falls, the game is over.', upgrade: [] },
   { name: 'Armory', price: 0, hp: 1200, w: 3, h: 3, range: 0, turret: false, key: '', desc: 'Buy and upgrade weapons, gear and abilities here.', upgrade: [] },
-  { name: 'Wall', price: 20, hp: 320, w: 1, h: 1, range: 0, turret: false, key: 'X', desc: 'Blocks creeps; they have to break through.', upgrade: up(20), upgradable: true },
-  { name: 'Gate', price: 45, hp: 320, w: 1, h: 1, range: 0, turret: false, key: 'G', desc: 'Players walk through, creeps break it down.', upgrade: up(45), upgradable: true },
-  turret(5, { name: 'Gun turret', price: 120, hp: 220, key: 'T', desc: 'Fast single shots at the nearest creep.', special: '+1 pierce' }),
-  turret(6, { name: 'Cannon', price: 240, hp: 280, key: 'C', desc: 'Slow shells that burst on a crowd.', special: '+blast radius' }),
-  turret(7, { name: 'Frost tower', price: 180, hp: 220, key: 'I', desc: 'Pulses cold, slowing everything around it.', special: '+slow time' }),
-  turret(8, { name: 'Tesla coil', price: 320, hp: 220, key: 'L', desc: 'Lightning that jumps from creep to creep.', special: '+2 jumps, further' }),
-  turret(9, { name: 'Sniper tower', price: 380, hp: 200, key: 'N', desc: 'A slow, heavy round from far off at the toughest creep it can see.', special: '+1 pierce' }),
-  turret(10, { name: 'Missile battery', price: 420, hp: 260, key: 'M', desc: 'A salvo of small rockets, each at a different creep.', special: '+1 missile' }),
+  { name: 'Wall', price: 20, hp: 320, w: 1, h: 1, range: 0, turret: false, key: '1', desc: 'Blocks creeps; they have to break through.', upgrade: up(20), upgradable: true },
+  { name: 'Gate', price: 45, hp: 320, w: 1, h: 1, range: 0, turret: false, key: '2', desc: 'Players walk through, creeps break it down.', upgrade: up(45), upgradable: true },
+  turret(5, { name: 'Gun turret', price: 120, hp: 220, key: '3', desc: 'Fast single shots at the nearest creep.', special: '+1 pierce' }),
+  turret(6, { name: 'Cannon', price: 240, hp: 280, key: '4', desc: 'Slow shells that burst on a crowd.', special: '+blast radius' }),
+  turret(7, { name: 'Frost tower', price: 180, hp: 220, key: '5', desc: 'Pulses cold, slowing everything around it.', special: '+slow time' }),
+  turret(8, { name: 'Tesla coil', price: 320, hp: 220, key: '6', desc: 'Lightning that jumps from creep to creep.', special: '+2 jumps, further' }),
+  turret(9, { name: 'Sniper tower', price: 380, hp: 200, key: '7', desc: 'A slow, heavy round from far off at the toughest creep it can see.', special: '+1 pierce' }),
+  turret(10, { name: 'Missile battery', price: 420, hp: 260, key: '8', desc: 'A salvo of small rockets, each at a different creep.', special: '+1 missile' }),
 ];
 
 export const WEATHERS = [

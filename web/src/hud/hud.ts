@@ -48,7 +48,7 @@ export class Hud {
   buildCard = false;
   // The generator's health, always in the top bar: the one number the game is lost on.
   private base: { root: HTMLElement; fill: HTMLElement; num: HTMLElement; hp: number; hitUntil: number };
-  private top: { wave: HTMLElement; diff: HTMLElement; weather: HTMLElement; kills: HTMLElement; ready: HTMLButtonElement; readies: HTMLElement };
+  private top: { wave: HTMLElement; diff: HTMLElement; weather: HTMLElement; kills: HTMLElement; fix: HTMLButtonElement; ready: HTMLButtonElement; readies: HTMLElement };
   private statusEl: HTMLElement;
   private pauseBtn!: HTMLElement;
   private face!: CanvasRenderingContext2D;
@@ -121,6 +121,10 @@ export class Hud {
     el('div', 'spacer', top);
     const kills = el('div', 'kills', top);
     const readies = el('div', 'readies', top);
+    // Between waves, while anything is destroyed or damaged: the base put back in one go.
+    const fix = el('button', 'fix', top, 'Rebuild');
+    fix.title = 'Rebuild everything the creeps destroyed and repair everything damaged (H)';
+    fix.onclick = () => ctl.fixAll();
     const ready = el('button', 'ready', top, 'Ready');
     ready.title = 'Ready for the next wave (Y)';
     ready.onclick = () => ctl.toggleReady();
@@ -129,7 +133,7 @@ export class Hud {
     pauseBtn.onclick = () => ctl.send({ op: 'pause' });
     this.pauseBtn = pauseBtn;
     const chatBtn = el('button', '', top, 'Chat');
-    chatBtn.title = 'Chat with the team (T or Enter)';
+    chatBtn.title = 'Chat with the team (Enter)';
     chatBtn.onclick = () => this.openChat();
     const armBtn = el('button', '', top, 'Armory');
     armBtn.title = 'Armory (C)';
@@ -140,7 +144,7 @@ export class Hud {
     const menuBtn = el('button', '', top, 'Menu');
     menuBtn.title = 'Menu (F10)';
     menuBtn.onclick = () => this.toggleMenu();
-    this.top = { wave, diff, weather, kills, ready, readies };
+    this.top = { wave, diff, weather, kills, fix, ready, readies };
     this.statusEl = el('div', 'status', root);
     this.compass = new Compass(root, ctl.rig);
     // Down the left: the team.
@@ -236,7 +240,7 @@ export class Hud {
     };
     for (let i = 0; i < 4; i++) {
       const s = mkSlot('slot', KEYS[i]);
-      s.root.onclick = () => ctl.startAbility(i);
+      s.root.onclick = () => ctl.cast(i);
       this.tipOn(s.root, () => this.abilityTip(i));
       this.slots.push(s);
     }
@@ -259,7 +263,7 @@ export class Hud {
     }
     // The medkit sits after the weapons on 8.
     const med = el('div', 'wslot med', ws);
-    el('span', 'key', med, '8');
+    el('span', 'key', med, '1');
     el('span', 'nm', med);
     med.onclick = () => { const me = ctl.me(); if (me && me.medkits > 0) ctl.medkit(); else ctl.openArmory(true); };
     this.tipOn(med, () => this.medkitTip());
@@ -317,7 +321,7 @@ export class Hud {
   private medkitTip(): string {
     const m = this.ctl.game.welcome?.medkit, me = this.ctl.me();
     if (!m || !me) return '';
-    return `<b>Medkit</b><kbd>8</kbd><br>Heals ${Math.round(m.heal * 100)}% of your health over ${m.time}s. A hit cuts it short.<br><span class="muted">${me.medkits}/${m.max} carried · ${m.cost}g each at the armory · first-aid kits in the wild hold more</span>`;
+    return `<b>Medkit</b><kbd>1</kbd><br>Heals ${Math.round(m.heal * 100)}% of your health over ${m.time}s. A hit cuts it short.<br><span class="muted">${me.medkits}/${m.max} carried · ${m.cost}g each at the armory · first-aid kits in the wild hold more</span>`;
   }
 
   private weaponTip(i: number): string {
@@ -327,7 +331,7 @@ export class Hud {
     const owned = (me.owned & (1 << i)) !== 0;
     const reloading = (me.reloading & (1 << i)) !== 0;
     const lv = [0, 1, 2, 3].map((t) => `${wd!.tracks[t]} ${me.levels[i * 4 + t]}`).join(' · ');
-    return `<b>${esc(w.name)}</b><kbd>${i === CROWBAR ? 0 : i + 1}</kbd><br><span class="muted">${w.fire} · range ${w.range} · special ${esc(w.special)}</span><br>${owned ? lv : `not owned · <span class="c">${w.price}g</span> at the armory`}<br><span class="muted">signature: ${esc(w.sig.name)}${reloading ? ' · reloading' : ''}</span>`;
+    return `<b>${esc(w.name)}</b><kbd>${i === CROWBAR ? 0 : i + 2}</kbd><br><span class="muted">${w.fire} · range ${w.range} · special ${esc(w.special)}</span><br>${owned ? lv : `not owned · <span class="c">${w.price}g</span> at the armory`}<br><span class="muted">ultimate: ${esc(w.ult.name)}${reloading ? ' · reloading' : ''}</span>`;
   }
 
   private diffTip(): string {
@@ -445,17 +449,17 @@ export class Hud {
     const rows: [string, string][] = [
       ['<kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>', 'walk, the way the view faces; the camera follows while you walk. Your hero shoots the nearest creep on its own'],
       ['<kbd>E</kbd>', 'use: a downed teammate, weapon on the ground, loot site or supply crate right beside you first, else what is under the cursor, else the nearest thing. A downed teammate: revive them (stay close until the bar fills) · a dropped weapon: pick it up, upgrades and all · a loot site: search it · a damaged structure: repair · the armory: shop · a creep: focus your fire on it'],
-      ['<kbd>Q</kbd>', "the weapon's signature, at the cursor"],
-      ['Right-click', "on a creep: focus fire on it; elsewhere: the signature, as Q"],
-      ['<kbd>Shift</kbd> <kbd>F</kbd> <kbd>V</kbd>', 'abilities: grenade, dash, airstrike; aim with the cursor, then left-click to cast, right-click or Esc cancels'],
+      ['<kbd>Q</kbd>', "the weapon's ultimate, once its meter is full: fighting fills it (damage you deal yourself, and revives)"],
+      ['<kbd>Shift</kbd> <kbd>F</kbd> <kbd>V</kbd>', 'grenade, dash, airstrike, bought at the armory: cast at the cursor the moment you press'],
+      ['Right-click', 'on a creep: focus fire on it'],
       ['<kbd>Alt</kbd> + left-click, or <kbd>Z</kbd> then click', 'ping the spot for the whole team, in the world or on the map: on a creep it warns, on a loot site it marks loot, on a structure it calls to defend it'],
-      ['<kbd>H</kbd>', 'hold position'],
+      ['<kbd>H</kbd> twice', 'between waves: rebuild every structure the creeps destroyed (its outline stays) and repair everything damaged; the first press names the price'],
       ['<kbd>J</kbd>', 'taunt: flip them off and shout, pulling every creep nearby onto you, then a cooldown'],
       ['<kbd>G</kbd> (hold)', 'hold for a second to drop the weapon in hand for a teammate, upgrades and all; it lies there until someone picks it up with <kbd>E</kbd>'],
-      ['<kbd>1</kbd>–<kbd>6</kbd>, <kbd>0</kbd>', 'equip an owned weapon (0 is the crowbar, on brutal)'],
-      ['<kbd>8</kbd>', 'use a medkit: heals over a few seconds unless a hit cuts it short; buy more at the armory'],
+      ['<kbd>1</kbd>', 'use a medkit: heals over a few seconds unless a hit cuts it short; buy more at the armory'],
+      ['<kbd>2</kbd>–<kbd>7</kbd>, <kbd>0</kbd>', 'equip an owned weapon: pistol, shotgun, SMG, rifle, minigun, launcher (0 is the crowbar, on brutal)'],
       ['<kbd>R</kbd> or Reload', 'reload now (the button sits next to your ammo)'],
-      ['<kbd>B</kbd>', 'build card; its hotkeys pick a structure, left-click places, Shift keeps placing'],
+      ['<kbd>B</kbd>', 'build bar: <kbd>1</kbd>–<kbd>8</kbd> pick wall, gate, gun, cannon, frost, tesla, sniper, missile; left-click places. Walls and gates stay picked for the next one; Shift keeps a turret picked; Esc or B stops'],
       ['Left-click', 'select a structure, creep or hero'],
       ['<kbd>U</kbd> / <kbd>Del</kbd> twice', 'upgrade / sell the selected structure; a turret upgrades one track at a time, from its card'],
       ['<kbd>C</kbd>', 'armory window (opens by itself when you arrive)'],
@@ -630,6 +634,12 @@ export class Hud {
     const kills = `<b>${fmtGold(f.totalKills)}</b> kills`;
     if (this.top.kills.innerHTML !== kills) this.top.kills.innerHTML = kills;
     const build = f.phase === Phase.Build;
+    const fc = build ? this.ctl.fixCost() : null;
+    show(this.top.fix, !!fc && (fc.ghosts > 0 || fc.damaged > 0));
+    if (fc) {
+      setText(this.top.fix, `Rebuild ${fmtGold(fc.gold)}g`);
+      setClass(this.top.fix, 'short', !!me && me.gold < fc.gold);
+    }
     show(this.top.ready, build);
     show(this.top.readies, build);
     setClass(this.top.ready, 'on', !!me && (me.flags & PF_READY) !== 0);
@@ -797,9 +807,9 @@ export class Hud {
     const full = me.ammo >= me.mag;
     h.reload.disabled = !alive || full || reloading;
     setClass(h.reload, 'busy', reloading);
-    h.reload.title = reloading ? 'Reloading' : full ? 'The magazine is full' : 'Reload now (T)';
+    h.reload.title = reloading ? 'Reloading' : full ? 'The magazine is full' : 'Reload now (R)';
     setText(h.order, alive ? (me.stunned ? 'stunned' : me.emote === Emote.Taunt && me.emoteLeft > 0 ? `taunting · ${me.emoteLeft.toFixed(1)}s` : ORDER[me.order] ?? '') : `down · ${me.respawn}s`);
-    setText(h.buff, me.buff && me.buffLeft > 0 ? `${wd.weapons[me.buff]?.sig.name ?? 'buff'} · ${me.buffLeft.toFixed(1)}s` : '');
+    setText(h.buff, me.buff && me.buffLeft > 0 ? `${wd.weapons[me.buff - 1]?.ult.name ?? 'ultimate'} · ${me.buffLeft.toFixed(1)}s` : '');
 
     const since = (now - this.ctl.game.frameAt) / 1000;
     const sweep = (s: Slot, left: number, cool: number) => {
@@ -815,11 +825,21 @@ export class Hud {
       if (!a) continue;
       if (s.name !== a.name) { s.name = a.name; s.icon.innerHTML = iconFor(a.name); }
       setClass(s.root, 'locked', a.level <= 0);
-      setClass(s.root, 'active', this.ctl.mode.k === 'ability' && this.ctl.mode.slot === i);
       setText(s.key, a.key);
       if (s.pipsFor !== a.level * 10 + a.maxLevel) {
         s.pipsFor = a.level * 10 + a.maxLevel;
         s.lvl.innerHTML = a.maxLevel > 1 ? Array.from({ length: a.maxLevel }, (_, k) => `<i class="${k < a.level ? 'on' : ''}"></i>`).join('') : '';
+      }
+      if (i === 0) {
+        // The ultimate: the sweep is the meter still to fill; lit while full or running.
+        const full = a.charge >= 1, on = a.running > 0;
+        s.cool.style.setProperty('--a', `${(on || full ? 0 : (1 - a.charge) * 360).toFixed(1)}deg`);
+        setText(s.coolTxt, on ? secs(Math.max(0, a.running - since)) : full ? '' : `${Math.floor(a.charge * 100)}%`);
+        if (!s.wasCooling && full && !on) { s.root.classList.remove('ready-flash'); void s.root.offsetWidth; s.root.classList.add('ready-flash'); }
+        s.wasCooling = full && !on;
+        setClass(s.root, 'active', on);
+        setClass(s.root, 'full', full && !on);
+        continue;
       }
       // Cooldown sweep, interpolated between frames.
       sweep(s, Math.max(0, a.left - since), a.cool);
@@ -964,15 +984,18 @@ export class Hud {
     const b1 = el('button', '', btns); b1.innerHTML = 'Build <kbd>B</kbd>'; b1.onclick = () => { this.buildCard = true; };
     const b2 = el('button', '', btns); b2.innerHTML = 'Armory <kbd>C</kbd>'; b2.onclick = () => ctl.openArmory(true);
     const b3 = el('button', '', btns); b3.innerHTML = 'Stop'; b3.onclick = () => ctl.send({ op: 'stop' });
-    const b4 = el('button', '', btns); b4.innerHTML = 'Hold <kbd>H</kbd>'; b4.onclick = () => ctl.send({ op: 'hold' });
-    el('div', 'hint', c, 'WASD to walk · E to use · Q: signature · F1 for all controls');
+    const b4 = el('button', '', btns); b4.innerHTML = 'Rebuild all <kbd>H</kbd>'; b4.onclick = () => ctl.fixAll();
+    el('div', 'hint', c, 'WASD to walk · E to use · Q: ultimate · Shift F V: abilities · F1 for all controls');
   }
 
   private updateMode(): void {
     const m = this.ctl.mode;
     let s = '';
-    if (m.k === 'ability') { const a = this.ctl.ability(m.slot); s = `${a?.name ?? 'Ability'}: left-click a target · right-click or Esc cancels`; }
-    else if (m.k === 'build') { const d = this.ctl.game.welcome?.structs[m.kind]; s = `Place ${d?.name ?? ''} (${d?.price ?? 0}g): left-click · Shift keeps placing · Esc cancels`; }
+    if (m.k === 'build') {
+      const d = this.ctl.game.welcome?.structs[m.kind];
+      const sticky = d?.name === 'Wall' || d?.name === 'Gate';
+      s = `Place ${d?.name ?? ''} (${d?.price ?? 0}g): left-click${sticky ? ', again for the next' : ' · Shift keeps placing'} · Esc stops`;
+    }
     show(this.modeEl, s !== '');
     setText(this.modeEl, s);
   }

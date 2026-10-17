@@ -75,7 +75,7 @@ type Encoder struct {
 }
 
 type structRec struct {
-	alive               bool
+	alive, ghost        bool
 	kind                game.StructKind
 	x, y                uint16
 	w, h                uint8
@@ -87,7 +87,7 @@ type structRec struct {
 }
 
 func structOf(s *game.Structure) structRec {
-	return structRec{alive: s.Alive, kind: s.Kind, x: uint16(s.X), y: uint16(s.Y), w: s.W, h: s.H,
+	return structRec{alive: s.Alive, ghost: s.Ghost, kind: s.Kind, x: uint16(s.X), y: uint16(s.Y), w: s.W, h: s.H,
 		hp: uint16(max(math.Ceil(float64(s.HP)), 0)), max: uint16(s.MaxHP), level: s.Level, lv: s.Lv, owner: s.Owner}
 }
 
@@ -225,7 +225,7 @@ func (e *Encoder) Delta(w *game.World, atArmory func(*game.Player) bool) []byte 
 	for i := range w.Structs {
 		r := structOf(&w.Structs[i])
 		o := &e.structs[i]
-		o.shapeDirty = r.alive != o.alive || r.kind != o.kind || r.level != o.level || r.lv != o.lv || r.max != o.max || r.x != o.x || r.y != o.y
+		o.shapeDirty = r.alive != o.alive || r.ghost != o.ghost || r.kind != o.kind || r.level != o.level || r.lv != o.lv || r.max != o.max || r.x != o.x || r.y != o.y
 		o.hpDirty = !o.shapeDirty && r.hp != o.hp
 		if o.shapeDirty {
 			nShape++
@@ -306,9 +306,12 @@ func (e *Encoder) creepRec(b *enc, id uint16) {
 }
 
 func structRecord(b *enc, r *structRec) {
+	// 0 gone, 1 standing, 2 a ghost to rebuild.
 	var alive uint8
 	if r.alive {
 		alive = 1
+	} else if r.ghost {
+		alive = 2
 	}
 	b.u8(alive)
 	b.u8(uint8(r.kind))
@@ -465,6 +468,7 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 			b.u8(0)
 		}
 		b.u8(deci(p.BuffLeft))
+		b.u8(uint8(min(max(p.Ult, 0), 1) * 255))
 		for _, a := range p.Abil {
 			b.u8(a.Lv)
 			b.u16(uint16(min(math.Ceil(float64(a.Cool*10)), 65535)))

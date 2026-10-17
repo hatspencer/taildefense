@@ -225,14 +225,13 @@ async function main(): Promise<void> {
       if (Number.isFinite(d)) rig.setDist(d);
     }
     const mouse = P.get('mouse');
-    if (mouse !== undefined || P.has('build') || P.has('ability')) {
+    if (mouse !== undefined || P.has('build')) {
       const [mx, my] = (mouse || '').split(',').map(Number);
       ctl.mx = Number.isFinite(mx) ? mx : window.innerWidth / 2;
       ctl.my = Number.isFinite(my) ? my : window.innerHeight / 2 - 60;
       ctl.mouseIn = true;
     }
     if (P.has('build')) { hud.buildCard = true; const k = Number(P.get('build')); if (k) ctl.startBuild(k); }
-    if (P.has('ability')) ctl.startAbility(Number(P.get('ability')) || 1);
     if (P.has('armory')) ctl.openArmory(true);
     if (P.has('help')) hud.toggleHelp();
     if (P.has('score')) hud.showScore(true);
@@ -396,21 +395,14 @@ async function main(): Promise<void> {
   const updateOverlays = () => {
     const wd = game.welcome!, f = game.cur, me = game.me();
     const m = ctl.mode;
-    const hx = me ? game.prx[me.id] : 0, hy = me ? game.pry[me.id] : 0;
     // Build mode: radius and ghost.
     if (m.k === 'build' && ctl.groundOk) {
       const t = ctl.buildTile(m.kind);
       overlays.buildGhost(m.kind, t.tx, t.ty, t.w, t.h, ctl.canPlace(m.kind, t.tx, t.ty) === '');
     } else overlays.buildGhost(-1);
     overlays.ring('build', m.k === 'build', wd.core.x, wd.core.y, wd.buildRadius, 0xffd860, 0.7);
-    // Ability targeting: range around the hero and the area at the cursor.
-    if (m.k === 'ability' && me) {
-      const a = ctl.ability(m.slot);
-      const range = a?.range ?? 0;
-      overlays.ring('range', range > 0, hx, hy, range, 0x80c8ff, 0.7);
-      const inRange = range <= 0 || Math.hypot(ctl.ground.x - hx, ctl.ground.z - hy) <= range;
-      overlays.areaPreview(ctl.groundOk && (a?.radius ?? 0) > 0, ctl.ground.x, ctl.ground.z, a?.radius ?? 1, inRange ? 0xff7040 : 0x808080);
-    } else { overlays.ring('range', false); overlays.areaPreview(false); }
+    // The outlines of what the creeps destroyed, to rebuild between waves.
+    overlays.ruins(f);
     // Selection and hover rings, and a turret's range.
     const ringFor = (p: typeof ctl.sel, name: 'sel' | 'hover') => {
       if (!p) { overlays.ring(name, false); return; }

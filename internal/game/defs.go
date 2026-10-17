@@ -160,7 +160,7 @@ type WeaponDef struct {
 // Weapons is indexed by WeaponKind.
 var Weapons = [NumWeapons]WeaponDef{
 	WPistol:   {Name: "Pistol", Short: "PST", Price: 0, Damage: 14, Rate: 3, Range: 14, Mag: 12, Reload: 1.1, Pellets: 1, Spread: .03, Special: "+1 pierce"},
-	WShotgun:  {Name: "Shotgun", Short: "SHG", Price: 250, Damage: 9, Rate: 1.3, Range: 9, Mag: 6, Reload: 1.8, Pellets: 7, Spread: .4, Pierce: 1, Special: "+2 pellets"},
+	WShotgun:  {Name: "Shotgun", Short: "SHG", Price: 250, Damage: 13, Rate: 1.3, Range: 10, Mag: 6, Reload: 1.8, Pellets: 7, Spread: .3, Pierce: 1, Special: "+2 pellets"},
 	WSMG:      {Name: "SMG", Short: "SMG", Price: 400, Damage: 8, Rate: 11, Range: 12, Mag: 40, Reload: 1.6, Pellets: 1, Spread: .09, Special: "+1 pierce"},
 	WRifle:    {Name: "Rifle", Short: "RFL", Price: 650, Damage: 60, Rate: 1.4, Range: 28, Mag: 5, Reload: 2, Pellets: 1, Spread: .01, Pierce: 3, Special: "+2 pierce"},
 	WMinigun:  {Name: "Minigun", Short: "MNG", Price: 1400, Damage: 9, Rate: 22, Range: 16, Mag: 150, Reload: 3.5, Pellets: 1, Spread: .12, Special: "+1 pierce, +burn"},
@@ -280,14 +280,14 @@ type StructDef struct {
 var Structs = [NumStructKinds]StructDef{
 	SCore:          {Name: "Generator", HP: 3200, W: 5, H: 5, Desc: "Powers the base. When it falls, the game is over."},
 	SArmory:        {Name: "Armory", HP: 1200, W: 3, H: 3, Desc: "Buy and upgrade weapons, gear and abilities here. Creeps ignore it."},
-	SWall:          {Name: "Wall", Price: 20, HP: 320, W: 1, H: 1, Key: 'X', Desc: "Blocks creeps; they path round it or break through."},
-	SGate:          {Name: "Gate", Price: 45, HP: 320, W: 1, H: 1, Key: 'G', Desc: "A wall survivors can walk through."},
-	STurretGun:     {Name: "Gun turret", Price: 120, HP: 220, W: 1, H: 1, Range: 9, Damage: 11, Rate: 4, Turret: true, Key: 'T', Desc: "Fast single shots at the nearest creep.", Special: "+1 pierce"},
-	STurretCannon:  {Name: "Cannon", Price: 240, HP: 280, W: 1, H: 1, Range: 11, Damage: 60, Rate: .7, Blast: 2.2, Turret: true, Key: 'C', Desc: "Slow shells that burst on a crowd.", Special: "+blast radius"},
-	STurretFrost:   {Name: "Frost tower", Price: 180, HP: 220, W: 1, H: 1, Range: 6, Damage: 3, Rate: 1, Slow: 1.6, Turret: true, Key: 'I', Desc: "Pulses cold, slowing everything around it.", Special: "+slow time"},
-	STurretTesla:   {Name: "Tesla coil", Price: 320, HP: 220, W: 1, H: 1, Range: 8, Damage: 32, Rate: 1.2, Chains: 1, Turret: true, Key: 'L', Desc: "Lightning that jumps from creep to creep.", Special: "+2 jumps, further"},
-	STurretSniper:  {Name: "Sniper tower", Price: 380, HP: 200, W: 1, H: 1, Range: 22, Damage: 150, Rate: .35, Pierce: 1, Turret: true, Key: 'N', Desc: "A slow, heavy round from far off at the toughest creep it can see.", Special: "+1 pierce"},
-	STurretMissile: {Name: "Missile battery", Price: 420, HP: 260, W: 1, H: 1, Range: 14, Damage: 45, Rate: .5, Blast: 1.5, Salvo: 3, Turret: true, Key: 'M', Desc: "A salvo of small rockets, each at a different creep.", Special: "+1 missile"},
+	SWall:          {Name: "Wall", Price: 20, HP: 320, W: 1, H: 1, Key: '1', Desc: "Blocks creeps; they path round it or break through."},
+	SGate:          {Name: "Gate", Price: 45, HP: 320, W: 1, H: 1, Key: '2', Desc: "A wall survivors can walk through."},
+	STurretGun:     {Name: "Gun turret", Price: 120, HP: 220, W: 1, H: 1, Range: 9, Damage: 11, Rate: 4, Turret: true, Key: '3', Desc: "Fast single shots at the nearest creep.", Special: "+1 pierce"},
+	STurretCannon:  {Name: "Cannon", Price: 240, HP: 280, W: 1, H: 1, Range: 11, Damage: 60, Rate: .7, Blast: 2.2, Turret: true, Key: '4', Desc: "Slow shells that burst on a crowd.", Special: "+blast radius"},
+	STurretFrost:   {Name: "Frost tower", Price: 180, HP: 220, W: 1, H: 1, Range: 6, Damage: 3, Rate: 1, Slow: 1.6, Turret: true, Key: '5', Desc: "Pulses cold, slowing everything around it.", Special: "+slow time"},
+	STurretTesla:   {Name: "Tesla coil", Price: 320, HP: 220, W: 1, H: 1, Range: 8, Damage: 32, Rate: 1.2, Chains: 1, Turret: true, Key: '6', Desc: "Lightning that jumps from creep to creep.", Special: "+2 jumps, further"},
+	STurretSniper:  {Name: "Sniper tower", Price: 380, HP: 200, W: 1, H: 1, Range: 22, Damage: 150, Rate: .35, Pierce: 1, Turret: true, Key: '7', Desc: "A slow, heavy round from far off at the toughest creep it can see.", Special: "+1 pierce"},
+	STurretMissile: {Name: "Missile battery", Price: 420, HP: 260, W: 1, H: 1, Range: 14, Damage: 45, Rate: .5, Blast: 1.5, Salvo: 3, Turret: true, Key: '8', Desc: "A salvo of small rockets, each at a different creep.", Special: "+1 missile"},
 }
 
 // Buildable lists what the build menu offers, in menu order.
