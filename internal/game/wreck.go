@@ -165,3 +165,76 @@ func siteReached(s *Site, x, y float32) bool {
 	dx, dy := s.SX-x, s.SY-y
 	return dx*dx+dy*dy <= lootReach*lootReach
 }
+
+// wreckCutsWay reports whether wreck s, were it placed, would split the ground round it a
+// survivor can walk into parts that each run out of the neighbourhood: a car across a
+// narrow track or a gap between rocks, with the way on only over it. It walks a fine grid
+// of survivor positions a few tiles round the wreck; a pocket the wreck closes off that
+// doesn't lead anywhere doesn't count.
+func (w *World) wreckCutsWay(s *Site) bool {
+	const (
+		reach = 4   // tiles round the wreck looked at
+		step  = .25 // grid spacing, in tiles
+		n     = 2*reach/step + 1
+	)
+	ground := groundOnly{w}
+	var free [n * n]bool
+	ox, oy := s.SX-reach, s.SY-reach
+	for j := 0; j < n; j++ {
+		for i := 0; i < n; i++ {
+			x, y := ox+float32(i)*step, oy+float32(j)*step
+			// A little margin round the wreck, so a squeeze the grid can't see is closed.
+			free[j*n+i] = wreckDist(s, x, y) >= PlayerRadius+.1 && CanStand(ground, x, y)
+		}
+	}
+	// Each part of the ground before the wreck may hold one part that reaches the edge after.
+	var before, after [n * n]int16
+	flood := func(lab *[n * n]int16, ok func(int) bool, from int, id int16) (edge bool) {
+		stack := []int{from}
+		lab[from] = id
+		for len(stack) > 0 {
+			c := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			ci, cj := c%n, c/n
+			if ci == 0 || cj == 0 || ci == n-1 || cj == n-1 {
+				edge = true
+			}
+			for _, d := range [4][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}} {
+				ni, nj := ci+d[0], cj+d[1]
+				if ni < 0 || nj < 0 || ni >= n || nj >= n {
+					continue
+				}
+				if m := nj*n + ni; lab[m] == 0 && ok(m) {
+					lab[m] = id
+					stack = append(stack, m)
+				}
+			}
+		}
+		return edge
+	}
+	var id int16
+	for c := range before {
+		if before[c] == 0 && CanStand(ground, ox+float32(c%n)*step, oy+float32(c/n)*step) {
+			id++
+			flood(&before, func(m int) bool {
+				return CanStand(ground, ox+float32(m%n)*step, oy+float32(m/n)*step)
+			}, c, id)
+		}
+	}
+	var ways [n*n + 1]int8
+	id = 0
+	for c := range after {
+		if after[c] == 0 && free[c] {
+			id++
+			if flood(&after, func(m int) bool { return free[m] }, c, id) {
+				if ways[before[c]]++; ways[before[c]] > 1 {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// groundOnly is a Blocker without the world's wrecks.
+type groundOnly struct{ Blocker }

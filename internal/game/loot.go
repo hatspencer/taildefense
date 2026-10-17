@@ -671,10 +671,15 @@ func (w *World) placeSites(ruins []ruin) []Site {
 		if want[k] == 0 || inside(x, y, 4) || !reach(sx, sy) {
 			continue
 		}
-		want[k]--
+		wanted := k
 		if k == SiteCar {
+			// A wreck is solid; one that would close a narrow way goes elsewhere.
 			k = wreckKind(rng, tierAt(sx-w.CoreX, sy-w.CoreY))
+			if w.wreckCutsWay(&Site{Kind: k, SX: sx, SY: sy, Yaw: w.wreckYaw(len(sites), x, y)}) {
+				continue
+			}
 		}
+		want[wanted]--
 		add(k, x, y, 1, 1, sx, sy)
 	}
 	return sites
