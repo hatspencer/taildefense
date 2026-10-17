@@ -282,6 +282,10 @@ Wrecks on the roads come in kinds, so you know what to expect at a glance:
 richer further out: the near roads are mostly cars and pickups, and the far roads hold most of
 the army trucks.
 
+A survivor walks round a wreck, not through it, so none is placed where it would close a way:
+a car across a one-tile track or a gap between rocks would leave the other side reachable only
+the long way round, or not at all. Map generation tries the spot again elsewhere.
+
 ## Noise and aggro
 
 - Gunfire wakes guards nearby and pulls wave creeps in earshot. Rain and storms muffle it.

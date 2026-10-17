@@ -56,3 +56,39 @@ func TestWrecksAreSolidButSearchable(t *testing.T) {
 		t.Fatal("no wreck with room round it")
 	}
 }
+
+// A wreck that would close a narrow way is put elsewhere: across a one-tile track through
+// rock it cuts the way, on a wide road it doesn't, and none on the maps does.
+func TestWrecksLeaveTheWayOpen(t *testing.T) {
+	w := newBare(3)
+	// A track of the given width through rock, and its middle.
+	carve := func(width int) (float32, float32) {
+		for y := 4; y < 16; y++ {
+			for x := 4; x < 24; x++ {
+				w.Terrain[y*w.W+x] = TRock
+			}
+		}
+		for y := 10 - width/2; y < 10-width/2+width; y++ {
+			for x := 4; x < 24; x++ {
+				w.Terrain[y*w.W+x] = TDirt
+			}
+		}
+		return 14.5, 10.5
+	}
+	x, y := carve(1)
+	if !w.wreckCutsWay(&Site{Kind: SiteCar, SX: x, SY: y}) {
+		t.Error("a car in a one-tile track doesn't cut it")
+	}
+	x, y = carve(5)
+	if w.wreckCutsWay(&Site{Kind: SiteCar, SX: x, SY: y, Yaw: math.Pi / 2}) {
+		t.Error("a car across a five-tile road cuts it")
+	}
+	for seed := uint64(1); seed <= 12; seed++ {
+		w := New(seed)
+		for i := range w.Sites {
+			if s := w.Sites[i]; s.Kind.Wreck() && w.wreckCutsWay(&s) {
+				t.Errorf("seed %d: the %s at %.0f,%.0f closes the way", seed, SiteDefs[s.Kind].lower(), s.SX, s.SY)
+			}
+		}
+	}
+}
