@@ -312,8 +312,8 @@ the army trucks.
   E is "use": a downed teammate, loot site or supply crate right beside you comes first, so a
   hero out looting searches the wreck at hand whatever is selected. Otherwise it uses what is
   under the cursor, or else the nearest usable thing (a damaged structure, the armory); on a
-  creep it focuses fire. Attack-move and stop
-  went away with click-to-move; H still holds position.
+  creep it focuses fire. Attack-move went away with click-to-move; Stop is a button on the
+  orders card, and H holds position.
 - **The camera follows while you walk.** Arrows and the screen edge still look away, and the
   next step brings it back. The minimap's right-click still walks you there by path.
 - **Numbers are the inventory.** 1–6 are the weapons, 8 the medkit. A weapon run dry reloads in
@@ -321,7 +321,7 @@ the army trucks.
   carrying two guns pays.
 - **Medkits are a decision, not a regen stat.** One heals 40% over 3 s, and a hit cuts it
   short, so you heal after you get clear, not in the crowd. You carry up to three, start with
-  one, buy them for 60 gold or find them in ambulances. The old regen gear row is Vitamins.
+  one, buy them for 60 gold or find them in ambulances and fire engines. The old regen gear row is Vitamins.
 - **Night vision goggles are the way out of the dark, at a price.** 3000 gold, more than the
   rocket launcher, for daytime sight (12, the rifle's scope doubles it) at night, worn instead
   of brutal's flashlight, so all round, not just ahead. Sold only on hard and brutal, where
@@ -419,7 +419,7 @@ choice, not a cheat guard.
 - **Blows are telegraphed.** Every creep winds up before it hits: walkers claw and bite, runners
   coil and pounce, swarmers rear and lunge, brutes slam both fists down (with a dust ring),
   spitters swell and whip the head forward, and the abomination rears and sweeps several arms.
-  The host decides the timing (protocol 7), so the windup you see is the real warning, and a
+  The host decides the timing (creep flag 64 in every frame), so the windup you see is the real warning, and a
   survivor who steps out of reach in time takes nothing.
 - `#lab` in the browser shows every animation side by side.
 
