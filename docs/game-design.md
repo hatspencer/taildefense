@@ -629,7 +629,15 @@ about -29, ambience -32 to -42, footsteps under -45.
   snappy crack and a tight punch with a short boom, so eleven rounds a second stay apart, and
   the bolt clacking home under each one, the clatter that makes a burst sound like a machine. The crowbar is Half-Life's: a swish
   and a struck pipe ringing out round 1.1 kHz for most of a second, measured against the
-  original so the pitch and the ring's length match. The tesla is a zap, an arc's crackle of ragged sparks with a
+  original so the pitch and the ring's length match. The towers: the gun turret a sentry, a dry round,
+  a feed clack and a servo slewing; the cannon field artillery, the deepest boom in the game, the
+  barrel ringing, the recoil and the case dropped; the sniper tower a .50 whose muzzle brake
+  throws a wider, harsher blast than the rifle's; the missile battery's tubes popping like a
+  blown bottle before each motor lights. The Huey's door gun is an M60 heard from the ground.
+  A creep's spit is a hack, a wet pop and bubbling slime; a hurler's bone is torn out with a
+  crunch and tumbles through the air, then cracks, splinters and clatters. A dash is a boot
+  driving off, the air ripping past and a skid; a grenade is the pin, the spoon spinning away
+  ringing, and the throw. The tesla is a zap, an arc's crackle of ragged sparks with a
   snap and a falling tone, kept under 7 kHz; the frost tower, which pulses every second, is a
   short cold gust with ice crackling and a glint of glass, with nothing sustained up high.
   The minigun fires full rifle rounds, so each is a hard slam with a boom under it and a tail

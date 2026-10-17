@@ -296,25 +296,34 @@ const MINIGUN: Gun = {
   boom: 0.95, boomF0: 150, boomF1: 52, boomTau: 0.022, drive: 3.4, tail: 0.24, tailTau: 0.1, tailF: 850,
   echoes: [[0.09, 0.12], [0.21, 0.05]],
 };
+// The gun turret is a sentry: rifle rounds four a second, harder and drier than a hand-held
+// gun, a short boom, and the feed's clack and the mount's servo after every shot.
 const TURRET_GUN: Gun = {
-  len: 0.6, crack: 0.7, crackTau: 0.001, blast: 1, blastTau: 0.016, blastF0: 5500, blastF1: 1100, body: 0.35, bodyF: 1300,
-  boom: 0.55, boomF0: 180, boomF1: 70, boomTau: 0.02, drive: 2.4, tail: 0.18, tailTau: 0.1, tailF: 1000,
-  echoes: [[0.1, 0.12]],
+  len: 0.6, crack: 0.95, crackTau: 0.0008, blast: 1.05, blastTau: 0.015, blastF0: 6000, blastF1: 1000, body: 0.42, bodyF: 1250,
+  boom: 0.75, boomF0: 170, boomF1: 60, boomTau: 0.022, drive: 3, tail: 0.2, tailTau: 0.11, tailF: 900,
+  echoes: [[0.1, 0.13], [0.24, 0.05]],
 };
+// The cannon is field artillery: a muzzle crack, a huge blast, the deepest boom in the game
+// and a report rolling over the map; then the barrel ringing, the recoil running back and the
+// breech dropping the spent case.
 const CANNON: Gun = {
-  len: 2.4, crack: 0.5, crackTau: 0.003, blast: 1, blastTau: 0.09, blastF0: 2600, blastF1: 280, body: 0.28, bodyF: 600,
-  boom: 1.3, boomF0: 80, boomF1: 26, boomTau: 0.14, drive: 4, tail: 0.5, tailTau: 0.35, tailF: 500,
-  echoes: [[0.2, 0.25], [0.5, 0.1]],
+  len: 2.8, crack: 0.85, crackTau: 0.002, blast: 1.2, blastTau: 0.08, blastF0: 3400, blastF1: 260, body: 0.3, bodyF: 620,
+  boom: 1.4, boomF0: 75, boomF1: 24, boomTau: 0.15, drive: 4.2, tail: 0.55, tailTau: 0.4, tailF: 480,
+  echoes: [[0.22, 0.3], [0.55, 0.14], [1.05, 0.06]],
 };
+// The sniper tower is a .50 with a muzzle brake: a crack as sharp as the rifle's but a wider,
+// harsher blast thrown sideways out of the brake, lower in the mids, and the bolt worked after.
 const SNIPER: Gun = {
-  len: 2.4, crack: 1.4, crackTau: 0.0007, blast: 1, blastTau: 0.035, blastF0: 8000, blastF1: 1000, body: 0.45, bodyF: 1100,
-  boom: 0.8, boomF0: 110, boomF1: 36, boomTau: 0.06, drive: 3.2, tail: 0.45, tailTau: 0.28, tailF: 800,
-  echoes: [[0.2, 0.3], [0.5, 0.15], [0.95, 0.07]],
+  len: 2.6, crack: 1.5, crackTau: 0.0007, blast: 1.25, blastTau: 0.04, blastF0: 7200, blastF1: 750, body: 0.55, bodyF: 800,
+  boom: 1, boomF0: 100, boomF1: 30, boomTau: 0.07, drive: 3.8, tail: 0.5, tailTau: 0.32, tailF: 700,
+  echoes: [[0.2, 0.32], [0.5, 0.17], [0.95, 0.08], [1.5, 0.04]],
 };
+// The door gunner's M60 heard from the ground: full rounds eight a second, the blast darker
+// for being up in the air, and a report that carries over open ground.
 const DOORGUN: Gun = {
-  len: 0.7, crack: 0.8, crackTau: 0.001, blast: 1, blastTau: 0.018, blastF0: 5000, blastF1: 1000, body: 0.35, bodyF: 1200,
-  boom: 0.55, boomF0: 150, boomF1: 60, boomTau: 0.025, drive: 2.5, tail: 0.25, tailTau: 0.15, tailF: 800,
-  echoes: [[0.15, 0.12]],
+  len: 0.8, crack: 0.9, crackTau: 0.0008, blast: 1.05, blastTau: 0.02, blastF0: 4800, blastF1: 850, body: 0.4, bodyF: 1000,
+  boom: 0.85, boomF0: 140, boomF1: 48, boomTau: 0.03, drive: 3.2, tail: 0.32, tailTau: 0.18, tailF: 750,
+  echoes: [[0.16, 0.16], [0.38, 0.06]],
 };
 
 // Spent brass hitting the ground and bouncing twice.
@@ -353,6 +362,35 @@ function clack(b: Buf, r: R, at: number, f: number, gain: number, low = 300): vo
   click(b, r, at, f, gain, 0.003, f * 0.55);
   thud(b, r, at, low, low * 0.6, 0.012, gain * 0.7, 0.4, 2500);
   ping(b, at + 0.001, [f * 0.83, f * 1.37, f * 2.21], 0.025, gain * 0.25);
+}
+
+// A small motor slewing: a whine round 900 Hz bending as the mount turns, with a buzz in it.
+function servo(b: Buf, r: R, at: number, dur: number, gain: number): void {
+  const o = Math.floor(at * b.sr), f = jit(r, 900, 0.1), up = r() < 0.5 ? 1 : -1;
+  let ph = 0;
+  for (let i = 0; i < Math.ceil(dur * b.sr) && o + i < b.len; i++) {
+    const t = i / b.sr, u = t / dur;
+    ph += TAU * f * (1 + up * 0.15 * u) / b.sr;
+    b.d[o + i] += (Math.sin(ph) + 0.4 * Math.sin(ph * 2) + 0.25 * Math.sign(Math.sin(ph * 0.5))) * Math.sin(Math.PI * u) * gain;
+  }
+}
+
+// A missile kicked out of its tube by gas before its motor lights: a hollow pop, the tube
+// sounding like a blown bottle, a hiss of gas and the next one clacking up into place.
+function pod(sr: number, r: R): Buf {
+  const b = new Buf(sr, 0.5);
+  const f = jit(r, 190, 0.12), sv = new SVF(sr);
+  let ph = 0;
+  for (let i = 0; i < b.len; i++) {
+    const t = i / sr;
+    ph += TAU * (f * (0.75 + 0.25 * Math.exp(-t / 0.03))) / sr;
+    b.d[i] += Math.sin(ph) * ad(t, 0.002, 0.045) * 0.9;
+    b.d[i] += sv.run(r() * 2 - 1, 2400, 1).band * ad(t, 0.003, 0.08) * 0.5;
+  }
+  thud(b, r, 0, 160, 70, 0.02, 0.6, 0.6, 1500);
+  click(b, r, 0, 1400, 0.4, 0.004, 700);
+  clack(b, r, 0.24 + r() * 0.03, 1700, 0.25, 300);
+  return b.normalize(0.9).fadeOut();
 }
 
 // The rifle's ultimate, a railgun: no powder, a slug thrown by a magnetic field. A snap of
@@ -617,29 +655,64 @@ function creepStrike(sr: number, r: R, big: boolean): Buf {
   return b.normalize(0.8).fadeOut();
 }
 
+// Spit: a hack up from the throat, a wet lip-pop as the glob leaves, and the slime bubbling
+// and spattering after it.
 function spit(sr: number, r: R): Buf {
-  const b = new Buf(sr, 0.45);
-  thud(b, r, 0, 320, 180, 0.012, 0.6, 0.2);
-  roar(b, r, 0.005, 0.3, 2400, 900, 0.004, 0.06, 0.8, 2);
-  vox(b, r, 0, { dur: 0.18, f0: () => 120, vowel: () => [400, 900, 2300], rasp: 0.6, jitter: 0.1, a: 0.01, rel: 0.08, gain: 0.4, am: 30 });
+  const b = new Buf(sr, 0.5);
+  vox(b, r, 0, { dur: 0.13, f0: (u) => 95 + 60 * u, vowel: (u) => lerpV(V.uh, [500, 1300, 2500], u), rasp: 0.9, jitter: 0.15, a: 0.008, rel: 0.03, gain: 0.45, am: 45 });
+  roar(b, r, 0.01, 0.12, 2800, 1200, 0.01, 0.04, 0.35, 2.5);
+  const pop = 0.13 + r() * 0.01;
+  thud(b, r, pop, 420, 160, 0.01, 0.7, 0.3, 2000);
+  click(b, r, pop, 1600, 0.3, 0.004);
+  // Bubbles: little sines rising fast as each pops, thinning out.
+  for (let k = 0; k < 14; k++) {
+    const at = pop + 0.01 + (-Math.log(1 - r() * 0.9) / 3) * 0.25, f0 = 350 + r() * 700, d = 0.006 + r() * 0.012, g = 0.25 * (0.4 + r() * 0.6);
+    const o = Math.floor(at * sr);
+    let ph = 0;
+    for (let i = 0; i < Math.ceil(d * 3 * sr) && o + i < b.len; i++) {
+      const t = i / sr;
+      ph += TAU * f0 * (1 + 2.5 * t / d) / sr;
+      b.d[o + i] += Math.sin(ph) * ad(t, 0.001, d) * g * Math.exp(-(at - pop) * 4);
+    }
+  }
+  roar(b, r, pop + 0.01, 0.2, 1800, 500, 0.005, 0.05, 0.3);
   return b.normalize(0.7).fadeOut();
 }
 
-// Bone: thrown with a grunt and a swish, then clattering where it lands.
+// Bone: torn out of the hurler with a crunch and a strained grunt, then thrown, the shard
+// tumbling through the air; and where it lands, a hard crack, splinters and a hollow clatter.
 function boneThrow(sr: number, r: R): Buf {
-  const b = new Buf(sr, 0.5);
-  vox(b, r, 0, { dur: 0.22, f0: (u) => 140 - 40 * u, vowel: () => lerpV(V.uh, V.uh, 0), rasp: 0.5, jitter: 0.08, a: 0.01, rel: 0.1, gain: 0.6 });
-  whoosh(b, r, 0.1, 0.3, 400, 1400, 0.8);
+  const b = new Buf(sr, 0.6);
+  // The crunch: a dense burst of snaps with a wet squelch under it.
+  for (let k = 0; k < 10; k++) click(b, r, r() * 0.07, 1200 + r() * 2200, 0.35 * (0.4 + r() * 0.6), 0.002 + r() * 0.003, 500 + r() * 900);
+  roar(b, r, 0, 0.1, 1400, 500, 0.005, 0.03, 0.4, 2);
+  vox(b, r, 0.02, { dur: 0.2, f0: (u) => 130 - 45 * u, vowel: () => lerpV(V.uh, V.uh, 0), rasp: 0.7, jitter: 0.1, a: 0.02, rel: 0.08, gain: 0.5 });
+  // The swing, then the shard turning over and over: a whoosh chopped as it tumbles.
+  const sv = new SVF(sr), o = Math.floor(0.17 * sr), rate = jit(r, 16, 0.15);
+  for (let i = 0; i < Math.ceil(0.4 * sr) && o + i < b.len; i++) {
+    const t = i / sr;
+    sv.run(r() * 2 - 1, 700 + 900 * Math.abs(Math.sin(Math.PI * rate * t)), 1.6);
+    b.d[o + i] += sv.band * bump(t, 0.12, 0.13) * (0.35 + 0.65 * Math.abs(Math.sin(Math.PI * rate * t))) * 0.9;
+  }
   return b.normalize(0.7).fadeOut();
 }
 function boneLand(sr: number, r: R): Buf {
-  const b = new Buf(sr, 0.5);
-  thud(b, r, 0, 200, 120, 0.02, 0.5, 0.4);
-  for (let k = 0; k < 6; k++) click(b, r, k * 0.03 + r() * 0.04, 900 + r() * 1800, 0.5 / (1 + k * 0.4), 0.006, 600 + r() * 900);
-  return b.normalize(0.65).fadeOut();
+  const b = new Buf(sr, 0.7);
+  click(b, r, 0, 2600, 0.45, 0.003, 1300);
+  thud(b, r, 0, 220, 110, 0.025, 0.6, 0.5, 1500);
+  debris(b, r, 0.003, 0.12, 9, 2500, 6000, 0.3);
+  // Bounces, each a knock of hollow bone, a short woody ring, smaller and sooner.
+  let at = 0.11 + r() * 0.03, g = 0.45;
+  for (let k = 0; k < 4; k++) {
+    const f = jit(r, 1500, 0.15);
+    click(b, r, at, f * 1.3, g, 0.004, f * 0.6);
+    ping(b, at + 0.001, [f, f * 1.73, f * 2.6], 0.018, g * 0.35);
+    at += (0.1 - k * 0.02) * (0.8 + r() * 0.4); g *= 0.55;
+  }
+  return b.normalize(0.9).fadeOut();
 }
 
-// Footsteps, barely there: a boot's heel and the grit under it; a bare foot of the dead
+// Footsteps, barely there// Footsteps, barely there: a boot's heel and the grit under it; a bare foot of the dead
 // dragged as much as set down; and the big ones' weight landing in the dirt.
 function step(sr: number, r: R): Buf {
   const b = new Buf(sr, 0.2);
@@ -922,23 +995,41 @@ function ignite(sr: number, r: R): Buf {
   return b.normalize(0.85).fadeOut(0.1);
 }
 
+// A grenade thrown: the pin's ring scraping out with a tink, the spoon flying off and
+// spinning away ringing, and the arm swung through.
 function grenadeThrow(sr: number, r: R): Buf {
-  const b = new Buf(sr, 0.5);
-  ping(b, 0, [3200, 5150, 7300], 0.04, 0.5);
-  click(b, r, 0.08, 4000, 0.4, 0.002, 2600);
-  whoosh(b, r, 0.12, 0.3, 500, 1500, 0.8);
-  return b.normalize(0.6).fadeOut();
+  const b = new Buf(sr, 0.7);
+  slide(b, r, 0, 0.05, 3600, 0.25);
+  click(b, r, 0.045, 4200, 0.5, 0.002, 2900);
+  ping(b, 0.047, [2900, 4400, 6900], 0.05, 0.25);
+  const spoon = 0.2 + r() * 0.03;
+  clack(b, r, spoon, 3000, 0.45, 600);
+  const f = jit(r, 3700, 0.06);
+  for (let i = 0; i < Math.ceil(0.4 * sr); i++) {
+    const t = i / sr, o = Math.floor(spoon * sr) + i;
+    if (o >= b.len) break;
+    // A strip of steel spinning: its ring swept in and out as it turns.
+    b.d[o] += Math.sin(TAU * f * t * (1 - 0.03 * t)) * Math.exp(-t / 0.12) * (0.5 + 0.5 * Math.abs(Math.sin(TAU * 22 * t))) * 0.12;
+  }
+  whoosh(b, r, 0.28, 0.32, 300, 1600, 0.9, 0.9);
+  return b.normalize(0.9).fadeOut();
 }
 
+// A dash: the boot driving off with grit kicked up, the air ripped past in a rising rush, and
+// a skid in the dirt where it stops.
 function dash(sr: number, r: R): Buf {
-  const b = new Buf(sr, 0.45);
-  whoosh(b, r, 0, 0.35, 350, 1600, 1, 0.9);
-  thud(b, r, 0, 110, 70, 0.02, 0.4, 0.6, 1500);
-  thud(b, r, 0.3, 110, 70, 0.02, 0.4, 0.6, 1500);
+  const b = new Buf(sr, 0.6);
+  thud(b, r, 0, 130, 60, 0.025, 0.6, 0.8, 1200);
+  debris(b, r, 0.005, 0.06, 6, 1800, 4500, 0.15);
+  whoosh(b, r, 0.01, 0.3, 300, 3200, 1.2, 0.7);
+  whoosh(b, r, 0.05, 0.22, 900, 5000, 0.4, 2);
+  roar(b, r, 0.26, 0.25, 3000, 900, 0.01, 0.07, 0.35);
+  debris(b, r, 0.27, 0.15, 8, 1500, 4000, 0.12);
+  thud(b, r, 0.27, 110, 60, 0.02, 0.35, 0.8, 1200);
   return b.normalize(0.65).fadeOut();
 }
 
-// Jets going over for an airstrike: the roar climbing as they come, a Doppler fall as they
+// Jets going over// Jets going over for an airstrike: the roar climbing as they come, a Doppler fall as they
 // pass right overhead, and a long rumble going away.
 function jets(sr: number, r: R): Buf {
   const b = new Buf(sr, 4.2);
@@ -1209,11 +1300,17 @@ export const RECIPES: Record<string, [number, Maker, number?]> = {
   rocket: [3, (sr, r) => rocketLaunch(sr, r, false)],
   missile: [3, (sr, r) => rocketLaunch(sr, r, true)],
   crowbar: [3, crowbar],
-  turretGun: [4, gun(TURRET_GUN, (b, r) => ping(b, 0.04, [1450, 2310], 0.02, 0.06 + r() * 0.02))],
-  cannon: [3, gun(CANNON, (b, r) => ping(b, 0.35, [610, 1530, 2470], 0.12, 0.03 + r() * 0.01))],
-  sniper: [3, gun(SNIPER, (b, r) => { click(b, r, 0.5, 1800, 0.08, 0.004, 600); slide(b, r, 0.53, 0.08, 2400, 0.04); click(b, r, 0.62, 2600, 0.09, 0.004, 900); })],
-  pod: [3, (sr, r) => { const b = new Buf(sr, 0.3); thud(b, r, 0, jit(r, 220, 0.2), jit(r, 130, 0.2), 0.03, 0.7, 0.5); click(b, r, 0, jit(r, 1500, 0.3), 0.6, 0.004, jit(r, 800, 0.3)); return b.normalize(0.5).fadeOut(); }],
-  doorGun: [4, gun(DOORGUN)],
+  turretGun: [4, gun(TURRET_GUN, (b, r) => { clack(b, r, 0.035 + r() * 0.005, 2100, 0.12, 380); ping(b, 0.04, [1450, 2310], 0.02, 0.05); servo(b, r, 0.07, 0.14, 0.035); })],
+  cannon: [3, gun(CANNON, (b, r) => {
+    ping(b, 0.004, [610, 1530, 2470], 0.25, 0.05 + r() * 0.01);
+    slide(b, r, 0.06, 0.25, 900, 0.05);
+    clack(b, r, 0.34, 1100, 0.18, 160);
+    clack(b, r, 0.62, 1500, 0.12, 220);
+    ping(b, 0.8 + r() * 0.04, [720, 1690, 2950], 0.09, 0.07);
+  })],
+  sniper: [3, gun(SNIPER, (b, r) => { bolt(b, r, 0.55, 0.11); brass(b, r, 0.95, 0.04); })],
+  pod: [3, pod],
+  doorGun: [4, gun(DOORGUN, (b, r) => clack(b, r, 0.045 + r() * 0.008, 1900, 0.1, 340))],
   tesla: [4, tesla],
   explosionS: [3, (sr, r) => explosion(sr, r, 0.7), LOW],
   explosion: [3, (sr, r) => explosion(sr, r, 1), LOW],
@@ -1274,10 +1371,11 @@ export const LOOPS = new Set(['rotor', 'fire', 'spin', 'rain', 'wind', 'crickets
 // Level corrections in dB, from measuring every sound's loudness (K-weighted, 400 ms) against
 // the level it is played at, where one stood far out of line with the rest of its kind: the
 // player's shout was the loudest thing in the game, the big ones' groans as loud as a shotgun,
-// the reloads lost under the gun they reload, and the minigun's dropped ammo box louder than them all.
+// the reloads lost under the gun they reload, the minigun's dropped ammo box louder than them all,
+// and a creep's spit and thrown bone lost under the guns firing back.
 const TRIM: Record<string, number> = {
   shout_m: -6, shout_f: -6, groan5: -6, groan3: -5, groan7: -4, groan1: -3, retch: -5, ignite: -4.5, windup: -2.5,
-  reload4: -3.5, reload1: 2, reload5: 1.5, reloaded0: 1.5,
+  reload4: -3.5, reload1: 2, reload5: 1.5, reloaded0: 1.5, spit: 3, boneThrow: 3, boneLand: 3, dash: 3, grenade: 2,
   radio_chat: 5, radio_here: 4, radio_danger: 5, radio_loot: 4, radio_defend: 3, radio_good: 4, radio_bad: 4, radio_error: 4, beep: 3,
 };
 for (const k of ['chat', 'here', 'danger', 'loot', 'defend', 'good', 'bad', 'error']) RECIPES['radio_' + k] = [1, (sr, r) => radio(sr, r, k)];

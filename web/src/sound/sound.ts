@@ -20,12 +20,12 @@ const TURRET: Record<number, string> = { [K_GUN]: 'turretGun', [K_CANNON]: 'cann
 // How loud each is at the listener, and how many of it one tick may play.
 const LOUD: Record<string, number> = {
   pistol: 0.9, shotgun: 0.87, smg: 0.6, rifle: 1.15, railgun: 1.15, minigun: 0.7, rocket: 0.8, missile: 0.45, crowbar: 0.7,
-  turretGun: 0.5, cannon: 0.95, tesla: 0.45, sniper: 0.95, pod: 0.4, doorGun: 0.7,
+  turretGun: 0.5, cannon: 0.95, tesla: 0.45, sniper: 0.95, pod: 0.7, doorGun: 0.7,
   spit: 0.5, boneThrow: 0.5, boneLand: 0.45, dash: 0.6,
 };
 const CAP: Record<string, number> = { minigun: 6, smg: 5, turretGun: 5 };
 // The creeps' own sounds, which thin out as more of them are awake within earshot.
-const CREEPY = new Set(['spit', 'boneThrow', 'boneLand', 'dash']);
+const CREEPY = new Set(['spit', 'boneThrow', 'boneLand']);
 // Awake creeps in earshot at which they start thinning, and at which they are thinnest.
 const CROWD0 = 6, CROWD1 = 30;
 // Creep kinds that throw rather than strike: their blows are tracers.
