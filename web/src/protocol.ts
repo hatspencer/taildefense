@@ -242,7 +242,7 @@ function grow<T extends Uint8Array | Uint16Array | Int8Array | Float32Array>(a: 
 export interface Gun { id: number; kind: number; x: number; y: number; lv: number[]; by: number }
 
 export class Frame {
-  tick = 0; phase = 0; wave = 0; phaseLeft = 0; pending = 0; totalKills = 0; best = 0;
+  tick = 0; phase = 0; wave = 0; phaseLeft = 0; left = 0; totalKills = 0; best = 0;
   // weatherAmt: 0..1, how strongly the weather shows right now.
   weather = 0; weatherAmt = 0;
   // The player who paused the game, or -1 while it runs.
@@ -323,7 +323,7 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
   f.phase = d.getUint8(o); o += 1;
   f.wave = d.getUint16(o, true); o += 2;
   f.phaseLeft = d.getUint16(o, true); o += 2;
-  f.pending = d.getUint32(o, true); o += 4;
+  f.left = d.getUint32(o, true); o += 4;
   f.totalKills = d.getUint32(o, true); o += 4;
   f.best = d.getUint16(o, true); o += 2;
   f.weather = d.getUint8(o); f.weatherAmt = d.getUint8(o + 1) / 255; f.pausedBy = d.getUint8(o + 2) - 1; o += 3;

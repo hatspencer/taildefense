@@ -55,7 +55,7 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 	e.u8(uint8(r.Phase))
 	e.u16(uint16(r.Wave))
 	e.u16(deci16(r.PhaseLeft))
-	e.u32(uint32(r.Pending))
+	e.u32(uint32(r.Left))
 	e.u32(clamp32(r.Kills))
 	e.u16(uint16(r.Best))
 	e.u8(uint8(r.Weather))

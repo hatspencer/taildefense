@@ -230,7 +230,8 @@ u32  tick
 u8   phase            0 build (between waves), 1 wave, 2 over (generator destroyed)
 u16  wave             current wave number (0 before the first)
 u16  phaseLeft        deciseconds until the next wave, build phase only
-u32  pending          creeps of this wave still to spawn
+u32  left             creeps holding the wave open: still to spawn, alive anywhere (fog or not),
+                      and on a tenth wave the wanderers until they rush; guards do not count
 u32  totalKills
 u16  best             waves survived, when over
 u8   weather          index into the welcome's weathers: 0 clear, 1 fog, 2 heavy rain, 3 storm, 4 snow,

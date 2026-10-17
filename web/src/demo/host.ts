@@ -1240,11 +1240,19 @@ export class DemoHost implements Transport {
     }
   }
 
+  // The creeps holding the wave open, as the host counts them: to spawn, and alive but guards.
+  private waveLeft(): number {
+    if (this.phase !== Phase.Wave) return 0;
+    let n = this.pending;
+    for (let id = 0; id < GUARD_ID0; id++) n += this.cAlive[id];
+    return n;
+  }
+
   private encode(): ArrayBuffer {
     const w = this.wr;
     w.reset();
     w.u8(1); w.u32(this.tick); w.u8(this.phase); w.u16(this.wave); w.u16(Math.max(0, this.phaseLeft));
-    w.u32(this.pending); w.u32(this.totalKills); w.u16(this.best);
+    w.u32(this.waveLeft()); w.u32(this.totalKills); w.u16(this.best);
     w.u8(this.weather); w.u8(Math.round(this.weatherAmt * 255)); w.u8(this.paused + 1);
     w.u8(this.players.length);
     for (const p of this.players) {
