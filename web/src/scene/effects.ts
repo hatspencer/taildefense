@@ -172,7 +172,7 @@ export class Effects {
       this.group.add(l);
     }
 
-    // Lasting effects: re-laid every frame from the frame's effect list (few of them).
+    // Lasting effects: re-laid every frame from the frame's effect list, grown by room when it outgrows them.
     const flatRing = new THREE.RingGeometry(0.9, 1, 48); flatRing.rotateX(-Math.PI / 2);
     const lm = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
     lm.colorNode = vec3(1, 0.15, 0.1).mul(sin(time.mul(10)).mul(0.35).add(0.75));
@@ -514,6 +514,19 @@ export class Effects {
     }
   }
 
+  // m, or a mesh like it with room for n. A new mesh, not a bigger buffer in the old one: the
+  // renderer binds a mesh's instance matrices once and would never draw the bigger buffer.
+  private room(m: THREE.InstancedMesh, n: number): THREE.InstancedMesh {
+    if (m.instanceMatrix.count >= n) return m;
+    const g = new THREE.InstancedMesh(m.geometry, m.material, Math.max(n, m.instanceMatrix.count * 2));
+    g.frustumCulled = false; g.count = 0; g.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    g.castShadow = m.castShadow; g.renderOrder = m.renderOrder;
+    this.group.remove(m);
+    m.dispose();
+    this.group.add(g);
+    return g;
+  }
+
   // Per render frame: the clock, billboard axes, and the lasting effects.
   update(game: Game, cam: THREE.Camera, dt = 0.016): void {
     const t = this.now();
@@ -530,13 +543,16 @@ export class Effects {
     this.uUp.value.setFromMatrixColumn(cam.matrixWorld, 1);
 
     const f = game.cur;
+    // Up to two rings an effect, one of anything else.
+    this.lasting = this.room(this.lasting, f.nEffects * 2); this.lastingFire = this.room(this.lastingFire, f.nEffects);
+    this.grenades = this.room(this.grenades, f.nEffects); this.acid = this.room(this.acid, f.nEffects); this.sacs = this.room(this.sacs, f.nEffects);
     let nr = 0, nf = 0, ng = 0, na = 0, ns = 0;
     const ra = this.lasting.instanceMatrix.array as Float32Array, fa = this.lastingFire.instanceMatrix.array as Float32Array, ga = this.grenades.instanceMatrix.array as Float32Array;
     const aa = this.acid.instanceMatrix.array as Float32Array, sa = this.sacs.instanceMatrix.array as Float32Array;
     const sinceFrame = Math.min(0.1, (performance.now() - game.frameAt) / 1000);
     const spawnFire = t - this.lastNapalm > 0.05;
     if (spawnFire) this.lastNapalm = t;
-    for (let i = 0; i < f.nEffects && i < 64; i++) {
+    for (let i = 0; i < f.nEffects; i++) {
       const k = f.eKind[i], r = Math.max(0.5, f.eR[i]);
       const left = Math.max(0, f.eLeft[i] / 10 - sinceFrame), total = Math.max(0.1, f.eTotal[i] / 10);
       if (k === EffectKind.Grenade) {
