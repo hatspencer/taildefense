@@ -118,7 +118,7 @@ type Replica struct {
 	Phase      game.Phase
 	Wave       int
 	PhaseLeft  float32
-	Pending    int // creeps of this wave still to spawn
+	Left       int // creeps holding this wave open, spawned or not, seen or not
 	Kills      uint64
 	Best       int
 	Weather    game.WeatherKind
@@ -401,7 +401,7 @@ func (r *Replica) header(d *dec) {
 	r.Phase = game.Phase(d.u8())
 	r.Wave = int(d.u16())
 	r.PhaseLeft = float32(d.u16()) / 10
-	r.Pending = int(d.uv())
+	r.Left = int(d.uv())
 	r.Kills = d.uv()
 	r.Best = int(d.u16())
 	r.Weather = game.WeatherKind(d.u8())

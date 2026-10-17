@@ -337,7 +337,7 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 	b.u8(uint8(w.Phase))
 	b.u16(uint16(w.Wave))
 	b.u16(uint16(max(w.PhaseLeft, 0) * 10))
-	b.uv(uint64(len(w.Queue) - w.QueueHead))
+	b.uv(uint64(w.WaveLeft()))
 	b.uv(uint64(w.TotalKills))
 	b.u16(uint16(w.Best))
 	b.u8(uint8(w.Weather))

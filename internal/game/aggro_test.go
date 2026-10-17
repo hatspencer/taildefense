@@ -527,3 +527,28 @@ func TestASurvivorBackAtTheBaseIsShieldedForAWhile(t *testing.T) {
 		t.Fatal("still shielded after the shield ran out")
 	}
 }
+
+// The creeps-left count is the wave's, wherever its creeps are: to spawn and alive, not
+// guards, and on a tenth wave the wanderers until they rush.
+func TestWaveLeftCountsWhatHoldsTheWave(t *testing.T) {
+	w := newBare(3)
+	w.Phase = PhaseWave
+	w.Queue, w.QueueHead = make([]Spawn, 3), 1
+	w.SpawnCreep(CWalker, 10, 10)
+	w.SpawnCreep(CWalker, 200, 200)
+	w.SpawnCreep(CWalker, 30, 30)
+	w.Creeps[len(w.Creeps)-1].Home = 1
+	w.SpawnCreep(CWalker, 40, 40)
+	w.Creeps[len(w.Creeps)-1].Wander = true
+	if n := w.WaveLeft(); n != 4 {
+		t.Fatalf("left %d, want 2 to spawn + 2 alive", n)
+	}
+	w.rushAt = 5
+	if n := w.WaveLeft(); n != 5 {
+		t.Fatalf("left %d before the rush, want the wanderer too", n)
+	}
+	w.Phase = PhaseBuild
+	if n := w.WaveLeft(); n != 0 {
+		t.Fatalf("left %d between waves", n)
+	}
+}

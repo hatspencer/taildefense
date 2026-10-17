@@ -616,7 +616,7 @@ export class Hud {
     if (f.phase === Phase.Build) {
       const left = Math.max(0, f.phaseLeft / 10 - (now - ctl.game.frameAt) / 1000);
       wave = `<span class="lbl">wave ${f.wave + 1} in</span><span class="phase">${Math.ceil(left)}s</span>`;
-    } else if (f.phase === Phase.Wave) wave = `<span class="lbl">wave</span>${f.wave}<span class="lbl">·</span><span class="phase">${fmtGold(f.pending + f.nCreeps)}</span><span class="lbl">creeps left</span>`;
+    } else if (f.phase === Phase.Wave) wave = `<span class="lbl">wave</span>${f.wave}<span class="lbl">·</span><span class="phase">${fmtGold(f.left)}</span><span class="lbl">creeps left</span>`;
     else wave = `<span class="lbl">overrun · held</span><span class="phase">${f.best}</span><span class="lbl">waves</span>`;
     if (this.top.wave.innerHTML !== wave) this.top.wave.innerHTML = wave;
 

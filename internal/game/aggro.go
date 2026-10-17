@@ -366,6 +366,20 @@ func (w *World) countGuards() {
 	}
 }
 
+// WaveLeft is what stands between the team and the end of the wave: the creeps still to spawn,
+// the wave's creeps alive anywhere on the map, and on a tenth wave, until they rush, the
+// wanderers that will join it. Guards do not count, as they do not hold a wave open.
+func (w *World) WaveLeft() int {
+	if w.Phase != PhaseWave {
+		return 0
+	}
+	n := len(w.Queue) - w.QueueHead + w.waveCreeps()
+	if w.rushAt > 0 {
+		n += w.wanderers()
+	}
+	return n
+}
+
 // waveCreeps is how many creeps of the waves are alive; guards and wanderers do not hold a
 // wave open.
 func (w *World) waveCreeps() int {
