@@ -14,13 +14,21 @@ td join box   # join the game hosted on the machine "box"
 
 ## Setup
 
-You need Tailscale running on every player's machine, and podman or docker to build (see
-[Dependencies](#dependencies)).
+You need Tailscale running on every player's machine, and git plus podman or docker to build (see
+[Dependencies](#dependencies)). On macOS or Linux, one line clones, builds and installs:
+
+```
+curl -fsSL https://raw.githubusercontent.com/hatspencer/taildefense/main/install.sh | sh
+```
+
+From a checkout, the same thing:
 
 ```
 ./build.sh install     # builds and installs td into ~/.taildefense, symlinked from ~/.local/bin/td
 td doctor              # checks tailscale, the browser, the container engine
 ```
+
+`install.sh` takes `TAILDEFENSE_REPO` for a fork and `TAILDEFENSE_INSTALL_BRANCH` for a branch.
 
 Works on Linux and macOS, amd64 and arm64. The client renders with WebGPU, and falls back to
 WebGL 2 where WebGPU isn't available. Any current Chrome, Edge, Firefox or Safari will do.
