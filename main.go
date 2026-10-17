@@ -34,7 +34,8 @@ usage:
                                  a dedicated game with no player of its own, until ctrl+c
   td ls [--json] [--port N]      the games on your tailnet
   td doctor                      check tailscale, the browser and what updates need
-  td config [KEY [VALUE]]        show, read or set name, port, difficulty, fog, waves, browser, autoupdate
+  td config [KEY [VALUE]]        show, read or set name, port, difficulty, fog, waves, volume,
+                                 browser, autoupdate
                                  (td config KEY --reset returns one to its default)
   td frame [--width W] [--height H] [--view menu|join|settings|changelog|doctor|help|splash] [--at S]
                                  render one launcher frame from demo data (--at: seconds
