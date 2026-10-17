@@ -306,7 +306,8 @@ the army trucks.
   under the left hand, cast at the cursor at once; right-click off a creep casts it too, but
   the right button is mostly focus fire, and a signature that only went off when the cursor
   missed a creep was hard to rely on. The abilities are Shift, F and V, with the big one
-  (airstrike) on V, a key the build card leaves alone so it can be called in while placing.
+  (airstrike) on V. None of the three is a build-card key, so they work while placing; the
+  frost tower gave F up to the dash and sits on I, for ice.
   The taunt went from V to J: a reach, but seldom needed in a split second.
   E is "use": a downed teammate, loot site or supply crate right beside you comes first, so a
   hero out looting searches the wreck at hand whatever is selected. Otherwise it uses what is

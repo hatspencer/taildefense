@@ -93,7 +93,7 @@ faces, however the camera is turned, and the camera follows while you walk.
 | 8 | use a medkit |
 | G (hold) | hold a second to drop the weapon in hand for a teammate, upgrades and all (you keep at least one) |
 | J | taunt: flip them off and shout; every creep around you comes for you for 5 s, sleeping guards too |
-| B | build: X wall, G gate, T gun turret, C cannon, F frost tower, L tesla coil, N sniper tower, M missile battery; shift keeps placing |
+| B | build: X wall, G gate, T gun turret, C cannon, I frost tower, L tesla coil, N sniper tower, M missile battery; shift keeps placing |
 | left-click | select a building, creep or player |
 | U / Delete twice | upgrade / sell the selected wall or gate (60% more HP a level); a turret upgrades a track at a time from its card |
 | C | armory: weapons, upgrade tracks, gear, abilities (you have to be standing by it) |
