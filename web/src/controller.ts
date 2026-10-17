@@ -18,7 +18,7 @@ const RADIUS: Record<string, number> = {
 
 // Ability slots: the weapon's signature on the right mouse button, Overwatch style, then the
 // bought abilities; WASD walks.
-export const KEYS = ['Q', 'Shift', 'F', 'X'];
+export const KEYS = ['Q', 'Shift', 'F', 'V'];
 
 // How far E reaches for something to use when nothing is under the cursor, in tiles.
 const USE_REACH = 4;

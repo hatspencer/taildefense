@@ -286,7 +286,7 @@ the army trucks.
 
 - Gunfire wakes guards nearby and pulls wave creeps in earshot. Rain and storms muffle it.
   Going out loud has a cost.
-- Shooting a creep may turn it on you, and a taunt (V) pulls everything nearby for 5 s. Teammates
+- Shooting a creep may turn it on you, and a taunt (J) pulls everything nearby for 5 s. Teammates
   can save each other this way.
 - Creeps sometimes take against a turret, wall or far-off survivor by themselves, so the waves
   aren't perfectly predictable.
@@ -305,8 +305,9 @@ the army trucks.
 - **The rest follows Overwatch.** The weapon's signature is the power used most, so it is on Q,
   under the left hand, cast at the cursor at once; right-click off a creep casts it too, but
   the right button is mostly focus fire, and a signature that only went off when the cursor
-  missed a creep was hard to rely on. The abilities are Shift, F and X, with the big one
-  (airstrike) on X: aimed and rare, so a key a little out of the way.
+  missed a creep was hard to rely on. The abilities are Shift, F and V, with the big one
+  (airstrike) on V, a key the build card leaves alone so it can be called in while placing.
+  The taunt went from V to J: a reach, but seldom needed in a split second.
   E is "use": a downed teammate, loot site or supply crate right beside you comes first, so a
   hero out looting searches the wreck at hand whatever is selected. Otherwise it uses what is
   under the cursor, or else the nearest usable thing (a damaged structure, the armory); on a

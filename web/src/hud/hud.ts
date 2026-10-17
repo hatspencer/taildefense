@@ -241,7 +241,7 @@ export class Hud {
       this.slots.push(s);
     }
     el('div', 'sep', abil);
-    const ts = mkSlot('slot taunt', 'V');
+    const ts = mkSlot('slot taunt', 'J');
     ts.icon.innerHTML = iconFor('taunt');
     const cap = el('div', 'cap', ts.root, 'taunt');
     ts.root.onclick = () => ctl.send({ op: 'taunt' });
@@ -311,7 +311,7 @@ export class Hud {
   private tauntTip(): string {
     const t = this.ctl.game.welcome?.taunt;
     if (!t) return '';
-    return `<b>Taunt</b><kbd>V</kbd><br>Shout: every creep within ${t.radius} tiles comes for you for ${t.time}s. Pull them off a teammate or into your turrets.<br><span class="muted">cooldown ${t.cool}s</span>`;
+    return `<b>Taunt</b><kbd>J</kbd><br>Shout: every creep within ${t.radius} tiles comes for you for ${t.time}s. Pull them off a teammate or into your turrets.<br><span class="muted">cooldown ${t.cool}s</span>`;
   }
 
   private medkitTip(): string {
@@ -447,10 +447,10 @@ export class Hud {
       ['<kbd>E</kbd>', 'use: a downed teammate, weapon on the ground, loot site or supply crate right beside you first, else what is under the cursor, else the nearest thing. A downed teammate: revive them (stay close until the bar fills) · a dropped weapon: pick it up, upgrades and all · a loot site: search it · a damaged structure: repair · the armory: shop · a creep: focus your fire on it'],
       ['<kbd>Q</kbd>', "the weapon's signature, at the cursor"],
       ['Right-click', "on a creep: focus fire on it; elsewhere: the signature, as Q"],
-      ['<kbd>Shift</kbd> <kbd>F</kbd> <kbd>X</kbd>', 'abilities: grenade, dash, airstrike; aim with the cursor, then left-click to cast, right-click or Esc cancels'],
+      ['<kbd>Shift</kbd> <kbd>F</kbd> <kbd>V</kbd>', 'abilities: grenade, dash, airstrike; aim with the cursor, then left-click to cast, right-click or Esc cancels'],
       ['<kbd>Alt</kbd> + left-click, or <kbd>Z</kbd> then click', 'ping the spot for the whole team, in the world or on the map: on a creep it warns, on a loot site it marks loot, on a structure it calls to defend it'],
       ['<kbd>H</kbd>', 'hold position'],
-      ['<kbd>V</kbd>', 'taunt: flip them off and shout, pulling every creep nearby onto you, then a cooldown'],
+      ['<kbd>J</kbd>', 'taunt: flip them off and shout, pulling every creep nearby onto you, then a cooldown'],
       ['<kbd>G</kbd> (hold)', 'hold for a second to drop the weapon in hand for a teammate, upgrades and all; it lies there until someone picks it up with <kbd>E</kbd>'],
       ['<kbd>1</kbd>–<kbd>6</kbd>, <kbd>0</kbd>', 'equip an owned weapon (0 is the crowbar, on brutal)'],
       ['<kbd>8</kbd>', 'use a medkit: heals over a few seconds unless a hit cuts it short; buy more at the armory'],
