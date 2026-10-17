@@ -300,13 +300,8 @@ interface Obj {
 // neighbour, so lines of walls read as one wall.
 class WallSet {
   posts: THREE.InstancedMesh; arms: THREE.InstancedMesh; gposts: THREE.InstancedMesh; garms: THREE.InstancedMesh;
-  constructor(group: THREE.Group, mat: THREE.Material, cap: number) {
-    const mk = (g: THREE.BufferGeometry) => {
-      const m = new THREE.InstancedMesh(g, mat, cap);
-      m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; m.count = 0;
-      group.add(m);
-      return m;
-    };
+  constructor(private group: THREE.Group, private mat: THREE.Material, cap: number) {
+    const mk = (g: THREE.BufferGeometry) => this.mesh(g, cap);
     // Walls are plank barricades on a sandbag footing between log posts; gates are chain-link
     // on a steel frame with a hazard-striped top bar.
     const bag = 0x9a8c66, bagDk = 0x857854;
@@ -346,13 +341,24 @@ class WallSet {
       part(box(0.05, 1.05, 0.04), 0x4a4c4a, 0.25, 0.58, 0, 0, 0, 0.47),
     ]));
   }
+  private mesh(g: THREE.BufferGeometry, cap: number): THREE.InstancedMesh {
+    const m = new THREE.InstancedMesh(g, this.mat, cap);
+    m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; m.count = 0;
+    this.group.add(m);
+    return m;
+  }
+  // Room for n walls, each with up to four arms. Growing makes new meshes: the renderer binds
+  // a mesh's instance matrices once, so a bigger buffer swapped into the old mesh is never
+  // drawn, and walls past the first 128 stood there unseen.
   ensure(n: number): void {
-    for (const m of [this.posts, this.arms, this.gposts, this.garms]) {
-      if (m.instanceMatrix.count >= n * 4) continue;
-      const cap = n * 8;
-      m.instanceMatrix = new THREE.InstancedBufferAttribute(new Float32Array(cap * 16), 16);
-      (m as unknown as { count: number }).count = 0;
-    }
+    const grow = (m: THREE.InstancedMesh) => {
+      if (m.instanceMatrix.count >= n * 4) return m;
+      this.group.remove(m);
+      m.dispose();
+      return this.mesh(m.geometry, n * 8);
+    };
+    this.posts = grow(this.posts); this.arms = grow(this.arms);
+    this.gposts = grow(this.gposts); this.garms = grow(this.garms);
   }
 }
 
