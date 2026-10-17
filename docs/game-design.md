@@ -495,14 +495,39 @@ choice, not a cheat guard.
 
 ## Sound
 
+**The direction.** The sound is a survival story heard from just above: close, dry and
+physical where you are, wider and darker with distance, and quiet enough between waves that a
+groan out in the dark means something. Three rules order everything else:
+
+1. **What you do answers you first.** Your own gun, reload, kill and hurt are never the sound
+   that gets dropped, and each is clear of the rest of the mix.
+2. **Warnings over texture.** The siren, the klaxon, the radio and a big one winding up cut
+   through. A horde is heard as a horde from a few voices, not as every one of them.
+3. **One place, one air.** Every sound shares one outdoor reverb and the same distance rule,
+   and the weather's sound changes the whole world's, so the guns, the dead and the rain sound
+   like the same field.
+
+The mix's bands, measured as loudness close by (K-weighted, 400 ms): explosions and heavy guns
+-8 to -13 LUFS, the player's guns -11 to -20, the big ones' groans and deaths -11 to -15, cues
+-12 to -22, the small dead -18 to -24, your own reload and handling -22 to -28, the kill knock
+about -29, ambience -32 to -42, footsteps under -45.
+
 - **Synthesized, not recorded.** Every sound is rendered by code in the page
   (`web/src/sound/bank.ts`): no audio files, no licences, nothing to download, and like the
   art, it is all generated. The bank is made once sound starts, in a worker so no frame waits
   on it (about 1.3 s of work, guns first; a sound not made yet is skipped), and the long, low
   sounds (explosions, voices, sirens) at 24 kHz, which they lose nothing by and which halves
-  their memory: about 38 MB in all. Each sound has a few variants from different seeds, and
-  every play is pitched and set up to 15% apart (mostly much less), so fire never sounds like
-  a loop and the ear doesn't tire of a sound repeated exactly.
+  their memory. What is left of a sound after it has died 60 dB away is cut: about 35 MB in
+  all. Each sound has a few variants from different seeds, and every play is pitched and set up
+  to 15% apart (mostly much less), so fire never sounds like a loop and the ear doesn't tire of
+  a sound repeated exactly. A voice varies by 5%, or it stops being the same person, and a cue
+  not at all, since its pitch is what it says.
+- **Levels from measurement.** Every sound is rendered peak-normalized, then trimmed where its
+  measured loudness stood out of line with its kind. Measured, the player's shout was the
+  loudest thing in the game, the big ones' groans as loud as a shotgun, the tesla tower a hiss
+  with most of its energy above 8 kHz, and the reloads lost under the gun they reload. The
+  shout and the groans were brought down, the tesla remade in the mids, the reloads and the
+  radio brought up.
 - **Guns are built like real shots,** because they are most of what is heard. Six layers: a
   crack of a millisecond, the muzzle blast overdriven into distortion with its top end dying
   first, a resonant body in the mids where the bang is, a low boom falling in pitch, a tail
@@ -512,22 +537,44 @@ choice, not a cheat guard.
 - **Heard round the camera, outdoors.** Distance makes a sound quieter, darker (low-passed)
   and wetter, and the screen position pans it. One shared reverb is open ground with buildings
   round it, not a hall.
+- **Priorities, not first come.** At most 40 sounds play at once and six of one (more for the
+  guns that fire in streams). A sound past those limits doesn't simply go unheard: every sound
+  has a priority (footsteps, texture such as blows and groans, ordinary, heavy, your own, cues),
+  and a new one takes the place of the least of those playing, a lower priority or the same one
+  and quieter by now, with a fade of a few milliseconds. Past six of one sound, the oldest of
+  them gives way once its first third (the part heard) is over, so a stream of fire stays
+  current instead of the newest shots going missing. In a 3000-creep demo wave this took the
+  sounds lost from 35% to under 7%, and none of them is yours or a cue.
 - **Cues over noise.** A tick's events are thinned to the nearest few of each sound and spread
-  across the tick, so twenty turrets and five thousand creeps stay readable. No more than
-  six of one sound play at once (more for the guns that fire in streams), and 40 in all. The
-  more creeps are awake within earshot, the fewer of their groans, blows, throws and deaths
-  are played: from 6 to 30 awake they thin to about half, since a horde reads as a horde from
-  a few voices and all of them at once only tires the ear. What needs
-  attention gets its own sound that cuts through: the siren, the generator's klaxon, the
-  radio for pings and chat, a nest waking.
+  across the tick. The more creeps are awake within earshot, the fewer of their groans, throws
+  and deaths are played: from 6 to 30 awake they thin to about half, since a horde reads as a
+  horde from a few voices. Blows landing were the commonest sound of a wave, eleven a second, a
+  drum roll that hid the rest: now the nearest blow of a tick plays at most every 0.12 s alone
+  and 0.28 s in a crowd. What needs attention gets its own sound that cuts through, and the
+  world steps back a few dB under it: the siren, the generator's klaxon, the radio for pings
+  and chat, a nest waking.
+- **The ear warns before the eye.** A brute, an abomination or a broodmother drawing up to
+  strike breathes in and growls, the nearest one that has just started, so at night a blow
+  coming out of the dark is heard first.
+- **Your own feedback.** A short, dry knock for each kill of your own shooting (at most 14 a
+  second, rising a little with each in quick succession), a charge-up when your ultimate is
+  full, your heart once your health is under a quarter, and the countdown's last beep higher
+  and longer than the two before it.
 - **Footsteps, barely there.** Survivors and creeps step once per step's length of ground
-  covered (a survivor's lengthening with speed, a creep's with its size), some 28 dB under a
+  covered (a survivor's lengthening with speed, a creep's with its size), some 30 dB under a
   pistol shot: enough to hear something coming in a quiet build phase, nothing in a fight.
   Only the nearest two of the dead are heard stepping each tick (one in a crowd), the big
   ones first, and steps are the first sounds dropped once 32 of the 40 voices are playing.
-- **Effects only, no music or ambience,** so the game's own sounds carry the mood and the
-  warnings.
-- **Each player's own volume,** a setting like any other, saved from the menu.
+- **The weather and the night are heard.** Rain, wind (stronger in snow and a storm), the
+  night's crickets, which fall quiet when the dead are about, and the generator's hum round the
+  base. Rain and wind are two loops each, apart in time and either side, so they are wide
+  rather than a point in the middle. The ambience is far under everything else and steps back
+  as a fight fills the mix. Rain also muffles the whole world a little, as it muffles gunfire
+  for the creeps, and a pause muffles it a lot. No music: the game's own sounds carry the mood
+  and the warnings.
+- **The same mix at every volume.** Three buses (the world, the cues, the ambience) meet in a
+  gentle compressor and a clipper that is clean until the last 2 dB; the volume setting comes
+  after them. Each player's volume is a setting like any other, saved from the menu.
 
 ## Boot splash
 

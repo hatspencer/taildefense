@@ -123,6 +123,8 @@ async function main(): Promise<void> {
   hud.setPortraits(portraits);
   // Silent until the welcome says this machine's VOLUME; the demo takes #vol=N, else 70.
   const sound = new Sound(0);
+  // The demo and the lab leave the sound engine where a browser test can read it.
+  if (demo) (window as unknown as { tdSound: Sound }).tdSound = sound;
   const toast = (t: string, l: number) => { hud.toast(t, l); if (l === 2) sound.ui('radio_error', 0.45, 0.3); };
   ctl.onToast = toast;
   hud.onVolume = (v, save) => { sound.synth.setVolume(v); if (save && !demo) send({ op: 'volume', v }); };
@@ -400,6 +402,7 @@ async function main(): Promise<void> {
         `tris  ${(info.render.triangles / 1000).toFixed(0)}k`,
         `frame ${game.cur.tick}  ${game.interval.toFixed(0)} ms`,
         `ping  ${Number.isNaN(game.rtt) ? '-' : `${game.rtt.toFixed(0)} ms  avg ${game.rttAvg.toFixed(0)}`}`,
+        `sound ${sound.synth.readout()}`,
       ].join('\n'));
     }
   };

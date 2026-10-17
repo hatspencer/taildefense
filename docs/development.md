@@ -22,6 +22,10 @@ camera-controls, esbuild). `web/PROTOCOL.md` is the contract between `td` and th
 `internal/web/dist/index.html#demo` straight from disk for a self-running demo with a fake host;
 `#demo&webgl` forces the WebGL 2 path, and `#demo&creeps=8000` stresses it. The demo plays sound
 at 70 after the first click; `#demo&vol=0` silences it, `#demo&vol=40` sets it.
+F3's `sound` line shows the voices playing and the most at once, the sounds dropped and taken
+over since the last frame, the output's peak in dBFS and the compressor's pull in dB. The demo
+leaves the sound engine at `window.tdSound`, whose `synth.plays`, `drops` and `steals` count
+every sound by name, for a browser test to read.
 `#lab` is the animation bench: every creep kind walking, idle, attacking, hit, burning, asleep
 and dying, beside the survivors' poses; `#lab=0`…`#lab=7` looks at one creep row, `#lab=h` at the
 survivors (`#lab=h0`…`#lab=h7` at one of them), and `&dist=11` brings the camera in.

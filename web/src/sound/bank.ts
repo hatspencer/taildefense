@@ -425,19 +425,25 @@ function frost(sr: number, r: R): Buf {
 }
 
 function tesla(sr: number, r: R): Buf {
-  const b = new Buf(sr, 0.5);
-  // An arc: a mains-like buzz whose pitch is thrown about, torn with sharp crackles.
-  const sv = new SVF(sr), fm = slowNoise(r, sr, 0.5, 80);
-  let ph = 0, prev = 0;
+  const b = new Buf(sr, 0.4);
+  // An arc: a mains-like buzz whose pitch is thrown about, torn by a few crackles, with a zap
+  // falling through it as the charge lands. Kept out of the top octave, where a tower firing
+  // every second would only hiss.
+  const sv = new SVF(sr), top = new LP1(sr), top2 = new LP1(sr), fm = slowNoise(r, sr, 0.4, 60);
+  const z0 = jit(r, 2200, 0.15), z1 = jit(r, 380, 0.15);
+  let ph = 0, zp = 0, prev = 0;
   for (let i = 0; i < b.len; i++) {
     const t = i / sr;
-    ph += (120 + fm[i] * 50) / sr;
+    ph += (110 + fm[i] * 45) / sr;
     ph -= Math.floor(ph);
     const n = r() * 2 - 1;
-    const crackle = r() < 0.02 * Math.exp(-t / 0.15) ? (r() * 2 - 1) * 4 : 0;
-    sv.run((1 - 2 * ph) + (n - prev) * 0.8 + crackle, 2600, 0.8);
+    const crackle = r() < 0.012 * Math.exp(-t / 0.08) ? (r() * 2 - 1) * 3 : 0;
+    sv.run((1 - 2 * ph) + (n - prev) * 0.5 + crackle, jit(r, 1500, 0.02), 0.9);
     prev = n;
-    b.d[i] = sat((sv.band + sv.high * 0.5) * ad(t, 0.002, 0.11) * 1.5, 3);
+    zp += TAU * (z1 + (z0 - z1) * Math.exp(-t / 0.035)) / sr;
+    const zap = Math.tanh(Math.sin(zp) * 3) * ad(t, 0.001, 0.05) * 0.5;
+    const x = sat((sv.band + sv.low * 0.3) * ad(t, 0.002, 0.09) * 1.5 + zap, 2.5);
+    b.d[i] = top2.run(top.run(x, 5000), 5000);
   }
   return b.normalize(0.8).fadeOut();
 }
@@ -488,8 +494,12 @@ function creepStrike(sr: number, r: R, big: boolean): Buf {
     thud(b, r, 0, 75, 32, 0.1, 1.2, 0.7, 700);
     debris(b, r, 0.01, 0.4, 10, 700, 2500, 0.3);
   } else {
-    thud(b, r, 0, jit(r, 125, 0.15), 65, 0.035, 1, 0.7, 1600);
-    click(b, r, 0, 1100, 0.25, 0.006);
+    // A blow: the thud of it, a slap of flesh or cloth of a different colour each time, and
+    // now and then something cracking.
+    thud(b, r, 0, jit(r, 125, 0.3), jit(r, 65, 0.2), jit(r, 0.035, 0.35), 1, jit(r, 0.7, 0.4), jit(r, 1600, 0.4));
+    roar(b, r, 0.002, 0.08, jit(r, 2600, 0.4), 700, 0.001, jit(r, 0.012, 0.4), jit(r, 0.35, 0.5));
+    click(b, r, r() * 0.01, jit(r, 1100, 0.35), 0.25, 0.006);
+    if (r() < 0.4) debris(b, r, 0.005, 0.04, 2, 900, 2400, 0.2);
   }
   return b.normalize(0.8).fadeOut();
 }
@@ -659,9 +669,10 @@ function coins(sr: number, r: R): Buf {
 // A ratchet wrench turned a few times, then the part seating with a clank.
 function upgrade(sr: number, r: R): Buf {
   const b = new Buf(sr, 0.7);
-  for (let k = 0; k < 6; k++) click(b, r, k * 0.035, 2800 + r() * 300, 0.6, 0.002, 1900);
-  ping(b, 0.25, [1180, 2870, 4310], 0.14, 0.7);
-  thud(b, r, 0.25, 240, 160, 0.03, 0.5, 0.5);
+  const turns = 4 + Math.floor(r() * 4), gap = jit(r, 0.035, 0.2), seat = turns * gap + 0.04, f = jit(r, 1180, 0.08);
+  for (let k = 0; k < turns; k++) click(b, r, k * gap, 2800 + r() * 300, 0.6, 0.002, 1900);
+  ping(b, seat, [f, f * 2.43, f * 3.65], 0.14, 0.7);
+  thud(b, r, seat, 240, 160, 0.03, 0.5, 0.5);
   return b.normalize(0.65).fadeOut();
 }
 
@@ -697,8 +708,10 @@ function crateLand(sr: number, r: R): Buf {
 function lootFound(sr: number, r: R, jackpot: boolean): Buf {
   const b = new Buf(sr, jackpot ? 1.6 : 1);
   for (let k = 0; k < 3; k++) click(b, r, k * 0.04, 1000 + r() * 1500, 0.4, 0.006, 500 + r() * 600);
-  const notes = jackpot ? [784, 988, 1175, 1568] : [880, 1319];
-  notes.forEach((f, k) => ping(b, 0.08 + k * (jackpot ? 0.09 : 0.11), [f, f * 2.01, f * 3.02], jackpot ? 0.5 : 0.35, 0.5));
+  // A found thing rings a fifth; which fifth, and how quickly, changes from find to find.
+  const root = jackpot ? 784 : [880, 784, 988][Math.floor(r() * 3)];
+  const notes = jackpot ? [784, 988, 1175, 1568] : [root, root * 1.498];
+  notes.forEach((f, k) => ping(b, 0.08 + k * (jackpot ? 0.09 : jit(r, 0.11, 0.25)), [f, f * 2.01, f * 3.02], jackpot ? 0.5 : 0.35, 0.5));
   if (jackpot) for (let k = 0; k < 8; k++) { const f = 2600 + r() * 2200; ping(b, 0.1 + r() * 0.3, [f, f * 2.41], 0.05, 0.2); }
   return b.normalize(0.6).fadeOut(0.1);
 }
@@ -891,12 +904,142 @@ function fire(sr: number, r: R): Buf {
 function spin(sr: number, r: R): Buf {
   const b = new Buf(sr, 1);
   const lp = new LP1(sr);
-  for (let i = 0; i < b.len; i++) {
+  // The filter runs a tenth of a second before the loop starts, so the loop has no seam.
+  for (let i = -Math.floor(sr * 0.1); i < b.len; i++) {
     const t = i / sr;
-    const saw = 1 - 2 * ((180 * t) % 1);
-    b.d[i] = lp.run(saw, 900) * 0.5 + Math.sin(TAU * 1080 * t) * 0.12 + (r() * 2 - 1) * 0.1 * Math.pow(0.5 + 0.5 * Math.sin(TAU * 36 * t), 8);
+    const saw = 1 - 2 * (((180 * t) % 1 + 1) % 1);
+    const y = lp.run(saw, 900) * 0.5 + Math.sin(TAU * 1080 * t) * 0.12 + (r() * 2 - 1) * 0.1 * Math.pow(0.5 + 0.5 * Math.sin(TAU * 36 * t), 8);
+    if (i >= 0) b.d[i] = y;
   }
   return b.normalize(0.6);
+}
+
+// --- feedback ------------------------------------------------------------------------------
+
+// Your shot killing something: a short, dry knock, felt more than heard, under the gunfire.
+function kill(sr: number, r: R): Buf {
+  const b = new Buf(sr, 0.12);
+  thud(b, r, 0, jit(r, 260, 0.08), 150, 0.012, 0.8, 0.3, 2500);
+  click(b, r, 0, jit(r, 1900, 0.08), 0.6, 0.0025, jit(r, 1250, 0.05));
+  return b.normalize(0.7).fadeOut(0.01);
+}
+
+// The ultimate charged: two notes rising a fourth through a filter opening, a charge-up.
+function ultReady(sr: number, r: R): Buf {
+  const b = new Buf(sr, 0.7);
+  whoosh(b, r, 0, 0.3, 600, 3000, 0.25, 2);
+  ping(b, 0.16, [660, 1320, 1985], 0.18, 0.45);
+  ping(b, 0.28, [880, 1760, 2645], 0.3, 0.55);
+  return b.normalize(0.7).fadeOut(0.05);
+}
+
+// A heartbeat, lub-dub, for a survivor nearly down.
+function heart(sr: number, r: R): Buf {
+  const b = new Buf(sr, 0.45);
+  thud(b, r, 0, 75, 45, 0.04, 1, 0.15, 300);
+  thud(b, r, 0.17, 65, 40, 0.035, 0.7, 0.15, 300);
+  return b.normalize(0.7).fadeOut(0.02);
+}
+
+// A big one drawing itself up to strike: a breath in, rising into a growl. The ear's warning
+// of what is about to land, at night before the eye's.
+function windup(sr: number, r: R): Buf {
+  const b = new Buf(sr, 0.6);
+  whoosh(b, r, 0, 0.35, 500, 1400, 0.4, 1.5);
+  vox(b, r, 0.12, {
+    dur: 0.42, f0: (u) => jit(r, 55, 0.08) * (1 + 0.6 * u), vowel: (u) => lerpV(V.uh, V.aa, u),
+    rasp: 0.8, jitter: 0.1, a: 0.3, rel: 0.06, gain: 1, drive: 3, fry: 0.4,
+  });
+  return b.normalize(0.85).fadeOut(0.02);
+}
+
+// --- ambience -----------------------------------------------------------------------------
+
+// A loop made of len seconds of make plus xf more, the overhang cross-faded into its start
+// so it has no seam.
+function seamless(sr: number, len: number, xf: number, make: (b: Buf) => void): Buf {
+  const b = new Buf(sr, len + xf);
+  make(b);
+  const out = new Buf(sr, len), n = out.len, x = Math.floor(xf * sr);
+  for (let i = 0; i < n; i++) out.d[i] = b.d[i];
+  for (let i = 0; i < x; i++) { const u = i / x; out.d[i] = b.d[i] * Math.sqrt(u) + b.d[n + i] * Math.sqrt(1 - u); }
+  return out;
+}
+
+// Rain: a soft wash with drops in it, and the low patter of it on the fields. Nothing above
+// about 7 kHz, so a long wave in it doesn't hiss.
+function rain(sr: number, r: R): Buf {
+  return seamless(sr, 5, 0.5, (b) => {
+    const sv = new SVF(sr), lo = new LP1(sr), lo2 = new LP1(sr), top = new LP1(sr), swell = slowNoise(r, sr, b.len / sr, 0.7);
+    const comp = Math.sqrt(sr / (2 * 400));
+    for (let i = 0; i < b.len; i++) {
+      const n = r() * 2 - 1;
+      const wash = sv.run(n, 2600, 0.6).band;
+      const patter = lo2.run(lo.run(r() * 2 - 1, 400), 400) * comp;
+      b.d[i] = top.run(wash * 0.5 + patter * 0.35, 7000) * (0.85 + 0.15 * swell[i]);
+    }
+    for (let k = 0; k < 700; k++) click(b, r, r() * (b.len / sr - 0.02), 1500 + r() * 3500, 0.15 + r() * 0.35, 0.0015 + r() * 0.002);
+    b.normalize(0.7);
+  });
+}
+
+// Wind over open ground: dark noise through a band that wanders up and down with the gusts.
+function wind(sr: number, r: R): Buf {
+  return seamless(sr, 8, 1, (b) => {
+    const sv = new SVF(sr), sv2 = new SVF(sr), gust = slowNoise(r, sr, b.len / sr, 0.35), wob = slowNoise(r, sr, b.len / sr, 1.3);
+    for (let i = 0; i < b.len; i++) {
+      const g = 0.5 + 0.5 * gust[i], n = r() * 2 - 1;
+      const f = 260 + 520 * g + 90 * wob[i];
+      b.d[i] = (sv.run(n, f, 1.6).band * 1.2 + sv2.run(n, f * 2.7, 4).band * 0.25 * g) * (0.35 + 0.65 * g);
+    }
+    b.normalize(0.7);
+  });
+}
+
+// The night: crickets, a few of them, each chirping in its own time and pitch, and one far
+// off. Every period divides the loop, so it has no seam.
+function crickets(sr: number, r: R): Buf {
+  const len = 6, b = new Buf(sr, len);
+  const bugs = [[4300, 6 / 9, 1, 3], [4650, 6 / 7, 0.8, 4], [3950, 6 / 11, 0.55, 3], [4500, 6 / 5, 0.3, 2]];
+  for (const [f, period, gain, pulses] of bugs) {
+    const ff = jit(r, f, 0.02), off = r() * period;
+    for (let at = off; at < len; at += period) {
+      for (let k = 0; k < pulses; k++) {
+        const o = Math.floor(((at + k * 0.032) % len) * sr), n = Math.floor(0.02 * sr);
+        for (let i = 0; i < n; i++) {
+          const t = i / sr, e = Math.sin(Math.PI * t / 0.02) ** 2;
+          b.d[(o + i) % b.len] += Math.sin(TAU * ff * t) * e * gain * 0.3;
+        }
+      }
+    }
+  }
+  // A breath of air under them, so they don't sit in silence.
+  const air = seamless(sr, len, 0.5, (a) => {
+    const lp = new LP1(sr), lp2 = new LP1(sr), comp = Math.sqrt(sr / (2 * 300));
+    for (let i = 0; i < a.len; i++) a.d[i] = lp2.run(lp.run(r() * 2 - 1, 300), 300) * comp * 0.05;
+  });
+  for (let i = 0; i < b.len; i++) b.d[i] += air.d[i];
+  return b.normalize(0.6);
+}
+
+// The generator at the base: a diesel's firing thrum under a hum and its harmonics, with a
+// rattle of the housing. Two seconds of whole cycles.
+function hum(sr: number, r: R): Buf {
+  const b = new Buf(sr, 2);
+  const sv = new SVF(sr), lp = new LP1(sr);
+  const noise = new Float32Array(b.len);
+  for (let i = 0; i < b.len; i++) noise[i] = r() * 2 - 1;
+  // The filters run over the loop's last tenth of a second before its start, so its first
+  // sample follows on from its last.
+  for (let i = -Math.floor(sr * 0.1); i < b.len; i++) {
+    const t = i / sr;
+    const fire = Math.pow(0.5 + 0.5 * Math.cos(TAU * 25 * t), 6);
+    const tone = Math.sin(TAU * 100 * t) * 0.5 + Math.sin(TAU * 150 * t) * 0.35 + Math.sin(TAU * 200 * t) * 0.2 + Math.sin(TAU * 300 * t) * 0.1;
+    const rattle = sv.run(noise[(i + b.len) % b.len], 900, 2).band * fire;
+    const y = lp.run(tone * (0.6 + 0.4 * fire) + rattle * 0.6 + Math.sin(TAU * 50 * t) * fire * 0.5, 1500);
+    if (i >= 0) b.d[i] = y;
+  }
+  return b.normalize(0.7);
 }
 
 // --- the table ----------------------------------------------------------------------------
@@ -924,7 +1067,7 @@ export const RECIPES: Record<string, [number, Maker, number?]> = {
   turretGun: [4, gun(TURRET_GUN, (b, r) => ping(b, 0.04, [1450, 2310], 0.02, 0.06 + r() * 0.02))],
   cannon: [3, gun(CANNON, (b, r) => ping(b, 0.35, [610, 1530, 2470], 0.12, 0.03 + r() * 0.01))],
   sniper: [3, gun(SNIPER, (b, r) => { click(b, r, 0.5, 1800, 0.08, 0.004, 600); slide(b, r, 0.53, 0.08, 2400, 0.04); click(b, r, 0.62, 2600, 0.09, 0.004, 900); })],
-  pod: [2, (sr, r) => { const b = new Buf(sr, 0.3); thud(b, r, 0, 220, 130, 0.03, 0.7, 0.5); click(b, r, 0, 1500, 0.6, 0.004, 800); return b.normalize(0.5).fadeOut(); }],
+  pod: [3, (sr, r) => { const b = new Buf(sr, 0.3); thud(b, r, 0, jit(r, 220, 0.2), jit(r, 130, 0.2), 0.03, 0.7, 0.5); click(b, r, 0, jit(r, 1500, 0.3), 0.6, 0.004, jit(r, 800, 0.3)); return b.normalize(0.5).fadeOut(); }],
   doorGun: [4, gun(DOORGUN)],
   tesla: [4, tesla],
   explosionS: [3, (sr, r) => explosion(sr, r, 0.7), LOW],
@@ -935,7 +1078,7 @@ export const RECIPES: Record<string, [number, Maker, number?]> = {
   frost: [3, frost],
   thunder: [3, thunder, LOW],
   bell: [1, bell, LOW],
-  lootFound: [2, (sr, r) => lootFound(sr, r, false)],
+  lootFound: [3, (sr, r) => lootFound(sr, r, false)],
   jackpot: [1, (sr, r) => lootFound(sr, r, true)],
   ambush: [2, ambush, LOW],
   alert: [3, alert, LOW],
@@ -952,10 +1095,10 @@ export const RECIPES: Record<string, [number, Maker, number?]> = {
   step: [6, step],
   creepStep: [6, creepStep],
   bigStep: [4, bigStep, LOW],
-  strike: [5, (sr, r) => creepStrike(sr, r, false)],
+  strike: [8, (sr, r) => creepStrike(sr, r, false)],
   strikeBig: [3, (sr, r) => creepStrike(sr, r, true), LOW],
   coins: [2, coins],
-  upgrade: [2, upgrade],
+  upgrade: [3, upgrade],
   hammer: [3, hammer],
   crumble: [3, crumble, LOW],
   crateLand: [1, crateLand, LOW],
@@ -971,6 +1114,25 @@ export const RECIPES: Record<string, [number, Maker, number?]> = {
   rotor: [1, rotor, LOW],
   fire: [1, fire, LOW],
   spin: [1, spin],
+  rain: [1, rain, LOW],
+  wind: [1, wind, LOW],
+  crickets: [1, crickets],
+  hum: [1, hum, LOW],
+  kill: [4, kill],
+  ultReady: [1, ultReady],
+  heart: [1, heart, LOW],
+  windup: [4, windup, LOW],
+};
+// The sounds that loop: played with Synth.loop, made whole, never cut short.
+export const LOOPS = new Set(['rotor', 'fire', 'spin', 'rain', 'wind', 'crickets', 'hum']);
+
+// Level corrections in dB, from measuring every sound's loudness (K-weighted, 400 ms) against
+// the level it is played at, where one stood far out of line with the rest of its kind: the
+// player's shout was the loudest thing in the game, the big ones' groans as loud as a shotgun,
+// and the reloads lost under the gun they reload.
+const TRIM: Record<string, number> = {
+  shout_m: -6, shout_f: -6, groan5: -6, groan3: -5, groan7: -4, groan1: -3, retch: -5, ignite: -4.5, windup: -2.5,
+  radio_chat: 5, radio_here: 4, radio_danger: 5, radio_loot: 4, radio_defend: 3, radio_good: 4, radio_bad: 4, radio_error: 4, beep: 3,
 };
 for (const k of ['chat', 'here', 'danger', 'loot', 'defend', 'good', 'bad', 'error']) RECIPES['radio_' + k] = [1, (sr, r) => radio(sr, r, k)];
 for (let k = 0; k < 8; k++) {
@@ -995,9 +1157,31 @@ export function render(name: string, v: number, sr: number): { d: Float32Array; 
   const rate = Math.min(sr, rec[2] ?? sr);
   let h = 2166136261;
   for (let i = 0; i < name.length; i++) h = Math.imul(h ^ name.charCodeAt(i), 16777619);
-  const d = rec[1](rate, rng(h + v * 7919)).dcBlock().d;
+  const made = rec[1](rate, rng(h + v * 7919));
+  // A loop's offset is taken out whole: the filter that does it for the rest would start from
+  // rest and leave its first samples off from its last, a click every time round.
+  if (LOOPS.has(name)) {
+    let m = 0;
+    for (const x of made.d) m += x;
+    m /= made.len;
+    for (let i = 0; i < made.len; i++) made.d[i] -= m;
+  } else made.dcBlock();
+  let d = made.d;
   let pk = 0;
   for (let i = 0; i < d.length; i++) pk = Math.max(pk, Math.abs(d[i]));
-  if (pk > 0.97) for (let i = 0; i < d.length; i++) d[i] *= 0.97 / pk;
+  const g = Math.min(0.97 / Math.max(pk, 1e-9), Math.pow(10, (TRIM[name] ?? 0) / 20));
+  if (g !== 1) for (let i = 0; i < d.length; i++) d[i] *= g;
+  // What is left after the sound has died to 60 dB under its peak is silence held in memory:
+  // cut, with a short fade. A loop keeps its length.
+  if (!LOOPS.has(name)) {
+    let end = d.length;
+    while (end > 0 && Math.abs(d[end - 1]) < pk * g * 0.001) end--;
+    end = Math.min(d.length, end + Math.floor(rate * 0.01));
+    if (end < d.length - rate * 0.05) {
+      d = d.slice(0, end);
+      const n = Math.min(end, Math.floor(rate * 0.01));
+      for (let i = 0; i < n; i++) d[end - 1 - i] *= i / n;
+    }
+  }
   return { d, rate };
 }
