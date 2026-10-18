@@ -218,8 +218,8 @@ each wave, but Normal is the reference for timing.
 - **Hits stun.** A survivor's hit stops a creep for a moment (a quarter second; a brute
   0.15 s, an abomination 0.08 s), its windup held where it was, so its blow comes late but
   still comes. A creep just stunned can't be stunned again for half a second, so a fast gun
-  doesn't pin one down. A shotgun's load stuns two and a half times as long. Turrets and
-  burning ground never stun.
+  doesn't pin one down. A shotgun's load stuns two and a half times as long, and 0.3 times
+  longer for each level of its special track. Turrets and burning ground never stun.
 - **Blows slow survivors.** A creep's blow makes a survivor walk at half speed for a moment;
   they keep firing. It lasts 0.4 s for most, a second for a brute's, 1.5 s for the
   abomination's, 2.2 s for a hurler's bone. A fuel pump going up slows them 0.8 s; a slam stuns instead (above). A survivor just slowed can't be slowed again for 0.6 s, so a swarm can't hold one.
@@ -379,6 +379,11 @@ the long way round, or not at all. Map generation tries the spot again elsewhere
   middle of it. None spends ammo while it runs, so it isn't cut short by a reload.
 - **The shotgun hits harder from further.** 13 a pellet and range 10, with a tighter spread:
   it was the gun nobody kept past the first armory visit.
+- **The shotgun knocks creeps back, up close.** Each pellet pushes its creep a little, so a
+  point-blank load shoves a walker about a quarter of a tile, and a tile and a half with the
+  special track maxed (more pellets, each pushing harder). The push is full within 2 tiles and
+  fades to nothing at 5, half the gun's range: the shotgun is meant to be high risk and high
+  reward, and a shove from a safe distance would make it neither. Bosses aren't pushed.
 - **The grenade grows with the game.** Five levels where it had three, from 120 damage to 400,
   wider and quicker each level, and from level 4 it leaves fire burning; a three-level grenade
   stopped mattering by the mid game, when it was the one ability always at hand.

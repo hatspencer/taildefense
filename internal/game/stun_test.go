@@ -57,9 +57,9 @@ func TestTheShotgunStunsLonger(t *testing.T) {
 	w.damage(0, 5, 0)
 	plain := c.stunLeft
 	c.stunLeft, c.stunCool = 0, 0
-	w.slug = true
+	w.slug = slugMul
 	w.damage(0, 5, 0)
-	w.slug = false
+	w.slug = 0
 	if c.stunLeft < plain*2 {
 		t.Fatalf("a shotgun stunned for %.2fs, another gun %.2fs", c.stunLeft, plain)
 	}
@@ -191,5 +191,37 @@ func TestASlamHurtsWhatIsBuiltInsideIt(t *testing.T) {
 				t.Fatal("the armory was hurt")
 			}
 		}
+	}
+}
+
+// A shotgun load knocks a walker back and stuns it, and the special track makes both stronger;
+// from afar it knocks nothing back.
+func TestShotgunUpgradesKnockBackAndStunHarder(t *testing.T) {
+	load := func(sp uint8, at float32) (shoved, stun float32) {
+		w := newBare(3)
+		p, _ := w.Join("ana", "ana@example")
+		w.Queue = []Spawn{{At: 1e9}}
+		p.Cur = WShotgun
+		w.SpawnCreep(CWalker, p.X+at, p.Y)
+		w.grid.build(w.Creeps)
+		c := &w.Creeps[len(w.Creeps)-1]
+		c.HP = 1e6
+		x := c.X
+		st := WeaponStats(WShotgun, [NumTracks]uint8{TrackSpecial: sp})
+		w.slug = st.Stun
+		w.shoot(p, st, 0)
+		w.slug = 0
+		return c.X - x, c.stunLeft
+	}
+	shove0, stun0 := load(0, 1.5)
+	shove5, stun5 := load(MaxLevel, 1.5)
+	if shove0 < .15 || shove0 > .4 {
+		t.Fatalf("a plain load shoved a walker %.2f", shove0)
+	}
+	if shove5 < 3*shove0 || stun5 <= stun0 {
+		t.Fatalf("fully upgraded: shove %.2f and stun %.2fs, against %.2f and %.2fs", shove5, stun5, shove0, stun0)
+	}
+	if far, _ := load(MaxLevel, 6); far != 0 {
+		t.Fatalf("fully upgraded, from 6 tiles off, a load shoved a walker %.2f", far)
 	}
 }

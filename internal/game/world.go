@@ -292,8 +292,9 @@ type World struct {
 	pumpsFor   int     // len(Sites) when pumpIdx was built
 	turretFire bool    // while turrets fire, so their damage is counted as theirs
 	burning    bool    // while burning ground does its damage, which stuns nothing
-	slug       bool    // while a shotgun's pellets land, which stun for longer
-	shove      bool    // while Dragon's breath pellets land, which push creeps back
+	slug       float32 // while a shotgun's pellets land, how many times longer they stun
+	shove      float32 // while a shotgun's pellets land, how far each pushes its creep back up close
+	shoveFar   float32 // and while Dragon's breath pellets land, how far each pushes at any distance
 
 	// Per tick outputs, cleared at the start of Step.
 	Tracers []Tracer

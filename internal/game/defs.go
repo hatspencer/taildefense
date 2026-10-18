@@ -160,7 +160,7 @@ type WeaponDef struct {
 // Weapons is indexed by WeaponKind.
 var Weapons = [NumWeapons]WeaponDef{
 	WPistol:   {Name: "Pistol", Short: "PST", Price: 0, Damage: 14, Rate: 3, Range: 14, Mag: 12, Reload: 1.1, Pellets: 1, Spread: .03, Special: "+1 pierce"},
-	WShotgun:  {Name: "Shotgun", Short: "SHG", Price: 250, Damage: 13, Rate: 1.3, Range: 10, Mag: 6, Reload: 1.8, Pellets: 7, Spread: .3, Pierce: 1, Special: "+2 pellets"},
+	WShotgun:  {Name: "Shotgun", Short: "SHG", Price: 250, Damage: 13, Rate: 1.3, Range: 10, Mag: 6, Reload: 1.8, Pellets: 7, Spread: .3, Pierce: 1, Special: "+2 pellets, +knockback"},
 	WSMG:      {Name: "SMG", Short: "SMG", Price: 400, Damage: 8, Rate: 11, Range: 12, Mag: 40, Reload: 1.6, Pellets: 1, Spread: .09, Special: "+1 pierce"},
 	WRifle:    {Name: "Rifle", Short: "RFL", Price: 650, Damage: 60, Rate: 1.4, Range: 28, Mag: 5, Reload: 2, Pellets: 1, Spread: .01, Pierce: 3, Special: "+2 pierce"},
 	WMinigun:  {Name: "Minigun", Short: "MNG", Price: 1400, Damage: 9, Rate: 22, Range: 16, Mag: 150, Reload: 3.5, Pellets: 1, Spread: .12, Special: "+1 pierce, +burn"},
@@ -177,6 +177,8 @@ func UpgradeCost(w WeaponKind, level uint8) int32 {
 // Stats is a weapon's effective numbers after upgrades.
 type Stats struct {
 	Damage, Rate, Range, Reload, Spread, Burn, Blast float32
+	Stun                                             float32 // times a hit's stun, 0 for once
+	Shove                                            float32 // how far each pellet pushes, before the creep's size
 	Mag                                              int16
 	Pellets, Pierce                                  int
 }
@@ -202,6 +204,8 @@ func WeaponStats(w WeaponKind, lv [NumTracks]uint8) Stats {
 		s.Pierce += sp
 	case WShotgun:
 		s.Pellets += 2 * sp
+		s.Stun = slugMul + slugMulLevel*float32(sp)
+		s.Shove = shotShove + shotShoveLevel*float32(sp)
 	case WRifle:
 		s.Pierce += 2 * sp
 	case WMinigun:
