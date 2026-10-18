@@ -627,9 +627,10 @@ about -29, ambience -32 to -42, footsteps under -45.
   biggest shot; then the pump racked, the spent hull landing with a plastic tock, and the
   fore-end slammed home. The SMG is a 9 mm machine pistol: a
   snappy crack and a tight punch with a short boom, so eleven rounds a second stay apart, and
-  the bolt clacking home under each one, the clatter that makes a burst sound like a machine. The crowbar is Half-Life's: a swish
-  and a struck pipe ringing out round 1.1 kHz for most of a second, measured against the
-  original so the pitch and the ring's length match. The towers: the gun turret a sentry, a dry round,
+  the bolt clacking home under each one, the clatter that makes a burst sound like a machine. The crowbar is Half-Life's, a little deeper:
+  a swish and a struck pipe ringing out for most of a second, measured against the original
+  for the ring's length, but pitched down from its 1.1 kHz to about 820 Hz, with a thump as it
+  lands and the bar's low modes louder, so a blow has weight rather than only a ping. The towers: the gun turret a sentry, a dry round,
   a feed clack and a servo slewing; the cannon field artillery, the deepest boom in the game, the
   barrel ringing, the recoil and the case dropped; the sniper tower a .50 whose muzzle brake
   throws a wider, harsher blast than the rifle's; the missile battery's tubes popping like a

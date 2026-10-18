@@ -473,13 +473,14 @@ function rocketLaunch(sr: number, r: R, small: boolean): Buf {
   return b.normalize(0.9).fadeOut(0.05);
 }
 
-// The crowbar is Half-Life's: a short swish, then the bar ringing out like a struck pipe. Two
-// modes a few hertz apart round 1.1 kHz beat as it rings, over the clank of the blow's first
-// hundredths of a second.
+// The crowbar is Half-Life's, a little deeper: a short swish, then the bar ringing out like a
+// struck pipe. Two modes a few hertz apart round 820 Hz beat as it rings, over the clank of the
+// blow's first hundredths of a second and the thump of it landing, the bar's low modes carrying
+// more of the weight than in the original's.
 function crowbar(sr: number, r: R): Buf {
   const b = new Buf(sr, 0.8);
-  whoosh(b, r, 0, 0.09, 700, 1900, 0.35, 1.4);
-  const at = 0.07, o = Math.floor(at * sr), f = jit(r, 1095, 0.04), beat = 18 + r() * 14;
+  whoosh(b, r, 0, 0.09, 500, 1400, 0.35, 1.4);
+  const at = 0.07, o = Math.floor(at * sr), f = jit(r, 820, 0.04), beat = 18 + r() * 14;
   const clank = [1.31, 1.8, 2.01, 2.47, 2.92, 3.47].map((k) => f * jit(r, k, 0.03));
   const ph = Array.from({ length: 12 }, () => r() * TAU);
   for (let i = 0; o + i < b.len; i++) {
@@ -487,12 +488,13 @@ function crowbar(sr: number, r: R): Buf {
     let x = (Math.sin(TAU * f * t + ph[0]) + 0.4 * Math.sin(TAU * (f + beat) * t + ph[1])) * Math.exp(-t / 0.3);
     x += 0.22 * Math.sin(TAU * f * 1.39 * t + ph[2]) * Math.exp(-t / 0.1);
     x += 0.18 * Math.sin(TAU * f * 2.8 * t + ph[3]) * Math.exp(-t / 0.12);
-    x += 0.1 * Math.sin(TAU * f * 0.395 * t + ph[4]) * Math.exp(-t / 0.3);
-    x += 0.14 * Math.sin(TAU * f * 0.115 * t + ph[5]) * Math.exp(-t / 0.35);
+    x += 0.22 * Math.sin(TAU * f * 0.395 * t + ph[4]) * Math.exp(-t / 0.3);
+    x += 0.3 * Math.sin(TAU * f * 0.115 * t + ph[5]) * Math.exp(-t / 0.35);
     for (let k = 0; k < clank.length; k++) x += 0.35 * Math.sin(TAU * clank[k] * t + ph[6 + k]) * Math.exp(-t / 0.012);
     b.d[o + i] += x * ad(t, 0.0004, 1e9) * 0.5;
   }
-  click(b, r, at, 2200, 0.3, 0.003);
+  click(b, r, at, 1800, 0.3, 0.003);
+  thud(b, r, at, 170, 95, 0.04, 0.5, 0.3, 1200);
   return b.normalize(0.85).fadeOut(0.06);
 }
 
