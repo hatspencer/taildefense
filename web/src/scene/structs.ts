@@ -1,10 +1,10 @@
 import * as THREE from 'three/webgpu';
 import { color, float, fract, max, mix, positionLocal, sin, step, time, uniform, vertexColor, vec3 } from 'three/tsl';
-import { type StructDef, TURRET_TRACKS } from '../protocol';
+import { K_ARMORY, K_CANNON, K_CORE, K_FROST, K_GATE, K_GUN, K_MISSILE, K_SNIPER, K_TESLA, K_WALL, type StructDef, TURRET_TRACKS } from '../protocol';
 import type { Game } from '../state';
 import { box, cone, cyl, dodeca, ico, merge, octa, part, playerColor, setEmissive, torus, writeMatrix, type Part } from './util';
 
-export const K_CORE = 1, K_ARMORY = 2, K_WALL = 3, K_GATE = 4, K_GUN = 5, K_CANNON = 6, K_FROST = 7, K_TESLA = 8, K_SNIPER = 9, K_MISSILE = 10;
+export { K_ARMORY, K_CANNON, K_CORE, K_FROST, K_GATE, K_GUN, K_MISSILE, K_SNIPER, K_TESLA, K_WALL };
 
 // Highlight of what is under the cursor, set per object through userData.hl.
 const hl = uniform(0).onObjectUpdate((frame) => (frame.object?.userData.hl as number | undefined) ?? 0);

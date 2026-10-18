@@ -11,6 +11,11 @@ export const DAY_SIGHT = 12;
 export const FLASH_CONE = 0.45;
 
 export const MAX_CREEPS = 16384;
+
+// Structure kinds, as a frame's sKind and a Welcome's structs index them.
+export const K_CORE = 1, K_ARMORY = 2, K_WALL = 3, K_GATE = 4, K_GUN = 5, K_CANNON = 6, K_FROST = 7, K_TESLA = 8, K_SNIPER = 9, K_MISSILE = 10;
+// Walls and gates are placed in runs: a click places one and the next is already in hand.
+export const stickyKind = (k: number): boolean => k === K_WALL || k === K_GATE;
 export const MAX_PLAYERS = 8;
 
 export const enum Tile { Grass = 0, Dirt = 1, Floor = 2, Sand = 3, Water = 4, Tree = 5, Rock = 6 }
@@ -394,8 +399,8 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
     o += 14 + TURRET_TRACKS;
   }
 
-  let nc = d.getUint16(o, true); o += 2;
-  if (nc > MAX_CREEPS) nc = MAX_CREEPS;
+  const nc = d.getUint16(o, true); o += 2;
+  if (nc > MAX_CREEPS) throw new Error('frame has too many creeps');
   f.nCreeps = nc;
   const cId = f.cId, cX = f.cX, cY = f.cY, cKind = f.cKind, cHp = f.cHp, cFlags = f.cFlags, cTarget = f.cTarget;
   for (let i = 0; i < nc; i++) {

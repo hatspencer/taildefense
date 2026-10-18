@@ -1,12 +1,13 @@
 import { CameraRig } from './camera';
 import { Controller } from './controller';
-import { DemoHost, type DemoOptions } from './demo/host';
+import type { TdDemo } from './demo';
+import type { DemoHost, DemoOptions } from './demo/host';
 import { Hud } from './hud/hud';
 import { Labels } from './hud/labels';
 import { Splash } from './hud/splash';
 import { DROP_HOLD, Input } from './input';
 import { Kiosk } from './kiosk';
-import { Lab } from './lab';
+import type { Lab } from './lab';
 import { type Handlers, type Transport, WsTransport } from './net';
 import { PF_ALIVE, PF_ARMORY, Phase, PingKind, SiteKind, siteX, siteY, TTrack, TURRET_TRACKS, turretRange, type Welcome, wreck } from './protocol';
 import { Creeps } from './scene/creeps';
@@ -26,14 +27,31 @@ import { World } from './scene/world';
 import { Game } from './state';
 
 // #demo&drop&fog&weather=3&down&corehp=0.3&creeps=5000&phase=build&cam=x,y,yawDeg,dist&build=5&armory&help&score&shot&f3&sel=struct:12&mouse=x,y&webgl
+// A malformed escape is left as typed rather than failing the start.
+function unescape(v: string): string {
+  try { return decodeURIComponent(v); } catch { return v; }
+}
+
 function params(): Map<string, string> {
   const m = new Map<string, string>();
   for (const part of location.hash.slice(1).split('&')) {
     if (!part) continue;
     const i = part.indexOf('=');
-    m.set(i < 0 ? part : part.slice(0, i), i < 0 ? '' : decodeURIComponent(part.slice(i + 1)));
+    m.set(i < 0 ? part : part.slice(0, i), i < 0 ? '' : unescape(part.slice(i + 1)));
   }
   return m;
+}
+
+// The demo and the lab are a script of their own, fetched for #demo and #lab only. A classic
+// script, like app.js, so the demo still opens straight from disk.
+function loadDemo(): Promise<TdDemo> {
+  return new Promise((ok, fail) => {
+    const sc = document.createElement('script');
+    sc.src = 'demo.js';
+    sc.onload = () => ok((window as unknown as { tdDemo: TdDemo }).tdDemo);
+    sc.onerror = () => fail(new Error('could not load demo.js'));
+    document.head.append(sc);
+  });
 }
 
 async function makeWorld(app: HTMLElement, forceWebGL: boolean): Promise<World> {
@@ -87,6 +105,7 @@ async function main(): Promise<void> {
   // #lab poses every creep and survivor animation side by side on the demo's world.
   const labMode = P.has('lab');
   let lab: Lab | null = null;
+  let demoKit: TdDemo | null = null, demoHost: DemoHost | null = null;
   const demo = P.has('demo') || labMode;
   // The browser's shortcuts and menus kept off a real game; the demo, the lab and #dev keep
   // them, DevTools above all.
@@ -199,7 +218,9 @@ async function main(): Promise<void> {
       drop: P.has('drop'),
       fog: P.has('fog'),
     };
-    transport = new DemoHost(handlers, opt);
+    demoKit = await loadDemo();
+    demoHost = new demoKit.DemoHost(handlers, opt);
+    transport = demoHost;
     // #demo&shot: the report's picture is kept on the page, for a look at it.
     if (P.has('shot')) hud.keepShot = async (png) => { (window as unknown as { shot: string }).shot = URL.createObjectURL(png); return 'the page'; };
   } else {
@@ -290,14 +311,14 @@ async function main(): Promise<void> {
     const rawDt = Math.max(0.0005, (now - last) / 1000);
     const dt = Math.min(0.1, rawDt);
     last = now;
-    if (transport instanceof DemoHost && !lab) transport.pump();
+    if (demoHost && !lab) demoHost.pump();
     const W = window.innerWidth, H = window.innerHeight;
     const wd = game.welcome;
     if (wd && game.frames > 1) {
       if (!hooksApplied && game.cur.nPlayers > 0) applyHooks();
       if (labMode && !lab) {
-        lab = new Lab(game, wd.core.x, wd.core.y, P.has('gun') ? Number(P.get('gun')) : -1);
-        (transport as DemoHost).halt();
+        lab = new demoKit!.Lab(game, wd.core.x, wd.core.y, P.has('gun') ? Number(P.get('gun')) : -1);
+        demoHost!.halt();
         const [lx, ly] = lab.center(P.get('lab') ?? '');
         rig.follow = false; rig.center(lx, ly); rig.setDist(Number(P.get('dist')) || 26);
         if (P.has('yaw')) rig.setYaw(Number(P.get('yaw')) * Math.PI / 180);
@@ -327,12 +348,12 @@ async function main(): Promise<void> {
     if (wd) {
       // Hover highlight.
       const h = ctl.hover;
-      const hs = h?.t === 'struct' ? h.id : -1, hh = h?.t === 'hero' ? h.id : -1;
+      const hs = hovered('struct'), hh = hovered('hero');
       if (hs !== hoverStruct) { structs.setHover(hoverStruct, false); structs.setHover(hs, true); hoverStruct = hs; }
       if (hh !== hoverHero) { heroes.setHover(hoverHero, false); heroes.setHover(hh, true); hoverHero = hh; }
-      creeps.hovered = h?.t === 'creep' ? h.id : -1;
+      creeps.hovered = hovered('creep');
       const loots = ((h?.t === 'site' && !game.cur.siteSearched(h.id)) || h?.t === 'gun') && ctl.mode.k === 'none';
-      guns.hovered = h?.t === 'gun' ? h.id : -1;
+      guns.hovered = hovered('gun');
       if (loots !== hoverLoot) { document.body.classList.toggle('cur-loot', loots); hoverLoot = loots; }
       const revives = ctl.reviveTarget() >= 0;
       if (revives !== hoverRevive) { document.body.classList.toggle('cur-revive', revives); canvas.style.cursor = revives ? REVIVE_CURSOR : ''; hoverRevive = revives; }
@@ -363,12 +384,12 @@ async function main(): Promise<void> {
     if (wd) {
       const sel = ctl.sel;
       labels.draw(game, world.camera, {
-        hoverStruct: hs(), selStruct: sel?.t === 'struct' ? sel.id : -1,
-        hoverCreep: ctl.hover?.t === 'creep' ? ctl.hover.id : -1, selCreep: sel?.t === 'creep' ? sel.id : -1,
+        hoverStruct: hovered('struct'), selStruct: sel?.t === 'struct' ? sel.id : -1,
+        hoverCreep: hovered('creep'), selCreep: sel?.t === 'creep' ? sel.id : -1,
         showAllBars: ctl.mode.k === 'build',
-        hoverSite: ctl.hover?.t === 'site' ? ctl.hover.id : -1, siteHint: ctl.hover?.t === 'site' ? ctl.siteHint(ctl.hover.id) : '',
+        hoverSite: hovered('site'), siteHint: ctl.hover?.t === 'site' ? ctl.siteHint(ctl.hover.id) : '',
         dropHold: ctl.dropAt ? Math.min(1, (now - ctl.dropAt) / DROP_HOLD) : 0,
-        hoverGun: ctl.hover?.t === 'gun' ? ctl.hover.id : -1, gunHint: ctl.hover?.t === 'gun' ? ctl.gunHint(ctl.hover.id) : '',
+        hoverGun: hovered('gun'), gunHint: ctl.hover?.t === 'gun' ? ctl.gunHint(ctl.hover.id) : '',
       }, now, rig.dist, (x, z) => fow.clarity(x, z));
       hud.minimap.draw(now, W, H);
       // The portraits share the renderer, which the shader warm-up has to itself.
@@ -392,7 +413,8 @@ async function main(): Promise<void> {
       ].join('\n'));
     }
   };
-  const hs = () => (ctl.hover?.t === 'struct' ? ctl.hover.id : -1);
+  // The id of what the cursor is on, if it is of this kind.
+  const hovered = (t: NonNullable<typeof ctl.hover>['t']) => (ctl.hover?.t === t ? ctl.hover.id : -1);
 
   const updateOverlays = () => {
     const wd = game.welcome!, f = game.cur, me = game.me();
