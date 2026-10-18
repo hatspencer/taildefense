@@ -48,7 +48,7 @@ func TestShootingAPumpBlowsItAndTheOnesBesideIt(t *testing.T) {
 	c := w.Creeps[len(w.Creeps)-1].ID
 	p.X, p.Y = pu.SX-3, pu.SY
 	hp := p.HP
-	w.hitscan(int8(p.ID), p.X, p.Y, 0, 10, 10, 0, 0, 0)
+	w.hitscan(int8(p.ID), p.X, p.Y, 0, 10, 10, 0, 0, 0, plainShot)
 	if !run(w, TickRate*2, func() bool {
 		for _, i := range pumps {
 			if !w.Sites[i].Searched {

@@ -223,6 +223,16 @@ func newBare(seed uint64) *World {
 	return w
 }
 
+// mustJoin joins a survivor named name to w, failing the test if it can't.
+func mustJoin(t *testing.T, w *World, name string) *Player {
+	t.Helper()
+	p, err := w.Join(name, name+"@example")
+	if err != nil {
+		t.Fatalf("join %s: %v", name, err)
+	}
+	return p
+}
+
 func TestPingsGoOutOnceAndAreMetered(t *testing.T) {
 	w := newBare(3)
 	p, _ := w.Join("ana", "ana@example")

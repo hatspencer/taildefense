@@ -64,8 +64,8 @@ func (p *Player) tickSlow() {
 	}
 }
 
-// stun stops creep c for a moment, mul times longer for a shotgun's load (0 for once), unless
-// it was stunned too lately.
+// stun stops creep c for a moment, mul times as long as a hit does (longer for a shotgun's
+// load), unless it was stunned too lately.
 func (c *Creep) stun(mul float32) {
 	if c.stunLeft > 0 || c.stunCool > 0 {
 		return
@@ -77,9 +77,7 @@ func (c *Creep) stun(mul float32) {
 	case CBoss, CMother:
 		t = .08
 	}
-	if mul > 0 {
-		t *= mul
-	}
+	t *= mul
 	c.stunLeft, c.stunCool = t, t+stunGap
 }
 

@@ -13,8 +13,11 @@ func TestBrutalStartsWithOnlyACrowbar(t *testing.T) {
 	if p.Cur != WCrowbar || p.Weapons[WPistol].Owned || !p.Weapons[WCrowbar].Owned {
 		t.Fatalf("a brutal survivor starts with %s", Weapons[p.Cur].Name)
 	}
-	if p.Gold != 0 || w.Restart(6).Players[0].Gold != 0 {
+	if p.Gold != 0 {
 		t.Fatalf("a brutal survivor starts with %d gold", p.Gold)
+	}
+	if g := w.Restart(6).Players[0].Gold; g != 0 {
+		t.Fatalf("a brutal survivor starts again with %d gold", g)
 	}
 	if w.BuyWeapon(p, WCrowbar) == nil {
 		t.Fatal("a crowbar for sale")

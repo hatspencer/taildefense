@@ -177,7 +177,7 @@ func UpgradeCost(w WeaponKind, level uint8) int32 {
 // Stats is a weapon's effective numbers after upgrades.
 type Stats struct {
 	Damage, Rate, Range, Reload, Spread, Burn, Blast float32
-	Stun                                             float32 // times a hit's stun, 0 for once
+	Stun                                             float32 // times a hit's stun
 	Shove                                            float32 // how far each pellet pushes, before the creep's size
 	Mag                                              int16
 	Pellets, Pierce                                  int
@@ -197,6 +197,7 @@ func WeaponStats(w WeaponKind, lv [NumTracks]uint8) Stats {
 		Pierce:  d.Pierce,
 		Burn:    d.Burn,
 		Blast:   d.Blast,
+		Stun:    1,
 	}
 	sp := int(lv[TrackSpecial])
 	switch w {

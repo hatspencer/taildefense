@@ -85,11 +85,16 @@ const (
 	ultPerRevive = .15
 )
 
-// ultFull is the damage that fills the meter this wave.
+// ultFull is the damage that fills the meter this wave. Every hit asks, so it is worked out
+// once for each wave and difficulty.
 func (w *World) ultFull() float32 {
-	wave := max(w.Wave, 1)
-	d := w.diff()
-	return ultWaves * ultShare * Budget(wave, 1) * d.Count * Creeps[CWalker].HP * HPScale(wave) * d.HP
+	if w.ult.full == 0 || w.ult.wave != w.Wave || w.ult.diff != w.Diff {
+		wave := max(w.Wave, 1)
+		d := w.diff()
+		w.ult.full = ultWaves * ultShare * Budget(wave, 1) * d.Count * Creeps[CWalker].HP * HPScale(wave) * d.HP
+		w.ult.wave, w.ult.diff = w.Wave, w.Diff
+	}
+	return w.ult.full
 }
 
 // Dead Eye's numbers: seconds marking, walking at deadEyeWalk of the speed; how far it sees,

@@ -26,6 +26,7 @@ func (w *World) Step() {
 	}
 	w.Tick++
 
+	w.CreepsLeft = 0
 	switch w.Phase {
 	case PhaseOver:
 		return
@@ -44,12 +45,12 @@ func (w *World) Step() {
 	case PhaseWave:
 		w.WaveTime += Dt
 		w.spawnDue()
+		n := w.waveCreeps()
 		if w.QueueHead >= len(w.Queue) {
-			n := w.waveCreeps()
-			if n < w.waveLeft {
+			if n < w.aliveLast {
 				w.stall = 0
 			}
-			w.waveLeft = n
+			w.aliveLast = n
 			if w.stall += Dt; w.stall > stallLimit && n > 0 && n <= stallFew {
 				w.dropStragglers()
 				n = 0
@@ -59,6 +60,9 @@ func (w *World) Step() {
 			if n == 0 && w.rushAt == 0 {
 				w.endWave()
 			}
+		}
+		if w.Phase == PhaseWave {
+			w.CreepsLeft = w.creepsLeft(n)
 		}
 	}
 
@@ -110,7 +114,7 @@ func (w *World) startWave() {
 	w.WaveTime = 0
 	w.Queue = w.plan(w.Wave, w.active())
 	w.QueueHead = 0
-	w.stall, w.waveLeft = 0, 0
+	w.stall, w.aliveLast = 0, 0
 	if w.Wave%rushEvery == 0 {
 		w.rushAt = rushFrom + w.rng.Float32()*rushSpread
 	}
@@ -816,17 +820,26 @@ func (w *World) shoot(p *Player, st Stats, ang float32) {
 		w.Rockets = append(w.Rockets, Projectile{X: p.X, Y: p.Y, VX: float32(math.Cos(float64(a))) * speed, VY: float32(math.Sin(float64(a))) * speed,
 			TTL: st.Range / speed, Damage: st.Damage, Blast: st.Blast, Owner: owner})
 	default:
-		w.shove = st.Shove
+		sh := shot{stun: st.Stun, shove: st.Shove}
 		if ult && p.Cur == WShotgun {
-			w.shoveFar = shoveStep
+			sh.shoveFar = shoveStep
 		}
 		for k := 0; k < st.Pellets; k++ {
 			a := ang + (w.rng.Float32()*2-1)*st.Spread
-			w.hitscan(owner, p.X, p.Y, a, st.Range, st.Damage, st.Pierce, st.Burn, kind)
+			w.hitscan(owner, p.X, p.Y, a, st.Range, st.Damage, st.Pierce, st.Burn, kind, sh)
 		}
-		w.shove, w.shoveFar = 0, 0
 	}
 }
+
+// shot is what a bullet does to the creeps it hits besides its damage.
+type shot struct {
+	stun     float32 // how many times a hit's stun
+	shove    float32 // how far it pushes a creep back up close (shoveAt)
+	shoveFar float32 // and how far at any distance, under Dragon's breath
+}
+
+// plainShot stuns as any hit does and pushes nothing.
+var plainShot = shot{stun: 1}
 
 // How far a shotgun pellet pushes a creep back, before its size: shotShove and shotShoveLevel
 // more for each level of the special track, and shoveStep more under Dragon's breath. A
@@ -842,10 +855,10 @@ const (
 	shoveReach     = 5
 )
 
-// shoveAt is how far a pellet that travelled t pushes its creep.
-func (w *World) shoveAt(t float32) float32 {
+// shoveAt is how far a pellet of shot s that travelled t pushes its creep.
+func (s shot) shoveAt(t float32) float32 {
 	near := min(max((shoveReach-t)/(shoveReach-shoveNear), 0), 1)
-	return w.shove*near + w.shoveFar
+	return s.shove*near + s.shoveFar
 }
 
 // push moves creep i up to d along dx, dy, as far as it is free to go; bosses stand firm.
@@ -872,7 +885,7 @@ type hitCand struct {
 // hitscan resolves a bullet: every creep the ray passes close enough to, nearest first,
 // up to pierce+1 of them. Trees and buildings stop it; walls do not, so the base can be
 // defended from behind its own walls.
-func (w *World) hitscan(owner int8, x, y, ang, rng, dmg float32, pierce int, burn float32, kind uint8) {
+func (w *World) hitscan(owner int8, x, y, ang, rng, dmg float32, pierce int, burn float32, kind uint8, sh shot) {
 	dx, dy := float32(math.Cos(float64(ang))), float32(math.Sin(float64(ang)))
 	maxT := rng
 	for t := float32(.5); t < rng; t += .5 {
@@ -912,11 +925,11 @@ func (w *World) hitscan(owner int8, x, y, ang, rng, dmg float32, pierce int, bur
 	endT := maxT
 	n := min(len(cands), pierce+1)
 	for k := 0; k < n; k++ {
-		w.damage(cands[k].i, dmg, owner)
+		w.hit(cands[k].i, dmg, owner, sh.stun)
 		if burn > 0 {
 			w.ignite(cands[k].i, burn)
 		}
-		if d := w.shoveAt(cands[k].t); d > 0 {
+		if d := sh.shoveAt(cands[k].t); d > 0 {
 			w.push(cands[k].i, dx, dy, d)
 		}
 		if k == n-1 && n == pierce+1 {
@@ -1015,7 +1028,12 @@ func (w *World) ignite(i int32, dps float32) {
 	}
 }
 
-func (w *World) damage(i int32, dmg float32, owner int8) {
+// damage is a hit on creep i that stuns as any hit does.
+func (w *World) damage(i int32, dmg float32, owner int8) { w.hit(i, dmg, owner, 1) }
+
+// hit deals dmg to creep i from owner, -1 for nobody, and stuns it stun times as long as a hit
+// does.
+func (w *World) hit(i int32, dmg float32, owner int8, stun float32) {
 	c := &w.Creeps[i]
 	if c.HP <= 0 || owner >= 0 && w.hidden(c) {
 		return
@@ -1028,7 +1046,7 @@ func (w *World) damage(i int32, dmg float32, owner int8) {
 	c.HP -= d
 	w.provoke(c)
 	if owner >= 0 && !w.turretFire && !w.burning {
-		c.stun(w.slug)
+		c.stun(stun)
 	}
 	if owner >= 0 {
 		c.LastHit = owner
@@ -1092,7 +1110,7 @@ func (w *World) stepTurrets() {
 		switch s.Kind {
 		case STurretGun, STurretSniper:
 			ang := float32(math.Atan2(float64(c.Y-y), float64(c.X-x)))
-			w.hitscan(s.Owner, x, y, ang, rng, st.Damage, st.Pierce, 0, kind)
+			w.hitscan(s.Owner, x, y, ang, rng, st.Damage, st.Pierce, 0, kind, plainShot)
 		case STurretCannon:
 			w.tracer(x, y, c.X, c.Y, kind)
 			w.explode(c.X, c.Y, st.Blast, st.Damage, s.Owner, 0)
