@@ -121,6 +121,7 @@ export class Input {
 
   // N, held: the view on the generator; let go, back to how it was. Tapped twice, the hero walks there.
   private lastN = 0;
+  private lastE = 0;
   private coreHeld: { follow: boolean; locked: boolean } | null = null;
   private holdCore(on: boolean): void {
     const rig = this.rig, wd = this.ctl.game.welcome;
@@ -236,7 +237,18 @@ export class Input {
       case 'P': ctl.send({ op: 'pause' }); return;
       case 'M': hud.minimap.toggle(); return;
       case 'U': ctl.upgradeSel(); return;
-      case 'E': ctl.interact(); return;
+      case 'E': {
+        // Twice quickly: the hero heads for the nearest loot site, and stays on it while E is spammed.
+        const now = performance.now();
+        if (now - this.lastE < 400) {
+          this.lastE = now;
+          if (ctl.seekLoot()) hud.flash('off to the nearest loot site'); else ctl.onToast('no loot site in sight', 1);
+          return;
+        }
+        this.lastE = now;
+        ctl.interact();
+        return;
+      }
       case 'J': ctl.taunt(); return;
     }
   }
