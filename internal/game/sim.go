@@ -816,17 +816,37 @@ func (w *World) shoot(p *Player, st Stats, ang float32) {
 		w.Rockets = append(w.Rockets, Projectile{X: p.X, Y: p.Y, VX: float32(math.Cos(float64(a))) * speed, VY: float32(math.Sin(float64(a))) * speed,
 			TTL: st.Range / speed, Damage: st.Damage, Blast: st.Blast, Owner: owner})
 	default:
-		w.shove = ult && p.Cur == WShotgun
+		w.shove = st.Shove
+		if ult && p.Cur == WShotgun {
+			w.shoveFar = shoveStep
+		}
 		for k := 0; k < st.Pellets; k++ {
 			a := ang + (w.rng.Float32()*2-1)*st.Spread
 			w.hitscan(owner, p.X, p.Y, a, st.Range, st.Damage, st.Pierce, st.Burn, kind)
 		}
-		w.shove = false
+		w.shove, w.shoveFar = 0, 0
 	}
 }
 
-// shoveStep is how far one Dragon's breath pellet pushes a creep back, before its size.
-const shoveStep = .3
+// How far a shotgun pellet pushes a creep back, before its size: shotShove and shotShoveLevel
+// more for each level of the special track, and shoveStep more under Dragon's breath. A
+// point-blank load lands most of its pellets, so it shoves a walker about a quarter of a tile at
+// first and a tile and a half fully upgraded. The shotgun is for close range, so the push is
+// full out to shoveNear, fades to nothing at shoveReach, and is gone past it, well short of the
+// gun's range; only Dragon's breath shoves at any distance.
+const (
+	shotShove      = .05
+	shotShoveLevel = .015
+	shoveStep      = .3
+	shoveNear      = 2
+	shoveReach     = 5
+)
+
+// shoveAt is how far a pellet that travelled t pushes its creep.
+func (w *World) shoveAt(t float32) float32 {
+	near := min(max((shoveReach-t)/(shoveReach-shoveNear), 0), 1)
+	return w.shove*near + w.shoveFar
+}
 
 // push moves creep i up to d along dx, dy, as far as it is free to go; bosses stand firm.
 func (w *World) push(i int32, dx, dy, d float32) {
@@ -896,8 +916,8 @@ func (w *World) hitscan(owner int8, x, y, ang, rng, dmg float32, pierce int, bur
 		if burn > 0 {
 			w.ignite(cands[k].i, burn)
 		}
-		if w.shove {
-			w.push(cands[k].i, dx, dy, shoveStep)
+		if d := w.shoveAt(cands[k].t); d > 0 {
+			w.push(cands[k].i, dx, dy, d)
 		}
 		if k == n-1 && n == pierce+1 {
 			endT = cands[k].t
