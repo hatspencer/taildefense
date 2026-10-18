@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import type { CameraRig } from './camera';
-import { lootable, repairCost, walled, type Command, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_READY, Phase, PingKind, SiteKind, siteX, siteY, Tile } from './protocol';
+import { lootable, repairCost, walled, type Command, Order, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_READY, Phase, PingKind, SiteKind, siteX, siteY, Tile } from './protocol';
 import type { Effects } from './scene/effects';
 import type { Game } from './state';
 
@@ -27,6 +27,7 @@ const STICKY = new Set(['wall', 'gate']);
 // How far E reaches for something to use when nothing is under the cursor, in tiles.
 const USE_REACH = 4;
 const CRATE_REACH = 14; // tiles within which E walks to a supply crate
+const LOOT_SEEK = 24; // tiles within which E twice walks to a loot site, about a screen's worth
 
 // What the player is doing with the mouse, what is selected and hovered, and every action
 // the input handlers and the HUD buttons can trigger.
@@ -256,6 +257,23 @@ export class Controller {
     const crate = this.nearestCrate(me.x, me.y, CRATE_REACH);
     if (crate) { this.toCrate(crate); return; }
     this.onToast('nothing to use here', 1);
+  }
+
+  // E twice: the hero walks to the nearest unsearched loot site and searches it. Only one in
+  // sight range and not still out in the dark, since sites are found by going out and looking.
+  // A hero already off looting carries on, so spamming E doesn't restart a search.
+  seekLoot(): boolean {
+    const g = this.game, f = g.cur, wd = g.welcome, me = this.me();
+    if (!wd || !me || !(me.flags & PF_ALIVE)) return false;
+    if (me.order === Order.Loot) return true;
+    let best = -1, bd = LOOT_SEEK;
+    for (let i = 0; i < wd.sites.length; i++) {
+      const s = wd.sites[i];
+      if (f.siteSearched(i) || !lootable(s.kind) || g.unfound(i)) continue;
+      const d = Math.hypot(siteX(s) - me.x, siteY(s) - me.y);
+      if (d < bd) { bd = d; best = i; }
+    }
+    return best >= 0 && this.useAt({ t: 'site', id: best });
   }
 
   private nearestCrate(x: number, y: number, reach: number): { x: number; y: number; d: number } | null {

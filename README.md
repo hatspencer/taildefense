@@ -92,7 +92,7 @@ faces, however the camera is turned, and the camera follows while you walk.
 | input | |
 |---|---|
 | W A S D | walk |
-| E | use what is under the cursor, or else the nearest thing: revive a downed teammate, pick up a dropped weapon, search a loot site, repair a damaged building, shop at the armory (walking there first); on a creep, focus fire on it |
+| E | use what is under the cursor, or else the nearest thing: revive a downed teammate, pick up a dropped weapon, search a loot site, repair a damaged building, shop at the armory (walking there first); on a creep, focus fire on it; tap twice to walk to the nearest loot site in sight and search it |
 | Q | the equipped weapon's ultimate, once its meter is full (fighting and reviving fill it) |
 | right-click | on a creep, focus fire on it |
 | Shift / F / V | grenade (aim, then left-click; Esc cancels), dash and airstrike at the cursor at once (bought at the armory) |
