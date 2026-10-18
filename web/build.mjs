@@ -6,7 +6,7 @@ const out = '../internal/web/dist';
 const dev = process.argv.includes('--dev');
 mkdirSync(out, { recursive: true });
 await esbuild.build({
-  entryPoints: ['src/main.ts'],
+  entryPoints: { app: 'src/main.ts', demo: 'src/demo.ts' },
   bundle: true,
   minify: !dev,
   sourcemap: dev ? 'inline' : false,
@@ -14,7 +14,7 @@ await esbuild.build({
   // mode must open straight from disk.
   format: 'iife',
   target: 'es2020',
-  outfile: `${out}/app.js`,
+  outdir: out,
   legalComments: 'none',
   logLevel: 'warning',
 });

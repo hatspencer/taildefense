@@ -1,7 +1,7 @@
 import type { CameraRig } from './camera';
 import { type Controller, KEYS } from './controller';
 import type { Hud } from './hud/hud';
-import { CROWBAR, PF_ALIVE, sellValue } from './protocol';
+import { CROWBAR, K_ARMORY, PF_ALIVE, sellValue } from './protocol';
 
 // Edge-pan band in CSS pixels; wide enough for fractional display scaling, where the last
 // device pixel can land a pixel or more inside the reported edge.
@@ -27,6 +27,14 @@ const SELL_CONFIRM = 1500;
 
 // Keyboard and mouse. Left and right clicks go to the controller; the camera library owns the
 // middle button and the wheel (see camera.ts).
+// The key as an upper-case letter or its name. On a layout that types non-Latin letters the
+// physical key stands in, so the hotkeys work as printed on any layout (WASD does by code too).
+function letter(e: KeyboardEvent): string {
+  const k = e.key;
+  if (k.length === 1 && !/^[a-z]$/i.test(k) && /^[A-Z]$/.test(e.code.slice(3)) && e.code.startsWith('Key')) return e.code.slice(3);
+  return k.length === 1 ? k.toUpperCase() : k;
+}
+
 export class Input {
   private keys = new Set<string>();
   private steer = new Set<string>(); // WASD held, by code
@@ -73,8 +81,9 @@ export class Input {
       if (e.key === ' ') this.spaceUp(true);
       ctl.shift = e.shiftKey;
       if (e.key === 'Tab') this.hud.showScore(false);
-      if (e.key === 'n' || e.key === 'N') this.holdCore(false);
-      if (e.key === 'g' || e.key === 'G') this.holdDrop(false);
+      const up = letter(e);
+      if (up === 'N') this.holdCore(false);
+      if (up === 'G') this.holdDrop(false);
     });
   }
 
@@ -114,7 +123,7 @@ export class Input {
     if (s < 0) return;
     if (this.sellArm.s === s && now - this.sellArm.at < SELL_CONFIRM) { this.sellArm.s = -1; ctl.sellSel(); return; }
     const f = ctl.game.cur, wd = ctl.game.welcome, d = wd?.structs[f.sKind[s]];
-    if (!d || f.sKind[s] <= 2) return;
+    if (!d || f.sKind[s] <= K_ARMORY) return;
     this.sellArm = { s, at: now };
     this.hud.flash(`Delete again to sell the ${d.name.toLowerCase()} for ${sellValue(d, f, s, wd!.sellFraction)}g`);
   }
@@ -174,7 +183,7 @@ export class Input {
     ctl.shift = e.shiftKey;
     if (hud.chatOpen()) return; // the chat input handles its own keys
     const k = e.key;
-    const up = k.length === 1 ? k.toUpperCase() : k;
+    const up = letter(e);
     if (k === 'Tab') { e.preventDefault(); hud.showScore(true); return; }
     if (k === 'F1' || k === '?') { e.preventDefault(); hud.toggleHelp(); return; }
     if (k === 'F3') { e.preventDefault(); hud.toggleStats(); return; }

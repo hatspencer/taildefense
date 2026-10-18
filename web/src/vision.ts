@@ -1,4 +1,4 @@
-import { DAY_SIGHT, FLASH_CONE, PF_ALIVE, RIFLE, RIFLE_SIGHT, type Frame, TTrack, TURRET_TRACKS, type Welcome, Weather, sightMul, turretRange, walled } from './protocol';
+import { DAY_SIGHT, K_ARMORY, K_CORE, FLASH_CONE, PF_ALIVE, RIFLE, RIFLE_SIGHT, type Frame, TTrack, TURRET_TRACKS, type Welcome, Weather, sightMul, turretRange, walled } from './protocol';
 
 // Fog of war: what the team sees right now, and what it has ever seen, per tile. Vision is
 // shared: every survivor and every structure lights a disc around itself. The host sends
@@ -26,6 +26,9 @@ export class Vision {
   private rooms: { x: number; y: number; w: number; h: number }[];
   private sites: Welcome['sites'];
   private foundSite: Uint8Array;
+  // Per site: the version at which its tiles were last scanned and none was seen, so a site
+  // still out in the dark is scanned once per update and not once per look.
+  private missAt: Int32Array;
 
   constructor(readonly w: number, readonly h: number, wd: Welcome) {
     this.now = new Uint8Array(w * h);
@@ -34,6 +37,7 @@ export class Vision {
     this.room = new Int16Array(w * h).fill(-1);
     this.entered = new Uint8Array(wd.sites.length);
     this.foundSite = new Uint8Array(wd.sites.length);
+    this.missAt = new Int32Array(wd.sites.length).fill(-1);
     this.sites = wd.sites;
     // At night the host keeps the ground the team has found, so a late joiner starts from it.
     if (wd.seen) {
@@ -54,10 +58,11 @@ export class Vision {
   found(i: number): boolean {
     if (this.foundSite[i]) return true;
     const s = this.sites[i];
-    if (!s) return false;
+    if (!s || this.missAt[i] === this.version) return false;
     for (let y = Math.max(0, s.y); y < Math.min(this.h, s.y + s.h); y++) {
       for (let x = Math.max(0, s.x); x < Math.min(this.w, s.x + s.w); x++) if (this.seen[y * this.w + x]) { this.foundSite[i] = 1; return true; }
     }
+    this.missAt[i] = this.version;
     return false;
   }
 
@@ -89,9 +94,9 @@ export class Vision {
       // The generator keeps the whole base in sight, whatever the difficulty; turrets see a
       // little past what they shoot, night or day; walls and gates see just over themselves.
       // At night these follow the host's (discover.go), which decides what a shot can find.
-      const r = f.sKind[i] === 1 ? wd.buildRadius
+      const r = f.sKind[i] === K_CORE ? wd.buildRadius
         : d?.turret ? turretRange(d, f.sLv[i * TURRET_TRACKS + TTrack.Range]) * mul + 2
-        : f.sKind[i] === 2 ? (dark ? 7 : 9) : dark ? 2 : 3;
+        : f.sKind[i] === K_ARMORY ? (dark ? 7 : 9) : dark ? 2 : 3;
       this.disc(f.sX[i] + f.sW[i] / 2, f.sY[i] + f.sH[i] / 2, r, -1, true);
     }
     this.version++;

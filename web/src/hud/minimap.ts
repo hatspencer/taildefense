@@ -1,5 +1,5 @@
 import type { Controller } from '../controller';
-import { EffectKind, PF_ALIVE, PF_CONNECTED, PingKind } from '../protocol';
+import { EffectKind, K_ARMORY, K_CORE, K_GATE, PF_ALIVE, PF_CONNECTED, PingKind } from '../protocol';
 import { PING_LIFE } from '../state';
 import { cssHex, playerColor } from '../scene/util';
 import { el } from './dom';
@@ -43,7 +43,7 @@ export class Minimap {
       const [x, y] = this.toWorld(e);
       if (this.drag) this.look(x, y);
     });
-    this.canvas.addEventListener('pointerup', () => { this.drag = false; });
+    for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) this.canvas.addEventListener(ev, () => { this.drag = false; });
   }
 
   toggle(on = !this.expanded): void {
@@ -148,7 +148,7 @@ export class Minimap {
     for (let i = 0; i < f.nStructs; i++) {
       if (!f.sAlive[i]) continue;
       const k = f.sKind[i];
-      c.fillStyle = k === 1 ? '#9ec0bc' : k === 2 ? '#e0a63a' : k <= 4 ? '#c8bf9f' : cssHex(playerColor(f.sOwner[i]));
+      c.fillStyle = k === K_CORE ? '#9ec0bc' : k === K_ARMORY ? '#e0a63a' : k <= K_GATE ? '#c8bf9f' : cssHex(playerColor(f.sOwner[i]));
       c.fillRect(f.sX[i] * sx, f.sY[i] * sy, Math.max(1.5, f.sW[i] * sx), Math.max(1.5, f.sH[i] * sy));
     }
     this.drawFog();

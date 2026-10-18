@@ -1,5 +1,5 @@
 import type { ConnState } from '../net';
-import { CROWBAR, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, type Player, TTrack, TURRET_TRACKS, type Welcome, repairCost, sellValue, turretRange, WEAPON_SLOTS } from '../protocol';
+import { CROWBAR, K_ARMORY, K_CORE, stickyKind, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, type Player, TTrack, TURRET_TRACKS, type Welcome, repairCost, sellValue, turretRange, WEAPON_SLOTS } from '../protocol';
 import { type Controller, KEYS } from '../controller';
 import { cssHex, playerColor } from '../scene/util';
 import { Armory } from './armory';
@@ -580,7 +580,7 @@ export class Hud {
         const what = el('div', 'what', info);
         const id = p.id;
         root.onclick = () => {
-          const q = ctl.game.cur.players.slice(0, ctl.game.cur.nPlayers).find((o) => o.id === id);
+          const q = ctl.game.cur.player(id);
           if (!q) return;
           if (q.flags & PF_CONNECTED && !(q.flags & PF_ALIVE)) ctl.send({ op: 'revive', p: id });
           else { ctl.rig.follow = false; ctl.rig.center(q.x, q.y, false); }
@@ -660,7 +660,7 @@ export class Hud {
   private updateBase(now: number): void {
     const f = this.ctl.game.cur, b = this.base;
     let hp = 0, max = 1;
-    for (let i = 0; i < f.nStructs; i++) if (f.sAlive[i] && f.sKind[i] === 1) { hp = f.sHp[i]; max = Math.max(1, f.sMaxHp[i]); break; }
+    for (let i = 0; i < f.nStructs; i++) if (f.sAlive[i] && f.sKind[i] === K_CORE) { hp = f.sHp[i]; max = Math.max(1, f.sMaxHp[i]); break; }
     if (b.hp >= 0 && hp < b.hp) b.hitUntil = now + 450;
     b.hp = hp;
     const frac = Math.max(0, Math.min(1, hp / max));
@@ -694,7 +694,7 @@ export class Hud {
     show(this.paused.root, by >= 0);
     this.pauseBtn.textContent = by >= 0 ? 'Resume' : 'Pause';
     if (by < 0) return;
-    const p = f.players.slice(0, f.nPlayers).find((q) => q.id === by);
+    const p = f.player(by);
     const who = by === this.ctl.game.welcome?.you ? 'you' : p ? esc(p.name) : 'a player';
     const sub = `paused by ${who} · press <kbd>P</kbd> to resume`;
     if (this.paused.sub.innerHTML !== sub) this.paused.sub.innerHTML = sub;
@@ -875,9 +875,9 @@ export class Hud {
     let key: string;
     const s = ctl.sel;
     if (this.buildCard) key = `b:${ctl.mode.k === 'build' ? ctl.mode.kind : -1}:${me ? Math.floor(me.gold) : 0}`;
-    else if (s?.t === 'struct') key = `s:${s.id}:${f.sKind[s.id]}:${f.sHp[s.id]}:${f.sMaxHp[s.id]}:${f.sLevel[s.id]}:${me ? Math.floor(me.gold) : 0}`;
+    else if (s?.t === 'struct') key = `s:${s.id}:${f.sKind[s.id]}:${f.sOwner[s.id]}:${f.sHp[s.id]}:${f.sMaxHp[s.id]}:${f.sLevel[s.id]}:${f.sLv.subarray(s.id * TURRET_TRACKS, (s.id + 1) * TURRET_TRACKS).join(',')}:${me ? Math.floor(me.gold) : 0}`;
     else if (s?.t === 'creep') { const i = g.indexById[s.id]; key = `c:${s.id}:${i >= 0 ? f.cHp[i] + ':' + f.cFlags[i] : ''}`; }
-    else if (s?.t === 'hero') { const p = f.player(s.id); key = `h:${s.id}:${p?.hp}:${p?.cur}:${p?.kills}:${p?.flags}:${p?.respawn}`; }
+    else if (s?.t === 'hero') { const p = f.player(s.id); key = `h:${s.id}:${p?.hp}:${p?.maxHp}:${p?.cur}:${p?.kills}:${Math.floor(p?.damage ?? 0)}:${p?.order}:${p?.flags}:${p?.respawn}`; }
     else key = 'none';
     if (key === this.cardKey) return;
     this.cardKey = key;
@@ -947,13 +947,13 @@ export class Hud {
         const rp = el('button', '', btns); rp.innerHTML = `Repair <span class="gold">~${cost}g</span> <kbd>E</kbd>`;
         rp.onclick = () => ctl.repairSel();
       }
-      if (f.sKind[id] > 2) {
+      if (f.sKind[id] > K_ARMORY) {
         const sl = el('button', '', btns);
         const refund = d ? sellValue(d, f, id, wd.sellFraction) : 0;
         sl.innerHTML = `Sell <span class="gold">+${refund}g</span> <kbd>Del</kbd>`;
         sl.onclick = () => ctl.sellSel();
       }
-      if (f.sKind[id] === 2) {
+      if (f.sKind[id] === K_ARMORY) {
         const ar = el('button', 'primary', btns); ar.innerHTML = 'Open armory <kbd>C</kbd>';
         ar.onclick = () => ctl.openArmory(true);
       }
@@ -1003,7 +1003,7 @@ export class Hud {
     if (m.k === 'ability') { const a = this.ctl.ability(m.slot); s = `${a?.name ?? 'Ability'}: left-click where to throw · Esc cancels`; }
     else if (m.k === 'build') {
       const d = this.ctl.game.welcome?.structs[m.kind];
-      const sticky = d?.name === 'Wall' || d?.name === 'Gate';
+      const sticky = stickyKind(m.kind);
       s = `Place ${d?.name ?? ''} (${d?.price ?? 0}g): left-click${sticky ? ', again for the next' : ' · Shift keeps placing'} · Esc stops`;
     }
     show(this.modeEl, s !== '');

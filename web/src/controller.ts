@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import type { CameraRig } from './camera';
-import { lootable, repairCost, walled, type Command, Order, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_READY, Phase, PingKind, SiteKind, siteX, siteY, Tile } from './protocol';
+import { K_ARMORY, lootable, stickyKind, repairCost, walled, type Command, Order, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_READY, Phase, PingKind, SiteKind, siteX, siteY, Tile } from './protocol';
 import type { Effects } from './scene/effects';
 import type { Game } from './state';
 
@@ -22,7 +22,6 @@ const AIMED = 1;
 
 // Structures that stay picked after one is placed, so a line of them goes down click by click
 // until Esc; anything else is placed once (Shift keeps it).
-const STICKY = new Set(['wall', 'gate']);
 
 // How far E reaches for something to use when nothing is under the cursor, in tiles.
 const USE_REACH = 4;
@@ -199,12 +198,11 @@ export class Controller {
       return;
     }
     if (this.mode.k === 'build') {
-      const name = this.game.welcome?.structs[this.mode.kind]?.name.toLowerCase() ?? '';
-      this.placeBuild(this.mode.kind, this.shift || STICKY.has(name));
+      this.placeBuild(this.mode.kind, this.shift || stickyKind(this.mode.kind));
       return;
     }
     this.sel = this.hover?.t === 'site' || this.hover?.t === 'gun' ? null : this.hover;
-    if (this.sel?.t === 'struct' && this.game.cur.sKind[this.sel.id] === 2) this.openArmory(true);
+    if (this.sel?.t === 'struct' && this.game.cur.sKind[this.sel.id] === K_ARMORY) this.openArmory(true);
   }
 
   // Right-click: on a creep, focus fire on it; elsewhere nothing. It also backs out of placing,
@@ -323,7 +321,7 @@ export class Controller {
       if (!f.sAlive[s]) continue;
       const cx = f.sX[s] + f.sW[s] / 2, cy = f.sY[s] + f.sH[s] / 2, slack = Math.max(f.sW[s], f.sH[s]) / 2;
       const mine = f.sOwner[s] === me.id || f.sOwner[s] === -1;
-      if (f.sKind[s] === 2 || (mine && f.sHp[s] < f.sMaxHp[s])) take({ t: 'struct', id: s }, cx, cy, slack);
+      if (f.sKind[s] === K_ARMORY || (mine && f.sHp[s] < f.sMaxHp[s])) take({ t: 'struct', id: s }, cx, cy, slack);
     }
     return best;
   }
@@ -349,7 +347,7 @@ export class Controller {
     }
     if (h.t === 'struct') {
       const s = h.id, kind = f.sKind[s];
-      if (kind === 2) {
+      if (kind === K_ARMORY) {
         if (me.flags & PF_ARMORY) this.openArmory(!this.armoryOpen); else this.walkToArmory();
         return true;
       }
@@ -414,7 +412,7 @@ export class Controller {
 
   armoryCenter(): { x: number; y: number } | null {
     const f = this.game.cur;
-    for (let i = 0; i < f.nStructs; i++) if (f.sAlive[i] && f.sKind[i] === 2) return { x: f.sX[i] + f.sW[i] / 2, y: f.sY[i] + f.sH[i] / 2 };
+    for (let i = 0; i < f.nStructs; i++) if (f.sAlive[i] && f.sKind[i] === K_ARMORY) return { x: f.sX[i] + f.sW[i] / 2, y: f.sY[i] + f.sH[i] / 2 };
     return null;
   }
 
