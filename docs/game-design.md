@@ -363,8 +363,11 @@ the long way round, or not at all. Map generation tries the spot again elsewhere
 - **An ultimate per weapon, on a meter.** The old signatures were on a cooldown, so they were
   cast whenever ready and mattered little. An ultimate is rare, about one every three waves, so
   it is saved for the moment it turns: the meter fills by damage dealt, measured against what a
-  wave holds (ultFull: 70% of three waves' walker-health at the current wave and difficulty), so
-  the pace stays the same as waves grow. A revive gives 15%, so helping fills it too. Turret fire
+  wave holds (ultFull: 37% of three waves' walker-health at the current wave, and the
+  difficulty's wave size and creep health), so the pace stays the same as waves grow and on
+  every difficulty. Only the hit points a hit takes count, never overkill: when it counted, a
+  rocket or a rifle round on a walker filled the meter for damage nobody needed, and the
+  launcher and rifle charged far faster than the pistol or SMG for the same kills. A revive gives 15%, so helping fills it too. Turret fire
   and burning don't count: the meter rewards the survivor's own fighting, not the base's.
   It doesn't fill while one runs, and going down ends it.
 - **Each ultimate leans into its weapon.** Dead Eye makes the pistol, the weakest gun, the one
