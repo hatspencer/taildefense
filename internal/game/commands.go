@@ -80,7 +80,7 @@ func (w *World) Join(name, login string) (*Player, error) {
 }
 
 func (w *World) resetPlayer(p *Player) {
-	p.Gold = 150
+	p.Gold = w.diff().Start
 	p.Weapons = [NumWeapons]WeaponState{}
 	p.Cur = WPistol
 	if w.diff().Melee {

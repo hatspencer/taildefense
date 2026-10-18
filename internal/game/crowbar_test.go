@@ -13,11 +13,14 @@ func TestBrutalStartsWithOnlyACrowbar(t *testing.T) {
 	if p.Cur != WCrowbar || p.Weapons[WPistol].Owned || !p.Weapons[WCrowbar].Owned {
 		t.Fatalf("a brutal survivor starts with %s", Weapons[p.Cur].Name)
 	}
+	if p.Gold != 0 || w.Restart(6).Players[0].Gold != 0 {
+		t.Fatalf("a brutal survivor starts with %d gold", p.Gold)
+	}
 	if w.BuyWeapon(p, WCrowbar) == nil {
 		t.Fatal("a crowbar for sale")
 	}
-	if q, _ := NewGame(5, DiffNormal).Join("bo", "bo@example"); q.Cur != WPistol || q.Weapons[WCrowbar].Owned {
-		t.Fatal("a normal survivor without the pistol")
+	if q, _ := NewGame(5, DiffNormal).Join("bo", "bo@example"); q.Cur != WPistol || q.Weapons[WCrowbar].Owned || q.Gold != 150 {
+		t.Fatal("a normal survivor without the pistol and 150 gold")
 	}
 	// It hits what is in reach, never what is not, and never runs dry.
 	p.HP, p.MaxHP = 1e6, 1e6
