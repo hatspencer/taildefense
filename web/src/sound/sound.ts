@@ -535,8 +535,9 @@ export class Sound {
     let sirens = false;
     if (this.phase >= 0 && f.phase !== this.phase) {
       sirens = true;
-      const s = f.phase === Phase.Wave ? 'sirenWave' : f.phase === Phase.Over ? 'sirenOver' : this.phase === Phase.Wave ? 'sirenClear' : '';
-      if (s) { this.synth.play(s, this.flat(s === 'sirenClear' ? 0.4 : 0.5), 0, 1, Prio.Cue); this.synth.duckWorld(3, 2); }
+      // Every tenth wave brings a boss, and its siren wails rather than holding.
+      const s = f.phase === Phase.Wave ? (f.wave % 10 === 0 ? 'sirenBoss' : 'sirenWave') : f.phase === Phase.Over ? 'sirenOver' : this.phase === Phase.Wave ? 'sirenClear' : '';
+      if (s) { this.synth.play(s, this.flat(s === 'sirenClear' ? 0.4 : s === 'sirenBoss' ? 0.6 : 0.5), 0, 1, Prio.Cue); this.synth.duckWorld(3, s === 'sirenBoss' ? 3.5 : 2); }
     }
     if (f.phase === Phase.Build && f.pausedBy < 0) {
       const secs = Math.ceil(f.phaseLeft / 10);

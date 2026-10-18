@@ -657,7 +657,10 @@ about -29, ambience -32 to -42, footsteps under -45.
 - **The siren is a machine across town,** not a tone: two rotors a minor third apart chopping
   air, a buzz with wind in it that grows louder as the motor winds up, swept towards you and
   away as the head turns, and sent back late by the hills. The wave's siren winds up, holds and
-  is cut; the all clear holds one lower steady tone; the end groans all the way down.
+  is cut; a boss wave's, every tenth, is the attack signal instead, wailing up and down with a
+  deeper siren farther off wailing out of step with it, a little louder and the world held
+  down under it longer, so it is known before the boss is seen; the all clear holds one lower
+  steady tone; the end groans all the way down.
 - **Explosions throw things.** A shock front, the air slammed up and sucked back in a few
   milliseconds; the fireball driven into distortion with its top end dying, a whump and a
   falling boom under it, crackling as it burns off; then what was thrown up raining back down

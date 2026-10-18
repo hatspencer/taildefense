@@ -33,7 +33,7 @@ const PRIO_OF: Record<string, Prio> = {
   cannon: Prio.Heavy, sniper: Prio.Heavy, rocket: Prio.Heavy, strikeBig: Prio.Heavy, crumble: Prio.Heavy,
   thunder: Prio.Heavy, bell: Prio.Heavy, jets: Prio.Heavy, ambush: Prio.Heavy, alert: Prio.Heavy, bile: Prio.Heavy,
   death3: Prio.Heavy, death5: Prio.Heavy, death7: Prio.Heavy,
-  sirenWave: Prio.Cue, sirenClear: Prio.Cue, sirenOver: Prio.Cue, klaxon: Prio.Cue, beep: Prio.Cue, beepGo: Prio.Cue,
+  sirenWave: Prio.Cue, sirenBoss: Prio.Cue, sirenClear: Prio.Cue, sirenOver: Prio.Cue, klaxon: Prio.Cue, beep: Prio.Cue, beepGo: Prio.Cue,
   tinnitus: Prio.Cue, kill: Prio.Cue, ultReady: Prio.Cue, heart: Prio.Cue,
 };
 function prioOf(name: string): Prio {

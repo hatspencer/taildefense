@@ -1171,6 +1171,20 @@ function sirenWave(sr: number, r: R): Buf {
   return siren(sr, r, 6, 560, (t) => t < 3.4 ? 60 + 500 * (1 - Math.exp(-t / 0.9)) : 60 + 495 * Math.exp(-(t - 3.4) / 1.5),
     (t) => Math.min(1, t / 0.3) * (t > 4.2 ? Math.max(0, (6 - t) / 1.8) : 1));
 }
+// A boss: the attack signal rather than the alert, the siren wound up hard and wailing up and
+// down instead of holding, and a deeper one farther off wailing out of step with it, so the
+// whole town is calling and the two beat against each other; both cut and groan down.
+function sirenBoss(sr: number, r: R): Buf {
+  const wail = (base: number, depth: number, per: number, cut: number, ph: number) => {
+    const p = (t: number) => 60 + (base - 60) * (1 - Math.exp(-t / 0.5)) + depth * Math.sin(TAU * t / per + ph) * Math.min(1, t / 1.2);
+    return (t: number) => t < cut ? p(t) : 60 + (p(cut) - 60) * Math.exp(-(t - cut) / 1.3);
+  };
+  const env = (cut: number, len: number) => (t: number) => Math.min(1, t / 0.25) * (t > cut ? Math.max(0, (len - t) / (len - cut)) : 1);
+  const b = siren(sr, r, 8.5, 600, wail(480, 120, 1.7, 6.6, 0), env(6.6, 8.5));
+  const far = siren(sr, r, 7.5, 420, wail(320, 80, 2.2, 6, Math.PI), env(6, 7.5)), o = Math.floor(0.6 * sr);
+  for (let i = 0; i < far.len && o + i < b.len; i++) b.d[o + i] += far.d[i] * 0.45;
+  return b.normalize(0.8).fadeOut(0.1);
+}
 // The all clear: wound up quickly to one steady, lower tone, and let go.
 function sirenClear(sr: number, r: R): Buf {
   return siren(sr, r, 4.5, 450, (t) => t < 3 ? 60 + 390 * (1 - Math.exp(-t / 0.5)) : 60 + 388 * Math.exp(-(t - 3) / 1),
@@ -1467,6 +1481,7 @@ export const RECIPES: Record<string, [number, Maker, number?]> = {
   medkit: [1, medkit],
   tinnitus: [1, tinnitus],
   sirenWave: [2, sirenWave, LOW],
+  sirenBoss: [2, sirenBoss, LOW],
   sirenClear: [2, sirenClear, LOW],
   sirenOver: [2, sirenOver, LOW],
   klaxon: [1, klaxon, LOW],
