@@ -292,9 +292,11 @@ type World struct {
 	pumpsFor   int     // len(Sites) when pumpIdx was built
 	turretFire bool    // while turrets fire, so their damage is counted as theirs
 	burning    bool    // while burning ground does its damage, which stuns nothing
-	slug       float32 // while a shotgun's pellets land, how many times longer they stun
-	shove      float32 // while a shotgun's pellets land, how far each pushes its creep back up close
-	shoveFar   float32 // and while Dragon's breath pellets land, how far each pushes at any distance
+	ult        struct {
+		full float32 // ultFull for wave on difficulty diff
+		wave int
+		diff Difficulty
+	}
 
 	// Per tick outputs, cleared at the start of Step.
 	Tracers []Tracer
@@ -311,12 +313,13 @@ type World struct {
 	WaveTime   float32
 	Queue      []Spawn // pending spawns of this wave, sorted by At
 	QueueHead  int
+	CreepsLeft int  // what holds the wave open, worked out each tick by Step (creepsLeft)
 	Paused     int8 // the player who paused the game, or -1 while it runs
 	sentNotes  int  // how many of Notes and Toasts the last tick already carried
 	sentToasts int
 	sentPings  int
 	stall      float32 // seconds since a creep of the wave last died, once all are out
-	waveLeft   int     // creeps of the wave alive at the last count
+	aliveLast  int     // creeps of the wave alive at the last count, to tell when one last died
 	SpawnPts   [][2]float32
 	edgePts    [][2]float32 // the places along the edge a wave's fronts come in by (fronts.go)
 	lastFront  float64

@@ -146,7 +146,7 @@ func TestNightShotsOnlyFindWhatIsSeen(t *testing.T) {
 		}
 		w.discover()
 		w.grid.build(w.Creeps)
-		w.hitscan(int8(p.ID), p.X, p.Y, 0, 28, 10, 5, 0, 0)
+		w.hitscan(int8(p.ID), p.X, p.Y, 0, 28, 10, 5, 0, 0, plainShot)
 		near, far := w.Creeps[0].HP < 1e6, w.Creeps[1].HP < 1e6
 		if !near {
 			t.Fatalf("%s: the creep in sight was missed", d)

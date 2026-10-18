@@ -529,8 +529,9 @@ func TestASurvivorBackAtTheBaseIsShieldedForAWhile(t *testing.T) {
 }
 
 // The creeps-left count is the wave's, wherever its creeps are: to spawn and alive, not
-// guards, and on a tenth wave the wanderers until they rush.
-func TestWaveLeftCountsWhatHoldsTheWave(t *testing.T) {
+// guards, and on a tenth wave the wanderers until they rush, the rush itself while none are
+// about.
+func TestCreepsLeftCountsWhatHoldsTheWave(t *testing.T) {
 	w := newBare(3)
 	w.Phase = PhaseWave
 	w.Queue, w.QueueHead = make([]Spawn, 3), 1
@@ -540,15 +541,24 @@ func TestWaveLeftCountsWhatHoldsTheWave(t *testing.T) {
 	w.Creeps[len(w.Creeps)-1].Home = 1
 	w.SpawnCreep(CWalker, 40, 40)
 	w.Creeps[len(w.Creeps)-1].Wander = true
-	if n := w.WaveLeft(); n != 4 {
+	if n := w.creepsLeft(w.waveCreeps()); n != 4 {
 		t.Fatalf("left %d, want 2 to spawn + 2 alive", n)
 	}
 	w.rushAt = 5
-	if n := w.WaveLeft(); n != 5 {
+	if n := w.creepsLeft(w.waveCreeps()); n != 5 {
 		t.Fatalf("left %d before the rush, want the wanderer too", n)
 	}
-	w.Phase = PhaseBuild
-	if n := w.WaveLeft(); n != 0 {
-		t.Fatalf("left %d between waves", n)
+	// Everything dead before the rush: the wave holds, and so does the count.
+	w.Creeps = w.Creeps[:0]
+	w.Queue, w.QueueHead = []Spawn{{At: 1e9}}, 1
+	w.WaveTime = 0
+	w.Step()
+	if w.Phase != PhaseWave || w.CreepsLeft != 1 {
+		t.Fatalf("phase %d with %d left while the rush is to come", w.Phase, w.CreepsLeft)
+	}
+	w.rushAt = 0
+	w.Step()
+	if w.Phase != PhaseBuild || w.CreepsLeft != 0 {
+		t.Fatalf("phase %d with %d left once the wave is done", w.Phase, w.CreepsLeft)
 	}
 }

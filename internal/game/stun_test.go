@@ -57,9 +57,7 @@ func TestTheShotgunStunsLonger(t *testing.T) {
 	w.damage(0, 5, 0)
 	plain := c.stunLeft
 	c.stunLeft, c.stunCool = 0, 0
-	w.slug = slugMul
-	w.damage(0, 5, 0)
-	w.slug = 0
+	w.hit(0, 5, 0, slugMul)
 	if c.stunLeft < plain*2 {
 		t.Fatalf("a shotgun stunned for %.2fs, another gun %.2fs", c.stunLeft, plain)
 	}
@@ -199,7 +197,7 @@ func TestASlamHurtsWhatIsBuiltInsideIt(t *testing.T) {
 func TestShotgunUpgradesKnockBackAndStunHarder(t *testing.T) {
 	load := func(sp uint8, at float32) (shoved, stun float32) {
 		w := newBare(3)
-		p, _ := w.Join("ana", "ana@example")
+		p := mustJoin(t, w, "ana")
 		w.Queue = []Spawn{{At: 1e9}}
 		p.Cur = WShotgun
 		w.SpawnCreep(CWalker, p.X+at, p.Y)
@@ -208,9 +206,7 @@ func TestShotgunUpgradesKnockBackAndStunHarder(t *testing.T) {
 		c.HP = 1e6
 		x := c.X
 		st := WeaponStats(WShotgun, [NumTracks]uint8{TrackSpecial: sp})
-		w.slug = st.Stun
 		w.shoot(p, st, 0)
-		w.slug = 0
 		return c.X - x, c.stunLeft
 	}
 	shove0, stun0 := load(0, 1.5)

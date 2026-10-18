@@ -28,6 +28,7 @@ const STICKY = new Set(['wall', 'gate']);
 const USE_REACH = 4;
 const CRATE_REACH = 14; // tiles within which E walks to a supply crate
 const LOOT_SEEK = 24; // tiles within which E twice walks to a loot site, about a screen's worth
+const SEEK_PENDING = 1000; // ms a loot order just sent counts as on its way, until the host echoes it
 
 // What the player is doing with the mouse, what is selected and hovered, and every action
 // the input handlers and the HUD buttons can trigger.
@@ -43,6 +44,7 @@ export class Controller {
   // When G went down to drop the weapon in hand, 0 while it is up (input.ts).
   dropAt = 0;
   private wasAtArmory = false;
+  private sought = 0; // when E twice last sent the hero to a loot site
   // Set by walkToArmory: the window opens on arrival, but not for walking past the shop.
   private toArmory = false;
   private g1 = new THREE.Vector3();
@@ -261,11 +263,13 @@ export class Controller {
 
   // E twice: the hero walks to the nearest unsearched loot site and searches it. Only one in
   // sight range and not still out in the dark, since sites are found by going out and looking.
-  // A hero already off looting carries on, so spamming E doesn't restart a search.
+  // A hero already off looting carries on, so spamming E doesn't restart a search, nor does
+  // one just sent off whose order the host has yet to send back.
   seekLoot(): boolean {
     const g = this.game, f = g.cur, wd = g.welcome, me = this.me();
     if (!wd || !me || !(me.flags & PF_ALIVE)) return false;
-    if (me.order === Order.Loot) return true;
+    const now = performance.now();
+    if (me.order === Order.Loot || now - this.sought < SEEK_PENDING) return true;
     let best = -1, bd = LOOT_SEEK;
     for (let i = 0; i < wd.sites.length; i++) {
       const s = wd.sites[i];
@@ -273,7 +277,9 @@ export class Controller {
       const d = Math.hypot(siteX(s) - me.x, siteY(s) - me.y);
       if (d < bd) { bd = d; best = i; }
     }
-    return best >= 0 && this.useAt({ t: 'site', id: best });
+    if (best < 0 || !this.useAt({ t: 'site', id: best })) return false;
+    this.sought = now;
+    return true;
   }
 
   private nearestCrate(x: number, y: number, reach: number): { x: number; y: number; d: number } | null {
