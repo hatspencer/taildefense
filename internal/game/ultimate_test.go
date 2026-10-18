@@ -222,3 +222,19 @@ func TestFixAllRebuildsAndRepairs(t *testing.T) {
 		t.Fatal("fixed during a wave")
 	}
 }
+
+// Overkill charges nothing: a hit fills the meter by the hit points it takes.
+func TestOverkillDoesNotCharge(t *testing.T) {
+	w := newBare(3)
+	p, _ := w.Join("ana", "ana@example")
+	w.Queue = []Spawn{{At: 1e9}}
+	w.SpawnCreep(CWalker, p.X+6, p.Y)
+	w.SpawnCreep(CWalker, p.X+6, p.Y+2)
+	hp := w.Creeps[0].HP
+	w.damage(0, hp, int8(p.ID))
+	small := p.Ult
+	w.damage(1, hp*10, int8(p.ID))
+	if big := p.Ult - small; big > small*1.001 {
+		t.Fatalf("ten times a walker's health charged %.4f, its health %.4f", big, small)
+	}
+}

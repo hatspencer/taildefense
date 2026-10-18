@@ -1004,6 +1004,7 @@ func (w *World) damage(i int32, dmg float32, owner int8) {
 	if d < dmg*.25 {
 		d = dmg * .25
 	}
+	dealt := min(d, c.HP) // what the creep had left: overkill charges nothing
 	c.HP -= d
 	w.provoke(c)
 	if owner >= 0 && !w.turretFire && !w.burning {
@@ -1017,7 +1018,7 @@ func (w *World) damage(i int32, dmg float32, owner int8) {
 			if w.turretFire {
 				p.Tally.Turret += float64(d)
 			} else if !w.burning {
-				p.charge(d / w.ultFull())
+				p.charge(dealt / w.ultFull())
 			}
 		}
 	}

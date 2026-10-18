@@ -72,21 +72,24 @@ var Ultimates = [NumWeapons]UltDef{
 }
 
 // The ultimate's charge comes from the damage a survivor deals with their own hands, and from
-// revives. Waves grow, so the meter is measured against the wave: it is full after ultWaves
-// times ultShare of the hit points in a lone survivor's wave, about what a survivor in the
-// thick of it deals in ultWaves waves while the turrets do the rest; bots fill it every
-// three or four. Turrets and burning ground add nothing, and nothing fills it while an
-// ultimate runs.
+// revives. Only the hit points a hit takes count, not what it would have done past the
+// creep's last, so a big round on a small creep fills it no faster than a small one. Waves
+// grow, so the meter is measured against the wave: it is full after ultWaves times ultShare
+// of the hit points in a lone survivor's wave, at this difficulty's wave size and creep
+// health, about what a survivor in the thick of it takes off in ultWaves waves while the
+// turrets do the rest; bots fill it every two or three. Turrets and burning ground add
+// nothing, and nothing fills it while an ultimate runs.
 const (
 	ultWaves     = 3
-	ultShare     = .7
+	ultShare     = .37
 	ultPerRevive = .15
 )
 
 // ultFull is the damage that fills the meter this wave.
 func (w *World) ultFull() float32 {
 	wave := max(w.Wave, 1)
-	return ultWaves * ultShare * Budget(wave, 1) * Creeps[CWalker].HP * HPScale(wave) * w.diff().HP
+	d := w.diff()
+	return ultWaves * ultShare * Budget(wave, 1) * d.Count * Creeps[CWalker].HP * HPScale(wave) * d.HP
 }
 
 // Dead Eye's numbers: seconds marking, walking at deadEyeWalk of the speed; how far it sees,
