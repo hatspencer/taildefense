@@ -673,6 +673,10 @@ about -29, ambience -32 to -42, footsteps under -45.
   packet torn, antiseptic hissed and a bandage pulled tight; changing guns is webbing, a grip
   slapped into the palm and a safety thumbed off. Footsteps: a boot's heel then its toe on
   grit, a dead foot dragged then slapped down bare, a big one's weight crushing the dirt.
+  What plays often is kept from tiring: the coins, heard on every buy and sell and often
+  several in a row, ring briefly and below the harshest band, their spin a short rattle; a
+  dead foot's drag is short, since a horde's steps are the commonest sound and long ones ran
+  together into a hiss under everything.
 - **Thunder rips, then booms, then rolls.** A close bolt crackles along its length faster and
   faster into the clap; the roll is that clap arriving again from each stretch of the bolt
   further off, later and darker, for five seconds. One in four is further off, all roll.

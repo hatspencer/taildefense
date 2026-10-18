@@ -764,8 +764,10 @@ function step(sr: number, r: R): Buf {
 
 // A dead foot: dragged through the dirt as much as lifted, then slapped down, bare skin.
 function creepStep(sr: number, r: R): Buf {
-  const b = new Buf(sr, 0.34);
-  const drag = jit(r, 0.13, 0.3);
+  // The drag kept short: a horde's steps are the commonest sound there is, and a long one ran
+  // together into a hiss under everything.
+  const b = new Buf(sr, 0.18);
+  const drag = jit(r, 0.06, 0.25);
   roar(b, r, 0, drag, 1500, 600, drag * 0.6, drag * 0.25, 0.25);
   const at = drag * 0.85, sv = new SVF(sr), o = Math.floor(at * sr);
   for (let i = 0; i < sr * 0.04 && o + i < b.len; i++) b.d[o + i] += sv.run(r() * 2 - 1, 1100, 1.2).band * ad(i / sr, 0.0005, 0.006) * 1.2;
@@ -919,20 +921,22 @@ function tinnitus(sr: number, r: R): Buf {
 
 // --- the base -----------------------------------------------------------------------------
 
-// Paying: a handful of coins tipped onto a pile, each strike two coins' own high modes ringing
-// briefly, the clinks thinning as they settle, and the last one spinning down on its edge.
+// Paying: a handful of coins tipped onto a pile, each strike two coins' own modes ringing
+// briefly, the clinks thinning as they settle, and the last one spinning down on its edge. It
+// plays on every buy and sell, often several in a row: rings kept short and below the
+// harshest band, and the spin a brief rattle, not a ringing tail.
 function coins(sr: number, r: R): Buf {
-  const b = new Buf(sr, 0.9);
+  const b = new Buf(sr, 0.7);
   thud(b, r, 0, 260, 160, 0.015, 0.35, 0.8, 1500);
   let t = 0;
   for (let k = 0; k < 12; k++) {
-    t += 0.008 + r() * 0.035 * (1 + k * 0.15);
-    const f = jit(r, 2500, 0.25);
-    ping(b, t, [f, f * 1.47, f * 2.09, f * 2.63], 0.03 + r() * 0.03, 0.3 * (1 - k / 16));
-    click(b, r, t, 1800, 0.12, 0.002);
+    t += 0.008 + r() * 0.03 * (1 + k * 0.12);
+    const f = jit(r, 2100, 0.25);
+    ping(b, t, [f, f * 1.47, f * 2.09], 0.018 + r() * 0.018, 0.3 * (1 - k / 16));
+    click(b, r, t, 1600, 0.12, 0.002);
   }
-  const f = jit(r, 2300, 0.1);
-  for (let s = t + 0.05, gap = 0.06; gap > 0.008 && s < 0.85; s += gap, gap *= 0.8) ping(b, s, [f, f * 1.47], 0.02, 0.12);
+  const f = jit(r, 1900, 0.1);
+  for (let s = t + 0.04, gap = 0.04; gap > 0.008 && s < 0.62; s += gap, gap *= 0.72) ping(b, s, [f, f * 1.47], 0.012, 0.08);
   return b.normalize(0.7).fadeOut();
 }
 
@@ -1452,7 +1456,7 @@ export const RECIPES: Record<string, [number, Maker, number?]> = {
   bigStep: [4, bigStep, LOW],
   strike: [8, (sr, r) => creepStrike(sr, r, false)],
   strikeBig: [3, (sr, r) => creepStrike(sr, r, true), LOW],
-  coins: [2, coins],
+  coins: [3, coins],
   upgrade: [3, upgrade],
   hammer: [3, hammer],
   crumble: [3, crumble, LOW],
