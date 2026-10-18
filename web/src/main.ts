@@ -325,11 +325,8 @@ async function main(): Promise<void> {
     if (wd && game.frames > 1) {
       if (!hooksApplied && game.cur.nPlayers > 0) applyHooks();
       if (labMode && !lab) {
-        lab = new demoKit!.Lab(game, wd.core.x, wd.core.y, P.has('gun') ? Number(P.get('gun')) : -1);
+        lab = new demoKit!.Lab(game, wd.core.x, wd.core.y, P.has('gun') ? Number(P.get('gun')) : -1, P.has('still'), P.has('nv'));
         demoHost!.halt();
-        lab = new Lab(game, wd.core.x, wd.core.y, P.has('gun') ? Number(P.get('gun')) : -1, P.has('still'));
-        lab = new Lab(game, wd.core.x, wd.core.y, P.has('gun') ? Number(P.get('gun')) : -1, P.has('still'), P.has('nv'));
-        (transport as DemoHost).halt();
         const [lx, ly] = lab.center(P.get('lab') ?? '');
         rig.follow = false; rig.center(lx, ly); rig.setDist(Number(P.get('dist')) || 26);
         if (P.has('yaw')) rig.setYaw(Number(P.get('yaw')) * Math.PI / 180);
