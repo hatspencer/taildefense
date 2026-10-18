@@ -27,6 +27,7 @@ it here along with the code.
 | break between waves | 20 s | 15 s | 18 s | 20 s |
 | long break, after every 5th wave | 75 s | 60 s | 60 s | 60 s |
 | starting weapon | pistol | pistol | pistol | crowbar |
+| starting gold | 150 | 150 | 150 | 0 |
 | sight out past the base | 12 | 12 | 7, night | 3 round, 11 ahead, night |
 
 - **Night on hard and brutal.** Out past the generator's lights a survivor sees only a small
@@ -53,7 +54,8 @@ it here along with the code.
 - **Brutal starts in melee.** Survivors begin with a crowbar and no gun: a short swing that
   hits up to three creeps in front, never runs dry, and is quiet. Its ultimate, Berserk, doubles
   the swings, heals by the hit and can't be slowed or stunned. Guns are bought or found as usual; the crowbar is
-  never sold or found, so it is brutal's alone.
+  never sold or found, so it is brutal's alone. Nor do they start with any gold: the first
+  turret or gun is paid for with the first wave's bounties, swung for with the crowbar.
 
 - **Short breaks** (15 s on Normal) keep the pressure on: enough to shop, repair and drop a
   turret, not enough to wander off. If everyone presses Ready, the countdown jumps to 3 s.
