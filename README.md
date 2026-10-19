@@ -136,9 +136,9 @@ ultimates, weather, waves and breaks) is in [docs/playing.md](docs/playing.md).
 │  │  netplay.Server · tailnet IP + lo    │  │        │                                    │
 │  │  :7787, nothing else                 │  │        │                                    │
 │  │                                      │  │  TCP   │                                    │
-│  │  game.World ── Step() at 20 Hz       │◀─┼────────┼── commands (orders, not keys)      │
+│  │  game.World ── Step() at 20 Hz       │←─┼────────┼── commands (orders, not keys)      │
 │  │  flow field · spatial hash · A*      │  │tailnet │                                    │
-│  │  waves · loot · aggro · weather      │──┼────────┼─▶ deltas, deflated; a keyframe     │
+│  │  waves · loot · aggro · weather      │──┼────────┼─→ deltas, deflated; a keyframe     │
 │  │                                      │  │        │   to catch up                      │
 │  │  Encoder: one delta for all, a       │  │        │                                    │
 │  │  keyframe for whoever fell behind    │  │        │                                    │
@@ -147,7 +147,7 @@ ultimates, weather, waves and breaks) is in [docs/playing.md](docs/playing.md).
 │                 ▼ │                        │        │                                    │
 │  ┌──────────────────────────────────────┐  │        │  ┌──────────────────────────────┐  │
 │  │  web.Session                         │  │        │  │  web.Session                 │  │
-│  │  netplay.Client ─▶ Replica           │  │        │  │  netplay.Client ─▶ Replica   │  │
+│  │  netplay.Client ─→ Replica           │  │        │  │  netplay.Client ─→ Replica   │  │
 │  │  view encoder: the whole world,      │  │        │  │  view encoder                │  │
 │  │  every tick                          │  │        │  │                              │  │
 │  │  HTTP + WebSocket, 127.0.0.1 only,   │  │        │  │  127.0.0.1:random #token     │  │
