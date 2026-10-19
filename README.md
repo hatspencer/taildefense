@@ -1,10 +1,10 @@
 # taildefense
 
-Co-op wave defense played in your browser over your tailnet. The game is 3D, seen from a tilted
-camera you can rotate, with WC3-style controls. You and your friends hold a walled base around a
-generator. Between waves you shop at the armory, upgrade weapons and abilities, build and repair
-turrets and walls. During a wave, hordes come in from every side of the map. The goal is to
-survive as many waves as you can.
+Co-op wave defense played in your browser over your tailnet, inspired by Warcraft III tower
+defense maps. The game is 3D, seen from a tilted camera you can rotate. You and your friends hold
+a walled base around a generator. Between waves you shop at the armory, upgrade weapons and
+abilities, build and repair turrets and walls. During a wave, hordes come in from every side of
+the map. The goal is to survive as many waves as you can.
 
 ```
 td            # launcher: host a game, find games on your tailnet, settings, changelog, doctor
