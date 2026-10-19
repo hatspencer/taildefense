@@ -14,17 +14,17 @@ One tick, from a key press to the screen:
 Browser                   local td (web.Session)               host td (netplay.Server)
   │                                │                                    │
   │  {"op":"move","x":…,"y":…}     │                                    │
-  │ ──────────────────────────────▶│  Cmd: op, a, b, x/y to 1/8 tile,   │
+  │ ──────────────────────────────→│  Cmd: op, a, b, x/y to 1/8 tile,   │
   │                                │  t, text                           │
-  │                                │ ──────────────────────────────────▶│  netplay.Exec on the World,
+  │                                │ ──────────────────────────────────→│  netplay.Exec on the World,
   │                                │                                    │  between ticks
   │                                │                                    │  every 50 ms: World.Step,
   │                                │                                    │  Encoder.Delta, shared by
   │                                │  frame: delta (or keyframe)        │  every player's queue
-  │                                │ ◀──────────────────────────────────│
+  │                                │ ←──────────────────────────────────│
   │                                │  Replica.Apply                     │
   │  frame: the whole world        │                                    │
-  │ ◀──────────────────────────────│                                    │
+  │ ←──────────────────────────────│                                    │
   │  interpolate, draw             │                                    │
 ```
 
