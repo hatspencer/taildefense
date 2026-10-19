@@ -42,6 +42,7 @@ const (
 	KeyAutoUpdate = "AUTOUPDATE"
 	KeyDifficulty = "DIFFICULTY"
 	KeyFog        = "FOG"
+	KeyWaves      = "WAVES"
 )
 
 // DefaultPort is netplay.DefaultPort, repeated here so the prefs do not import the network
@@ -93,6 +94,8 @@ var Keys = []Key{
 		Parse: parseDifficulty, Default: func() string { return strings.ToLower(game.DefaultDifficulty.String()) }},
 	{Name: KeyFog, Env: "TAILDEFENSE_FOG", Help: "fog of war in the games you host: only what the team can see is shown",
 		Parse: parseOnOff, Default: func() string { return "off" }, Bool: true},
+	{Name: KeyWaves, Env: "TAILDEFENSE_WAVES", Help: "how long the games you host are: 20, 30 or 40 waves, then the evac; or endless",
+		Parse: parseWaves, Default: func() string { return FormatWaves(game.DefaultLastWave) }},
 	{Name: KeyBrowser, Env: "TAILDEFENSE_BROWSER", Help: "what opens the game: auto (best browser, full screen), default, chrome, firefox…, none or a command",
 		Parse: parseBrowser, Default: func() string { return BrowserAuto }},
 	{Name: KeyAutoUpdate, Env: "TAILDEFENSE_NO_AUTOUPDATE", Help: "update td in the background when main moves on",
@@ -275,6 +278,15 @@ func (p *Prefs) Difficulty() game.Difficulty {
 // Fog is whether games are hosted with fog of war.
 func (p *Prefs) Fog() bool { return ParseOnOff(p.Get(KeyFog).Value, false) }
 
+// Waves is the last wave of the games hosted, the one that ends with the evac; 0 is endless.
+func (p *Prefs) Waves() int {
+	n, err := ParseWaves(p.Get(KeyWaves).Value)
+	if err != nil {
+		return game.DefaultLastWave
+	}
+	return n
+}
+
 // AutoUpdate is whether td may update itself in the background.
 func (p *Prefs) AutoUpdate() bool { return ParseOnOff(p.Get(KeyAutoUpdate).Value, true) }
 
@@ -430,6 +442,35 @@ func parseDifficulty(s string) (string, error) {
 		return "", err
 	}
 	return strings.ToLower(d.String()), nil
+}
+
+// ParseWaves reads a game length: 20, 30, 40 or endless (0 reads as endless too).
+func ParseWaves(s string) (int, error) {
+	s = strings.ToLower(strings.TrimSpace(s))
+	if s == "endless" || s == "0" {
+		return 0, nil
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n == 0 || !game.ValidLastWave(n) {
+		return 0, fmt.Errorf("%q is not a game length: 20, 30, 40 or endless", s)
+	}
+	return n, nil
+}
+
+// FormatWaves writes a game length the way ParseWaves reads it.
+func FormatWaves(n int) string {
+	if n == 0 {
+		return "endless"
+	}
+	return strconv.Itoa(n)
+}
+
+func parseWaves(s string) (string, error) {
+	n, err := ParseWaves(s)
+	if err != nil {
+		return "", err
+	}
+	return FormatWaves(n), nil
 }
 
 func parsePort(s string) (string, error) {

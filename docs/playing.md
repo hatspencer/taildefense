@@ -215,3 +215,18 @@ Between waves there is a short break, 15 s on Normal, and after every fifth wave
 a minute on Normal, to go out exploring and looting; ten seconds before it ends everyone is
 called home. The last seconds of every break count down in the middle of the screen. When
 everyone is ready the countdown jumps to 3 s.
+
+## Get to the choppa
+
+A game is won by holding out to its last wave: 40 by default, or 20 or 30 if the host picked
+a shorter one (an endless game has none, and goes on until the generator falls). Clearing it
+calls the evac Huey to the helipad, a concrete square with an H on it out past the walls: in the
+build ring on easy and normal, further out on hard and brutal. At night (hard and brutal) the
+pad has to be found first: it shows on the map and the minimap only once someone's light has
+fallen on it, so go and look for it before the end.
+
+The Huey lands a minute after the call, and the last of the dead come for the pad, not the
+generator, which can't fall now. Hold the pad. Once it is down, press E (from anywhere: it walks
+you there) and stand by it a second, unhurt, to get aboard. It waits up to 90 s; once someone is
+aboard it goes when everyone still playing is aboard, or 30 s later, with or without the rest.
+Then it lifts off and flies away, and the field report says who got out.

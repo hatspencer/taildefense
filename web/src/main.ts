@@ -9,7 +9,7 @@ import { DROP_HOLD, Input } from './input';
 import { Kiosk } from './kiosk';
 import type { Lab } from './lab';
 import { type Handlers, type Transport, WsTransport } from './net';
-import { PF_ALIVE, PF_ARMORY, Phase, PingKind, SiteKind, siteX, siteY, TTrack, TURRET_TRACKS, turretRange, type Welcome, wreck } from './protocol';
+import { EvacStage, PF_ALIVE, PF_ARMORY, Phase, PingKind, SiteKind, siteX, siteY, TTrack, TURRET_TRACKS, turretRange, type Welcome, wreck } from './protocol';
 import { Creeps } from './scene/creeps';
 import { Effects } from './scene/effects';
 import { Helis } from './scene/heli';
@@ -137,6 +137,7 @@ async function main(): Promise<void> {
   const ctl = new Controller(game, send, rig, effects);
   const labels = new Labels(app);
   const hud = new Hud(app, ctl);
+  hud.leaving = () => helis.leaving(game);
   const portraits = new Portraits(world.renderer, world.backend === 'WebGL2');
   hud.setPortraits(portraits);
   ctl.onToast = (t, l) => hud.toast(t, l);
@@ -217,6 +218,7 @@ async function main(): Promise<void> {
       coreHp: P.has('corehp') ? Number(P.get('corehp')) : 1,
       drop: P.has('drop'),
       fog: P.has('fog'),
+      evac: P.has('evac'),
     };
     demoKit = await loadDemo();
     demoHost = new demoKit.DemoHost(handlers, opt);
@@ -326,6 +328,10 @@ async function main(): Promise<void> {
       if (lab) lab.step(now); else game.interpolate(now);
       const me = game.me();
       if (me && (me.flags & PF_ALIVE) && !lab) rig.track(game.prx[me.id], game.pry[me.id]);
+      // Aboard the evac Huey, and for everyone as it lifts off, the camera rides with it, panned
+      // away or not.
+      const ride = me?.aboard || game.cur.evac === EvacStage.Departing ? helis.evacAt() : null;
+      if (ride) rig.center(ride.x, ride.y, true);
     }
     input.update(dt, W, H);
     rig.update(dt);
@@ -337,7 +343,7 @@ async function main(): Promise<void> {
     if (wd) {
       // Waves are fought at dusk.
       const me = game.me();
-      const goal = game.cur.phase === Phase.Wave ? 1 : 0;
+      const goal = game.cur.phase === Phase.Wave || game.cur.phase === Phase.Evac ? 1 : 0;
       const m = world.night + (goal - world.night) * Math.min(1, dt * 0.6);
       const alive = !!me && (me.flags & PF_ALIVE) !== 0;
       world.setMood(m, me ? game.prx[me.id] : 0, me ? game.pry[me.id] : 0, me ? game.paim[me.id] : 0, alive && !me!.goggles, wd.core.x, wd.core.y);

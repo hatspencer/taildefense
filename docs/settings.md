@@ -15,6 +15,11 @@ you and down your flashlight's beam, only what you, a teammate, the generator or
 lights right now shows, and ground found before goes back to black. On brutal you start with only a crowbar and no gold. A restart keeps the game's difficulty. The host can also change it
 mid-game by clicking the difficulty chip at the top left.
 
+`WAVES` is how long the games you host are: `20`, `30` or `40` (the default) waves, after which
+the evac Huey comes for the survivors and the game ends, or `endless`, which goes on until the
+generator falls. `--waves` sets it for one run, and the launcher's `w` on Host a game cycles
+through them. A restart keeps it.
+
 `FOG` is `off` by default. On, the games you host hide whatever the team cannot see, on any
 difficulty; at night (hard and brutal) that is always so.
 

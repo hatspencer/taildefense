@@ -38,7 +38,7 @@ everything it knows, a terrain message follows).
 ```jsonc
 {
   "t": "welcome",
-  "proto": 17,
+  "proto": 18,
   "version": "a1b2c3d",
   "you": 0,                    // your player id
   "w": 352, "h": 220,          // map size in tiles
@@ -61,6 +61,16 @@ everything it knows, a terrain message follows).
   "revive": {"reach": 1.6, "time": 2.5, "hp": 0.4}, // stand within reach for time seconds; up with hp*maxHp
   "medkit": {"heal": 0.4, "time": 3, "max": 3, "cost": 60}, // one heals heal*maxHp over time s; carry max; cost gold
   "goggles": 3000,             // night vision goggles' price: daytime sight at night, instead of the flashlight
+  "lastWave": 40,              // the wave whose end calls the evac Huey; 0 for an endless game
+  "evac": {                    // absent in an endless game. The helipad and the Huey's timing, seconds:
+    "pad": {"x": 182, "y": 138},  // the pad's middle, on a tile corner; it is 2*half tiles square.
+    "half": 3,                 // At night (dark) it shows once any of its tiles has been seen, or
+    "reach": 4,                // once the Huey is down on it. A survivor boards within reach of
+    "board": 1,                // the middle, taking board seconds unhurt.
+    "inbound": 60, "flight": 16, "settle": 3,  // call to touchdown; the last flight of it in sight, the last settle coming down
+    "wait": 90, "last": 30,    // on the pad at most wait, at most last once someone is aboard
+    "depart": 10, "climb": 2.5 // lift-off to off the map; the first climb of it rising over the pad
+  },
   "core": {"x": 160, "y": 100},// generator centre, tiles
   "buildRadius": 40,           // building only within this distance of core
   "shopRadius": 4.5,           // shop only within this distance of the armory centre
@@ -227,7 +237,8 @@ All little-endian. Counts precede their lists.
 ```
 u8   1
 u32  tick
-u8   phase            0 build (between waves), 1 wave, 2 over (generator destroyed)
+u8   phase            0 build (between waves), 1 wave, 2 over (generator destroyed, or the evac
+                      Huey gone), 3 evac (the last wave is over: the Huey is coming, waiting or leaving)
 u16  wave             current wave number (0 before the first)
 u16  phaseLeft        deciseconds until the next wave, build phase only
 u32  left             creeps holding the wave open: still to spawn, alive anywhere (fog or not),
@@ -257,9 +268,10 @@ u8   nPlayers
   u8   levels[28]     weapon-major: levels[w*4 + track]
   u8   gear[4]        Armor, Boots, Vitamins, Scavenger
   u8   order          0 idle, 1 move, 2 attack-move, 3 attack, 4 hold, 5 build, 6 repair,
-                      7 loot, 8 revive, 9 steer (walking with WASD), 10 pick up a weapon
-  u8   channel        how far the current search (order 7), revive (order 8) or pickup
-                      (order 10, 0.2 s) is, 0..255;
+                      7 loot, 8 revive, 9 steer (walking with WASD), 10 pick up a weapon,
+                      11 board the evac Huey
+  u8   channel        how far the current search (order 7), revive (order 8), pickup
+                      (order 10, 0.2 s) or boarding (order 11) is, 0..255;
                       0 while walking there
   u8   revived        for a downed survivor: how far the best revive on them is, 0..255
   u8   emote          0 none, 1 taunting
@@ -269,7 +281,8 @@ u8   nPlayers
   u8   sprint         bit 0 sprinting now, bit 1 winded (no sprint until the bar is back to about a third),
                       bit 2 stunned by a slam (not moving, firing or casting), bit 3 wears night vision
                       goggles (sees DAY_SIGHT all round at night, no flashlight), bit 4 shielded: just
-                      put back at the base, takes no harm for 5s (drawn blinking)
+                      put back at the base, takes no harm for 5s (drawn blinking), bit 5 aboard the
+                      evac Huey (not alive, not down: drawn nowhere, rides at the Huey's x, y)
   u32  look           what the survivor looks like, dealt by the host on joining, bits:
                         0-3 archetype (0 paramedic, 1 mechanic, 2 hunter, 3 student, 4 builder,
                             5 nurse, 6 biker, 7 farmer, 8 ex-soldier, 9 office worker),
@@ -301,6 +314,13 @@ u8   nGuns            weapons survivors dropped, lying on the ground (at most 32
   u16  x, y q8
   u8   lv[4]          its track levels, kept from the hands that dropped it
   u8   by             the player id who dropped it
+
+u8   evac             the evac Huey: 0 not called, 1 inbound, 2 down on the pad, 3 lifting off,
+                      4 gone (the game is over); when not 0:
+  u16  left           deciseconds until this stage ends (inbound: touchdown; down: lift-off)
+  u16  x, y q8        where it is over the ground; out of sight while inbound with left > flight
+  u8   alt            0 on the pad .. 255 at cruising height
+  u16  heading        angle in turns * 65536, as aim
 
 u16  nStructs         the whole list; the index is the struct id used in commands
   u8   alive          0 gone (dead slots are kept so ids stay stable), 1 standing, 2 a ghost:
@@ -341,7 +361,8 @@ u16  nBlasts          explosions and pulses this tick
                       7 taunt (a ring the size of the pull), 8 lightning strike (storm),
                       9 revived (a survivor stands up), 10 guards wake (at the guard),
                       11 the church bell rung (at its rope), 12 bile bursting (a broodmother's
-                      sac landing, or the broodmother splitting open)
+                      sac landing, or the broodmother splitting open), 13 the evac Huey touching
+                      down on the helipad
 u16  nDeaths          creeps that died this tick
   u16  x, y q8
   u8   kind
@@ -410,6 +431,7 @@ integers. The host checks everything; a refusal comes back as a `toast` with lev
 {"op": "drop",    "w": 3}                    // put owned weapon 3 on the ground, upgrades and all
                                              // (refused for the last weapon carried)
 {"op": "pickup",  "id": 17}                  // walk to weapon 17 on the ground and pick it up
+{"op": "board"}                              // once the evac Huey is down: walk to it and get aboard
 {"op": "ready",   "on": true}                // ready for the next wave (all ready: starts in 3 s)
 {"op": "restart"}                            // a new map, only once the game is over
 {"op": "difficulty", "kind": 2}              // the host only: change the difficulty from here on

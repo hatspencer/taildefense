@@ -131,6 +131,21 @@ type point struct {
 	Y float32 `json:"y"`
 }
 
+// evacDef is the helipad and the evac Huey's timing, in seconds.
+type evacDef struct {
+	Pad     point   `json:"pad"`
+	Half    float32 `json:"half"`
+	Reach   float32 `json:"reach"`
+	Board   float32 `json:"board"`
+	Inbound float32 `json:"inbound"`
+	Flight  float32 `json:"flight"`
+	Settle  float32 `json:"settle"`
+	Wait    float32 `json:"wait"`
+	Last    float32 `json:"last"`
+	Depart  float32 `json:"depart"`
+	Climb   float32 `json:"climb"`
+}
+
 type welcomeMsg struct {
 	T               string        `json:"t"`
 	Proto           int           `json:"proto"`
@@ -163,6 +178,8 @@ type welcomeMsg struct {
 	Sites           []siteDef     `json:"sites"`
 	Difficulty      difficultyRef `json:"difficulty"`
 	FogOfWar        bool          `json:"fogOfWar"`
+	LastWave        int           `json:"lastWave"`       // the wave whose end calls the evac; 0 endless
+	Evac            *evacDef      `json:"evac,omitempty"` // absent in an endless game
 	Dark            float32       `json:"dark,omitempty"` // survivors' sight at night; 0 for none
 	Cone            float32       `json:"cone,omitempty"` // brutal: the flashlight's reach; 0 for none
 	Seen            []byte        `json:"seen,omitempty"` // at night, the ground found so far: a bit per tile, low bit first
@@ -271,6 +288,12 @@ func welcome(wel netplay.Welcome, core point, host, hint string, hosting bool) w
 	}
 	m.Difficulty = difficultyRef{int(wel.Diff), wel.Diff.String()}
 	m.FogOfWar = wel.Fog
+	m.LastWave = wel.LastWave
+	if wel.LastWave > 0 {
+		inbound, flight, settle, wait, last, depart, climb, reach, board, half := game.EvacInfo()
+		m.Evac = &evacDef{Pad: point{wel.PadX, wel.PadY}, Half: half, Reach: reach, Board: board,
+			Inbound: inbound, Flight: flight, Settle: settle, Wait: wait, Last: last, Depart: depart, Climb: climb}
+	}
 	if wel.Diff < game.NumDifficulties {
 		m.Dark = game.Difficulties[wel.Diff].Dark
 		m.Cone = game.Difficulties[wel.Diff].Cone

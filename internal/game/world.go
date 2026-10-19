@@ -118,6 +118,7 @@ type Player struct {
 	Firing    bool
 	Moving    bool
 	Hurt      float32
+	Aboard    bool    // got aboard the evac Huey: out of the fight, riding out with it (evac.go)
 	Shield    float32 // seconds left of the shield a survivor put back at the base wears; see spawnShield
 	// A slow (stun.go): seconds the survivor walks at half speed for, and until another can land.
 	slowLeft, slowCool float32
@@ -178,8 +179,11 @@ const TracerTurret = 16
 // Blast is an explosion or pulse for one frame.
 type Blast struct {
 	X, Y, R float32
-	Kind    uint8 // 0 rocket/cannon, 1 frost, 2 tesla, … 11 the church bell, 12 a sac of bile bursting
+	Kind    uint8 // 0 rocket/cannon, 1 frost, 2 tesla, … 11 the church bell, 12 a sac of bile bursting, 13 the evac Huey setting down
 }
+
+// BlastLanded is the dust the evac Huey raises setting down on the pad.
+const BlastLanded = 13
 
 // EffectKind is a lasting effect on the ground.
 type EffectKind uint8
@@ -272,6 +276,14 @@ type World struct {
 	Diff    Difficulty
 	// FogOfWar hides what no survivor or structure can see. The sim ignores it; clients draw it.
 	FogOfWar bool
+	// LastWave is the wave whose end calls the evac Huey and so ends the game (evac.go); 0 for
+	// an endless game, which goes on until the generator falls.
+	LastWave int
+	// PadX, PadY is the middle of the helipad the evac Huey lands on (evac.go), on a tile corner.
+	PadX, PadY float32
+	// PadFound: at night, someone has seen the helipad, or the Huey has come down on it.
+	PadFound bool
+	Evac     Evac
 	// Seen is the ground the team has found, at night only (discover.go); Found the tiles
 	// first seen this tick.
 	Seen  Seen
@@ -373,7 +385,7 @@ func NewGame(seed uint64, diff Difficulty) *World {
 	if diff >= NumDifficulties {
 		diff = DefaultDifficulty
 	}
-	wd := &World{W: w, H: h, Seed: seed, Diff: diff, shooter: -1, Paused: -1, rng: rand.New(rand.NewPCG(seed, seed^0x9e3779b97f4a7c15))}
+	wd := &World{W: w, H: h, Seed: seed, Diff: diff, LastWave: DefaultLastWave, shooter: -1, Paused: -1, rng: rand.New(rand.NewPCG(seed, seed^0x9e3779b97f4a7c15))}
 	var ruins []ruin
 	wd.Terrain, ruins = generate(seed, w, h)
 	wd.structAt = make([]int16, w*h)
@@ -404,6 +416,7 @@ func NewGame(seed uint64, diff Difficulty) *World {
 	}
 	wd.SpawnPts = pts
 	wd.edgePts = wd.edgePoints()
+	wd.placePad(seed)
 	wd.Sites = wd.placeSites(ruins)
 	for i := range wd.Sites {
 		if s := &wd.Sites[i]; s.Kind.Wreck() {

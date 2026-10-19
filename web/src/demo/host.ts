@@ -5,7 +5,7 @@ import { dispatch, type Handlers, type Transport } from '../net';
 import {
   type Command, MAX_CREEPS, Tile, Phase, Order, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_FIRING,
   PF_HURT, PF_MOVING, PF_READY, PF_RELOADING, CF_BURNING, CF_SLOWED, CF_GUARD, CF_HUNTING, CF_SIEGE, CF_ASLEEP,
-  CF_WINDUP, CF_STRIKE, WEAPON_SLOTS,
+  CF_WINDUP, CF_STRIKE, WEAPON_SLOTS, EvacStage,
   BlastKind, EffectKind, Emote, type SiteDef, SiteKind, TRACER_HELI, TRACER_ULT, WET, Weather, type Welcome,
 } from '../protocol';
 import { ABILITY_RADIUS, CREEPS, STRUCTS, WEAPON_BASE, WEATHERS, demoWelcome, turretStats } from './defs';
@@ -13,7 +13,7 @@ import { Writer } from './encode';
 import { type DemoMap, generateMap, rng } from './map';
 
 // weather: a fixed kind, or -1 to cycle. down: a teammate starts downed. coreHp: the generator's share of hp.
-export interface DemoOptions { creeps: number; phase: 'wave' | 'build' | 'over'; wave: number; gold: number; weather?: number; down?: boolean; coreHp?: number; drop?: boolean; fog?: boolean }
+export interface DemoOptions { creeps: number; phase: 'wave' | 'build' | 'over'; wave: number; gold: number; weather?: number; down?: boolean; coreHp?: number; drop?: boolean; fog?: boolean; evac?: boolean }
 
 // How much each weather counts as rain, as the host's wetness.
 const SNOWY = [0, 0, 0, 0, 0.4, 0, 0, 1];
@@ -35,6 +35,8 @@ const LOB_EVERY = 90, LOB_MIN = 4, LOB_MAX = 16;
 const boss = (k: number) => k === 5 || k === 7;
 
 const W = 320, H = 200, DT = 0.05;
+// The helipad and the evac Huey's timing, as internal/game/evac.go has them.
+const EVAC = { half: 3, reach: 4, board: 1, inbound: 60, flight: 16, settle: 3, wait: 90, last: 30, depart: 10, climb: 2.5 };
 // Seconds picking up a dropped weapon takes: the host's gunPickup.
 const GUN_PICKUP = 0.2;
 
@@ -48,6 +50,8 @@ interface DPlayer {
   site: number; searchT: number; revTarget: number; channel: number; emoteLeft: number; tauntCool: number; downT: number; look: number;
   medkits: number; heal: number; steerX: number; steerY: number; steerLeft: number;
   gunId: number; // Order.Pickup: the weapon on the ground's id
+  aboard?: boolean; // on the evac Huey
+  boardT?: number; // Order.Board: seconds spent climbing in
   // The scoreboard's tally: downs, revives, built, searched, bosses, damage taken.
   st: number[];
 }
@@ -88,6 +92,8 @@ export class DemoHost implements Transport {
   private searched = new Uint8Array(0);
   private guardIds: number[][] = [];
   private paused = -1;
+  // #demo&evac: the last wave over and the Huey coming in to the helipad, as evac.go flies it.
+  private evac = { stage: EvacStage.None, left: 0, x: 0, y: 0, alt: 0, yaw: 0, fx: 0, fy: 0 };
   private weather = 0; private weatherAmt = 0; private nextWeather = 0; private weatherT = 0; private boltT = 2;
 
   // Creeps, by id.
@@ -146,6 +152,7 @@ export class DemoHost implements Transport {
     this.sites = this.placeSites(m);
     this.welcome.sites = this.sites;
     this.welcome.fogOfWar = !!opt.fog;
+    if (opt.evac) this.placePad();
     this.reset();
     h.onConn('connecting');
     // Asynchronous like a socket, so the client finishes its own setup first.
@@ -233,6 +240,7 @@ export class DemoHost implements Transport {
       for (let id = 0; id < this.target; id++) this.spawnCreep(id, true);
     }
     if (this.opt.phase === 'over') { this.phase = Phase.Over; this.best = this.wave - 1; }
+    if (this.opt.evac) this.callEvac();
   }
 
   private addStruct(kind: number, x: number, y: number, owner: number): DStruct {
@@ -839,6 +847,9 @@ export class DemoHost implements Transport {
   }
 
   private stepPlayer(p: DPlayer): void {
+    if (p.aboard) { p.x = this.evac.x; p.y = this.evac.y; p.moving = false; return; }
+    if (this.evac.stage === EvacStage.Landed && p.bot && p.hp > 0 && p.order !== Order.Board && this.evac.left < 26 - p.id * 3) { p.order = Order.Board; p.boardT = 0; }
+    if (p.order === Order.Board && p.hp > 0) { p.shot = 0; this.stepBoard(p); return; }
     if (p.hp <= 0) {
       p.respawn -= DT; p.downT += DT;
       p.emoteLeft = 0; p.channel = 0;
@@ -1164,10 +1175,76 @@ export class DemoHost implements Transport {
     this.effects = keep;
   }
 
+  // --- the evac ---
+
+  // The helipad below the base's south wall, on cleared ground.
+  private placePad(): void {
+    const ev = EVAC, x = Math.round(this.welcome.core.x), y = this.ring.y1 + 7;
+    for (let ty = y - ev.half - 1; ty < y + ev.half + 1; ty++) for (let tx = x - ev.half - 1; tx < x + ev.half + 1; tx++) this.tiles[ty * W + tx] = Tile.Grass;
+    this.welcome.lastWave = this.wave;
+    this.welcome.evac = { pad: { x, y }, ...ev };
+  }
+
+  private callEvac(): void {
+    const pad = this.welcome.evac!.pad, e = this.evac;
+    this.phase = Phase.Evac;
+    e.stage = EvacStage.Inbound; e.left = 22; e.fx = pad.x - 70; e.fy = pad.y + 40;
+    e.x = e.fx; e.y = e.fy; e.alt = 1; e.yaw = Math.atan2(pad.y - e.fy, pad.x - e.fx);
+    this.notes.push({ level: 2, text: `wave ${this.wave} cleared · the evac Huey is on its way to the helipad · it lands in 22s` });
+  }
+
+  private stepEvac(): void {
+    const e = this.evac, ev = this.welcome.evac!, pad = ev.pad;
+    e.left = Math.max(0, e.left - DT);
+    if (e.stage === EvacStage.Inbound) {
+      const k0 = Math.min(1, Math.max(0, 1 - e.left / ev.flight)), k = 1 - (1 - k0) * (1 - k0);
+      e.x = e.fx + (pad.x - e.fx) * k; e.y = e.fy + (pad.y - e.fy) * k;
+      const s = Math.min(1, e.left / ev.settle);
+      e.alt = s * s * (3 - 2 * s);
+      if (e.left <= 0) {
+        e.stage = EvacStage.Landed; e.left = 30; e.alt = 0;
+        this.blast(pad.x, pad.y, 3, BlastKind.Landed, 0, null);
+        this.notes.push({ level: 2, text: 'GET TO THE CHOPPA! · the Huey is down on the pad: press E by it to get aboard · it leaves in 30s' });
+      }
+    } else if (e.stage === EvacStage.Landed) {
+      const all = this.players.every((p) => p.aboard);
+      if (all || e.left <= 0) { e.stage = EvacStage.Departing; e.left = ev.depart; this.notes.push({ level: 2, text: 'the Huey lifts off' }); }
+    } else if (e.stage === EvacStage.Departing) {
+      const s = ev.depart - e.left;
+      if (s <= ev.climb) e.alt = s / ev.climb;
+      else {
+        const k = (s - ev.climb) / (ev.depart - ev.climb);
+        e.x = pad.x + (e.fx - pad.x) * k * k; e.y = pad.y + (e.fy - pad.y) * k * k;
+        e.alt = 1;
+      }
+      let d = Math.atan2(e.fy - pad.y, e.fx - pad.x) - e.yaw;
+      d -= Math.round(d / (Math.PI * 2)) * Math.PI * 2;
+      e.yaw += Math.max(-2 * DT, Math.min(2 * DT, d));
+      if (e.left <= 0) {
+        e.stage = EvacStage.Gone; this.phase = Phase.Over; this.best = this.wave;
+        this.notes.push({ level: 2, text: 'the Huey is gone over the trees · the field report is in' });
+      }
+    }
+  }
+
+  // Walks a survivor on Order.Board up to the Huey; a second beside it and they are aboard.
+  private stepBoard(p: DPlayer): void {
+    const ev = this.welcome.evac!;
+    if (this.evac.stage !== EvacStage.Landed) { p.order = Order.Idle; return; }
+    if (!this.walk(p, ev.pad.x, ev.pad.y + 1.5, ev.reach - 0.5)) { p.boardT = 0; return; }
+    p.boardT = (p.boardT ?? 0) + DT;
+    p.channel = Math.min(1, p.boardT / ev.board);
+    if (p.boardT >= ev.board) {
+      p.aboard = true; p.order = Order.Idle; p.channel = 0;
+      this.notes.push({ level: 1, text: `${p.name} is aboard` });
+    }
+  }
+
   // --- the wave cycle ---
 
   private stepPhase(): void {
     if (this.phase === Phase.Over) return;
+    if (this.phase === Phase.Evac) { this.stepEvac(); return; }
     if (this.phase === Phase.Build) {
       const humans = this.players.filter((p) => !p.bot);
       if (humans.every((p) => p.ready) && this.phaseLeft > 30) this.phaseLeft = 30;
@@ -1256,7 +1333,7 @@ export class DemoHost implements Transport {
     w.u8(this.weather); w.u8(Math.round(this.weatherAmt * 255)); w.u8(this.paused + 1);
     w.u8(this.players.length);
     for (const p of this.players) {
-      const alive = p.hp > 0;
+      const alive = p.hp > 0 && !p.aboard;
       let f = PF_CONNECTED;
       if (alive) f |= PF_ALIVE;
       if (alive && p.shot > 0) f |= PF_FIRING;
@@ -1279,7 +1356,7 @@ export class DemoHost implements Transport {
       if (!alive) for (const o of this.players) if (o.order === Order.Revive && o.revTarget === p.id) rev = Math.max(rev, o.channel);
       w.u8(Math.min(255, rev * 255));
       w.u8(p.emoteLeft > 0 ? Emote.Taunt : Emote.None); w.u8(Math.ceil(p.emoteLeft * 10)); w.u16(Math.ceil(p.tauntCool * 10));
-      w.u8(255); w.u8(0); w.u32(p.look);
+      w.u8(255); w.u8(p.aboard ? 32 : 0); w.u32(p.look);
       w.u8(p.buffLeft > 0 ? p.buff : 0); w.u8(Math.max(0, p.buffLeft * 10)); w.u8(Math.min(255, p.ult * 255));
       for (let a = 0; a < 4; a++) { w.u8(p.abLevel[a]); w.u16(p.abCool[a] * 10); }
       w.u8(p.medkits); w.u8(Math.ceil(p.heal * 10));
@@ -1294,6 +1371,12 @@ export class DemoHost implements Transport {
     for (const c of this.crates) { w.q8(c.x); w.q8(c.y); w.u8(Math.min(255, c.open / 2.5 * 255)); }
     w.u8(this.guns.length);
     for (const g of this.guns) { w.u16(g.id); w.u8(g.kind); w.q8(g.x); w.q8(g.y); for (const l of g.lv) w.u8(l); w.u8(g.by); }
+    const e = this.evac;
+    w.u8(e.stage);
+    if (e.stage !== EvacStage.None) {
+      w.u16(Math.ceil(e.left * 10)); w.q8(e.x); w.q8(e.y); w.u8(e.alt * 255);
+      w.u16((((e.yaw / (Math.PI * 2)) % 1 + 1) % 1) * 65536 % 65536);
+    }
     w.u16(this.structs.length);
     for (const s of this.structs) {
       w.u8(s.alive ? 1 : 0); w.u8(s.kind); w.u16(s.x); w.u16(s.y); w.u8(s.w); w.u8(s.h);
@@ -1462,6 +1545,9 @@ export class DemoHost implements Transport {
         this.notes.push({ level: 0, text: `${p.name} dropped a ${wd.weapons[k].name}${ups ? ` (${ups})` : ''}` });
         break;
       }
+      case 'board':
+        if (this.evac.stage === EvacStage.Landed && p.hp > 0 && !p.aboard) { p.order = Order.Board; p.boardT = 0; }
+        break;
       case 'pickup': {
         const g = this.guns.find((k) => k.id === cmd.id);
         if (!g) { this.toast('that weapon is gone'); break; }

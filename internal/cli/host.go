@@ -28,6 +28,7 @@ type HostOptions struct {
 	Seed    uint64 // 0 picks one from the clock
 	Diff    game.Difficulty
 	Fog     bool   // fog of war
+	Waves   int    // the last wave, the one that ends with the evac; 0 endless
 	Name    string // the hosting player's name; "" is the tailnet first name
 	Version string // this build, shown to everyone who probes the game
 }
@@ -132,6 +133,7 @@ func hostConfig(ctx context.Context, status func(context.Context) (tailnet.Self,
 		Seed:       seed,
 		Difficulty: o.Diff,
 		FogOfWar:   o.Fog,
+		LastWave:   o.Waves,
 		Version:    o.Version,
 		Host:       host,
 		Owner:      login,

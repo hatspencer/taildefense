@@ -207,6 +207,7 @@ export class Labels {
     const rings: Ring[] = [];
     for (let i = 0; i < f.nPlayers; i++) {
       const p = f.players[i];
+      if (p.aboard) continue;
       const alive = (p.flags & PF_ALIVE) !== 0;
       // In thick fog other survivors show only their name: no bar, ring or countdown. Out in
       // the haze, where they can't be seen, not even that.

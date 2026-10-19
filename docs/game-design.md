@@ -114,6 +114,40 @@ it here along with the code.
   splits her open and spills six swarmers round her.
 - **The cap.** 16k creeps alive. Around wave 40 with 8 players the game reaches it.
 
+## The end: get to the choppa
+
+A game used to end only one way, overrun, so the best a team could do was lose late. Now it
+can be won. The host picks how long the game is: 20, 30 or 40 waves (40 by default), or
+endless, which goes on as before until the generator falls.
+
+- **The last wave is the same on every difficulty.** Difficulty already scales what each wave
+  is; how many there are is the host's choice of evening. 40 is where the waves meet the creep
+  cap with a full team, so past it the game stops getting harder anyway.
+- **Clearing the last wave calls the evac Huey.** It lands on the helipad 60 s later, and the
+  last of the dead, one more wave's worth, come for the pad rather than the generator. The
+  defence has to move out of the walls for the finale.
+- **The generator can't fall during the evac.** The game is decided at the pad, not by a
+  stray creep at the base the team has walked away from.
+- **Boarding is a hold.** E by the landed Huey (E anywhere once it is down walks you there),
+  then a second unhurt beside it; a hit starts it over, like a revive. Aboard, a survivor
+  rides along, out of the fight.
+- **The Huey waits, but not for ever.** It stays down up to 90 s. Once someone is aboard it
+  leaves when everyone still playing is aboard, or 30 s later at most, so one player can't
+  hold the rest hostage. A player who has given no command for 90 s is not waited for, as the
+  waves don't count them either. Nobody aboard after 90 s, it leaves empty.
+- **The door gunner** fires from the air on the way in and from the pad, as on a supply drop,
+  so the pad is a little easier to hold than open ground.
+- **The pad is further out the harder the game.** About 22 tiles from the generator on easy,
+  28 on normal (in the build ring, where it can be fortified round but not built on), 48 on
+  hard and 58 on brutal, out past the generator's lights. At night it has to be found: the pad
+  shows on the map and the minimap only once a survivor's light has fallen on it, and the host
+  says so. The evac call names the direction anyway, and the Huey's landing lights show it, so
+  a team that never went looking still gets a chance, just a worse one.
+- **Lift-off is a scene.** The camera rides the Huey for everyone, black bars slide in, it
+  banks round for home and climbs away off the edge of the map; only then does the field
+  report come up. It is stamped Extracted, or Left behind if the Huey left empty, and every
+  survivor's card says whether they got out.
+
 ## Difficulty
 
 Difficulty scales creep health, wave size, gold, break lengths, revive time and loot guards.

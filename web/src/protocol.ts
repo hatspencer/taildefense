@@ -19,14 +19,17 @@ export const stickyKind = (k: number): boolean => k === K_WALL || k === K_GATE;
 export const MAX_PLAYERS = 8;
 
 export const enum Tile { Grass = 0, Dirt = 1, Floor = 2, Sand = 3, Water = 4, Tree = 5, Rock = 6 }
-export const enum Phase { Build = 0, Wave = 1, Over = 2 }
+// Evac: the last wave is over and the Huey is coming for the survivors at the helipad.
+export const enum Phase { Build = 0, Wave = 1, Over = 2, Evac = 3 }
+// Where the evac Huey is: on its way in, down on the pad, lifting off, or gone off the map.
+export const enum EvacStage { None = 0, Inbound, Landed, Departing, Gone }
 
 export const PF_CONNECTED = 1, PF_ALIVE = 2, PF_FIRING = 4, PF_READY = 8, PF_RELOADING = 16,
   PF_HURT = 32, PF_ARMORY = 64, PF_MOVING = 128;
 export const CF_BURNING = 1, CF_SLOWED = 2, CF_GUARD = 4, CF_HUNTING = 8, CF_SIEGE = 16, CF_ASLEEP = 32, CF_WINDUP = 64, CF_STRIKE = 128;
 
-export const enum Order { Idle = 0, Move, AMove, Attack, Hold, Build, Repair, Loot, Revive, Steer, Pickup }
-export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake, Bell, Bile }
+export const enum Order { Idle = 0, Move, AMove, Attack, Hold, Build, Repair, Loot, Revive, Steer, Pickup, Board }
+export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake, Bell, Bile, Landed }
 export const enum Weather { Clear = 0, Fog, Rain, Storm, Snow, Drizzle, Thunder, HeavySnow }
 // How much each weather counts as rain (internal/game/weather.go wetness).
 export const WET = [0, 0, 1, 1, 0, 0.3, 0.5, 0];
@@ -118,6 +121,18 @@ export interface Welcome {
   medkit?: { heal: number; time: number; max: number; cost: number };
   // Night vision goggles' price: daytime sight at night, worn instead of the flashlight.
   goggles?: number;
+  // The wave whose end calls the evac; 0 for an endless game.
+  lastWave?: number;
+  // The helipad and the evac Huey's timing, in seconds; absent in an endless game.
+  evac?: EvacDef;
+}
+// pad: the helipad's middle, half its size; reach: how near the Huey a survivor boards, taking
+// board seconds. inbound: from the call to touchdown, the last flight of it in the air and the
+// last settle coming down; wait: how long it stays down, or last once someone is aboard;
+// depart: from lift-off to off the map, the first climb of it rising.
+export interface EvacDef {
+  pad: { x: number; y: number }; half: number; reach: number; board: number;
+  inbound: number; flight: number; settle: number; wait: number; last: number; depart: number; climb: number;
 }
 // A turret's tracks, as they sit in a frame's sLv: four to a structure.
 export const enum TTrack { Damage = 0, Rate, Range, Special }
@@ -188,7 +203,9 @@ export type Command =
   | { op: 'medkit' } | { op: 'buyMedkit' } | { op: 'buyGoggles' }
   // Puts weapon w down for a teammate; pickup walks to the weapon on the ground with that id.
   | { op: 'drop'; w: number }
-  | { op: 'pickup'; id: number };
+  | { op: 'pickup'; id: number }
+  // Walks to the landed evac Huey and gets aboard.
+  | { op: 'board' };
 
 export class Player {
   id = 0; flags = 0; x = 0; y = 0; aim = 0; hp = 0; maxHp = 1; cur = 0; ammo = 0; mag = 0;
@@ -196,7 +213,7 @@ export class Player {
   levels = new Uint8Array(WEAPON_SLOTS * 4); gear = new Uint8Array(4);
   // channel: the current search's (order Loot) or revive's (order Revive) progress, 0..1.
   // revived: for a downed survivor, how far someone's revive of them is, 0..1.
-  order = 0; channel = 0; revived = 0; emote = 0; emoteLeft = 0; tauntCool = 0; stamina = 1; sprinting = false; winded = false; stunned = false; goggles = false; shielded = false; look = 0; buff = 0; buffLeft = 0;
+  order = 0; channel = 0; revived = 0; emote = 0; emoteLeft = 0; tauntCool = 0; stamina = 1; sprinting = false; winded = false; stunned = false; goggles = false; shielded = false; aboard = false; look = 0; buff = 0; buffLeft = 0;
   // The ultimate's meter, 0..1; buff is the weapon whose ultimate runs + 1, for buffLeft seconds.
   ult = 0;
   abLevel = new Uint8Array(4); abCool = new Float32Array(4);
@@ -226,7 +243,7 @@ export class Player {
     this.reload = o.reload; this.respawn = o.respawn; this.gold = o.gold; this.kills = o.kills;
     this.damage = o.damage; this.owned = o.owned; this.levels.set(o.levels); this.gear.set(o.gear);
     this.order = o.order; this.channel = o.channel; this.revived = o.revived; this.emote = o.emote;
-    this.emoteLeft = o.emoteLeft; this.tauntCool = o.tauntCool; this.stamina = o.stamina; this.sprinting = o.sprinting; this.winded = o.winded; this.stunned = o.stunned; this.goggles = o.goggles; this.shielded = o.shielded; this.look = o.look; this.buff = o.buff; this.buffLeft = o.buffLeft; this.ult = o.ult;
+    this.emoteLeft = o.emoteLeft; this.tauntCool = o.tauntCool; this.stamina = o.stamina; this.sprinting = o.sprinting; this.winded = o.winded; this.stunned = o.stunned; this.goggles = o.goggles; this.shielded = o.shielded; this.aboard = o.aboard; this.look = o.look; this.buff = o.buff; this.buffLeft = o.buffLeft; this.ult = o.ult;
     this.abLevel.set(o.abLevel); this.abCool.set(o.abCool); this.medkits = o.medkits; this.heal = o.heal; this.reloading = o.reloading; this.name = o.name;
     this.downs = o.downs; this.revives = o.revives; this.built = o.built; this.searched = o.searched; this.bosses = o.bosses; this.taken = o.taken; this.turret = o.turret;
   }
@@ -297,6 +314,9 @@ export class Frame {
   // Weapons survivors dropped: what it is, its track levels, and who dropped it.
   guns: Gun[] = [];
   pings: { player: number; x: number; y: number; kind: number }[] = [];
+  // The evac Huey: its stage, seconds until the stage ends, where it is, its height (0 on the
+  // ground, 1 cruising) and heading (radians, +x towards +y).
+  evac = 0; evacLeft = 0; evacX = 0; evacY = 0; evacAlt = 0; evacYaw = 0;
 
   constructor() {
     for (let i = 0; i < 256; i++) this.players.push(new Player());
@@ -351,7 +371,7 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
     p.gear.set(bytes.subarray(o, o + 4)); o += 4;
     p.order = d.getUint8(o); p.channel = d.getUint8(o + 1) / 255; p.revived = d.getUint8(o + 2) / 255;
     p.emote = d.getUint8(o + 3); p.emoteLeft = d.getUint8(o + 4) / 10; p.tauntCool = d.getUint16(o + 5, true) / 10;
-    p.stamina = d.getUint8(o + 7) / 255; const sp = d.getUint8(o + 8); p.sprinting = (sp & 1) !== 0; p.winded = (sp & 2) !== 0; p.stunned = (sp & 4) !== 0; p.goggles = (sp & 8) !== 0; p.shielded = (sp & 16) !== 0;
+    p.stamina = d.getUint8(o + 7) / 255; const sp = d.getUint8(o + 8); p.sprinting = (sp & 1) !== 0; p.winded = (sp & 2) !== 0; p.stunned = (sp & 4) !== 0; p.goggles = (sp & 8) !== 0; p.shielded = (sp & 16) !== 0; p.aboard = (sp & 32) !== 0;
     p.look = d.getUint32(o + 9, true);
     p.buff = d.getUint8(o + 13); p.buffLeft = d.getUint8(o + 14) / 10; p.ult = d.getUint8(o + 15) / 255; o += 16;
     for (let a = 0; a < 4; a++) {
@@ -377,6 +397,11 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
   for (let i = 0; i < ngun; i++, o += 12) {
     f.guns.push({ id: d.getUint16(o, true), kind: bytes[o + 2], x: d.getUint16(o + 3, true) * Q, y: d.getUint16(o + 5, true) * Q,
       lv: [bytes[o + 7], bytes[o + 8], bytes[o + 9], bytes[o + 10]], by: bytes[o + 11] });
+  }
+  f.evac = bytes[o]; o += 1;
+  if (f.evac !== EvacStage.None) {
+    f.evacLeft = d.getUint16(o, true) / 10; f.evacX = d.getUint16(o + 2, true) * Q; f.evacY = d.getUint16(o + 4, true) * Q;
+    f.evacAlt = bytes[o + 6] / 255; f.evacYaw = d.getUint16(o + 7, true) / 65536 * Math.PI * 2; o += 9;
   }
 
   const ns = d.getUint16(o, true); o += 2;

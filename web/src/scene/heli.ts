@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { mrt, output, vec4 } from 'three/tsl';
-import { EffectKind } from '../protocol';
+import { EffectKind, EvacStage } from '../protocol';
 import type { Game } from '../state';
 import type { Effects } from './effects';
 import { litMaterial } from './structs';
@@ -8,7 +8,8 @@ import { box, cyl, merge, part, type Part, sphere } from './util';
 
 // Supply drops: the Huey gunship that flies the crate in, with the surfboards strapped to its
 // side (a nod to Kilgore in Apocalypse Now), the crate coming down under a chute, and the crates
-// waiting on the ground with green smoke over them.
+// waiting on the ground with green smoke over them. And at the end of the last wave the same Huey
+// coming in to the helipad to get the survivors out.
 
 const OD = 0x4b5631, OD_DARK = 0x363e22, GLASS = 0x34505a, BLACK = 0x1c1c1a, STEEL = 0x55574f;
 const CRUISE = 10, HOVER = 6.5; // flying height in, and over the drop zone
@@ -16,6 +17,7 @@ const HOVER_TIME = 3; // the host's dropHover: seconds over the zone before the 
 const RELEASE = 1.6; // seconds before landing that the crate is let go under its chute
 const DEPART = 7; // seconds the Huey takes to fly off after the crate is down
 const SCALE = 0.75; // a touch under life size, so it does not swallow the screen
+const OUTRO = 3.5; // seconds the evac Huey flies on, climbing away, once the host has it gone
 
 interface Flight {
   root: THREE.Group; body: THREE.Group; rotor: THREE.Object3D; tail: THREE.Object3D; crate: THREE.Group; chute: THREE.Object3D;
@@ -96,6 +98,32 @@ function chuteGeo(): THREE.BufferGeometry {
   return merge(p);
 }
 
+// A flat rounded square, 2*half across with corners of radius r, h thick, standing on y = 0.
+function roundSlab(half: number, r: number, h: number): THREE.BufferGeometry {
+  const sh = new THREE.Shape(), a = half - r;
+  sh.moveTo(-a, -half); sh.lineTo(a, -half); sh.absarc(a, -a, r, -Math.PI / 2, 0, false);
+  sh.lineTo(half, a); sh.absarc(a, a, r, 0, Math.PI / 2, false);
+  sh.lineTo(-a, half); sh.absarc(-a, a, r, Math.PI / 2, Math.PI, false);
+  sh.lineTo(-half, -a); sh.absarc(-a, -a, r, Math.PI, Math.PI * 1.5, false);
+  return new THREE.ExtrudeGeometry(sh, { depth: h, bevelEnabled: false, curveSegments: 6 }).rotateX(-Math.PI / 2);
+}
+
+// The helipad: a concrete slab half tiles out from its middle each way with rounded corners and
+// a white edge line, a yellow ring and the H.
+function padGeo(half: number): THREE.BufferGeometry {
+  const p: Part[] = [part(roundSlab(half, 1.1, 0.06), 0x6e6d68), part(roundSlab(half - 0.2, 0.95, 0.07), 0xd8d4c6),
+    part(roundSlab(half - 0.38, 0.8, 0.075), 0x7d7c76)];
+  const r = half * 0.72, n = 28;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    p.push(part(box(0.26, 0.02, 2 * Math.PI * r / n + 0.02), 0xd8b23a, Math.cos(a) * r, 0.085, Math.sin(a) * r, 0, -a, 0));
+  }
+  const s = half / 2;
+  p.push(part(box(0.24 * s, 0.02, 1.5 * s), 0xeeeae0, -0.5 * s, 0.09, 0), part(box(0.24 * s, 0.02, 1.5 * s), 0xeeeae0, 0.5 * s, 0.09, 0),
+    part(box(1 * s, 0.02, 0.22 * s), 0xeeeae0, 0, 0.09, 0));
+  return merge(p);
+}
+
 export class Helis {
   group = new THREE.Group();
   private mat = litMaterial();
@@ -110,6 +138,16 @@ export class Helis {
   private grounded: THREE.Group[] = [];
   private serial = 0;
   private lastPuff = 0;
+  // The evac Huey, made when it first shows; its pose in the frame before and the current one,
+  // to ease between them; and the helipad, made for the pad it is on.
+  private evac: Flight | null = null;
+  private evacFrame = 0;
+  private ev0 = { x: 0, y: 0, alt: 0, yaw: 0 }; private ev1 = { x: 0, y: 0, alt: 0, yaw: 0 };
+  private pad: THREE.Mesh | null = null;
+  private padAt = '';
+  // The evac Huey's speed and turn rate between the last two frames, carried on into the outro;
+  // when the outro began (0 before), and whether it has played out.
+  private evacSpeed = 0; private evacTurn = 0; private outroAt = 0; private outroDone = false;
 
   constructor(scene: THREE.Scene, private fx: Effects) {
     scene.add(this.group);
@@ -186,6 +224,7 @@ export class Helis {
       // The wash follows it off, thinning as it climbs and pulls away.
       this.fx.rotorWash(game, fl.x + dx * d, fl.y + dz * d, Math.max(0, 1 - s / 2.5), dt);
     }
+    this.updateEvac(game, now, t, dt);
     // Crates on the ground, with green marker smoke.
     while (this.grounded.length < f.crates.length) {
       const g = new THREE.Group();
@@ -207,11 +246,97 @@ export class Helis {
     }
   }
 
-  private pose(fl: Flight, x: number, alt: number, z: number, pitch: number, t: number): void {
+  // Where the evac Huey is drawn, on the map, or null while it is not; the camera rides along
+  // until it is gone.
+  evacAt(): { x: number; y: number } | null {
+    return this.evac && !this.outroAt ? { x: this.evac.root.position.x, y: this.evac.root.position.z } : null;
+  }
+
+  // Whether the evac Huey is lifting off or still flying away: the field report waits for it.
+  leaving(game: Game): boolean {
+    const st = game.cur.evac;
+    return st === EvacStage.Departing || (st === EvacStage.Gone && !!this.evac && !this.outroDone);
+  }
+
+  // The helipad, and the evac Huey over it: hidden until its last flight in, eased between
+  // frames, its skids on the pad while it is down.
+  private updateEvac(game: Game, now: number, t: number, dt: number): void {
+    const f = game.cur, ev = game.welcome?.evac;
+    const at = ev ? `${ev.pad.x},${ev.pad.y}` : '';
+    if (at !== this.padAt) {
+      if (this.pad) { this.group.remove(this.pad); this.pad.geometry.dispose(); this.pad = null; }
+      if (ev) {
+        this.pad = new THREE.Mesh(padGeo(ev.half), this.mat);
+        this.pad.receiveShadow = true;
+        this.pad.position.set(ev.pad.x, 0, ev.pad.y);
+        this.group.add(this.pad);
+      }
+      this.padAt = at;
+    }
+    if (this.pad) this.pad.visible = game.padKnown();
+    // Gone: on past the edge of the map, climbing away, until it is out of sight.
+    if (f.evac === EvacStage.Gone && this.evac && !this.outroDone) { this.outro(t, dt); return; }
+    const flying = f.evac === EvacStage.Landed || f.evac === EvacStage.Departing ||
+      (f.evac === EvacStage.Inbound && !!ev && f.evacLeft <= ev.flight);
+    if (!flying) {
+      this.drop();
+      // A game joined after the Huey left has no outro to wait for.
+      this.outroDone = f.evac === EvacStage.Gone;
+      return;
+    }
+    if (!this.evac) {
+      this.evac = this.make(f.evacX, f.evacY, f.evacX, f.evacY);
+      this.group.remove(this.evac.crate);
+      this.evacFrame = 0; this.outroAt = 0; this.outroDone = false;
+    }
+    if (this.evacFrame !== game.frames) {
+      const fresh = this.evacFrame === 0;
+      this.evacFrame = game.frames;
+      Object.assign(this.ev0, fresh ? { x: f.evacX, y: f.evacY, alt: f.evacAlt, yaw: f.evacYaw } : this.ev1);
+      Object.assign(this.ev1, { x: f.evacX, y: f.evacY, alt: f.evacAlt, yaw: f.evacYaw });
+      const iv = game.interval / 1000, e0 = this.ev0, e1 = this.ev1;
+      let turn = e1.yaw - e0.yaw;
+      turn -= Math.round(turn / (Math.PI * 2)) * Math.PI * 2;
+      this.evacSpeed = Math.hypot(e1.x - e0.x, e1.y - e0.y) / iv;
+      this.evacTurn += (turn / iv - this.evacTurn) * 0.3;
+    }
+    const a = game.alpha(now), e0 = this.ev0, e1 = this.ev1;
+    const x = e0.x + (e1.x - e0.x) * a, y = e0.y + (e1.y - e0.y) * a, alt = e0.alt + (e1.alt - e0.alt) * a;
+    let dy = e1.yaw - e0.yaw;
+    dy -= Math.round(dy / (Math.PI * 2)) * Math.PI * 2;
+    const fl = this.evac, h = alt * CRUISE;
+    fl.heading = -(e0.yaw + dy * a);
+    // Nose down while it flies, the more the faster; banked into a turn; level as it settles
+    // onto the pad.
+    const pitch = Math.min(0.32, h * 0.025 + this.evacSpeed * 0.012);
+    this.pose(fl, x, h + 1.1 * SCALE + (h > 0.05 ? Math.sin(t * 2.1) * 0.12 * Math.min(1, h) : 0), y, pitch, t, Math.max(-0.45, Math.min(0.45, this.evacTurn * 0.5)));
+    this.fx.rotorWash(game, x, y, Math.max(0, 1 - h / 8) ** 1.5, dt);
+  }
+
+  // The Huey flies on along its heading at its last speed, climbing and levelling out.
+  private outro(t: number, dt: number): void {
+    const fl = this.evac!;
+    if (!this.outroAt) this.outroAt = t;
+    const s = t - this.outroAt, p = fl.root.position;
+    if (s > OUTRO) { this.drop(); this.outroDone = true; return; }
+    const sp = Math.max(this.evacSpeed, 12) * (1 + s * 0.4), yaw = -fl.heading;
+    p.x += Math.cos(yaw) * sp * dt; p.z += Math.sin(yaw) * sp * dt; p.y += (2 + s * 3) * dt;
+    this.evacTurn *= 1 - Math.min(1, dt * 2);
+    fl.body.rotation.z = -Math.min(0.32, 0.12 + sp * 0.01);
+    fl.body.rotation.x = this.evacTurn * 0.5;
+    fl.rotor.rotation.y = t * 21;
+    fl.tail.rotation.z = t * 40;
+  }
+
+  private drop(): void {
+    if (this.evac) { this.group.remove(this.evac.root, this.evac.crate); this.evac = null; }
+  }
+
+  private pose(fl: Flight, x: number, alt: number, z: number, pitch: number, t: number, roll = 0): void {
     fl.root.position.set(x, alt - 1.1 * SCALE, z);
     fl.root.rotation.y = fl.heading;
     fl.body.rotation.z = -pitch;
-    fl.body.rotation.x = Math.sin(t * 1.3) * 0.03;
+    fl.body.rotation.x = Math.sin(t * 1.3) * 0.03 + roll;
     fl.rotor.rotation.y = t * 21;
     fl.tail.rotation.z = t * 40;
   }

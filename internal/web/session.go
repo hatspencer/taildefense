@@ -430,6 +430,8 @@ func (s *session) command(p []byte) bool {
 		nc = netplay.Cmd{Op: netplay.OpDropWeapon, A: u8(c.W)}
 	case "pickup":
 		nc = netplay.Cmd{Op: netplay.OpPickup, T: u16(c.ID)}
+	case "board":
+		nc = netplay.Cmd{Op: netplay.OpBoard}
 	case "ready":
 		nc = netplay.Cmd{Op: netplay.OpReady}
 		if c.On {
