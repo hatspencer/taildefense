@@ -21,6 +21,7 @@ const (
 	OrderRevive                      // walk to a downed teammate and revive them
 	OrderSteer                       // walk along X, Y (a unit vector) while the client holds a key
 	OrderPickup                      // walk to a weapon on the ground and pick it up
+	OrderBoard                       // walk to the evac Huey on the pad and get aboard
 )
 
 // Order is a survivor's current order.
@@ -119,7 +120,7 @@ func (w *World) order(p *Player, o Order) {
 	p.Order = o
 	p.Search = 0
 	p.walk.reset()
-	if o.Kind == OrderMove || o.Kind == OrderAttackMove || o.Kind == OrderBuild || o.Kind == OrderRepair || o.Kind == OrderLoot || o.Kind == OrderRevive || o.Kind == OrderPickup {
+	if o.Kind == OrderMove || o.Kind == OrderAttackMove || o.Kind == OrderBuild || o.Kind == OrderRepair || o.Kind == OrderLoot || o.Kind == OrderRevive || o.Kind == OrderPickup || o.Kind == OrderBoard {
 		w.route(p, o.X, o.Y)
 	}
 }
@@ -260,6 +261,9 @@ func (w *World) stepPlayers() {
 			if p.EmoteLeft -= Dt; p.EmoteLeft <= 0 {
 				p.EmoteLeft, p.Emote = 0, 0
 			}
+		}
+		if p.Aboard {
+			continue
 		}
 		if !p.Alive {
 			p.Respawn -= Dt
@@ -526,6 +530,12 @@ func (w *World) act(p *Player, st Stats) int32 {
 		return -1
 	case OrderPickup:
 		if !w.actPickup(p, o, walk) {
+			o.Kind = OrderIdle
+			p.Search = 0
+		}
+		return -1
+	case OrderBoard:
+		if !w.actBoard(p, walk) {
 			o.Kind = OrderIdle
 			p.Search = 0
 		}

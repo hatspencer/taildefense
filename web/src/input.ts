@@ -247,6 +247,7 @@ export class Input {
       case 'M': hud.minimap.toggle(); return;
       case 'U': ctl.upgradeSel(); return;
       case 'E': {
+        if (ctl.board()) { hud.flash('get to the choppa!'); return; }
         // Twice quickly: the hero heads for the nearest loot site, and stays on it while E is spammed.
         const now = performance.now();
         if (now - this.lastE < 400) {

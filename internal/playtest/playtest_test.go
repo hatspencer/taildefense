@@ -174,3 +174,30 @@ func lines(s string) []string {
 	}
 	return out
 }
+
+// A short game is played to its end over the wire: the last wave cleared, the evac Huey in,
+// the bots aboard and away, with every check holding on the way.
+func TestBotsGetToTheChoppa(t *testing.T) {
+	for _, g := range []setup{{21, game.DiffEasy, 2, 3}, {3, game.DiffHard, 2, 3}} {
+		t.Run(g.String(), func(t *testing.T) {
+			t.Parallel()
+			s := New(g.seed, g.diff, g.players)
+			s.Hold = true
+			s.W.LastWave = g.waves
+			bots := make([]*Bot, g.players)
+			for i := range bots {
+				bots[i] = NewBot(uint8(i), g.seed)
+			}
+			res, err := Play(s, bots, 99, (g.waves+4)*8*60*game.TickRate)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !res.Over || res.Waves != g.waves || res.Out == 0 {
+				t.Fatalf("over %v after %d waves with %d aboard, evac stage %d", res.Over, res.Waves, res.Out, s.W.Evac.Stage)
+			}
+			if s.W.Evac.Stage != game.EvacGone {
+				t.Errorf("the game ended with the Huey at stage %d", s.W.Evac.Stage)
+			}
+		})
+	}
+}

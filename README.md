@@ -37,21 +37,21 @@ WebGL 2 where WebGPU isn't available. Any current Chrome, Edge, Firefox or Safar
 
 | command | what it does |
 |---|---|
-| `td` | launcher: host (←/→ picks the difficulty, f turns fog of war on or off, y copies the join command for your friends), join (lists the games on your tailnet), settings, a changelog of the latest commits with yours marked, the doctor's checks, update status. It opens with a short splash (any key skips it, `--no-splash` or `--no-anim` turns it off) |
-| `td host [--port N] [--seed S] [--name NAME] [--difficulty D]` | host a game and play it in the browser |
+| `td` | launcher: host (←/→ picks the difficulty, w the game's length, f turns fog of war on or off, y copies the join command for your friends), join (lists the games on your tailnet), settings, a changelog of the latest commits with yours marked, the doctor's checks, update status. It opens with a short splash (any key skips it, `--no-splash` or `--no-anim` turns it off) |
+| `td host [--port N] [--seed S] [--name NAME] [--difficulty D] [--waves W]` | host a game and play it in the browser |
 | `td join HOST[:PORT] [--name NAME]` | join a game by tailnet name or address |
-| `td serve [--port N] [--seed S] [--difficulty D]` | headless dedicated host; logs to stdout until interrupted |
+| `td serve [--port N] [--seed S] [--difficulty D] [--waves W]` | headless dedicated host; logs to stdout until interrupted |
 | `td ls [--json] [--port N]` | games running on your tailnet |
 | `td bench [--wave N] [--players P] [--seconds S] [--seed S]` | time a busy wave offline: simulation, encoding, relay |
 | `td frame [--width W] [--height H] [--view menu\|join\|settings\|changelog\|doctor\|help\|splash] [--at S]` | render one launcher frame from demo data, 160×48 unless told otherwise; `--at` is seconds into the splash |
 | `td doctor` | check tailscale, the browser, container engine, install |
-| `td config [KEY [VALUE]]` | show or change settings: NAME, PORT, DIFFICULTY, FOG, BROWSER, AUTOUPDATE; `td config KEY --reset` returns one to its default |
+| `td config [KEY [VALUE]]` | show or change settings: NAME, PORT, DIFFICULTY, FOG, WAVES, BROWSER, AUTOUPDATE; `td config KEY --reset` returns one to its default |
 | `td update [-f] [-b BRANCH]` | rebuild from the repo's main (or a branch) and reinstall |
 | `td install [-f]` | install this build |
 | `td version [--offline] [--json]` | this build and whether a newer one exists |
 
 Every setting can also come from the environment (`TAILDEFENSE_NAME`, `TAILDEFENSE_PORT`,
-`TAILDEFENSE_DIFFICULTY`, `TAILDEFENSE_FOG`, `TAILDEFENSE_BROWSER`, and `TAILDEFENSE_NO_AUTOUPDATE`
+`TAILDEFENSE_DIFFICULTY`, `TAILDEFENSE_FOG`, `TAILDEFENSE_WAVES`, `TAILDEFENSE_BROWSER`, and `TAILDEFENSE_NO_AUTOUPDATE`
 to turn autoupdate off), and `td config` says where
 each value in force came from. `--theme NAME` (or `TAILDEFENSE_THEME`) picks the colour theme of the
 launcher and td's output, and `--no-color` turns colour off.
@@ -92,7 +92,7 @@ faces, however the camera is turned, and the camera follows while you walk.
 | input | |
 |---|---|
 | W A S D | walk |
-| E | use what is under the cursor, or else the nearest thing: revive a downed teammate, pick up a dropped weapon, search a loot site, repair a damaged building, shop at the armory (walking there first); on a creep, focus fire on it; tap twice to walk to the nearest loot site in sight and search it |
+| E | use what is under the cursor, or else the nearest thing: revive a downed teammate, pick up a dropped weapon, search a loot site, repair a damaged building, shop at the armory (walking there first); on a creep, focus fire on it; tap twice to walk to the nearest loot site in sight and search it; once the evac Huey is down, get aboard |
 | Q | the equipped weapon's ultimate, once its meter is full (fighting and reviving fill it) |
 | right-click | on a creep, focus fire on it |
 | Shift / F / V | grenade (aim, then left-click; Esc cancels), dash and airstrike at the cursor at once (bought at the armory) |

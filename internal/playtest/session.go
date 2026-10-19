@@ -88,6 +88,9 @@ func agree(w *game.World, r *netplay.Replica) error {
 	if r.Tick != w.Tick || r.Phase != w.Phase || r.Wave != w.Wave {
 		return fmt.Errorf("tick %d phase %s wave %d, world tick %d phase %s wave %d", r.Tick, r.Phase, r.Wave, w.Tick, w.Phase, w.Wave)
 	}
+	if r.Evac.Stage != w.Evac.Stage || far(r.Evac.X, w.Evac.X) || far(r.Evac.Y, w.Evac.Y) {
+		return fmt.Errorf("evac %+v, world %+v", r.Evac, w.Evac)
+	}
 	if r.Count != len(w.Creeps) {
 		return fmt.Errorf("%d creeps, world %d", r.Count, len(w.Creeps))
 	}
@@ -111,7 +114,7 @@ func agree(w *game.World, r *netplay.Replica) error {
 	}
 	for i, p := range w.Players {
 		v := &r.Players[i]
-		if v.Alive != p.Alive || v.Gold != uint64(p.Gold) || v.Kills != uint64(p.Kills) || far(v.X, p.X) || far(v.Y, p.Y) {
+		if v.Alive != p.Alive || v.Aboard != p.Aboard || v.Gold != uint64(p.Gold) || v.Kills != uint64(p.Kills) || far(v.X, p.X) || far(v.Y, p.Y) {
 			return fmt.Errorf("player %s alive %v gold %d kills %d at %.2f,%.2f, world %v %d %d %.2f,%.2f",
 				p.Name, v.Alive, v.Gold, v.Kills, v.X, v.Y, p.Alive, p.Gold, p.Kills, p.X, p.Y)
 		}

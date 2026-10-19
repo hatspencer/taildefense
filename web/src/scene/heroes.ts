@@ -291,7 +291,7 @@ export class Heroes {
       if (h.down && alive) h.pop = 1;
       h.down = !alive;
       // Shielded just after being put back at the base: blinking, and still shooting.
-      h.group.visible = ((p.flags & 1) !== 0 || alive) && !(alive && p.shielded && Math.floor(t * 8) % 2 === 1);
+      h.group.visible = !p.aboard && ((p.flags & 1) !== 0 || alive) && !(alive && p.shielded && Math.floor(t * 8) % 2 === 1);
       const x = game.prx[p.id], y = game.pry[p.id], aim = game.paim[p.id];
       h.group.position.set(x, 0, y);
 

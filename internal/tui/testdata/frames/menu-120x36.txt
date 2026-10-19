@@ -9,7 +9,7 @@
   ● box  100.64.0.7  ada@example.com
   ✘ could not join pal: this host runs game protocol 2 and you run 1; whoever is older: td update
 
-  ▶ Host a game  ‹ Normal ›  ←/→ difficulty · f fog of war · y copies: td join box
+  ▶ Host a game  ‹ Normal ›  40 waves  ←/→ difficulty · w waves · f fog of war · y copies: td join box
     Join a game
     Settings
     Changelog

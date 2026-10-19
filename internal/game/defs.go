@@ -426,6 +426,7 @@ const (
 	PhaseBuild Phase = iota // between waves: shop, build, repair
 	PhaseWave
 	PhaseOver
+	PhaseEvac // the last wave is cleared: the evac Huey is coming, landed or leaving (evac.go)
 )
 
 // String names a phase for the HUD.
@@ -435,6 +436,8 @@ func (p Phase) String() string {
 		return "build"
 	case PhaseWave:
 		return "wave"
+	case PhaseEvac:
+		return "evac"
 	}
 	return "over"
 }

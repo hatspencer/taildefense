@@ -125,6 +125,9 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 		if p.Shielded {
 			sp |= 16
 		}
+		if p.Aboard {
+			sp |= 32
+		}
 		e.u8(sp)
 		e.u32(p.Look)
 		e.u8(p.Buff)
@@ -173,6 +176,15 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 		e.pos(g.Y)
 		e.b = append(e.b, g.Lv[:]...)
 		e.u8(g.By)
+	}
+	ev := &r.Evac
+	e.u8(uint8(ev.Stage))
+	if ev.Stage != game.EvacNone {
+		e.u16(deci16(ev.Left))
+		e.pos(ev.X)
+		e.pos(ev.Y)
+		e.u8(uint8(min(max(ev.Alt, 0), 1) * 255))
+		e.u16(turns(ev.Yaw))
 	}
 
 	e.u16(uint16(len(r.Structs)))

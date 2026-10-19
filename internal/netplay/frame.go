@@ -368,6 +368,16 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 		b.b = append(b.b, g.Lv[:]...)
 		b.u8(g.By)
 	}
+	// The evac Huey, once it is called.
+	ev := &w.Evac
+	b.u8(uint8(ev.Stage))
+	if ev.Stage != game.EvacNone {
+		b.u16(uint16(min(max(math.Ceil(float64(ev.Left*10)), 0), 65535)))
+		b.u16(qpos(ev.X))
+		b.u16(qpos(ev.Y))
+		b.u8(uint8(min(max(ev.Alt, 0), 1) * 255))
+		b.u16(qangle(ev.Heading))
+	}
 	b.u8(uint8(len(w.Players)))
 	for _, p := range w.Players {
 		var f uint8
@@ -414,6 +424,9 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 			channel = uint8(min(p.Search/t, 1) * 255)
 		case p.Order.Kind == game.OrderPickup:
 			channel = uint8(min(p.Search/game.GunPickupTime(), 1) * 255)
+		case p.Order.Kind == game.OrderBoard:
+			_, _, _, _, _, _, _, _, t, _ := game.EvacInfo()
+			channel = uint8(min(p.Search/t, 1) * 255)
 		}
 		b.u8(channel)
 		b.u8(uint8(min(p.Revived, 1) * 255))
@@ -436,6 +449,9 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 		}
 		if p.Shield > 0 {
 			sprint |= 16
+		}
+		if p.Aboard {
+			sprint |= 32
 		}
 		b.u8(sprint)
 		b.u32(p.Look)

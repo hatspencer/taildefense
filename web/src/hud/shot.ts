@@ -1,6 +1,6 @@
 import type { Frame, Welcome } from '../protocol';
 import { fmtGold } from './dom';
-import { type ScoreRow, scoreRows } from './score';
+import { type ScoreRow, scoreRows, verdict } from './score';
 
 // The field report drawn as a picture, to keep: td saves it in its install folder when a game
 // ends. Drawn rather than captured, since a page cannot photograph itself, in the report's own
@@ -8,7 +8,7 @@ import { type ScoreRow, scoreRows } from './score';
 
 const C = {
   black: '#07080a', soot: '#1c1e16', drab: '#2d3123', line: '#4d523c', khaki: '#938a66', bone: '#d9d1b3',
-  amber: '#e0a63a', lit: '#f4c25c', dim: '#9c7a34', rust: '#b5472f', sore: '#d98a62', steel: '#86a2a6', screen: '#11160d',
+  moss: '#86a24c', amber: '#e0a63a', lit: '#f4c25c', dim: '#9c7a34', rust: '#b5472f', sore: '#d98a62', steel: '#86a2a6', screen: '#11160d',
 };
 const PIXEL = '"Pixelify Sans", "Lucida Console", monospace';
 const CRT = 'VT323, "Lucida Console", monospace';
@@ -39,27 +39,31 @@ export async function drawReport(wd: Welcome, f: Frame): Promise<Blob | null> {
   for (let y = sy; y < sy + sh; y += 3) { g.fillStyle = 'rgba(0,0,0,.08)'; g.fillRect(sx, y, sw, 1); }
 
   // Tape, stamp, headline.
+  const v = verdict(f), ink = v.ok ? C.moss : C.rust;
   g.save(); g.translate(PAD + 20, sy + 4); g.rotate(-0.02);
-  g.fillStyle = C.rust; g.fillRect(0, -12, 150, 26);
-  g.fillStyle = '#f4e6d4'; g.font = `700 16px ${PIXEL}`; g.textBaseline = 'middle'; g.fillText('Field report', 14, 1);
+  g.fillStyle = ink; g.fillRect(0, -12, 150, 26);
+  g.fillStyle = v.ok ? '#172010' : '#f4e6d4'; g.font = `700 16px ${PIXEL}`; g.textBaseline = 'middle'; g.fillText('Field report', 14, 1);
   g.restore();
   g.save(); g.translate(W - PAD - 130, sy + 70); g.rotate(-0.16);
-  g.strokeStyle = C.rust; g.lineWidth = 4; g.globalAlpha = 0.85; g.strokeRect(-110, -30, 220, 56);
-  g.fillStyle = C.rust; g.font = `700 38px ${PIXEL}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('OVERRUN', 0, 0);
+  g.font = `700 38px ${PIXEL}`;
+  const sw2 = Math.max(220, g.measureText(v.stamp.toUpperCase()).width + 40);
+  g.strokeStyle = ink; g.lineWidth = 4; g.globalAlpha = 0.85; g.strokeRect(-sw2 / 2, -30, sw2, 56);
+  g.fillStyle = ink; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(v.stamp.toUpperCase(), 0, 0);
   g.restore();
   g.textBaseline = 'alphabetic'; g.textAlign = 'left';
   g.font = `700 52px ${PIXEL}`;
-  g.fillStyle = C.black; g.fillText('The generator has fallen', PAD + 4, 108 + 4);
-  g.fillStyle = C.bone; g.fillText('The generator has fallen', PAD, 108);
+  g.fillStyle = C.black; g.fillText(v.head, PAD + 4, 108 + 4);
+  g.fillStyle = C.bone; g.fillText(v.head, PAD, 108);
   const here = rows.filter((r) => !r.away).length;
   const when = new Date().toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
   g.font = `16px ${PIXEL}`; g.fillStyle = C.khaki;
   g.fillText(`${wd.difficulty.name} · ${here} ${here === 1 ? 'survivor' : 'survivors'} · map ${wd.seed} · ${when}`, PAD, 142);
 
   // The tally.
-  const tw = (W - 2 * PAD - 16) / 2;
+  const nt = v.evac ? 3 : 2, tw = (W - 2 * PAD - 16 * (nt - 1)) / nt;
   tally(g, PAD, 166, tw, String(f.best), f.best === 1 ? 'wave held' : 'waves held');
   tally(g, PAD + tw + 16, 166, tw, fmtGold(f.totalKills), 'creeps killed');
+  if (v.evac) tally(g, PAD + 2 * (tw + 16), 166, tw, `${v.out}/${v.n}`, 'extracted');
 
   rows.forEach((r, i) => card(g, PAD, top + i * (CARD + 14), W - 2 * PAD, r));
   g.font = `13px ${SMALL}`; g.fillStyle = C.khaki;
@@ -93,7 +97,7 @@ function card(g: CanvasRenderingContext2D, x: number, y: number, w: number, r: S
   let cx = x + 38;
   g.fillText(p.name, cx, y + 31); cx += g.measureText(p.name).width + 10;
   g.font = `16px ${PIXEL}`; g.fillStyle = C.khaki;
-  const tag = `${r.you && p.name !== 'you' ? '(you) ' : ''}${r.arch}${r.away ? ' · away' : ''}`;
+  const tag = `${r.you && p.name !== 'you' ? '(you) ' : ''}${r.arch}${r.aboard ? ' · extracted' : r.behind ? ' · left behind' : r.away ? ' · away' : ''}`;
   g.fillText(tag, cx, y + 31);
   g.font = `32px ${CRT}`; g.fillStyle = C.amber; g.textAlign = 'right';
   g.fillText(`${fmtGold(p.gold)}g`, x + w - 14, y + 33);

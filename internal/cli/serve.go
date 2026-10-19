@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"taildefense/internal/config"
 	"taildefense/internal/ui"
 )
 
@@ -41,6 +42,7 @@ func Serve(w io.Writer, o HostOptions) int {
 		{"seed", fmt.Sprint(plan.Config.Seed)},
 		{"difficulty", plan.Config.Difficulty.String()},
 		{"fog of war", map[bool]string{false: "off", true: "on"}[plan.Config.FogOfWar]},
+		{"waves", config.FormatWaves(plan.Config.LastWave)},
 		{"version", o.Version},
 	}
 	p.Fields(rows)

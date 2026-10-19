@@ -12,6 +12,14 @@ type CrateView struct {
 	X, Y, Open float32
 }
 
+// EvacView is the evac Huey: where the extraction is, seconds left of that stage, where it
+// is over the ground, how high (0 on the pad, 1 cruising) and which way it faces.
+type EvacView struct {
+	Stage          game.EvacStage
+	Left           float32
+	X, Y, Alt, Yaw float32
+}
+
 // GunView is a weapon a survivor dropped, lying on the ground with its upgrades.
 type GunView struct {
 	ID   uint16
@@ -41,6 +49,7 @@ type PlayerView struct {
 	ReloadMask                                 uint8   // a bit per weapon reloading, in hand or not
 	Look                                       uint32  // see game.dealLook
 	Sprinting, Winded, Goggles, Shielded       bool
+	Aboard                                     bool // got aboard the evac Huey
 	Cur                                        game.WeaponKind
 	Ammo                                       uint16
 	ReloadFrac                                 float32 // 1 just started, 0 done
@@ -129,6 +138,7 @@ type Replica struct {
 	Guards     []uint8 // per loot site, its living guards
 	Crates     []CrateView
 	Guns       []GunView // weapons on the ground
+	Evac       EvacView  // the evac Huey, once called
 	Seen       game.Seen // the ground the team has found, at night; nil otherwise
 
 	Alive  bitset
@@ -443,6 +453,13 @@ func (r *Replica) header(d *dec) {
 		g.By = d.u8()
 		r.Guns = append(r.Guns, g)
 	}
+	r.Evac = EvacView{Stage: game.EvacStage(d.u8())}
+	if r.Evac.Stage != game.EvacNone {
+		r.Evac.Left = float32(d.u16()) / 10
+		r.Evac.X, r.Evac.Y = unq(d.u16()), unq(d.u16())
+		r.Evac.Alt = float32(d.u8()) / 255
+		r.Evac.Yaw = unqAngle(d.u16())
+	}
 	n := int(d.u8())
 	old := r.Players
 	r.Players = make([]PlayerView, 0, n)
@@ -471,7 +488,7 @@ func (r *Replica) header(d *dec) {
 		p.TauntCool = float32(d.u16()) / 10
 		p.Stamina = float32(d.u8()) / 255
 		sp := d.u8()
-		p.Sprinting, p.Winded, p.Goggles, p.Shielded = sp&1 != 0, sp&2 != 0, sp&8 != 0, sp&16 != 0
+		p.Sprinting, p.Winded, p.Goggles, p.Shielded, p.Aboard = sp&1 != 0, sp&2 != 0, sp&8 != 0, sp&16 != 0, sp&32 != 0
 		p.Look = d.u32()
 		p.Cur = game.WeaponKind(d.u8())
 		p.Ammo = d.u16()

@@ -1,4 +1,4 @@
-import { Frame, MAX_CREEPS, PF_ALIVE, type Player, type Welcome, Weather, decodeFrame } from './protocol';
+import { EvacStage, Frame, MAX_CREEPS, PF_ALIVE, type Player, type Welcome, Weather, decodeFrame } from './protocol';
 import { Vision } from './vision';
 
 // Everything the client knows about the world: the last two frames and the interpolation
@@ -53,6 +53,8 @@ export class Game {
   // serial a creep was last dropped on, which tells a creep walking into the dark from one
   // that died.
   vision: Vision | null = null;
+  // At night: someone has seen the helipad, and it stays on the map.
+  private padSeen = false;
   hiddenAt = new Uint32Array(MAX_CREEPS);
 
   // setDifficulty follows the host changing the difficulty: night comes or goes with it, and
@@ -72,6 +74,7 @@ export class Game {
     w.difficulties ??= ['Normal']; w.difficulty ??= { id: 0, name: 'Normal' };
     w.taunt ??= { cool: 12, radius: 12, time: 5 }; w.revive ??= { reach: 1.6, time: 2.5, hp: 0.4 };
     this.welcome = w;
+    this.padSeen = false;
     this.w = w.w; this.h = w.h;
     this.vision = w.fogOfWar || w.dark ? new Vision(w.w, w.h, w) : null;
     this.hiddenAt.fill(0);
@@ -166,6 +169,18 @@ export class Game {
   }
 
   // Whether site i is still out in the dark: at night, where the team has never been.
+  // Whether the helipad shows, in the world and on the minimap: always by day; at night, where
+  // it lies out past the generator's lights, once any of it has been seen or the Huey has come
+  // down on it, as the host's PadKnown has it.
+  padKnown(): boolean {
+    const w = this.welcome, ev = w?.evac, v = this.vision;
+    if (!ev) return false;
+    if (!w!.dark || !v || this.padSeen || this.cur.evac >= EvacStage.Landed) return true;
+    const x0 = Math.floor(ev.pad.x - ev.half), y0 = Math.floor(ev.pad.y - ev.half), n = ev.half * 2;
+    for (let y = y0; y < y0 + n; y++) for (let x = x0; x < x0 + n; x++) if (v.seen[y * v.w + x]) return (this.padSeen = true);
+    return false;
+  }
+
   unfound(i: number): boolean {
     return !!this.welcome?.dark && !!this.vision && !this.vision.found(i);
   }

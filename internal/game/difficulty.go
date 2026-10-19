@@ -37,14 +37,15 @@ type DifficultyDef struct {
 	Dark   float32 // how far a survivor sees out in the wastes at night, 0 for no night
 	Cone   float32 // brutal: how far the flashlight reaches along the aim; the night shows only what is lit now
 	Unsaid bool    // the wave's notice doesn't say which sides it comes from
+	Pad    float32 // tiles from the generator to the helipad, give or take padSpread; past BuildRadius, out in the night, it has to be found
 }
 
 // Difficulties is indexed by Difficulty.
 var Difficulties = [NumDifficulties]DifficultyDef{
-	DiffEasy:   {Name: "Easy", HP: .75, Count: .75, Gold: 1.25, Start: 150, First: 40, Build: 20, Rest: 75, Revive: 28, Guard: .7},
-	DiffNormal: {Name: "Normal", HP: 1, Count: 1, Gold: 1, Start: 150, First: 20, Build: 15, Rest: 60, Revive: 20, Guard: 1},
-	DiffHard:   {Name: "Hard", HP: 1.3, Count: 1.25, Gold: .9, Start: 150, First: 25, Build: 18, Rest: 60, Revive: 16, Guard: 1.3, Dark: 7, Unsaid: true},
-	DiffBrutal: {Name: "Brutal", HP: 1.7, Count: 1.5, Gold: .8, Start: 0, First: 30, Build: 20, Rest: 60, Revive: 12, Guard: 1.7, Melee: true, Dark: 3, Cone: 11, Unsaid: true},
+	DiffEasy:   {Name: "Easy", HP: .75, Count: .75, Gold: 1.25, Start: 150, First: 40, Build: 20, Rest: 75, Revive: 28, Guard: .7, Pad: 22},
+	DiffNormal: {Name: "Normal", HP: 1, Count: 1, Gold: 1, Start: 150, First: 20, Build: 15, Rest: 60, Revive: 20, Guard: 1, Pad: 28},
+	DiffHard:   {Name: "Hard", HP: 1.3, Count: 1.25, Gold: .9, Start: 150, First: 25, Build: 18, Rest: 60, Revive: 16, Guard: 1.3, Dark: 7, Unsaid: true, Pad: 48},
+	DiffBrutal: {Name: "Brutal", HP: 1.7, Count: 1.5, Gold: .8, Start: 0, First: 30, Build: 20, Rest: 60, Revive: 12, Guard: 1.7, Melee: true, Dark: 3, Cone: 11, Unsaid: true, Pad: 58},
 }
 
 // String is the difficulty's name.

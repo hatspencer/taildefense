@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import type { CameraRig } from './camera';
-import { K_ARMORY, lootable, stickyKind, repairCost, walled, type Command, Order, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_READY, Phase, PingKind, SiteKind, siteX, siteY, Tile } from './protocol';
+import { EvacStage, K_ARMORY, lootable, stickyKind, repairCost, walled, type Command, Order, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_READY, Phase, PingKind, SiteKind, siteX, siteY, Tile } from './protocol';
 import type { Effects } from './scene/effects';
 import type { Game } from './state';
 
@@ -96,7 +96,7 @@ export class Controller {
       const p = f.players[i];
       // The living, and downed teammates (lying flat, so a little wider) to revive.
       const alive = (p.flags & PF_ALIVE) !== 0;
-      if (!alive && (!(p.flags & PF_CONNECTED) || p.id === myId)) continue;
+      if (!alive && (!(p.flags & PF_CONNECTED) || p.id === myId || p.aboard)) continue;
       const d = segDist(g.prx[p.id], g.pry[p.id]) / (alive ? 0.6 : 0.85);
       if (d < 1 && d < bd) { bd = d; best = { t: 'hero', id: p.id }; }
     }
@@ -174,7 +174,7 @@ export class Controller {
     const h = this.hover, me = this.me();
     if (h?.t !== 'hero' || this.mode.k !== 'none' || !me || !(me.flags & PF_ALIVE) || h.id === me.id) return -1;
     const p = this.game.cur.player(h.id);
-    return p && !(p.flags & PF_ALIVE) ? h.id : -1;
+    return p && !(p.flags & PF_ALIVE) && !p.aboard ? h.id : -1;
   }
 
   taunt(): void {
@@ -259,6 +259,18 @@ export class Controller {
     this.onToast('nothing to use here', 1);
   }
 
+  // E once the evac Huey is down: the hero walks to it and gets aboard, wherever they are. A
+  // downed teammate right at hand comes first, to be picked up and brought along.
+  board(): boolean {
+    const g = this.game, f = g.cur, ev = g.welcome?.evac, me = this.me();
+    if (!ev || !me || !(me.flags & PF_ALIVE) || f.evac !== EvacStage.Landed) return false;
+    if (this.nearestUsable(me.x, me.y, true)?.t === 'hero') return false;
+    if (me.order !== Order.Board) this.send({ op: 'board' });
+    this.toArmory = false;
+    this.fx.ping(f.evacX, f.evacY, 0x50ff80);
+    return true;
+  }
+
   // E twice: the hero walks to the nearest unsearched loot site and searches it. Only one in
   // sight range and not still out in the dark, since sites are found by going out and looking.
   // A hero already off looting carries on, so spamming E doesn't restart a search, nor does
@@ -306,7 +318,7 @@ export class Controller {
     };
     for (let i = 0; i < f.nPlayers; i++) {
       const p = f.players[i];
-      if (p.id !== me.id && !(p.flags & PF_ALIVE) && p.flags & PF_CONNECTED) take({ t: 'hero', id: p.id }, g.prx[p.id], g.pry[p.id]);
+      if (p.id !== me.id && !(p.flags & PF_ALIVE) && !p.aboard && p.flags & PF_CONNECTED) take({ t: 'hero', id: p.id }, g.prx[p.id], g.pry[p.id]);
     }
     for (let i = 0; i < wd.sites.length; i++) {
       // Guarded too: guards don't forbid a search, they only make it harder.
@@ -333,7 +345,7 @@ export class Controller {
     if (!h || !me) return false;
     if (h.t === 'hero') {
       const p = f.player(h.id);
-      if (!p || p.flags & PF_ALIVE || h.id === me.id) return false;
+      if (!p || p.flags & PF_ALIVE || p.aboard || h.id === me.id) return false;
       this.toArmory = false;
       this.send({ op: 'revive', p: h.id });
       this.fx.ping(g.prx[h.id], g.pry[h.id], 0x50ff80);

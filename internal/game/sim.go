@@ -64,6 +64,10 @@ func (w *World) Step() {
 		if w.Phase == PhaseWave {
 			w.CreepsLeft = w.creepsLeft(n)
 		}
+	case PhaseEvac:
+		w.WaveTime += Dt
+		w.spawnDue()
+		w.CreepsLeft = w.creepsLeft(w.waveCreeps())
 	}
 
 	w.stepWanderers()
@@ -78,6 +82,7 @@ func (w *World) Step() {
 	w.stepPumps()
 	w.stepBell()
 	w.stepCrates()
+	w.stepEvac()
 	w.stepCreeps()
 	w.stepBrood()
 	w.reap()
@@ -135,6 +140,9 @@ func (w *World) startWave() {
 		from = " from " + f
 	}
 	w.note(2, "wave %d: %d creeps incoming%s%s", w.Wave, len(w.Queue), from, label)
+	if w.Wave == 1 && !w.PadKnown() && !w.Endless() {
+		w.note(1, "somewhere out in the dark is a helipad  ·  the evac Huey lands there after wave %d: find it", w.LastWave)
+	}
 }
 
 // stallLimit is how long a wave may go without a single creep of it dying, once all are out,
@@ -173,6 +181,10 @@ func (w *World) endWave() {
 		if !p.Alive {
 			p.Respawn = 0
 		}
+	}
+	if w.lastWave() {
+		w.startEvac()
+		return
 	}
 	w.Phase = PhaseBuild
 	w.PhaseLeft = w.diff().Build
@@ -473,8 +485,9 @@ func (w *World) stepCreeps() {
 			}
 			nx := f.next[ti]
 			switch {
-			case nx < 0 && lure && f.dist[ti] == 0:
-				// In the nave: milling about, only the crowd moving it.
+			case nx < 0 && f.dist[ti] == 0:
+				// In the nave, or on the helipad the evac lands on: milling about, only the
+				// crowd moving it.
 			case nx < 0:
 				// Unreachable from here: walk straight at the goal and break what is in the way.
 				dx, dy := gx-c.X, gy-c.Y
@@ -1310,6 +1323,12 @@ func (w *World) reap() {
 	for i := range w.Structs {
 		s := &w.Structs[i]
 		if !s.Alive || s.HP > 0 {
+			continue
+		}
+		if i == w.Core && w.Phase == PhaseEvac {
+			// The Huey is the way out now: the generator holds on its last legs, so a game
+			// played to the end is not lost a minute from the ride home.
+			s.HP = 1
 			continue
 		}
 		if i == w.Core {

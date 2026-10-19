@@ -325,6 +325,10 @@ func (w *World) canBuild(p *Player, k StructKind, x, y int, near bool) error {
 	if cx*cx+cy*cy > BuildRadius*BuildRadius {
 		return fmt.Errorf("too far from the generator to build (stay within %d tiles)", BuildRadius)
 	}
+	// The pad lies out past the build ring at night, so this never gives an unfound pad away.
+	if w.onPad(x, y) {
+		return errors.New("keep the helipad clear: the evac Huey lands there")
+	}
 	if px, py := float32(x)+.5-p.X, float32(y)+.5-p.Y; near && px*px+py*py > (buildReach+1)*(buildReach+1) {
 		return errors.New("too far away; walk closer")
 	}
@@ -536,6 +540,7 @@ func (w *World) Sell(p *Player, si int) (int32, error) {
 func (w *World) Restart(seed uint64) *World {
 	nw := NewGame(seed, w.Diff)
 	nw.FogOfWar = w.FogOfWar
+	nw.LastWave = w.LastWave
 	for _, p := range w.Players {
 		np := &Player{ID: p.ID, Name: p.Name, Login: p.Login, Connected: p.Connected}
 		nw.resetPlayer(np)

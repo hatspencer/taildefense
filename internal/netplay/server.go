@@ -47,6 +47,7 @@ type ServerConfig struct {
 	Seed       uint64
 	Difficulty game.Difficulty
 	FogOfWar   bool
+	LastWave   int // the wave that ends the game with the evac; 0 endless
 	Version    string
 	Host       string // this machine's name, for the join list
 	Owner      string // the hosting login
@@ -113,6 +114,7 @@ func Listen(cfg ServerConfig) (*Server, error) {
 		started: time.Now(),
 	}
 	s.world.FogOfWar = cfg.FogOfWar
+	s.world.LastWave = cfg.LastWave
 	for _, a := range cfg.Addrs {
 		ln, err := net.Listen("tcp", a)
 		if err != nil {
@@ -375,6 +377,9 @@ func (s *Server) welcome(p *peer) outMsg {
 	b.u32(uint32(w.Seed >> 32))
 	b.u8(uint8(w.Diff))
 	b.flag(w.FogOfWar)
+	b.u8(uint8(w.LastWave))
+	b.u16(qpos(w.PadX))
+	b.u16(qpos(w.PadY))
 	t := make([]byte, len(w.Terrain))
 	for i, v := range w.Terrain {
 		t[i] = byte(v)
@@ -558,6 +563,8 @@ func Exec(w *game.World, pl *game.Player, c Cmd) (string, error) {
 		}
 	case OpRevive:
 		err = w.OrderRevive(pl, int(c.T))
+	case OpBoard:
+		err = w.OrderBoard(pl)
 	case OpDropWeapon:
 		err = w.DropWeapon(pl, game.WeaponKind(c.A))
 	case OpPickup:
@@ -692,6 +699,7 @@ const (
 	OpPickup     // T the weapon on the ground's id
 	OpBuyGoggles
 	OpFixAll // rebuild every ghost and repair everything, between waves
+	OpBoard  // get aboard the evac Huey on the pad
 )
 
 // Cmd is a discrete request from a player. X and Y are tiles, sent to 1/8; T names a creep

@@ -67,6 +67,7 @@ func (w *World) discover() {
 		w.lightDisc(s.CX(), s.CY(), r, -1)
 	}
 	slices.Sort(w.Found)
+	w.findPad()
 }
 
 // rifleSight is how much further a survivor with a rifle in hand sees: the scope.

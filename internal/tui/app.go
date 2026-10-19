@@ -555,6 +555,10 @@ func (m *Model) menuKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.save(key, map[bool]string{false: "on", true: "off"}[m.prefs.Fog()])
 			m.notice = ""
 		}
+	case "w":
+		if m.cursor < len(items) && items[m.cursor] == itemHost {
+			m.cycleWaves()
+		}
 	case "enter", " ":
 		if m.cursor >= len(items) {
 			m.cursor = 0
@@ -789,6 +793,20 @@ func (m *Model) cycleDifficulty(up bool) {
 	}
 	key, _ := config.Lookup(config.KeyDifficulty)
 	m.save(key, game.Difficulty(d).String())
+	m.notice = ""
+}
+
+// cycleWaves steps how long the games hosted are, 20, 30 or 40 waves or endless, and
+// remembers it.
+func (m *Model) cycleWaves() {
+	cur, i := m.prefs.Waves(), 0
+	for j, v := range game.LastWaves {
+		if v == cur {
+			i = j
+		}
+	}
+	key, _ := config.Lookup(config.KeyWaves)
+	m.save(key, config.FormatWaves(game.LastWaves[(i+1)%len(game.LastWaves)]))
 	m.notice = ""
 }
 

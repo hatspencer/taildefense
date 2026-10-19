@@ -383,6 +383,7 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .scorecards .dot { display: inline-block; flex: none; width: 8px; height: 12px; border: 2px solid var(--black); align-self: center; }
 .scorecards .st { font-family: var(--small); font-size: 12px; }
 .scorecards .st.down { color: var(--rust); }
+.scorecards .st.out { color: var(--moss); }
 .scorecards .nums { display: grid; grid-template-columns: repeat(9, minmax(max-content, 1fr)); gap: 2px 10px; padding: 4px 6px 3px; background: var(--scan), var(--screen); border: 2px solid var(--black); }
 .scorecards .n { text-align: center; min-width: 0; }
 .scorecards .n b { display: block; font: 400 22px/1 var(--crt); color: #f4c25c; font-variant-numeric: tabular-nums; }
@@ -404,6 +405,13 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 
 /* ---------- game over: the field report ---------- */
 
+/* The evac Huey lifting off and flying away: black bars slide in, film style. */
+body.cine::before, body.cine::after { content: ""; position: fixed; left: 0; right: 0; height: 11vh; background: #000; z-index: var(--z-over);
+  pointer-events: none; animation: cine 0.8s ease-out both; }
+body.cine::before { top: 0; } body.cine::after { bottom: 0; }
+@keyframes cine { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+body.cine::before { transform-origin: top; } body.cine::after { transform-origin: bottom; }
+
 .over { position: absolute; inset: 0; z-index: var(--z-over); display: flex; align-items: center; justify-content: center; padding: 16px;
   background: radial-gradient(ellipse at 50% 45%, rgba(30, 10, 6, 0.55), rgba(5, 5, 3, 0.88) 70%), var(--scan); }
 .over .sheet { position: relative; width: min(760px, 100%); max-height: calc(100% - 16px); overflow: auto; padding: 30px 26px 20px; }
@@ -412,6 +420,7 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 16px/12p
 .over .stamp { position: absolute; top: 26px; right: 22px; padding: 4px 12px 2px; font: 700 28px/1 var(--font); letter-spacing: 0.08em; color: var(--rust);
   border: 3px solid var(--rust); transform: rotate(-9deg); opacity: 0.85; mix-blend-mode: screen;
   -webkit-mask-image: var(--grain), linear-gradient(#000, #000); mask-image: linear-gradient(#000, #000); animation: stamp 0.35s steps(4) both 0.25s; }
+.over .sheet.out .stamp { color: var(--moss); border-color: var(--moss); }
 @keyframes stamp { from { transform: rotate(-9deg) scale(2.2); opacity: 0; } to { transform: rotate(-9deg) scale(1); opacity: 0.85; } }
 .over .meta { color: var(--khaki); margin-bottom: 14px; }
 .over .tally { display: flex; gap: 10px; margin-bottom: 16px; }
@@ -483,5 +492,5 @@ canvas, .hud img, .hud svg { image-rendering: pixelated; }
   .abilities { gap: 5px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .over .stamp, .cover .spin, .top .chip.base.low, .wslot.reloading::after { animation: none; }
+  body.cine::before, body.cine::after, .over .stamp, .cover .spin, .top .chip.base.low, .wslot.reloading::after { animation: none; }
 }

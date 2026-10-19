@@ -85,7 +85,7 @@ func (w *World) OrderRevive(p *Player, mate int) error {
 		return errors.New("nobody to revive there")
 	}
 	m := w.Players[mate]
-	if m.Alive || !m.Connected {
+	if m.Alive || !m.Connected || m.Aboard {
 		return fmt.Errorf("%s is not down", m.Name)
 	}
 	w.order(p, Order{Kind: OrderRevive, Mate: mate, X: m.X, Y: m.Y})
@@ -95,7 +95,7 @@ func (w *World) OrderRevive(p *Player, mate int) error {
 // actRevive is one tick of a revive order; it reports whether the order is still going.
 func (w *World) actRevive(p *Player, o *Order) bool {
 	m := w.Players[o.Mate]
-	if m.Alive || !m.Connected {
+	if m.Alive || !m.Connected || m.Aboard {
 		p.Search = 0
 		return false
 	}

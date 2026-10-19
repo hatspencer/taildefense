@@ -1,5 +1,5 @@
 import type { Controller } from '../controller';
-import { EffectKind, K_ARMORY, K_CORE, K_GATE, PF_ALIVE, PF_CONNECTED, PingKind } from '../protocol';
+import { EffectKind, EvacStage, K_ARMORY, K_CORE, K_GATE, PF_ALIVE, PF_CONNECTED, PingKind } from '../protocol';
 import { PING_LIFE } from '../state';
 import { cssHex, playerColor } from '../scene/util';
 import { el } from './dom';
@@ -152,6 +152,16 @@ export class Minimap {
       c.fillRect(f.sX[i] * sx, f.sY[i] * sy, Math.max(1.5, f.sW[i] * sx), Math.max(1.5, f.sH[i] * sy));
     }
     this.drawFog();
+    // The helipad, once found: a white H on a grey rounded square, over the fog, so it stays
+    // marked once the ground round it has gone dark again.
+    if (wd.evac && g.padKnown()) {
+      const px = Math.round(wd.evac.pad.x * sx), py = Math.round(wd.evac.pad.y * sy), h = Math.max(4 * dpr, wd.evac.half * sx);
+      c.fillStyle = '#000'; c.beginPath(); c.roundRect(px - h - dpr, py - h - dpr, 2 * h + 2 * dpr, 2 * h + 2 * dpr, h * 0.45); c.fill();
+      c.fillStyle = '#6e6d68'; c.beginPath(); c.roundRect(px - h, py - h, 2 * h, 2 * h, h * 0.4); c.fill();
+      c.fillStyle = '#eeeae0';
+      c.fillRect(px - h * 0.6, py - h * 0.6, h * 0.3, h * 1.2); c.fillRect(px + h * 0.3, py - h * 0.6, h * 0.3, h * 1.2);
+      c.fillRect(px - h * 0.6, py - h * 0.15, h * 1.2, h * 0.3);
+    }
     // Supply crates: a blinking green box; a Huey on its way: a green cross where it is.
     const cb = Math.floor(now / 500) % 2 === 0, cr = 3 * dpr;
     for (const k of f.crates) {
@@ -173,6 +183,12 @@ export class Minimap {
       c.fillStyle = '#000'; c.fillRect(x - 4 * dpr, y - 2 * dpr, 8 * dpr, 4 * dpr); c.fillRect(x - 2 * dpr, y - 4 * dpr, 4 * dpr, 8 * dpr);
       c.fillStyle = '#6ee05a'; c.fillRect(x - 3 * dpr, y - dpr, 6 * dpr, 2 * dpr); c.fillRect(x - dpr, y - 3 * dpr, 2 * dpr, 6 * dpr);
     }
+    // The evac Huey, once it is in sight: a big green cross.
+    if (f.evac === EvacStage.Landed || f.evac === EvacStage.Departing || (f.evac === EvacStage.Inbound && f.evacLeft <= (wd.evac?.flight ?? 0))) {
+      const x = Math.round(f.evacX * sx), y = Math.round(f.evacY * sy);
+      c.fillStyle = '#000'; c.fillRect(x - 6 * dpr, y - 2 * dpr, 12 * dpr, 4 * dpr); c.fillRect(x - 2 * dpr, y - 6 * dpr, 4 * dpr, 12 * dpr);
+      c.fillStyle = cb ? '#6ee05a' : '#b8ff9a'; c.fillRect(x - 5 * dpr, y - dpr, 10 * dpr, 2 * dpr); c.fillRect(x - dpr, y - 5 * dpr, 2 * dpr, 10 * dpr);
+    }
     c.fillStyle = '#d04a34';
     const d = Math.max(1.5, sx * 1.1);
     // In thick fog, creeps only a teammate sees would show where the teammate is.
@@ -184,7 +200,7 @@ export class Minimap {
     const blink = Math.floor(now / 400) % 2 === 0;
     for (let i = 0; i < f.nPlayers; i++) {
       const p = f.players[i];
-      if (fog && p.id !== wd.you) continue;
+      if (p.aboard || (fog && p.id !== wd.you)) continue;
       const r = 3 * dpr;
       const px = Math.round(p.x * sx), py = Math.round(p.y * sy);
       if (!(p.flags & PF_ALIVE)) {

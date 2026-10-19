@@ -1,5 +1,5 @@
 import type { ConnState } from '../net';
-import { CROWBAR, K_ARMORY, K_CORE, stickyKind, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, type Player, TTrack, TURRET_TRACKS, type Welcome, repairCost, sellValue, turretRange, WEAPON_SLOTS } from '../protocol';
+import { CROWBAR, EvacStage, K_ARMORY, K_CORE, stickyKind, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, type Player, TTrack, TURRET_TRACKS, type Welcome, repairCost, sellValue, turretRange, WEAPON_SLOTS } from '../protocol';
 import { type Controller, KEYS } from '../controller';
 import { cssHex, playerColor } from '../scene/util';
 import { Armory } from './armory';
@@ -7,7 +7,7 @@ import { archetypeName } from '../scene/look';
 import { CELL, type Portraits } from '../scene/portraits';
 import { el, esc, fmtGold, patch, setClass, setText, show } from './dom';
 import { iconFor, weatherIcon } from './icons';
-import { scoreRows } from './score';
+import { scoreRows, verdict } from './score';
 import { drawReport } from './shot';
 import { Compass, where } from './compass';
 import { Minimap } from './minimap';
@@ -86,6 +86,9 @@ export class Hud {
   // Keeps a picture of the field report when a game ends; the page sets it when a td serves it.
   // Resolves to where the picture went.
   keepShot: ((png: Blob, wave: number) => Promise<string>) | null = null;
+  // Whether the evac Huey is still lifting off or flying away: the screen is letterboxed for
+  // it, and the field report waits until it is out of sight.
+  leaving: () => boolean = () => false;
   private overBoard: HTMLElement | null = null;
   private cover: HTMLElement;
   private statsEl: HTMLElement;
@@ -508,7 +511,8 @@ export class Hud {
     if (!wd) return '';
     const cards = scoreRows(wd, g.cur).map((r) => {
       const p = r.p;
-      const st = r.away ? '<span class="st muted">away</span>' : r.down ? `<span class="st down">down ${p.respawn}s</span>` : '';
+      const st = r.aboard ? '<span class="st out">extracted</span>' : r.away ? '<span class="st muted">away</span>'
+        : r.behind ? '<span class="st down">left behind</span>' : r.down ? `<span class="st down">down ${p.respawn}s</span>` : '';
       const you = r.you && p.name !== 'you' ? ' <span class="muted">(you)</span>' : '';
       const nums = r.nums.map((n) => `<div class="n${n.bad ? ' bad' : ''}"><b>${fmtGold(n.v)}</b><span>${n.label}</span></div>`).join('');
       const kit = r.chips.map((c) => `<span class="pchip${c.held ? ' held' : ''}${c.ab ? ' ab' : ''}" title="${esc(c.title)}">${esc(c.text)}${c.lv ? `<b>${esc(c.lv)}</b>` : ''}</span>`).join('');
@@ -582,7 +586,7 @@ export class Hud {
         root.onclick = () => {
           const q = ctl.game.cur.player(id);
           if (!q) return;
-          if (q.flags & PF_CONNECTED && !(q.flags & PF_ALIVE)) ctl.send({ op: 'revive', p: id });
+          if (q.flags & PF_CONNECTED && !(q.flags & PF_ALIVE) && !q.aboard) ctl.send({ op: 'revive', p: id });
           else { ctl.rig.follow = false; ctl.rig.center(q.x, q.y, false); }
         };
         this.mates.set(id, { root, face: cv.getContext('2d')!, resp, fill, what });
@@ -592,14 +596,14 @@ export class Hud {
       const m = this.mates.get(p.id)!;
       const here = (p.flags & PF_CONNECTED) !== 0, alive = (p.flags & PF_ALIVE) !== 0;
       const frac = Math.max(0, Math.min(1, p.hp / Math.max(1, p.maxHp)));
-      const down = here && !alive && !over;
+      const down = here && !alive && !over && !p.aboard;
       m.fill.style.transform = `scaleX(${alive ? frac.toFixed(3) : down ? p.revived.toFixed(3) : 0})`;
       setClass(m.root, 'away', !here);
       setClass(m.root, 'dead', down);
       setClass(m.root, 'low', alive && frac < 0.3);
-      setText(m.resp, here && !alive ? `${p.respawn}` : '');
+      setText(m.resp, here && !alive && !p.aboard ? `${p.respawn}` : '');
       const w = wd.weapons[p.cur]?.name ?? '';
-      const what = !here ? 'away'
+      const what = p.aboard ? 'aboard the Huey' : !here ? 'away'
         : !alive ? (over ? 'down' : p.revived > 0 ? `being revived${reviving ? ' · stay close' : ''}` : `down ${at(p)}`)
         : p.order === Order.Revive && p.channel > 0 ? 'reviving'
         : p.order === Order.Loot && p.channel > 0 ? 'searching'
@@ -617,6 +621,12 @@ export class Hud {
       const left = Math.max(0, f.phaseLeft / 10 - (now - ctl.game.frameAt) / 1000);
       wave = `<span class="lbl">wave ${f.wave + 1} in</span><span class="phase">${Math.ceil(left)}s</span>`;
     } else if (f.phase === Phase.Wave) wave = `<span class="lbl">wave</span>${f.wave}<span class="lbl">·</span><span class="phase">${fmtGold(f.left)}</span><span class="lbl">creeps left</span>`;
+    else if (f.phase === Phase.Evac) {
+      const left = Math.ceil(Math.max(0, f.evacLeft - (now - ctl.game.frameAt) / 1000));
+      wave = f.evac === EvacStage.Inbound ? `<span class="lbl">evac · Huey lands in</span><span class="phase">${left}s</span><span class="lbl">· hold the helipad</span>`
+        : f.evac === EvacStage.Landed ? `<span class="lbl">get to the choppa ·</span><span class="phase">${left}s</span><span class="lbl">to lift-off</span>`
+        : `<span class="lbl">the Huey is lifting off</span>`;
+    } else if (f.evac === EvacStage.Gone) wave = `<span class="lbl">evac · held</span><span class="phase">${f.best}</span><span class="lbl">waves</span>`;
     else wave = `<span class="lbl">overrun · held</span><span class="phase">${f.best}</span><span class="lbl">waves</span>`;
     if (this.top.wave.innerHTML !== wave) this.top.wave.innerHTML = wave;
 
@@ -675,11 +685,14 @@ export class Hud {
   // The last seconds of a break count down big in the middle of the screen.
   private updateCountdown(now: number): void {
     const g = this.ctl.game, f = g.cur;
-    const left = f.phase === Phase.Build && f.pausedBy < 0 ? f.phaseLeft / 10 - (now - g.frameAt) / 1000 : 0;
-    const on = left > 0 && left <= 5;
+    const sec = (now - g.frameAt) / 1000;
+    const evac = f.phase === Phase.Evac && f.evac === EvacStage.Landed && f.pausedBy < 0;
+    const left = evac ? f.evacLeft - sec : f.phase === Phase.Build && f.pausedBy < 0 ? f.phaseLeft / 10 - sec : 0;
+    // The Huey's last ten seconds on the pad; for one aboard, all of them.
+    const on = left > 0 && left <= (evac ? (this.ctl.me()?.aboard ? 999 : 10) : 5);
     show(this.countEl.root, on);
     if (!on) return;
-    setText(this.countEl.wave, `wave ${f.wave + 1} incoming`);
+    setText(this.countEl.wave, !evac ? `wave ${f.wave + 1} incoming` : this.ctl.me()?.aboard ? 'aboard · lift-off in' : 'get to the choppa!');
     const n = String(Math.ceil(left));
     if (this.countEl.n.textContent !== n) {
       this.countEl.n.textContent = n;
@@ -704,7 +717,7 @@ export class Hud {
   private updateDown(me: Player | null): void {
     const ctl = this.ctl, f = ctl.game.cur;
     const over = f.phase === Phase.Over;
-    const down = !!me && !(me.flags & PF_ALIVE) && !over;
+    const down = !!me && !(me.flags & PF_ALIVE) && !over && !me.aboard;
     show(this.downed.root, down);
     if (down) {
       let mates = 0;
@@ -723,22 +736,24 @@ export class Hud {
 
   private updateOver(tick: boolean): void {
     const ctl = this.ctl, f = ctl.game.cur, wd = ctl.game.welcome!;
-    const isOver = f.phase === Phase.Over;
+    const leaving = this.leaving();
+    setClass(document.body, 'cine', leaving);
+    const isOver = f.phase === Phase.Over && !leaving;
     show(this.over, isOver);
     if (!isOver) { delete this.over.dataset.shown; this.overBoard = null; return; }
     if (!this.over.dataset.shown) {
       this.over.dataset.shown = '1';
       show(this.score, false);
-      let n = 0;
-      for (let i = 0; i < f.nPlayers; i++) if (f.players[i].flags & PF_CONNECTED) n++;
-      this.over.innerHTML = `<div class="sheet panel">
-        <span class="tape red">Field report</span>
-        <div class="stamp">Overrun</div>
-        <h1>The generator has fallen</h1>
+      const v = verdict(f), n = v.n;
+      this.over.innerHTML = `<div class="sheet panel${v.ok ? ' out' : ''}">
+        <span class="tape ${v.ok ? 'green' : 'red'}">Field report</span>
+        <div class="stamp">${v.stamp}</div>
+        <h1>${v.head}</h1>
         <div class="meta">${esc(wd.difficulty.name)} · ${n} ${n === 1 ? 'survivor' : 'survivors'} · map ${esc(wd.seed)}</div>
         <div class="tally">
           <div class="crt"><b>${f.best}</b><span>${f.best === 1 ? 'wave' : 'waves'} held</span></div>
-          <div class="crt"><b>${fmtGold(f.totalKills)}</b><span>creeps killed</span></div>
+          <div class="crt"><b>${fmtGold(f.totalKills)}</b><span>creeps killed</span></div>${v.evac ? `
+          <div class="crt"><b>${v.out}/${n}</b><span>extracted</span></div>` : ''}
         </div>
         <div class="board"></div>
         <div class="row"></div>
@@ -785,8 +800,8 @@ export class Hud {
       for (const [id, m] of this.mates) pt.draw(m.face, id);
     }
     setClass(h.portrait, 'low', alive && me.hp / Math.max(1, me.maxHp) < 0.3);
-    setClass(h.portrait, 'dead', !alive);
-    setText(h.resp, alive ? '' : `${me.respawn}`);
+    setClass(h.portrait, 'dead', !alive && !me.aboard);
+    setText(h.resp, alive || me.aboard ? '' : `${me.respawn}`);
     setText(h.name, me.name);
     setText(h.gold, `${fmtGold(me.gold)}`);
     const frac = me.hp / Math.max(1, me.maxHp);

@@ -10,7 +10,7 @@ import (
 // Check reports the first broken invariant of the world between ticks, or nil. The playtests
 // run it after every tick of every game they play; it is too slow for the host's own loop.
 func (w *World) Check() error {
-	if w.Phase > PhaseOver {
+	if w.Phase > PhaseEvac {
 		return fmt.Errorf("phase %d", w.Phase)
 	}
 	if !finite(w.PhaseLeft) || !finite(w.WaveTime) {
@@ -87,6 +87,9 @@ func (w *World) Check() error {
 		if !finite(p.HP) || p.HP < 0 || p.HP > p.MaxHP*1.0001 {
 			return fmt.Errorf("%s hp %v of %v", p.Name, p.HP, p.MaxHP)
 		}
+		if p.Aboard && (p.Alive || w.Phase != PhaseEvac && w.Phase != PhaseOver) {
+			return fmt.Errorf("%s aboard the Huey, alive %v in phase %s", p.Name, p.Alive, w.Phase)
+		}
 		if p.Alive && p.HP <= 0 {
 			return fmt.Errorf("%s alive on %v hp", p.Name, p.HP)
 		}
@@ -157,6 +160,10 @@ func (w *World) Hash() uint64 {
 	f(w.PhaseLeft)
 	u(uint64(w.TotalKills))
 	u(uint64(w.Weather))
+	if w.Evac.Stage != EvacNone {
+		u(uint64(w.Evac.Stage))
+		f(w.Evac.Left)
+	}
 	for i := range w.Creeps {
 		c := &w.Creeps[i]
 		u(uint64(c.ID)<<8 | uint64(c.Kind))
@@ -181,6 +188,9 @@ func (w *World) Hash() uint64 {
 		u(uint64(p.Gold))
 		u(uint64(p.Kills))
 		u(uint64(p.Order.Kind))
+		if p.Aboard {
+			u(1)
+		}
 	}
 	for _, e := range w.Effects {
 		u(uint64(e.Kind))

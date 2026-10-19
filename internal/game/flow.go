@@ -45,6 +45,14 @@ func (w *World) updateFlow() {
 			w.goals = append(w.goals, int32(y*w.W+x))
 		}
 	}
+	// While the evac Huey comes and waits, the dead go for the pad as much as the generator.
+	if w.Phase == PhaseEvac && w.Evac.Stage <= EvacLanded {
+		for y := int(w.PadY) - padHalf; y < int(w.PadY)+padHalf; y++ {
+			for x := int(w.PadX) - padHalf; x < int(w.PadX)+padHalf; x++ {
+				w.goals = append(w.goals, int32(y*w.W+x))
+			}
+		}
+	}
 	w.fillFlow(&w.flow, w.goals)
 }
 

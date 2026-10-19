@@ -36,8 +36,12 @@ type Welcome struct {
 	Seed    uint64
 	Diff    game.Difficulty
 	Fog     bool // fog of war
-	Terrain []game.Tile
-	Sites   []game.Site
+	// LastWave is the wave that ends the game with the evac, 0 for an endless game; PadX,
+	// PadY the helipad's middle.
+	LastWave   int
+	PadX, PadY float32
+	Terrain    []game.Tile
+	Sites      []game.Site
 }
 
 // DecodeWelcome reads a welcome payload.
@@ -48,6 +52,8 @@ func DecodeWelcome(p []byte) (Welcome, error) {
 	w.Seed = uint64(hi)<<32 | uint64(lo)
 	w.Diff = game.Difficulty(d.u8())
 	w.Fog = d.u8() != 0
+	w.LastWave = int(d.u8())
+	w.PadX, w.PadY = unq(d.u16()), unq(d.u16())
 	t := d.bytes()
 	if d.err != nil {
 		return w, d.err

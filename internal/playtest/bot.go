@@ -76,6 +76,15 @@ func (b *Bot) Act(s *Session) {
 		b.between(s, p, do)
 	case game.PhaseWave:
 		b.fight(s, p, do)
+	case game.PhaseEvac:
+		// Get to the choppa once it is down; fight for the pad until then.
+		if w.Evac.Stage == game.EvacLanded {
+			if p.Order.Kind != game.OrderBoard {
+				do(netplay.Cmd{Op: netplay.OpBoard})
+			}
+			return
+		}
+		b.fight(s, p, do)
 	}
 }
 
@@ -298,7 +307,8 @@ type Result struct {
 	Waves  int // waves fully survived
 	Ticks  int
 	Kills  uint32
-	Over   bool // the generator fell
+	Over   bool // the game ended: the generator fell, or the evac Huey left
+	Out    int  // survivors who got out on the evac Huey
 	Hashes []uint64
 }
 
@@ -325,11 +335,16 @@ func Play(s *Session, bots []*Bot, maxWave, limit int) (Result, error) {
 		if w.Phase == game.PhaseWave && i-waveStart > stuck*game.TickRate {
 			return res, stuckAt(w)
 		}
-		if wasWave && w.Phase == game.PhaseBuild {
+		if wasWave && (w.Phase == game.PhaseBuild || w.Phase == game.PhaseEvac) {
 			res.Waves = w.Wave
 		}
 		if w.Phase == game.PhaseOver {
 			res.Over = true
+			for _, p := range w.Players {
+				if p.Aboard {
+					res.Out++
+				}
+			}
 			break
 		}
 		if res.Waves >= maxWave {
