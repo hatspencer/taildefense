@@ -4,7 +4,8 @@ Co-op wave defense played in your browser over your tailnet, inspired by Warcraf
 defense maps. The game is 3D, seen from a tilted camera you can rotate. You and your friends hold
 a walled base around a generator. Between waves you shop at the armory, upgrade weapons and
 abilities, build and repair turrets and walls. During a wave, hordes come in from every side of
-the map. The goal is to survive as many waves as you can.
+the map. The goal is to hold out until the last wave, 40 by default, then get to the evac Huey;
+in an endless game, to survive as many waves as you can.
 
 ```
 td            # launcher: host a game, find games on your tailnet, settings, changelog, doctor
