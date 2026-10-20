@@ -97,7 +97,8 @@ type StructView struct {
 	Level     uint8
 	Lv        [game.NumTracks]uint8 // a turret's track levels
 	Owner     int8
-	Open      bool // a gate swung open, which creeps walk through
+	Open      bool  // a gate swung open, which creeps walk through
+	Evo       uint8 // a turret's evolution, 1 or 2, 0 none
 }
 
 // Tracer, Blast and Death are frame events in tiles.
@@ -140,13 +141,18 @@ type Replica struct {
 	// compass point from east round by south (0 unsaid).
 	Affix, NextAffix game.Affix
 	NextFrom         uint8
-	Players          []PlayerView
-	Searched         []bool  // per loot site, from the welcome's list
-	Guards           []uint8 // per loot site, its living guards
-	Crates           []CrateView
-	Guns             []GunView // weapons on the ground
-	Evac             EvacView  // the evac Huey, once called
-	Seen             game.Seen // the ground the team has found, at night; nil otherwise
+	// The generator's tier, the gold paid into the next and what it takes, and whether the
+	// Overload is ready.
+	Tier               uint8
+	TierPaid, TierCost uint16
+	OverloadReady      bool
+	Players            []PlayerView
+	Searched           []bool  // per loot site, from the welcome's list
+	Guards             []uint8 // per loot site, its living guards
+	Crates             []CrateView
+	Guns               []GunView // weapons on the ground
+	Evac               EvacView  // the evac Huey, once called
+	Seen               game.Seen // the ground the team has found, at night; nil otherwise
 
 	Alive  bitset
 	CX, CY [game.MaxCreeps]float32 // current position
@@ -311,7 +317,8 @@ func (r *Replica) Apply(p []byte) error {
 			s.Lv[t] = d.u8()
 		}
 		s.Owner = d.i8()
-		s.Open = d.u8()&1 != 0
+		st = d.u8()
+		s.Open, s.Evo = st&1 != 0, st>>1&3
 		r.Structs[idx] = s
 	}
 	if !key {
@@ -429,6 +436,8 @@ func (r *Replica) header(d *dec) {
 	r.WeatherAmt = float32(d.u8()) / 255
 	r.PausedBy = int(d.u8()) - 1
 	r.Affix, r.NextAffix, r.NextFrom = game.Affix(d.u8()), game.Affix(d.u8()), d.u8()
+	r.Tier, r.TierPaid, r.TierCost = d.u8(), d.u16(), d.u16()
+	r.OverloadReady = d.u8()&1 != 0
 	ns := int(d.uv())
 	if ns > 4096 {
 		d.err = fmt.Errorf("%d loot sites", ns)

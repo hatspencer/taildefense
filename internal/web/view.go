@@ -64,6 +64,14 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 	e.u8(uint8(r.Affix))
 	e.u8(uint8(r.NextAffix))
 	e.u8(r.NextFrom)
+	e.u8(r.Tier)
+	e.u16(r.TierPaid)
+	e.u16(r.TierCost)
+	var ov uint8
+	if r.OverloadReady {
+		ov = 1
+	}
+	e.u8(ov)
 
 	e.u8(uint8(len(r.Players)))
 	for i := range r.Players {
@@ -227,7 +235,7 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 		e.u8(s.Level)
 		e.b = append(e.b, s.Lv[:]...)
 		e.u8(uint8(s.Owner))
-		var state uint8
+		state := s.Evo << 1
 		if s.Open {
 			state |= 1
 		}

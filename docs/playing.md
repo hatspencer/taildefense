@@ -79,6 +79,29 @@ A spike strip worn out or a mine gone off leaves a ghost, which H lays again bet
 Spike strips and flame vents go up levels: tougher, and each level adds about a third to their
 damage.
 
+### Evolutions and the pylon
+
+Once the generator is at tier III, a turret whose tracks add up to 12 can evolve, once, for its
+price again: its card shows the two branches when it can. Each turret has two, and each answers
+a different wave: the gun's Gatling (fast) or Penetrator (ignores armour), the cannon's Mortar
+(far, over walls) or Shrapnel (wide), the frost tower's Cryo (freezes) or Blizzard (wide), the
+tesla's Storm conductor (stronger in rain) or Arc web (jumps further), the sniper's Spotter
+(marks its target to take more from everything) or Anti-materiel (through everything), and the
+missile battery's Swarm (twice the missiles) or Napalm (fire). An evolved turret wears a brass
+collar and a lamp, amber or violet by branch.
+
+The amplifier pylon ([ on the build bar, 200, from tier II) makes every turret within 3 tiles
+fire 15% faster. Two in reach of the same turret don't add up: spread them.
+
+### The generator
+
+The generator grows with the team. Click the base chip at the top (or the generator itself) and
+Pay in puts 100 of your gold into its next tier; everyone's pay-ins add up. Tier II (600, more
+with more players) makes it tougher and unlocks the amplifier pylon; tier III (1600) makes it
+tougher again and unlocks evolutions and the Overload. Once a wave, anyone can set off the
+Overload from its card: everything within 18 tiles of the generator is shocked and frozen for a
+moment. The base chip glows violet while it is ready.
+
 ### Gates and mazes
 
 A gate is a wall to the dead and a doorway to survivors. E on a gate (or Open gate on its card)

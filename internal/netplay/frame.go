@@ -92,12 +92,13 @@ type structRec struct {
 	lv                  [game.NumTracks]uint8
 	owner               int8
 	open                bool
+	evo                 uint8
 	hpDirty, shapeDirty bool
 }
 
 func structOf(s *game.Structure) structRec {
 	return structRec{alive: s.Alive, ghost: s.Ghost, kind: s.Kind, x: uint16(s.X), y: uint16(s.Y), w: s.W, h: s.H,
-		hp: uint16(max(math.Ceil(float64(s.HP)), 0)), max: uint16(s.MaxHP), level: s.Level, lv: s.Lv, owner: s.Owner, open: s.Open}
+		hp: uint16(max(math.Ceil(float64(s.HP)), 0)), max: uint16(s.MaxHP), level: s.Level, lv: s.Lv, owner: s.Owner, open: s.Open, evo: s.Evo}
 }
 
 func hp8(hp, maxHP float32) uint8 {
@@ -247,7 +248,7 @@ func (e *Encoder) Delta(w *game.World, atArmory func(*game.Player) bool) []byte 
 			r = structOf(&w.Structs[i])
 		}
 		o := &e.structs[i]
-		o.shapeDirty = r.alive != o.alive || r.ghost != o.ghost || r.kind != o.kind || r.level != o.level || r.lv != o.lv || r.max != o.max || r.x != o.x || r.y != o.y || r.open != o.open
+		o.shapeDirty = r.alive != o.alive || r.ghost != o.ghost || r.kind != o.kind || r.level != o.level || r.lv != o.lv || r.max != o.max || r.x != o.x || r.y != o.y || r.open != o.open || r.evo != o.evo
 		o.hpDirty = !o.shapeDirty && r.hp != o.hp
 		if o.shapeDirty {
 			nShape++
@@ -349,7 +350,7 @@ func structRecord(b *enc, r *structRec) {
 	b.u8(r.level)
 	b.b = append(b.b, r.lv[:]...)
 	b.i8(r.owner)
-	var state uint8
+	state := r.evo << 1
 	if r.open {
 		state |= 1
 	}
@@ -370,6 +371,14 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 	b.u8(uint8(w.Affix))
 	b.u8(uint8(w.NextAffix))
 	b.u8(w.NextFrom)
+	b.u8(w.Tier)
+	b.u16(uint16(w.TierPaid))
+	b.u16(uint16(w.TierCost()))
+	var ov uint8
+	if w.OverloadReady() {
+		ov = 1
+	}
+	b.u8(ov)
 	// Per loot site: searched in bit 7, living guards below; small enough to send whole.
 	b.uv(uint64(len(w.Sites)))
 	for i := range w.Sites {

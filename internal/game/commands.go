@@ -342,6 +342,9 @@ func (w *World) canBuild(p *Player, k StructKind, x, y int, near bool) error {
 	if w.nearestCreep(float32(x)+.5, float32(y)+.5, 1) >= 0 {
 		return errors.New("a creep is in the way")
 	}
+	if d.Tier > w.Tier {
+		return fmt.Errorf("the %s needs the generator at tier %s", d.Name, TierNames[d.Tier])
+	}
 	if p.Gold < d.Price {
 		return fmt.Errorf("%w: need %d, have %d", errBroke, d.Price, p.Gold)
 	}
@@ -497,6 +500,9 @@ const SellFraction = .5
 // Spent is the gold that went into s: its price and every upgrade bought on it.
 func Spent(s *Structure) int32 {
 	spent := Structs[s.Kind].Price
+	if s.Evo != 0 {
+		spent += Structs[s.Kind].Price
+	}
 	if Structs[s.Kind].Turret {
 		for _, lv := range s.Lv {
 			for l := range lv {

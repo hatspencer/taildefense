@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { color, float, fract, max, mix, positionLocal, sin, step, time, uniform, vertexColor, vec3 } from 'three/tsl';
-import { K_ARMORY, K_CANNON, K_CORE, K_FROST, K_GATE, K_GUN, K_MINE, K_MISSILE, K_SNIPER, K_SPIKES, K_TAR, K_TESLA, K_VENT, K_WALL, type StructDef, TURRET_TRACKS } from '../protocol';
+import { K_ARMORY, K_CANNON, K_CORE, K_FROST, K_GATE, K_GUN, K_MINE, K_MISSILE, K_SNIPER, K_SPIKES, K_PYLON, K_TAR, K_TESLA, K_VENT, K_WALL, type StructDef, TURRET_TRACKS } from '../protocol';
 import type { Game } from '../state';
 import { box, cone, cyl, dodeca, ico, merge, octa, part, playerColor, setEmissive, torus, writeMatrix, type Part } from './util';
 
@@ -184,6 +184,32 @@ function armoryModel(): Model {
   return { body: p, glow: { parts: [part(box(0.12, 0.08, 0.12), 0, 0.78, 1.18, 0.4), part(box(0.1, 0.1, 0.1), 0, 0.78, 1.18, -0.4)], color: 0xffc070, pulse: 2.5 } };
 }
 
+// What the generator's tiers add to it: at II a radio mast and dish on scaffolding by the
+// housing, at III floodlights on poles at its four corners. Body parts, then lamps that glow.
+function tierParts(tier: number): { body: Part[]; lamps: Part[] } {
+  const body: Part[] = [], lamps: Part[] = [];
+  if (tier >= 2) {
+    for (const [x, z] of [[1.55, -1.55], [2.05, -1.55], [1.55, -2.05], [2.05, -2.05]]) body.push(part(box(0.06, 2.6, 0.06), RUST, x, 1.3, z));
+    for (const y of [0.6, 1.3, 2.0, 2.6]) body.push(part(box(0.56, 0.05, 0.56), STEEL, 1.8, y, -1.8));
+    body.push(part(cyl(0.04, 0.06, 1.6, 6), STEEL, 1.8, 3.4, -1.8), part(cone(0.3, 0.12, 10), 0xb8bcbc, 1.8, 2.85, -1.8, 0.6, 0, 0.5));
+    lamps.push(part(box(0.08, 0.08, 0.08), 0, 1.8, 4.22, -1.8));
+  }
+  if (tier >= 3) {
+    for (const [x, z] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      body.push(part(cyl(0.05, 0.07, 3.2, 6), STEEL, x * 2.35, 1.6, z * 2.35), part(box(0.5, 0.22, 0.14), DARK, x * 2.3, 3.25, z * 2.3, 0, Math.atan2(-z, x), 0.4));
+      lamps.push(part(box(0.42, 0.16, 0.04), 0, x * 2.32, 3.22, z * 2.32, 0, Math.atan2(-z, x) + Math.PI / 2, 0));
+    }
+  }
+  return { body, lamps };
+}
+
+// An evolved turret's collar: a brass band round its foot and a lamp on a stalk, amber for
+// the first branch and violet for the second.
+const EVO = [0xffb030, 0xc070ff];
+function evoParts(): Part[] {
+  return [part(cyl(0.44, 0.46, 0.08, 10), 0xb08a40, 0, 0.12, 0), part(cyl(0.02, 0.02, 0.5, 4), DARK, -0.36, 0.4, 0.36)];
+}
+
 // Models face +x and stand on y = 0, centred on their footprint.
 function modelFor(kind: number): Model {
   switch (kind) {
@@ -310,6 +336,19 @@ function modelFor(kind: number): Model {
       body.push(part(cyl(0.09, 0.11, 0.08, 8), 0x3a3c3e, 0, 0.12, 0));
       return { body, glow: { parts: [part(cyl(0.05, 0.03, 0.1, 6), 0xff8a20, 0, 0.18, 0)], color: 0xff8a20, pulse: 2 } };
     }
+    case K_PYLON: return {
+      // A mast on a concrete foot, wound with copper coils, a ring turning near the top and a
+      // cyan lamp on it: the amplifier.
+      body: [
+        part(box(0.8, 0.14, 0.8), CONCRETE, 0, 0.07, 0),
+        part(cyl(0.12, 0.16, 1.5, 8), STEEL, 0, 0.85, 0),
+        ...[0.45, 0.65, 0.85, 1.05].map((y) => part(cyl(0.2, 0.2, 0.1, 10), 0xb06a30, 0, y, 0)),
+        ...[0, 1, 2, 3].map((k) => { const a = k * Math.PI / 2 + Math.PI / 4; return part(box(0.06, 0.5, 0.06), DARK, Math.cos(a) * 0.3, 0.3, Math.sin(a) * 0.3, Math.sin(a) * 0.4, 0, -Math.cos(a) * 0.4); }),
+      ],
+      spin: [part(torus(0.32, 0.035, 4, 16), 0x8a8e90, 0, 0, 0, Math.PI / 2, 0, 0), part(box(0.64, 0.03, 0.05), 0x6a6e70, 0, 0, 0)],
+      spinY: 1.4,
+      glow: { parts: [part(ico(0.12), 0x60f0ff, 0, 1.7, 0)], color: 0x60f0ff, pulse: 1.5 },
+    };
     case K_MINE: return {
       // An anti-tank mine half dug in, its pressure plate up and a red arming light.
       body: [
@@ -326,7 +365,7 @@ function modelFor(kind: number): Model {
 interface Built { body: THREE.BufferGeometry; head?: THREE.BufferGeometry; headY: number; glow?: THREE.BufferGeometry; glowMat?: THREE.Material; spin?: THREE.BufferGeometry; spinY: number; dmg?: THREE.BufferGeometry[] }
 
 interface Obj {
-  kind: number; x: number; y: number; level: number; owner: number;
+  kind: number; x: number; y: number; level: number; owner: number; evo: number; tier: number;
   group: THREE.Group; head: THREE.Object3D | null; spin: THREE.Object3D | null; glow: THREE.Object3D | null;
   dmg: THREE.Object3D[]; spinA: number;
   aim: number; aimGoal: number; recoil: number; lastShot: number;
@@ -417,6 +456,9 @@ export class Structs {
   private version = -1;
   private defs: StructDef[] = [];
   private pipGeo = new Map<number, THREE.BufferGeometry>();
+  private extraGeo = new Map<string, THREE.BufferGeometry>();
+  private evoMats = EVO.map((c) => glowMaterial(c, 2));
+  private lampMat = glowMaterial(0xfff2c0);
   private ringGeo = new Map<number, THREE.BufferGeometry>();
 
   constructor(scene: THREE.Scene) {
@@ -504,8 +546,25 @@ export class Structs {
       g.add(pm);
     }
     if (kind !== K_WALL && kind !== K_GATE) g.add(new THREE.Mesh(this.ring(f.sOwner[i], w), this.mat));
+    const evo = f.sEvo[i], tier = kind === K_CORE ? f.tier : 0;
+    if (evo) {
+      g.add(new THREE.Mesh(this.extra('evo', () => merge(evoParts())), this.mat));
+      g.add(new THREE.Mesh(this.extra('evoLamp', () => merge([part(ico(0.07), 0, -0.36, 0.7, 0.36)])), this.evoMats[evo - 1]));
+    }
+    if (tier >= 2) {
+      const tp = tierParts(tier);
+      const tb = new THREE.Mesh(this.extra(`tier${tier}`, () => merge(tp.body)), this.mat);
+      tb.castShadow = true;
+      g.add(tb, new THREE.Mesh(this.extra(`lamps${tier}`, () => merge(tp.lamps)), this.lampMat));
+    }
     const aim = Math.random() * 6.28;
-    return { kind, x: f.sX[i], y: f.sY[i], level: f.sLevel[i], owner: f.sOwner[i], group: g, head, spin, glow, dmg, spinA: 0, aim, aimGoal: aim, recoil: 0, lastShot: 0 };
+    return { kind, x: f.sX[i], y: f.sY[i], level: f.sLevel[i], owner: f.sOwner[i], evo, tier, group: g, head, spin, glow, dmg, spinA: 0, aim, aimGoal: aim, recoil: 0, lastShot: 0 };
+  }
+
+  private extra(key: string, make: () => THREE.BufferGeometry): THREE.BufferGeometry {
+    let g = this.extraGeo.get(key);
+    if (!g) { g = make(); this.extraGeo.set(key, g); }
+    return g;
   }
 
   private sync(game: Game): void {
@@ -518,7 +577,7 @@ export class Structs {
       if (k === K_WALL || k === K_GATE) { nw++; continue; }
       seen.add(i);
       const o = this.objs.get(i);
-      if (o && o.kind === k && o.x === f.sX[i] && o.y === f.sY[i] && o.level === f.sLevel[i] && o.owner === f.sOwner[i]) continue;
+      if (o && o.kind === k && o.x === f.sX[i] && o.y === f.sY[i] && o.level === f.sLevel[i] && o.owner === f.sOwner[i] && o.evo === f.sEvo[i] && (k !== K_CORE || o.tier === f.tier)) continue;
       if (o) this.group.remove(o.group);
       const n = this.make(game, i);
       if (o && o.kind === k) { n.aim = o.aim; n.aimGoal = o.aimGoal; }
