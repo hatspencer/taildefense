@@ -192,6 +192,7 @@ type welcomeMsg struct {
 	Goggles         int32         `json:"goggles"`  // night vision goggles' price
 	Patience        []float32     `json:"patience"` // per difficulty: how far past the straight way in a creep walks a maze before it frenzies
 	Gate            gateDef       `json:"gate"`
+	Affixes         []string      `json:"affixes"` // a wave's affixes, bit by bit
 }
 
 // gateDef is working a gate: seconds at it, seconds before it swings again, how near to stand.
@@ -314,6 +315,7 @@ func welcome(wel netplay.Welcome, core point, host, hint string, hosting bool) w
 	}
 	gt, gc, gr := game.GateInfo()
 	m.Gate = gateDef{gt, gc, gr}
+	m.Affixes = game.AffixNames[:]
 	for _, d := range game.Weathers {
 		m.Weathers = append(m.Weathers, weatherDef{d.Name, d.Info})
 	}

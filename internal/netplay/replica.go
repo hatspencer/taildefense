@@ -136,13 +136,17 @@ type Replica struct {
 	Weather    game.WeatherKind
 	WeatherAmt float32
 	PausedBy   int // the player who paused the game, or -1
-	Players    []PlayerView
-	Searched   []bool  // per loot site, from the welcome's list
-	Guards     []uint8 // per loot site, its living guards
-	Crates     []CrateView
-	Guns       []GunView // weapons on the ground
-	Evac       EvacView  // the evac Huey, once called
-	Seen       game.Seen // the ground the team has found, at night; nil otherwise
+	// This wave's affixes, and the next wave's and the sides it comes from, a bit per
+	// compass point from east round by south (0 unsaid).
+	Affix, NextAffix game.Affix
+	NextFrom         uint8
+	Players          []PlayerView
+	Searched         []bool  // per loot site, from the welcome's list
+	Guards           []uint8 // per loot site, its living guards
+	Crates           []CrateView
+	Guns             []GunView // weapons on the ground
+	Evac             EvacView  // the evac Huey, once called
+	Seen             game.Seen // the ground the team has found, at night; nil otherwise
 
 	Alive  bitset
 	CX, CY [game.MaxCreeps]float32 // current position
@@ -150,7 +154,7 @@ type Replica struct {
 	Kind   [game.MaxCreeps]uint8
 	HP     [game.MaxCreeps]uint8
 	Flags  [game.MaxCreeps]uint8
-	FX     [game.MaxCreeps]uint8 // more flags: 1 frenzied
+	FX     [game.MaxCreeps]uint8 // more flags: 1 frenzied, then its affixes (game.Affix << 1)
 	Target [game.MaxCreeps]uint8 // the chased player's id, 128+ an attack's angle, 255 none
 	Flash  [game.MaxCreeps]uint8 // frames since the creep was last hurt, saturating
 	qx, qy [game.MaxCreeps]uint16
@@ -424,6 +428,7 @@ func (r *Replica) header(d *dec) {
 	r.Weather = game.WeatherKind(d.u8())
 	r.WeatherAmt = float32(d.u8()) / 255
 	r.PausedBy = int(d.u8()) - 1
+	r.Affix, r.NextAffix, r.NextFrom = game.Affix(d.u8()), game.Affix(d.u8()), d.u8()
 	ns := int(d.uv())
 	if ns > 4096 {
 		d.err = fmt.Errorf("%d loot sites", ns)

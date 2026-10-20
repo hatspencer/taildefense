@@ -38,7 +38,7 @@ everything it knows, a terrain message follows).
 ```jsonc
 {
   "t": "welcome",
-  "proto": 21,
+  "proto": 22,
   "version": "a1b2c3d",
   "you": 0,                    // your player id
   "w": 352, "h": 220,          // map size in tiles
@@ -65,6 +65,7 @@ everything it knows, a terrain message follows).
   "patience": [3.5, 3, 2.6, 2.2], // per difficulty: a creep walks this times the straight way in
                                // from where it entered the build ring (+12 tiles) before it frenzies
   "gate": {"time": 0.8, "cool": 4, "reach": 2.3}, // working a gate: s at it, s before it swings again, how near
+  "affixes": ["armoured", "hasty", "sappers", "splitters"], // a wave's affixes, bit by bit (1, 2, 4, 8)
   "evac": {                    // absent in an endless game. The helipad and the Huey's timing, seconds:
     "pad": {"x": 182, "y": 138},  // the pad's middle, on a tile corner; it is 2*half tiles square.
     "half": 3,                 // At night (dark) it shows once any of its tiles has been seen, or
@@ -255,6 +256,11 @@ u8   weather          index into the welcome's weathers: 0 clear, 1 fog, 2 heavy
                       5 drizzle, 6 thunder shower, 7 heavy snow
 u8   weatherAmt       how strong it is right now, 0..255; it eases in and out between waves
 u8   pausedBy         0 running, else 1 + the id of the player who paused the game
+u8   affix            the wave's affixes, bits as the welcome's affixes; 0 for none
+u8   nextAffix        during the break, the next wave's affixes as the scouts report them
+u8   nextFrom         during the break, the sides the next wave comes from: 1 east, 2 southeast,
+                      4 south, 8 southwest, 16 west, 32 northwest, 64 north, 128 northeast;
+                      0 when unsaid (on the hardest settings)
 
 u8   nPlayers
   u8   id
@@ -357,7 +363,9 @@ u16  nCreeps
                       structure, 128 + the angle to it in 127ths of a turn (0 = +x, towards +y);
                       else 255
   u8   fx             more flags: 1 frenzied (it lost patience with the maze: faster, and it
-                      breaks through whatever is in its way)
+                      breaks through whatever is in its way), 2 armoured, 4 hasty, 8 a sapper
+                      (walks straight for the walls and blows up against one), 16 a splitter
+                      (bursts into swarmers when it dies)
 
 u16  nTracers         shots fired this tick
   u16  x0, y0, x1, y1 q8

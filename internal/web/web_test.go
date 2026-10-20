@@ -200,7 +200,7 @@ func parseFrame(t *testing.T, p []byte) frameSummary {
 		t.Fatal("not a frame")
 	}
 	f.tick = u32()
-	skip(1 + 2 + 2 + 4 + 4 + 2 + 2 + 1)
+	skip(1 + 2 + 2 + 4 + 4 + 2 + 2 + 1 + 3)
 	np := u8()
 	for k := 0; k < np; k++ {
 		skip(2)

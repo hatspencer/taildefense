@@ -4,12 +4,12 @@ import {
   positionGeometry, select, sin, smoothstep, step, time, uniform, uniformArray, vec3, vertexColor,
 } from 'three/tsl';
 import {
-  CF_ASLEEP, CF_BURNING, CX_FRENZY, CF_HUNTING, CF_SIEGE, CF_SLOWED, CF_STRIKE, CF_WINDUP, type CreepDef, MAX_CREEPS, PF_ALIVE,
+  CF_ASLEEP, CF_BURNING, CX_FRENZY, CX_SAPPER, CX_SPLITTER, CF_HUNTING, CF_SIEGE, CF_SLOWED, CF_STRIKE, CF_WINDUP, type CreepDef, MAX_CREEPS, PF_ALIVE,
 } from '../protocol';
 import type { Game } from '../state';
 import { type CreepRig, creepRig } from './creepModels';
 import { J, JOINTS, mergeRig, turnTowards } from './rig';
-import { box, lin, merge, part, setEmissive, writeMatrix } from './util';
+import { box, lin, merge, octa, part, setEmissive, writeMatrix } from './util';
 
 type F = THREE.Node<'float'>;
 type V3 = THREE.Node<'vec3'>;
@@ -169,6 +169,9 @@ export class Creeps {
   onBlow: ((x: number, y: number, kind: number, heading: number, radius: number) => void) | null = null;
   private uHover = uniform(0);
   private zs: THREE.InstancedMesh;
+  // Over a sapper a blinking charge, over a splitter a swollen green pustule: what the wave's
+  // affixes made of it.
+  private tags: THREE.InstancedMesh;
 
   // Per creep id.
   private phase = new Float32Array(MAX_CREEPS);
@@ -208,6 +211,11 @@ export class Creeps {
       part(box(0.26, 0.06, 0.04), 0), part(box(0.26, 0.06, 0.04), 0, 0, -0.24, 0), part(box(0.06, 0.32, 0.04), 0, 0, -0.12, 0, 0, 0, -0.9),
     ]), zm, MARKS);
     this.zs.instanceMatrix.setUsage(THREE.DynamicDrawUsage); this.zs.count = 0; this.zs.frustumCulled = false; this.zs.renderOrder = 4;
+    const tm = new THREE.MeshBasicNodeMaterial({ transparent: true, opacity: 0.9, depthWrite: false });
+    tm.fog = false;
+    this.tags = new THREE.InstancedMesh(merge([part(octa(0.13), 0xffffff)]), tm, MARKS);
+    this.tags.instanceMatrix.setUsage(THREE.DynamicDrawUsage); this.tags.count = 0; this.tags.frustumCulled = false; this.tags.renderOrder = 4;
+    this.tags.setColorAt(0, new THREE.Color());
   }
 
   setup(defs: CreepDef[]): void {
@@ -215,6 +223,7 @@ export class Creeps {
     this.kinds = [];
     this.group.clear();
     this.group.add(this.zs);
+    this.group.add(this.tags);
     this.nPrev = 0; this.nCorpse = 0; this.headCorpse = 0;
     this.lastT.fill(-1e9);
     defs.forEach((d, i) => {
@@ -254,6 +263,8 @@ export class Creeps {
     const face = e ? Math.atan2(-e[8], e[10]) : 0;
     const za = this.zs.instanceMatrix.array as Float32Array;
     let nz = 0;
+    const ta = this.tags.instanceMatrix.array as Float32Array, tc = this.tags.instanceColor!.array as Float32Array;
+    let nt = 0;
     const newFrame = game.frames !== this.lastFrames;
     // Only those in view, or near enough to throw a shadow into it, are drawn.
     if (cam) {
@@ -357,6 +368,13 @@ export class Creeps {
       this.variety(fx, o, id, kind);
       fx[o + 20] = 0; fx[o + 21] = 1; fx[o + 22] = 0; fx[o + 23] = 0;
       fx[o + 24] = x; fx[o + 25] = 0; fx[o + 26] = y; fx[o + 27] = this.yaw[id];
+      const cx = f.cFx[i];
+      if (cx & (CX_SAPPER | CX_SPLITTER) && nt < MARKS) {
+        const sap = (cx & CX_SAPPER) !== 0, blink = sap ? (Math.sin(sec * 10 + id) > 0 ? 1 : 0.35) : 0.8;
+        writeMatrix(ta, nt * 16, x, km.top + 0.35, y, sec * 2 + id, 1);
+        tc[nt * 3] = (sap ? 1 : 0.55) * blink; tc[nt * 3 + 1] = (sap ? 0.25 : 0.9) * blink; tc[nt * 3 + 2] = (sap ? 0.1 : 0.2) * blink;
+        nt++;
+      }
       if (asleep && nz < MARKS) {
         const u = (sec * 0.45 + fx[o + 7]) % 1;
         const s = 1 + u * 1.1;
@@ -421,6 +439,8 @@ export class Creeps {
 
     this.zs.count = nz;
     if (nz) this.zs.instanceMatrix.needsUpdate = true;
+    this.tags.count = nt;
+    if (nt) { this.tags.instanceMatrix.needsUpdate = true; this.tags.instanceColor!.needsUpdate = true; }
     for (const k of kinds) {
       k.mesh.count = k.n;
       if (k.n === 0) continue;

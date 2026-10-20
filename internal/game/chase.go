@@ -146,7 +146,7 @@ func (w *World) chaseWay(c *Creep, p *Player, dist float32) (mx, my float32, ok 
 	f := w.chaseFor(p)
 	n := f.downhill(w, int(c.Y)*w.W+int(c.X))
 	if n < 0 {
-		return mx, my, c.Frenzy || !w.walled(c.X, c.Y, p.X, p.Y)
+		return mx, my, c.breaks() || !w.walled(c.X, c.Y, p.X, p.Y)
 	}
 	gx, gy := float32(n%w.W)+.5, float32(n/w.W)+.5
 	// Look one step further to cut the staircase a grid path makes.
