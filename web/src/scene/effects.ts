@@ -419,6 +419,18 @@ export class Effects {
         for (let j = 0; j < 5; j++) this.smoke.add(t + Math.random() * 0.1, x + (Math.random() - 0.5) * r, 0.5, y + (Math.random() - 0.5) * r, 0, 0.6, 0, 1.6, 0x5a6a22, 0.7, 2, 0, 1, 0.4);
         return;
       }
+      case BlastKind.Flame: {
+        // A flame vent: a column of fire off the ground and a burning ring to its reach.
+        this.rings.add(t, x, 0.12, y, 0, 0, 0, 0.45, 0xff8a20, r * 0.3, r, 0, 1, 1, 1.2);
+        this.spheres.add(t, x, 0.3, y, 0, 0, 0, 0.3, 0xff6a10, 0.3, r * 0.8, 0, 0.7, 1, 0.9);
+        for (let j = 0; j < 16; j++) {
+          const a = Math.random() * 6.28, s = Math.random() * r;
+          this.glow.add(t + Math.random() * 0.15, x + Math.cos(a) * s * 0.4, 0.2, y + Math.sin(a) * s * 0.4, Math.cos(a) * s * 0.6, 2.5 + Math.random() * 2.5, Math.sin(a) * s * 0.6,
+            0.4 + Math.random() * 0.3, j % 3 ? 0xff7a1a : 0xffd060, 0.3, 0.06, -2);
+        }
+        for (let j = 0; j < 4; j++) this.smoke.add(t + 0.2 + Math.random() * 0.2, x, 1.2, y, 0, 0.8, 0, 1.4, 0x3a2a20, 0.5, 1.6, 0, 1, 0.4);
+        return;
+      }
       case BlastKind.Bell: {
         // The bell tolling: slow bronze rings rolling out over the land, one a stroke.
         for (let j = 0; j < 4; j++) {

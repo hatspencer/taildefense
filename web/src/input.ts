@@ -215,8 +215,8 @@ export class Input {
     }
     if (e.repeat) return;
 
-    // While the build bar is open the number keys pick what to place (1 wall to 8 missile
-    // battery); otherwise they are the medkit and the weapons.
+    // While the build bar is open the top row picks what to place (1 wall to 8 missile
+    // battery, then 9 0 - = the traps); otherwise the numbers are the medkit and the weapons.
     if (hud.buildCard) {
       const wd = ctl.game.welcome;
       const kind = wd?.buildable.find((b) => wd.structs[b]?.key.toUpperCase() === up);

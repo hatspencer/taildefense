@@ -63,6 +63,22 @@ says what it will fetch), or use Sell on its card. Repairing costs gold by the h
 than half of what went into the structure for a full mend, so it is always cheaper than selling
 and building again.
 
+### Traps
+
+Traps line a maze. They lie flat: the dead walk over them, and so do you, and they never change
+the way in.
+
+| | | |
+|---|---|---|
+| Spike strip (9) | 60 | cuts every creep standing on it, and wears down as it does |
+| Tar pit (0) | 50 | slows every creep wading through it, so they spend longer under the guns |
+| Flame vent (-) | 150 | bursts into flame when a creep steps on it, setting everything round it alight; again every few seconds |
+| Mine (=) | 40 | blows up under the first creep to step on it, and is gone |
+
+A spike strip worn out or a mine gone off leaves a ghost, which H lays again between waves.
+Spike strips and flame vents go up levels: tougher, and each level adds about a third to their
+damage.
+
 ### Gates and mazes
 
 A gate is a wall to the dead and a doorway to survivors. E on a gate (or Open gate on its card)

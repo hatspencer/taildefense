@@ -286,6 +286,10 @@ const (
 	STurretTesla
 	STurretSniper
 	STurretMissile
+	STrapSpikes // traps: laid flat, walked over by creeps and survivors alike (traps.go)
+	STrapTar
+	STrapVent
+	STrapMine
 	NumStructKinds
 )
 
@@ -304,6 +308,7 @@ type StructDef struct {
 	Pierce  int     // extra creeps a shot passes through
 	Salvo   int     // missiles a battery fires at once
 	Turret  bool
+	Floor   bool // a trap, laid flat on the ground: it stops nobody
 	Key     byte // build card hotkey
 	Desc    string
 	Special string // what the special track does
@@ -321,10 +326,14 @@ var Structs = [NumStructKinds]StructDef{
 	STurretTesla:   {Name: "Tesla coil", Price: 320, HP: 220, W: 1, H: 1, Range: 8, Damage: 32, Rate: 1.2, Chains: 1, Turret: true, Key: '6', Desc: "Lightning that jumps from creep to creep.", Special: "+2 jumps, further"},
 	STurretSniper:  {Name: "Sniper tower", Price: 380, HP: 200, W: 1, H: 1, Range: 22, Damage: 150, Rate: .35, Pierce: 1, Turret: true, Key: '7', Desc: "A slow, heavy round from far off at the toughest creep it can see.", Special: "+1 pierce"},
 	STurretMissile: {Name: "Missile battery", Price: 420, HP: 260, W: 1, H: 1, Range: 14, Damage: 45, Rate: .5, Blast: 1.5, Salvo: 3, Turret: true, Key: '8', Desc: "A salvo of small rockets, each at a different creep.", Special: "+1 missile"},
+	STrapSpikes:    {Name: "Spike strip", Price: 60, HP: 300, W: 1, H: 1, Damage: 22, Floor: true, Key: '9', Desc: "Cuts every creep that walks over it, wearing down as it does. Lay it in a maze's lanes."},
+	STrapTar:       {Name: "Tar pit", Price: 50, HP: 300, W: 1, H: 1, Slow: .6, Floor: true, Key: '0', Desc: "Slows every creep that wades through it, so they spend longer under the guns."},
+	STrapVent:      {Name: "Flame vent", Price: 150, HP: 300, W: 1, H: 1, Range: 1.7, Damage: 40, Rate: .35, Floor: true, Key: '-', Desc: "Bursts into flame when a creep steps on it, setting everything round it alight."},
+	STrapMine:      {Name: "Mine", Price: 40, HP: 100, W: 1, H: 1, Range: 2.4, Damage: 260, Floor: true, Key: '=', Desc: "Blows up under the first creep to step on it. Rebuild all (H) lays it again."},
 }
 
 // Buildable lists what the build menu offers, in menu order.
-var Buildable = []StructKind{SWall, SGate, STurretGun, STurretCannon, STurretFrost, STurretTesla, STurretSniper, STurretMissile}
+var Buildable = []StructKind{SWall, SGate, STurretGun, STurretCannon, STurretFrost, STurretTesla, STurretSniper, STurretMissile, STrapSpikes, STrapTar, STrapVent, STrapMine}
 
 // MaxStructLevel is the highest level a wall or a gate goes to. A turret has a level per
 // track instead, each up to MaxLevel, as a weapon does.
@@ -336,9 +345,12 @@ const TrackRange = TrackHandling
 // TurretTrackNames label a turret's tracks.
 var TurretTrackNames = [NumTracks]string{"damage", "fire rate", "range", "special"}
 
-// Upgradable reports whether a structure of kind k can be raised a level: the turrets, and
-// walls and gates, which only get tougher.
-func Upgradable(k StructKind) bool { return Structs[k].Turret || k == SWall || k == SGate }
+// Upgradable reports whether a structure of kind k can be raised a level: the turrets, walls
+// and gates, which only get tougher, and the spike strip and the flame vent, which get
+// tougher and hit harder.
+func Upgradable(k StructKind) bool {
+	return Structs[k].Turret || k == SWall || k == SGate || k == STrapSpikes || k == STrapVent
+}
 
 // StructGrowth is the share of its base HP a structure gains with each level, or for a
 // turret with each upgrade on any track.
@@ -349,7 +361,7 @@ func StructGrowth(k StructKind) float32 {
 	return .6
 }
 
-// StructUpgradeCost is the price of raising a wall or a gate from level to level+1.
+// StructUpgradeCost is the price of raising a wall, a gate or a trap from level to level+1.
 func StructUpgradeCost(k StructKind, level uint8) int32 {
 	return int32(float32(Structs[k].Price) * .8 * float32(level))
 }

@@ -60,20 +60,26 @@ func (w *World) Check() error {
 		if !finite(s.HP) || s.HP > s.MaxHP*1.0001 {
 			return fmt.Errorf("structure %d (%s) hp %v of %v", i, Structs[s.Kind].Name, s.HP, s.MaxHP)
 		}
+		grid := w.structAt
+		if Structs[s.Kind].Floor {
+			grid = w.floorAt
+		}
 		for ty := int(s.Y); ty < int(s.Y)+int(s.H); ty++ {
 			for tx := int(s.X); tx < int(s.X)+int(s.W); tx++ {
-				if got := w.structAt[ty*w.W+tx]; int(got) != i {
+				if got := grid[ty*w.W+tx]; int(got) != i {
 					return fmt.Errorf("tile %d,%d of structure %d (%s) maps to %d", tx, ty, i, Structs[s.Kind].Name, got)
 				}
 			}
 		}
 	}
-	for t, si := range w.structAt {
-		if si < 0 {
-			continue
-		}
-		if int(si) >= len(w.Structs) || !w.Structs[si].Alive {
-			return fmt.Errorf("tile %d,%d maps to dead structure %d", t%w.W, t/w.W, si)
+	for t := range w.structAt {
+		for _, si := range [2]int16{w.structAt[t], w.floorAt[t]} {
+			if si < 0 {
+				continue
+			}
+			if int(si) >= len(w.Structs) || !w.Structs[si].Alive {
+				return fmt.Errorf("tile %d,%d maps to dead structure %d", t%w.W, t/w.W, si)
+			}
 		}
 	}
 	if w.Phase != PhaseOver && !w.Structs[w.Core].Alive {

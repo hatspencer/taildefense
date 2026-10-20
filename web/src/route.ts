@@ -25,11 +25,11 @@ export class Routes {
   private withKey = ''; private with: RouteSet = { paths: [], walk: -1 };
 
   // The maze as it stands, and with a structure of w by h more at tx, ty; cached until either
-  // changes.
-  get(game: Game, ghost?: { tx: number; ty: number; w: number; h: number }): { now: RouteSet; then: RouteSet | null } {
+  // changes. A trap stops nobody, so it leaves the maze as it is.
+  get(game: Game, ghost?: { tx: number; ty: number; w: number; h: number; floor?: boolean }): { now: RouteSet; then: RouteSet | null } {
     const v = `${game.structsVersion}`;
     if (v !== this.baseKey) { this.baseKey = v; this.base = this.solve(game); this.withKey = ''; }
-    if (!ghost) return { now: this.base, then: null };
+    if (!ghost || ghost.floor) return { now: this.base, then: null };
     const k = `${v}:${ghost.tx},${ghost.ty},${ghost.w},${ghost.h}`;
     if (k !== this.withKey) { this.withKey = k; this.with = this.solve(game, ghost); }
     return { now: this.base, then: this.with };
@@ -39,7 +39,7 @@ export class Routes {
   tileX(i: number): number { return this.x0 + (i % this.n); }
   tileY(i: number): number { return this.y0 + Math.floor(i / this.n); }
 
-  private solve(game: Game, ghost?: { tx: number; ty: number; w: number; h: number }): RouteSet {
+  private solve(game: Game, ghost?: { tx: number; ty: number; w: number; h: number; floor?: boolean }): RouteSet {
     const wd = game.welcome, f = game.cur;
     if (!wd) return { paths: [], walk: -1 };
     const r = Math.ceil(wd.buildRadius) + PAD, n = 2 * r + 1;
@@ -57,7 +57,7 @@ export class Routes {
       if (s >= 0) {
         if (s === coreIndex(game)) { goals.push(k); b = 0; }
         else if (f.sKind[s] === K_ARMORY) b = 1;
-        else if (!f.sOpen[s]) b = 1;
+        else if (!f.sOpen[s] && !wd.structs[f.sKind[s]]?.floor) b = 1;
       }
       if (ghost && x >= ghost.tx && x < ghost.tx + ghost.w && y >= ghost.ty && y < ghost.ty + ghost.h) b = 1;
       block[k] = b;
