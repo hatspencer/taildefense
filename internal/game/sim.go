@@ -77,6 +77,7 @@ func (w *World) Step() {
 	w.indexCreeps()
 	w.stepPlayers()
 	w.stepTurrets()
+	w.stepGates()
 	w.stepRockets()
 	w.stepEffects()
 	w.stepPumps()
@@ -120,6 +121,7 @@ func (w *World) startWave() {
 	w.Queue = w.plan(w.Wave, w.active())
 	w.QueueHead = 0
 	w.stall, w.aliveLast = 0, 0
+	w.frenzied = false
 	if w.Wave%rushEvery == 0 {
 		w.rushAt = rushFrom + w.rng.Float32()*rushSpread
 	}
@@ -359,7 +361,7 @@ func (w *World) SpawnCreep(k CreepKind, x, y float32) bool {
 	w.freeIDs = w.freeIDs[:len(w.freeIDs)-1]
 	hp := Creeps[k].HP * HPScale(max(w.Wave, 1)) * w.diff().HP
 	w.Creeps = append(w.Creeps, Creep{X: x, Y: y, HP: hp, MaxHP: hp, ID: id, Kind: k, LastHit: -1, Cool: w.rng.Float32(),
-		Hunt: -1, Siege: -1, Chase: -1, think: w.rng.Float32() * 2})
+		Hunt: -1, Siege: -1, Chase: -1, think: w.rng.Float32() * 2, ox: x, oy: y})
 	if w.rng.Float32() < Creeps[k].Sprint {
 		c := &w.Creeps[len(w.Creeps)-1]
 		c.Sprinter, c.sprint = true, sprintFor
@@ -383,10 +385,15 @@ func (w *World) stepCreeps() {
 				continue
 			}
 		}
+		w.patience(c, c.ox, c.oy)
+		c.ox, c.oy = c.X, c.Y
 		if c.stunned() {
 			continue
 		}
 		speed := d.Speed * w.creepSpeedMul()
+		if c.Frenzy {
+			speed *= frenzySpeed
+		}
 		if c.Slow > 0 {
 			c.Slow -= Dt
 			speed *= .45
@@ -434,10 +441,16 @@ func (w *World) stepCreeps() {
 					w.attackStruct(c, d, int(c.Siege))
 					continue
 				}
-				w.moveCreep(c, d, c.X+dx/dist*speed*Dt, c.Y+dy/dist*speed*Dt)
+				// It goes for what it can walk up to, and gives up on what a wall stands in front of.
+				ox, oy := c.X, c.Y
+				w.moveCreep(c, d, c.X+dx/dist*speed*Dt, c.Y+dy/dist*speed*Dt, c.Frenzy)
+				if c.X == ox && c.Y == oy {
+					c.Siege = -1
+				}
 				continue
 			}
 		}
+		brk := c.Frenzy // whether it breaks what it walks into
 		if tp != nil {
 			c.Chase = int8(tp.ID)
 			dx, dy := tp.X-c.X, tp.Y-c.Y
@@ -469,11 +482,19 @@ func (w *World) stepCreeps() {
 				}
 				speed = min(w.pursuit(c, d, speed, dist), (dist-close)/Dt)
 				mx, my = dx/dist, dy/dist
-			} else {
-				mx, my = w.chaseWay(c, tp, dist)
+			} else if wx, wy, ok := w.chaseWay(c, tp, dist); ok {
+				mx, my = wx, wy
 				speed = w.pursuit(c, d, speed, dist)
+			} else {
+				// Behind a wall with no way round to them: it keeps to the maze, wanting them,
+				// and its patience wears the faster for it.
+				tp, c.Chase = nil, -1
+				if c.trekMax > 0 {
+					c.trek += balkWear * Dt
+				}
 			}
-		} else {
+		}
+		if tp == nil {
 			tx, ty := int(c.X), int(c.Y)
 			ti := ty*w.W + tx
 			if tx < 0 || ty < 0 || tx >= w.W || ty >= w.H {
@@ -481,10 +502,16 @@ func (w *World) stepCreeps() {
 			}
 			// The generator's field, or the church's while its bell draws them, at a hurry.
 			f, gx, gy := &w.flow, w.CoreX, w.CoreY
+			brk = true
 			if lure {
 				s := &w.Sites[w.bell.site]
 				f, gx, gy = &w.bell.flow, s.SX, s.SY
 				speed *= pullPace
+			} else {
+				f, brk = w.fieldFor(c, ti)
+				if f == &w.maze && w.shoulder(c, d, ti) {
+					continue
+				}
 			}
 			nx := f.next[ti]
 			switch {
@@ -498,7 +525,7 @@ func (w *World) stepCreeps() {
 				mx, my = dx/dl, dy/dl
 			default:
 				gx, gy := float32(int(nx)%w.W)+.5, float32(int(nx)/w.W)+.5
-				if si := w.structAt[nx]; si >= 0 {
+				if si := w.creepWall(int(nx)); si >= 0 && (brk || int(si) == w.Core) {
 					reach := d.Radius + d.Reach + .55
 					if dx, dy := gx-c.X, gy-c.Y; dx*dx+dy*dy <= reach*reach {
 						w.attackStruct(c, d, int(si))
@@ -506,7 +533,7 @@ func (w *World) stepCreeps() {
 					}
 				}
 				// Look one step further to cut the staircase a grid path makes.
-				if nn := f.next[nx]; nn >= 0 && w.structAt[nn] < 0 {
+				if nn := f.next[nx]; nn >= 0 && w.creepWall(int(nn)) < 0 {
 					gx = (gx + float32(int(nn)%w.W) + .5) / 2
 					gy = (gy + float32(int(nn)/w.W) + .5) / 2
 				}
@@ -551,7 +578,7 @@ func (w *World) stepCreeps() {
 		nxp := c.X + mx*step + px*.6
 		nyp := c.Y + my*step + py*.6
 		ox, oy := c.X, c.Y
-		w.moveCreep(c, d, nxp, nyp)
+		w.moveCreep(c, d, nxp, nyp, brk)
 		// Let through, it keeps going for jamThrough seconds before the crowd pushes again:
 		// pressed against one that never moves, a sleeping guard, the first free step would
 		// otherwise bring the push back and it would stand there for good.
@@ -603,17 +630,17 @@ func (c *Creep) swing(d *CreepDef, tx, ty float32) bool {
 	return false
 }
 
-// moveCreep moves a creep to nx, ny, sliding along what it cannot enter and attacking a
-// structure that blocks it.
-func (w *World) moveCreep(c *Creep, d *CreepDef, nx, ny float32) {
+// moveCreep moves a creep to nx, ny, sliding along what it cannot enter; it attacks the
+// generator when it walks into it, and with brk any structure that blocks it.
+func (w *World) moveCreep(c *Creep, d *CreepDef, nx, ny float32, brk bool) {
 	if ok, si := w.creepFree(nx, c.Y); ok {
 		c.X = nx
-	} else if si >= 0 {
+	} else if si >= 0 && (brk || si == w.Core) {
 		w.attackStruct(c, d, si)
 	}
 	if ok, si := w.creepFree(c.X, ny); ok {
 		c.Y = ny
-	} else if si >= 0 {
+	} else if si >= 0 && (brk || si == w.Core) {
 		w.attackStruct(c, d, si)
 	}
 }
@@ -641,7 +668,7 @@ func (w *World) creepFree(x, y float32) (bool, int) {
 	if w.Terrain[i].Solid() {
 		return false, -1
 	}
-	if si := w.structAt[i]; si >= 0 {
+	if si := w.creepWall(i); si >= 0 {
 		return false, int(si)
 	}
 	return true, -1
@@ -658,6 +685,9 @@ func (w *World) attackStruct(c *Creep, d *CreepDef, si int) {
 	dmg := d.Damage
 	if c.Kind.Heavy() {
 		dmg *= 1.5 // built for walls
+	}
+	if c.Frenzy {
+		dmg *= frenzyStruct
 	}
 	s.HP -= dmg
 	if d.Ranged {

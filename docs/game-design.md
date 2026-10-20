@@ -182,6 +182,42 @@ their health, and a survivor keeps the weapon they started with. Night falls or 
 Harder modes get a little longer short breaks than Normal, since there is more to build against
 each wave, but Normal is the reference for timing.
 
+## Mazes
+
+The midgame was the same wave after wave: the walls were a ring that creeps chewed through, so
+building meant more turrets round the same ring. Now the dead walk round walls while there is a
+way round (`internal/game/maze.go`), so the base is something to shape: a labyrinth that walks
+them under the guns is the team's plan, and keeping it honest is the game.
+
+- **The way round, however long; breaking in only when sealed.** Two flow fields: the maze
+  field, where a structure is a wall, and the breach field, where it costs its hit points to
+  cross. A creep follows the maze while it reaches the generator and the breach field only
+  when it doesn't. A cut-off maze is a mistake you see at once (the base sealed, red dots),
+  not a silent loss of every wall.
+- **The base starts sealed.** Its gates are shut, so the first waves break in as they always
+  did, and a team that never touches a gate plays the game it knew. Opening one is the choice
+  to build a maze, and gates are what make the maze move: shut one mid-wave and the whole
+  wave turns for the next way in (gate juggling). Working a gate takes 0.8 s standing beside
+  it and it can't swing again for 4 s, so juggling is a job for someone, not a free reroute;
+  it won't shut on a creep in the gateway.
+- **Patience.** Inside the build ring and 4 tiles past it, a creep counts the ground it walks.
+  Past Patience times the straight way in from where it entered (3 on normal, 3.5 easy, 2.6
+  hard, 2.2 brutal) plus 12 tiles, it frenzies: 1.4 times as fast, 1.5 times as hard on
+  structures, and done walking round anything. A maze tripling the walk is the sweet spot; an
+  endless one buys a frenzy at its deepest point, where it hurts most.
+- **Big creeps need room.** Brutes and the bosses follow a field of tiles with a clear two by
+  two square. Where a maze is all one-tile lanes they have no way round and shoulder into the
+  weakest wall beside them, so a maze for the late game needs wider lanes, which cost more
+  walls.
+- **A wall is not bait.** A creep that wants a survivor behind a wall no longer claws at the
+  wall; it keeps to the maze, and each second it can't reach them wears a tile of its
+  patience. Otherwise standing behind the maze would undo it. A calm creep takes against only
+  a turret it can walk to; a frenzied one takes against anything.
+- **The preview is the client's own.** In build mode, or with a gate picked out, the page works
+  out the maze field over the build ring itself (`web/src/route.ts`) and dots the way in from
+  eight points round it, with the average walk and how much the ghost adds. It ignores the
+  wide field, so a maze that brutes will smash still looks walkable.
+
 ## Turrets
 
 - **Turrets upgrade by track, as weapons do.** Damage, fire rate, range and a special, each

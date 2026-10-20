@@ -22,6 +22,7 @@ const (
 	OrderSteer                       // walk along X, Y (a unit vector) while the client holds a key
 	OrderPickup                      // walk to a weapon on the ground and pick it up
 	OrderBoard                       // walk to the evac Huey on the pad and get aboard
+	OrderGate                        // walk to a gate and open or shut it (maze.go)
 )
 
 // Order is a survivor's current order.
@@ -29,7 +30,7 @@ type Order struct {
 	Kind    OrderKind
 	X, Y    float32    // destination
 	Target  uint16     // OrderAttack: creep id
-	Struct  int        // OrderRepair: structure index
+	Struct  int        // OrderRepair, OrderGate: structure index
 	Site    int        // OrderLoot: site index
 	Started bool       // OrderLoot: the search has begun (an ambush may have sprung)
 	Mate    int        // OrderRevive: player index
@@ -120,7 +121,7 @@ func (w *World) order(p *Player, o Order) {
 	p.Order = o
 	p.Search = 0
 	p.walk.reset()
-	if o.Kind == OrderMove || o.Kind == OrderAttackMove || o.Kind == OrderBuild || o.Kind == OrderRepair || o.Kind == OrderLoot || o.Kind == OrderRevive || o.Kind == OrderPickup || o.Kind == OrderBoard {
+	if o.Kind == OrderMove || o.Kind == OrderAttackMove || o.Kind == OrderBuild || o.Kind == OrderRepair || o.Kind == OrderLoot || o.Kind == OrderRevive || o.Kind == OrderPickup || o.Kind == OrderBoard || o.Kind == OrderGate {
 		w.route(p, o.X, o.Y)
 	}
 }
@@ -539,6 +540,11 @@ func (w *World) act(p *Player, st Stats) int32 {
 		if !w.actBoard(p, walk) {
 			o.Kind = OrderIdle
 			p.Search = 0
+		}
+		return -1
+	case OrderGate:
+		if !w.actGate(p, o, walk) {
+			o.Kind = OrderIdle
 		}
 		return -1
 	}

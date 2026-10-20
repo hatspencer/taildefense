@@ -565,6 +565,10 @@ func Exec(w *game.World, pl *game.Player, c Cmd) (string, error) {
 		err = w.OrderRevive(pl, int(c.T))
 	case OpBoard:
 		err = w.OrderBoard(pl)
+	case OpGate:
+		if pl.Alive {
+			err = w.OrderGate(pl, int(c.T))
+		}
 	case OpDropWeapon:
 		err = w.DropWeapon(pl, game.WeaponKind(c.A))
 	case OpPickup:
@@ -700,6 +704,7 @@ const (
 	OpBuyGoggles
 	OpFixAll // rebuild every ghost and repair everything, between waves
 	OpBoard  // get aboard the evac Huey on the pad
+	OpGate   // T structure index: walk to the gate and open or shut it
 )
 
 // Cmd is a discrete request from a player. X and Y are tiles, sent to 1/8; T names a creep

@@ -69,7 +69,7 @@ export class Lab {
         } else if (col === 'burn') fl |= CF_BURNING;
         else if (col === 'sleep') fl |= CF_ASLEEP | CF_GUARD;
         else if (col === 'die' && t % 4.5 > 1.2) continue;
-        f.cId[n] = id; f.cKind[n] = k; f.cFlags[n] = fl; f.cTarget[n] = col === 'attack' ? 128 + 32 : 255;
+        f.cId[n] = id; f.cKind[n] = k; f.cFlags[n] = fl; f.cFx[n] = 0; f.cTarget[n] = col === 'attack' ? 128 + 32 : 255;
         f.cHp[n] = col === 'hit' ? 200 : 255;
         f.cX[n] = px; f.cY[n] = py;
         g.rx[n] = px; g.ry[n] = py; g.heading[id] = heading;

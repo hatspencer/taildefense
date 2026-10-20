@@ -1,5 +1,5 @@
 import type { ConnState } from '../net';
-import { CROWBAR, OWNED_DUAL, EvacStage, K_ARMORY, K_CORE, stickyKind, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, type Player, TTrack, TURRET_TRACKS, type Welcome, repairCost, sellValue, turretRange, WEAPON_SLOTS } from '../protocol';
+import { CROWBAR, OWNED_DUAL, EvacStage, K_ARMORY, K_CORE, stickyKind, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, type Player, TTrack, TURRET_TRACKS, type Welcome, repairCost, sellValue, turretRange, WEAPON_SLOTS, K_GATE } from '../protocol';
 import { type Controller, KEYS } from '../controller';
 import { cssHex, playerColor } from '../scene/util';
 import { Armory } from './armory';
@@ -895,7 +895,7 @@ export class Hud {
     let key: string;
     const s = ctl.sel;
     if (this.buildCard) key = `b:${ctl.mode.k === 'build' ? ctl.mode.kind : -1}:${me ? Math.floor(me.gold) : 0}`;
-    else if (s?.t === 'struct') key = `s:${s.id}:${f.sKind[s.id]}:${f.sOwner[s.id]}:${f.sHp[s.id]}:${f.sMaxHp[s.id]}:${f.sLevel[s.id]}:${f.sLv.subarray(s.id * TURRET_TRACKS, (s.id + 1) * TURRET_TRACKS).join(',')}:${me ? Math.floor(me.gold) : 0}`;
+    else if (s?.t === 'struct') key = `s:${s.id}:${f.sKind[s.id]}:${f.sOwner[s.id]}:${f.sHp[s.id]}:${f.sMaxHp[s.id]}:${f.sLevel[s.id]}:${f.sOpen[s.id]}:${f.sLv.subarray(s.id * TURRET_TRACKS, (s.id + 1) * TURRET_TRACKS).join(',')}:${me ? Math.floor(me.gold) : 0}`;
     else if (s?.t === 'creep') { const i = g.indexById[s.id]; key = `c:${s.id}:${i >= 0 ? f.cHp[i] + ':' + f.cFlags[i] : ''}`; }
     else if (s?.t === 'hero') { const p = f.player(s.id); key = `h:${s.id}:${p?.hp}:${p?.maxHp}:${p?.cur}:${p?.kills}:${Math.floor(p?.damage ?? 0)}:${p?.order}:${p?.flags}:${p?.respawn}`; }
     else { const fc = ctl.fixCost(); key = `none:${f.phase}:${fc.gold}:${fc.ghosts + fc.damaged}:${me ? Math.floor(me.gold) : 0}`; }
@@ -973,6 +973,11 @@ export class Hud {
         sl.innerHTML = `Sell <span class="gold">+${refund}g</span> <kbd>Del</kbd>`;
         sl.onclick = () => ctl.sellSel();
       }
+      if (f.sKind[id] === K_GATE) {
+        const gt = el('button', 'primary', btns); gt.innerHTML = `${f.sOpen[id] ? 'Shut' : 'Open'} gate <kbd>E</kbd>`;
+        gt.title = f.sOpen[id] ? 'The dead walk through an open gate; shut, it is a wall to them' : 'Open, the dead walk through it rather than break the walls; survivors pass either way';
+        gt.onclick = () => ctl.swingGate(id);
+      }
       if (f.sKind[id] === K_ARMORY) {
         const ar = el('button', 'primary', btns); ar.innerHTML = 'Open armory <kbd>C</kbd>';
         ar.onclick = () => ctl.openArmory(true);
@@ -1030,6 +1035,7 @@ export class Hud {
       const d = this.ctl.game.welcome?.structs[m.kind];
       const sticky = stickyKind(m.kind);
       s = `Place ${d?.name ?? ''} (${d?.price ?? 0}g): left-click${sticky ? ', again for the next' : ' · Shift keeps placing'} · Esc stops`;
+      if (this.ctl.routeNote) s += ` · ${this.ctl.routeNote}`;
     }
     show(this.modeEl, s !== '');
     setText(this.modeEl, s);

@@ -38,7 +38,7 @@ everything it knows, a terrain message follows).
 ```jsonc
 {
   "t": "welcome",
-  "proto": 19,
+  "proto": 20,
   "version": "a1b2c3d",
   "you": 0,                    // your player id
   "w": 352, "h": 220,          // map size in tiles
@@ -62,6 +62,9 @@ everything it knows, a terrain message follows).
   "medkit": {"heal": 0.4, "time": 3, "max": 3, "cost": 60}, // one heals heal*maxHp over time s; carry max; cost gold
   "goggles": 3000,             // night vision goggles' price: daytime sight at night, instead of the flashlight
   "lastWave": 40,              // the wave whose end calls the evac Huey; 0 for an endless game
+  "patience": [3.5, 3, 2.6, 2.2], // per difficulty: a creep walks this times the straight way in
+                               // from where it entered the build ring (+12 tiles) before it frenzies
+  "gate": {"time": 0.8, "cool": 4, "reach": 2.3}, // working a gate: s at it, s before it swings again, how near
   "evac": {                    // absent in an endless game. The helipad and the Huey's timing, seconds:
     "pad": {"x": 182, "y": 138},  // the pad's middle, on a tile corner; it is 2*half tiles square.
     "half": 3,                 // At night (dark) it shows once any of its tiles has been seen, or
@@ -270,7 +273,7 @@ u8   nPlayers
   u8   gear[4]        Armor, Boots, Vitamins, Scavenger
   u8   order          0 idle, 1 move, 2 attack-move, 3 attack, 4 hold, 5 build, 6 repair,
                       7 loot, 8 revive, 9 steer (walking with WASD), 10 pick up a weapon,
-                      11 board the evac Huey
+                      11 board the evac Huey, 12 open or shut a gate
   u8   channel        how far the current search (order 7), revive (order 8), pickup
                       (order 10, 0.2 s) or boarding (order 11) is, 0..255;
                       0 while walking there
@@ -335,6 +338,7 @@ u16  nStructs         the whole list; the index is the struct id used in command
   u8   level          a wall's or gate's; a turret's is 1 + its upgrades on every track
   u8   lv[4]          a turret's track levels: damage, fire rate, range, special (0 otherwise)
   i8   owner          player id, -1 for the starting base
+  u8   state          bit 0: a gate swung open (creeps walk through it; shut, it is a wall to them)
 
 u16  nCreeps
   u16  id             stable for the creep's life; reused after death
@@ -350,6 +354,8 @@ u16  nCreeps
   u8   target         for flag 8: the hunted survivor's player id; else, while attacking a
                       structure, 128 + the angle to it in 127ths of a turn (0 = +x, towards +y);
                       else 255
+  u8   fx             more flags: 1 frenzied (it lost patience with the maze: faster, and it
+                      breaks through whatever is in its way)
 
 u16  nTracers         shots fired this tick
   u16  x0, y0, x1, y1 q8
@@ -435,6 +441,8 @@ integers. The host checks everything; a refusal comes back as a `toast` with lev
                                              // (refused for the last weapon carried)
 {"op": "pickup",  "id": 17}                  // walk to weapon 17 on the ground and pick it up
 {"op": "board"}                              // once the evac Huey is down: walk to it and get aboard
+{"op": "gate",    "s": 12}                   // walk to gate 12 and open it, or shut it if no creep
+                                             // stands in the gateway; it swings once per gate.cool s
 {"op": "ready",   "on": true}                // ready for the next wave (all ready: starts in 3 s)
 {"op": "restart"}                            // a new map, only once the game is over
 {"op": "difficulty", "kind": 2}              // the host only: change the difficulty from here on

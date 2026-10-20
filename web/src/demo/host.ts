@@ -1380,7 +1380,7 @@ export class DemoHost implements Transport {
     w.u16(this.structs.length);
     for (const s of this.structs) {
       w.u8(s.alive ? 1 : 0); w.u8(s.kind); w.u16(s.x); w.u16(s.y); w.u8(s.w); w.u8(s.h);
-      w.u16(s.hp); w.u16(s.maxHp); w.u8(s.level); for (const l of s.lv) w.u8(l); w.i8(s.owner);
+      w.u16(s.hp); w.u16(s.maxHp); w.u8(s.level); for (const l of s.lv) w.u8(l); w.i8(s.owner); w.u8(0);
     }
     let n = 0;
     for (let id = 0; id < MAX_CREEPS; id++) n += this.cAlive[id];
@@ -1400,7 +1400,7 @@ export class DemoHost implements Transport {
       const sw = this.cSwing[id];
       if (sw === S_WINDUP) fl |= CF_WINDUP;
       else if (sw === S_STRIKE) fl |= CF_STRIKE;
-      w.u8(fl); w.u8(hunting ? this.cHunt[id] : this.cFace[id]);
+      w.u8(fl); w.u8(hunting ? this.cHunt[id] : this.cFace[id]); w.u8(0);
     }
     const tr = this.tr;
     w.u16(tr.length / 5);

@@ -313,8 +313,8 @@ type StructDef struct {
 var Structs = [NumStructKinds]StructDef{
 	SCore:          {Name: "Generator", HP: 3200, W: 5, H: 5, Desc: "Powers the base. When it falls, the game is over."},
 	SArmory:        {Name: "Armory", HP: 1200, W: 3, H: 3, Desc: "Buy and upgrade weapons, gear and abilities here. Creeps ignore it."},
-	SWall:          {Name: "Wall", Price: 20, HP: 320, W: 1, H: 1, Key: '1', Desc: "Blocks creeps; they path round it or break through."},
-	SGate:          {Name: "Gate", Price: 45, HP: 320, W: 1, H: 1, Key: '2', Desc: "A wall survivors can walk through."},
+	SWall:          {Name: "Wall", Price: 20, HP: 320, W: 1, H: 1, Key: '1', Desc: "Blocks creeps: they walk round a maze of them however long, and break in only where the base is sealed."},
+	SGate:          {Name: "Gate", Price: 45, HP: 320, W: 1, H: 1, Key: '2', Desc: "Survivors walk through it. Shut, it is a wall to the dead; open (E), they walk through rather than break in."},
 	STurretGun:     {Name: "Gun turret", Price: 120, HP: 220, W: 1, H: 1, Range: 9, Damage: 11, Rate: 4, Turret: true, Key: '3', Desc: "Fast single shots at the nearest creep.", Special: "+1 pierce"},
 	STurretCannon:  {Name: "Cannon", Price: 240, HP: 280, W: 1, H: 1, Range: 11, Damage: 60, Rate: .7, Blast: 2.2, Turret: true, Key: '4', Desc: "Slow shells that burst on a crowd.", Special: "+blast radius"},
 	STurretFrost:   {Name: "Frost tower", Price: 180, HP: 220, W: 1, H: 1, Range: 6, Damage: 3, Rate: 1, Slow: 1.6, Turret: true, Key: '5', Desc: "Pulses cold, slowing everything around it.", Special: "+slow time"},

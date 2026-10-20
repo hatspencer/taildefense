@@ -399,14 +399,14 @@ func (w *World) FixAll(p *Player) (rebuilt, mended int, err error) {
 		if !s.Ghost {
 			continue
 		}
-		k, x, y, owner := s.Kind, int(s.X), int(s.Y), s.Owner
+		k, x, y, owner, open := s.Kind, int(s.X), int(s.Y), s.Owner, s.Open
 		if e := w.canBuild(p, k, x, y, false); e != nil {
 			short = short || errors.Is(e, errBroke)
 			continue
 		}
 		s.Ghost = false
 		p.Gold -= Structs[k].Price
-		w.place(k, x, y, owner)
+		w.Structs[w.place(k, x, y, owner)].Open = open // a gate comes back as it stood
 		p.Tally.Built++
 		rebuilt++
 	}
