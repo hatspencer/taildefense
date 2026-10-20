@@ -120,7 +120,9 @@ everything it knows, a terrain message follows).
      "special": "+1 pierce",                         // what the special track adds a level
      "values": [["11 dmg", "14 dmg", ...], ...]}     // [track][level 0..5] what the track gives
   ],
-  "buildable": [3, 4, 5, 6, 7, 8, 9, 10],          // 9 sniper tower, 10 missile battery
+  // A trap (11 spike strip, 12 tar pit, 13 flame vent, 14 mine) has "floor": true: laid flat,
+  // it stops neither creeps nor survivors, and the maze runs over it.
+  "buildable": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],  // 9 sniper tower, 10 missile battery
   "siteKinds": [               // index = site kind
     {"name": "Ruined house", "search": 3},   // search: seconds it takes
     {"name": "Car wreck", "search": 2},
@@ -371,7 +373,7 @@ u16  nBlasts          explosions and pulses this tick
                       9 revived (a survivor stands up), 10 guards wake (at the guard),
                       11 the church bell rung (at its rope), 12 bile bursting (a broodmother's
                       sac landing, or the broodmother splitting open), 13 the evac Huey touching
-                      down on the helipad
+                      down on the helipad, 14 a flame vent bursting
 u16  nDeaths          creeps that died this tick
   u16  x, y q8
   u8   kind

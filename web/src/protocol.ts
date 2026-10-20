@@ -13,7 +13,8 @@ export const FLASH_CONE = 0.45;
 export const MAX_CREEPS = 16384;
 
 // Structure kinds, as a frame's sKind and a Welcome's structs index them.
-export const K_CORE = 1, K_ARMORY = 2, K_WALL = 3, K_GATE = 4, K_GUN = 5, K_CANNON = 6, K_FROST = 7, K_TESLA = 8, K_SNIPER = 9, K_MISSILE = 10;
+export const K_CORE = 1, K_ARMORY = 2, K_WALL = 3, K_GATE = 4, K_GUN = 5, K_CANNON = 6, K_FROST = 7, K_TESLA = 8, K_SNIPER = 9, K_MISSILE = 10,
+  K_SPIKES = 11, K_TAR = 12, K_VENT = 13, K_MINE = 14;
 // Walls and gates are placed in runs: a click places one and the next is already in hand.
 export const stickyKind = (k: number): boolean => k === K_WALL || k === K_GATE;
 export const MAX_PLAYERS = 8;
@@ -31,7 +32,7 @@ export const CF_BURNING = 1, CF_SLOWED = 2, CF_GUARD = 4, CF_HUNTING = 8, CF_SIE
 export const CX_FRENZY = 1;
 
 export const enum Order { Idle = 0, Move, AMove, Attack, Hold, Build, Repair, Loot, Revive, Steer, Pickup, Board, Gate }
-export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake, Bell, Bile, Landed }
+export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake, Bell, Bile, Landed, Flame }
 export const enum Weather { Clear = 0, Fog, Rain, Storm, Snow, Drizzle, Thunder, HeavySnow }
 // How much each weather counts as rain (internal/game/weather.go wetness).
 export const WET = [0, 0, 1, 1, 0, 0.3, 0.5, 0];
@@ -100,6 +101,8 @@ export interface StructDef {
   upgradable?: boolean;
   // A turret's special track, and what each track gives at each level, [track][level 0..5].
   special?: string; values?: string[][];
+  // A trap: laid flat on the ground, walked over by creeps and survivors alike.
+  floor?: boolean;
 }
 export interface SiteKindDef { name: string; search: number }
 // A loot site: the tiles it covers, the spot it is searched from, how far out it is, and how
