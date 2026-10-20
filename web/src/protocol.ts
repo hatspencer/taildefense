@@ -28,8 +28,11 @@ export const enum EvacStage { None = 0, Inbound, Landed, Departing, Gone }
 export const PF_CONNECTED = 1, PF_ALIVE = 2, PF_FIRING = 4, PF_READY = 8, PF_RELOADING = 16,
   PF_HURT = 32, PF_ARMORY = 64, PF_MOVING = 128;
 export const CF_BURNING = 1, CF_SLOWED = 2, CF_GUARD = 4, CF_HUNTING = 8, CF_SIEGE = 16, CF_ASLEEP = 32, CF_WINDUP = 64, CF_STRIKE = 128;
-// A creep's second flags byte, cFx.
-export const CX_FRENZY = 1;
+// A creep's second flags byte, cFx: frenzied, then its wave's affixes it carries.
+export const CX_FRENZY = 1, CX_ARMOURED = 2, CX_HASTY = 4, CX_SAPPER = 8, CX_SPLITTER = 16;
+// A wave's affixes, as the welcome's affixes names them.
+export const AX_ARMOURED = 1, AX_HASTY = 2, AX_SAPPERS = 4, AX_SPLITTERS = 8;
+export const COMPASS = ['east', 'southeast', 'south', 'southwest', 'west', 'northwest', 'north', 'northeast'];
 
 export const enum Order { Idle = 0, Move, AMove, Attack, Hold, Build, Repair, Loot, Revive, Steer, Pickup, Board, Gate }
 export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake, Bell, Bile, Landed, Flame }
@@ -144,6 +147,8 @@ export interface Welcome {
   patience?: number[];
   // Working a gate: seconds at it, seconds before it swings again, how near to stand.
   gate?: { time: number; cool: number; reach: number };
+  // A wave's affixes, bit by bit: armoured, hasty, sappers, splitters.
+  affixes?: string[];
 }
 // pad: the helipad's middle, half its size; reach: how near the Huey a survivor boards, taking
 // board seconds. inbound: from the call to touchdown, the last flight of it in the air and the
@@ -292,6 +297,9 @@ export class Frame {
   weather = 0; weatherAmt = 0;
   // The player who paused the game, or -1 while it runs.
   pausedBy = -1;
+  // This wave's affixes (AX_*), and the next wave's and the sides it comes from, a bit per
+  // compass point from east round by south (COMPASS), 0 when unsaid.
+  affix = 0; nextAffix = 0; nextFrom = 0;
 
   nPlayers = 0;
   players: Player[] = [];
@@ -379,6 +387,7 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
   f.totalKills = d.getUint32(o, true); o += 4;
   f.best = d.getUint16(o, true); o += 2;
   f.weather = d.getUint8(o); f.weatherAmt = d.getUint8(o + 1) / 255; f.pausedBy = d.getUint8(o + 2) - 1; o += 3;
+  f.affix = bytes[o]; f.nextAffix = bytes[o + 1]; f.nextFrom = bytes[o + 2]; o += 3;
 
   const np = d.getUint8(o); o += 1;
   f.nPlayers = np;
