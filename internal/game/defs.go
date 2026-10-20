@@ -290,6 +290,7 @@ const (
 	STrapTar
 	STrapVent
 	STrapMine
+	SPylon // the amplifier pylon: turrets in reach fire faster (evolve.go)
 	NumStructKinds
 )
 
@@ -308,8 +309,9 @@ type StructDef struct {
 	Pierce  int     // extra creeps a shot passes through
 	Salvo   int     // missiles a battery fires at once
 	Turret  bool
-	Floor   bool // a trap, laid flat on the ground: it stops nobody
-	Key     byte // build card hotkey
+	Floor   bool  // a trap, laid flat on the ground: it stops nobody
+	Tier    uint8 // the generator's tier it needs, past the first
+	Key     byte  // build card hotkey
 	Desc    string
 	Special string // what the special track does
 }
@@ -330,10 +332,11 @@ var Structs = [NumStructKinds]StructDef{
 	STrapTar:       {Name: "Tar pit", Price: 50, HP: 300, W: 1, H: 1, Slow: .6, Floor: true, Key: '0', Desc: "Slows every creep that wades through it, so they spend longer under the guns."},
 	STrapVent:      {Name: "Flame vent", Price: 150, HP: 300, W: 1, H: 1, Range: 1.7, Damage: 40, Rate: .35, Floor: true, Key: '-', Desc: "Bursts into flame when a creep steps on it, setting everything round it alight."},
 	STrapMine:      {Name: "Mine", Price: 40, HP: 100, W: 1, H: 1, Range: 2.4, Damage: 260, Floor: true, Key: '=', Desc: "Blows up under the first creep to step on it. Rebuild all (H) lays it again."},
+	SPylon:         {Name: "Pylon", Price: 200, HP: 260, W: 1, H: 1, Range: 3, Tier: PylonTier, Key: '[', Desc: "An amplifier: every turret within 3 tiles fires 15% faster; two in reach of one turret don't add up. Needs the generator at tier II."},
 }
 
 // Buildable lists what the build menu offers, in menu order.
-var Buildable = []StructKind{SWall, SGate, STurretGun, STurretCannon, STurretFrost, STurretTesla, STurretSniper, STurretMissile, STrapSpikes, STrapTar, STrapVent, STrapMine}
+var Buildable = []StructKind{SWall, SGate, STurretGun, STurretCannon, STurretFrost, STurretTesla, STurretSniper, STurretMissile, STrapSpikes, STrapTar, STrapVent, STrapMine, SPylon}
 
 // MaxStructLevel is the highest level a wall or a gate goes to. A turret has a level per
 // track instead, each up to MaxLevel, as a weapon does.

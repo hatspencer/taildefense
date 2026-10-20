@@ -102,7 +102,7 @@ faces, however the camera is turned, and the camera follows while you walk.
 | 2-7, 0 | equip pistol, shotgun, SMG, rifle, minigun, launcher; 0 the crowbar (on brutal) |
 | G (hold) | hold a second to drop the weapon in hand for a teammate, upgrades and all (you keep at least one) |
 | J | taunt: flip them off and shout; every creep around you comes for you for 5 s, sleeping guards too |
-| B | build bar: 1 wall, 2 gate, 3 gun turret, 4 cannon, 5 frost tower, 6 tesla coil, 7 sniper tower, 8 missile battery; walls and gates keep placing until Esc, Shift keeps a turret placing |
+| B | build bar: 1 wall, 2 gate, 3 gun turret, 4 cannon, 5 frost tower, 6 tesla coil, 7 sniper tower, 8 missile battery, 9 0 - = the traps, [ the amplifier pylon; walls and gates keep placing until Esc, Shift keeps a turret placing |
 | H twice | between waves: rebuild every destroyed building (its ghost stays where it stood) and repair everything damaged; the first press shows the cost |
 | left-click | select a building, creep or player |
 | U / Delete twice | upgrade / sell the selected structure (a wall or gate gets 60% more HP a level); a turret upgrades a track at a time from its card |

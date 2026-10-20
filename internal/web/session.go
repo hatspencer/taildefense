@@ -437,6 +437,12 @@ func (s *session) command(p []byte) bool {
 		nc = netplay.Cmd{Op: netplay.OpGive, A: u8(c.P), T: u16(c.Gold)}
 	case "gate":
 		nc = netplay.Cmd{Op: netplay.OpGate, T: u16(c.S)}
+	case "payIn":
+		nc = netplay.Cmd{Op: netplay.OpPayIn}
+	case "evolve":
+		nc = netplay.Cmd{Op: netplay.OpEvolve, T: u16(c.S), A: u8(c.Track)}
+	case "overload":
+		nc = netplay.Cmd{Op: netplay.OpOverload}
 	case "ready":
 		nc = netplay.Cmd{Op: netplay.OpReady}
 		if c.On {

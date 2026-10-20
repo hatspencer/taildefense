@@ -569,6 +569,12 @@ func Exec(w *game.World, pl *game.Player, c Cmd) (string, error) {
 		if pl.Alive {
 			err = w.OrderGate(pl, int(c.T))
 		}
+	case OpPayIn:
+		err = w.PayIn(pl)
+	case OpEvolve:
+		err = w.Evolve(pl, int(c.T), c.A)
+	case OpOverload:
+		err = w.Overload(pl)
 	case OpDropWeapon:
 		err = w.DropWeapon(pl, game.WeaponKind(c.A))
 	case OpPickup:
@@ -710,6 +716,9 @@ const (
 	OpBoard  // get aboard the evac Huey on the pad
 	OpGive   // A player id, T gold
 	OpGate   // T structure index: walk to the gate and open or shut it
+	OpPayIn  // put 100 gold into the generator's next tier
+	OpEvolve // T structure index, A branch 1 or 2
+	OpOverload
 )
 
 // Cmd is a discrete request from a player. X and Y are tiles, sent to 1/8; T names a creep
