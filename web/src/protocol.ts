@@ -14,7 +14,7 @@ export const MAX_CREEPS = 16384;
 
 // Structure kinds, as a frame's sKind and a Welcome's structs index them.
 export const K_CORE = 1, K_ARMORY = 2, K_WALL = 3, K_GATE = 4, K_GUN = 5, K_CANNON = 6, K_FROST = 7, K_TESLA = 8, K_SNIPER = 9, K_MISSILE = 10,
-  K_SPIKES = 11, K_TAR = 12, K_VENT = 13, K_MINE = 14;
+  K_SPIKES = 11, K_TAR = 12, K_VENT = 13, K_MINE = 14, K_PYLON = 15;
 // Walls and gates are placed in runs: a click places one and the next is already in hand.
 export const stickyKind = (k: number): boolean => k === K_WALL || k === K_GATE;
 export const MAX_PLAYERS = 8;
@@ -35,7 +35,7 @@ export const AX_ARMOURED = 1, AX_HASTY = 2, AX_SAPPERS = 4, AX_SPLITTERS = 8;
 export const COMPASS = ['east', 'southeast', 'south', 'southwest', 'west', 'northwest', 'north', 'northeast'];
 
 export const enum Order { Idle = 0, Move, AMove, Attack, Hold, Build, Repair, Loot, Revive, Steer, Pickup, Board, Gate }
-export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake, Bell, Bile, Landed, Flame }
+export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake, Bell, Bile, Landed, Flame, Overload }
 export const enum Weather { Clear = 0, Fog, Rain, Storm, Snow, Drizzle, Thunder, HeavySnow }
 // How much each weather counts as rain (internal/game/weather.go wetness).
 export const WET = [0, 0, 1, 1, 0, 0.3, 0.5, 0];
@@ -106,6 +106,10 @@ export interface StructDef {
   special?: string; values?: string[][];
   // A trap: laid flat on the ground, walked over by creeps and survivors alike.
   floor?: boolean;
+  // The generator's tier it needs, past the first.
+  tier?: number;
+  // A turret's two evolutions; range multiplies its reach.
+  evolve?: { name: string; desc: string; range: number }[];
 }
 export interface SiteKindDef { name: string; search: number }
 // A loot site: the tiles it covers, the spot it is searched from, how far out it is, and how
@@ -149,6 +153,9 @@ export interface Welcome {
   gate?: { time: number; cool: number; reach: number };
   // A wave's affixes, bit by bit: armoured, hasty, sappers, splitters.
   affixes?: string[];
+  // The generator's tiers: gold a pay-in puts in, the top tier, the tiers that unlock the pylon,
+  // evolutions (once a turret's tracks add up to evolveAt) and the Overload, and its reach.
+  tiers?: { step: number; max: number; pylon: number; evolve: number; evolveAt: number; overload: number; overloadReach: number };
 }
 // pad: the helipad's middle, half its size; reach: how near the Huey a survivor boards, taking
 // board seconds. inbound: from the call to touchdown, the last flight of it in the air and the
@@ -164,13 +171,14 @@ export const TURRET_TRACKS = 4;
 
 // turretRange is a turret's reach at its range track's level, from the per-level table when
 // the host sends one.
-export function turretRange(d: StructDef, rangeLevel: number): number {
-  return d.ranges?.[rangeLevel] ?? d.range;
+export function turretRange(d: StructDef, rangeLevel: number, evo = 0): number {
+  return (d.ranges?.[rangeLevel] ?? d.range) * (evo ? d.evolve?.[evo - 1]?.range ?? 1 : 1);
 }
 
 // spent is the gold that went into structure i of frame f: its price and its upgrades.
 function spent(d: StructDef, f: Frame, i: number): number {
   let spent = d.price;
+  if (f.sEvo[i]) spent += d.price;
   if (d.turret) {
     for (let t = 0; t < TURRET_TRACKS; t++) for (let l = 0; l < f.sLv[i * TURRET_TRACKS + t]; l++) spent += d.upgrade[l] ?? 0;
   } else {
@@ -214,6 +222,9 @@ export type Command =
   | { op: 'fixAll' }
   // track: which of a turret's tracks (TTrack); a wall or gate ignores it.
   | { op: 'upgradeStruct'; s: number; track: number }
+  | { op: 'evolve'; s: number; track: number }
+  | { op: 'payIn' }
+  | { op: 'overload' }
   | { op: 'loot'; site: number }
   | { op: 'buyWeapon' | 'select'; w: number }
   | { op: 'upgrade'; w: number; track: number }
@@ -298,6 +309,9 @@ export class Frame {
   // This wave's affixes (AX_*), and the next wave's and the sides it comes from, a bit per
   // compass point from east round by south (COMPASS), 0 when unsaid.
   affix = 0; nextAffix = 0; nextFrom = 0;
+  // The generator's tier, the gold paid into the next and what it takes (0 at the top), and
+  // whether its Overload can go off now.
+  tier = 1; tierPaid = 0; tierCost = 0; overloadReady = false;
 
   nPlayers = 0;
   players: Player[] = [];
@@ -315,6 +329,7 @@ export class Frame {
   sLevel = new Uint8Array(256); sOwner = new Int8Array(256);
   // A gate swung open, which creeps walk through.
   sOpen = new Uint8Array(256);
+  sEvo = new Uint8Array(256); // a turret's evolution, 1 or 2 (StructDef.evolve), 0 none
   // A turret's track levels, TURRET_TRACKS to a structure.
   sLv = new Uint8Array(256 * TURRET_TRACKS);
 
@@ -386,6 +401,7 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
   f.best = d.getUint16(o, true); o += 2;
   f.weather = d.getUint8(o); f.weatherAmt = d.getUint8(o + 1) / 255; f.pausedBy = d.getUint8(o + 2) - 1; o += 3;
   f.affix = bytes[o]; f.nextAffix = bytes[o + 1]; f.nextFrom = bytes[o + 2]; o += 3;
+  f.tier = bytes[o]; f.tierPaid = d.getUint16(o + 1, true); f.tierCost = d.getUint16(o + 3, true); f.overloadReady = (bytes[o + 5] & 1) !== 0; o += 6;
 
   const np = d.getUint8(o); o += 1;
   f.nPlayers = np;
@@ -442,7 +458,7 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
   if (f.sAlive.length < ns) {
     f.sAlive = grow(f.sAlive, ns); f.sGhost = grow(f.sGhost, ns); f.sKind = grow(f.sKind, ns); f.sX = grow(f.sX, ns); f.sY = grow(f.sY, ns);
     f.sW = grow(f.sW, ns); f.sH = grow(f.sH, ns); f.sHp = grow(f.sHp, ns); f.sMaxHp = grow(f.sMaxHp, ns);
-    f.sLevel = grow(f.sLevel, ns); f.sOwner = grow(f.sOwner, ns); f.sOpen = grow(f.sOpen, ns);
+    f.sLevel = grow(f.sLevel, ns); f.sOwner = grow(f.sOwner, ns); f.sOpen = grow(f.sOpen, ns); f.sEvo = grow(f.sEvo, ns);
   }
   if (f.sLv.length < ns * TURRET_TRACKS) f.sLv = grow(f.sLv, ns * TURRET_TRACKS);
   f.nStructs = ns;
@@ -455,7 +471,8 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
     f.sLevel[i] = d.getUint8(o + 12);
     for (let t = 0; t < TURRET_TRACKS; t++) f.sLv[i * TURRET_TRACKS + t] = d.getUint8(o + 13 + t);
     f.sOwner[i] = d.getInt8(o + 13 + TURRET_TRACKS);
-    f.sOpen[i] = d.getUint8(o + 14 + TURRET_TRACKS) & 1;
+    const state = d.getUint8(o + 14 + TURRET_TRACKS);
+    f.sOpen[i] = state & 1; f.sEvo[i] = (state >> 1) & 3;
     o += 15 + TURRET_TRACKS;
   }
 

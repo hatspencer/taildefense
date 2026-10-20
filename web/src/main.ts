@@ -489,7 +489,7 @@ async function main(): Promise<void> {
     if (gd?.turret && ctl.groundOk) {
       const t = ctl.buildTile(bk);
       overlays.ring('turret', true, t.tx + t.w / 2, t.ty + t.h / 2, gd.range, 0xffffff, 0.45);
-    } else if (td?.turret) overlays.ring('turret', true, f.sX[tsel] + 0.5 * f.sW[tsel], f.sY[tsel] + 0.5 * f.sH[tsel], turretRange(td, f.sLv[tsel * TURRET_TRACKS + TTrack.Range]), 0xffffff, 0.45);
+    } else if (td?.turret) overlays.ring('turret', true, f.sX[tsel] + 0.5 * f.sW[tsel], f.sY[tsel] + 0.5 * f.sH[tsel], turretRange(td, f.sLv[tsel * TURRET_TRACKS + TTrack.Range], f.sEvo[tsel]), 0xffffff, 0.45);
     else overlays.ring('turret', false);
     const arm = ctl.armoryCenter();
     overlays.ring('shop', !!arm && ctl.armoryOpen && !!me && !(me.flags & PF_ARMORY), arm?.x ?? 0, arm?.y ?? 0, wd.shopRadius, 0xe0b030, 0.6);

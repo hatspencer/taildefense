@@ -135,6 +135,7 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 17px/12p
 .top .chip.base.mid .bbar i { background: var(--amber); }
 .top .chip.base.low .bbar i { background: var(--rust); }
 .top .chip.base.low { animation: basepulse 0.8s steps(2) infinite; }
+.top .chip.base.overload { box-shadow: 0 0 0 1px #b080ff, 0 0 8px #8a50ff; cursor: pointer; }
 .top .chip.base.low .num { color: #ff8a6a; }
 .top .chip.base.hit { background: #4a2018; }
 .top .chip.base.hit .bbar i { background: #ffd8c8; }
@@ -341,13 +342,21 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 17px/12p
 .card .grid button .n { display: block; overflow: hidden; text-overflow: ellipsis; }
 .card .grid button .k { position: absolute; top: 3px; right: 4px; font: 19px/1 var(--crt); color: var(--tape); }
 .card .grid button .p { display: block; color: var(--amber); font: 20px/1 var(--crt); }
-.card .grid.build { grid-template-columns: repeat(4, 1fr); gap: 4px; }
-.card .grid.build button { padding: 2px 14px 2px 5px; }
+.card .grid.build { grid-template-columns: repeat(4, 1fr); gap: 3px; }
+.card .grid.build button { padding: 1px 14px 1px 5px; line-height: 13px; }
 .card .grid.build button .k { font-size: 14px; right: 3px; }
 .card .grid.build button .p { font-size: 15px; }
 .card .grid.tracks { grid-template-columns: repeat(2, 1fr); }
 .card .grid.tracks { gap: 5px; }
 .card .grid.tracks button { padding: 4px 8px; line-height: 1.2; }
+.card .grid.build button.locked { opacity: .45; }
+.card .grid.evolve { grid-template-columns: repeat(2, 1fr); margin-top: 4px; }
+.card .grid.evolve button { white-space: normal; text-align: left; }
+.card .grid.evolve button .v { font-size: 14px; line-height: 1.1; }
+.card .grid.evolve button.evo1 .n { color: #ffb030; }
+.card .grid.evolve button.evo2 .n { color: #c890ff; }
+.tape.evo1 { background: var(--grain), #8a5a10; color: #fff0d0; }
+.tape.evo2 { background: var(--grain), #5a2a8a; color: #f4e6ff; }
 .card .grid.tracks .n { display: flex; align-items: center; gap: 5px; }
 .card .grid.tracks .n .p { display: inline; margin-left: auto; font-size: 20px; }
 .card .grid.tracks .v { display: block; color: var(--bone); font-size: 15px; overflow: hidden; text-overflow: ellipsis; }

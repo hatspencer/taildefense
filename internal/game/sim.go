@@ -121,6 +121,7 @@ func (w *World) startWave() {
 	w.Phase = PhaseWave
 	w.WaveTime = 0
 	w.Affix, w.NextAffix, w.NextFrom = w.NextAffix, 0, 0
+	w.Overloaded = false
 	w.Queue = w.plan(w.Wave, w.active())
 	w.QueueHead = 0
 	w.stall, w.aliveLast = 0, 0
@@ -391,6 +392,9 @@ func (w *World) stepCreeps() {
 			continue
 		}
 		d := &Creeps[c.Kind]
+		if c.Mark > 0 {
+			c.Mark -= Dt
+		}
 		if c.Burn > 0 {
 			c.Burn -= Dt
 			c.HP -= c.BurnDPS * w.burnMul() * Dt
@@ -1118,9 +1122,12 @@ func (w *World) hit(i int32, dmg float32, owner int8, stun float32) {
 	if c.HP <= 0 || owner >= 0 && w.hidden(c) {
 		return
 	}
-	d := dmg - c.armor()
-	if d < dmg*.25 {
-		d = dmg * .25
+	d := dmg
+	if !w.noArmor {
+		d = max(dmg-c.armor(), dmg*.25)
+	}
+	if c.Mark > 0 {
+		d *= 1 + markBonus
 	}
 	dealt := min(d, c.HP) // what the creep had left: overkill charges nothing
 	c.HP -= d
@@ -1161,7 +1168,8 @@ func (w *World) explode(x, y, r, dmg float32, owner int8, kind uint8) {
 
 func (w *World) stepTurrets() {
 	w.turretFire = true
-	defer func() { w.turretFire = false }()
+	defer func() { w.turretFire, w.noArmor = false, false }()
+	w.findPylons()
 	for si := range w.Structs {
 		s := &w.Structs[si]
 		if !s.Alive || !Structs[s.Kind].Turret {
@@ -1171,13 +1179,23 @@ func (w *World) stepTurrets() {
 		if s.Cool > 0 {
 			continue
 		}
-		st := TurretStats(s.Kind, s.Lv)
+		st := StructStats(s)
+		var fx evoFx
+		if e := evolution(s); e != nil {
+			fx = e.fx
+		}
+		if len(w.pylons) > 0 && w.pylonNear(s) {
+			st.Rate *= 1 + pylonAmp
+		}
 		rng := st.Range * w.rangeMul()
 		x, y := s.CX(), s.CY()
 		var t int32
-		if s.Kind == STurretSniper {
+		switch {
+		case s.Kind == STurretSniper:
 			t = w.toughestVisible(x, y, rng)
-		} else {
+		case fx == fxLob:
+			t = w.nearestCreep(x, y, rng)
+		default:
 			t = w.nearestVisible(x, y, rng)
 		}
 		if t < 0 {
@@ -1187,6 +1205,13 @@ func (w *World) stepTurrets() {
 		s.Cool = 1 / st.Rate
 		c := &w.Creeps[t]
 		kind := TracerTurret + uint8(s.Kind)
+		w.noArmor = fx == fxPierce
+		switch fx {
+		case fxStorm:
+			st.Damage *= 1 + w.wet()
+		case fxSpot:
+			c.Mark = markFor
+		}
 		switch s.Kind {
 		case STurretGun, STurretSniper:
 			ang := float32(math.Atan2(float64(c.Y-y), float64(c.X-x)))
@@ -1195,11 +1220,16 @@ func (w *World) stepTurrets() {
 			w.tracer(x, y, c.X, c.Y, kind)
 			w.explode(c.X, c.Y, st.Blast, st.Damage, s.Owner, 0)
 		case STurretFrost:
+			s.pulses++
+			freeze := fx == fxCryo && s.pulses%cryoEvery == 0
 			w.grid.each(x, y, rng, func(i int32) bool {
 				o := &w.Creeps[i]
 				dx, dy := o.X-x, o.Y-y
 				if dx*dx+dy*dy <= rng*rng {
 					o.Slow = st.Slow
+					if freeze {
+						o.stunLeft = max(o.stunLeft, cryoFreeze)
+					}
 					w.damage(i, st.Damage, s.Owner)
 				}
 				return true
@@ -1208,8 +1238,13 @@ func (w *World) stepTurrets() {
 		case STurretTesla:
 			w.chain(s, t, st.Damage, st.Chains, st.Hop)
 		case STurretMissile:
-			w.salvo(s, t, rng, st)
+			var burn float32
+			if fx == fxNapalm {
+				burn = napalmBurn
+			}
+			w.salvo(s, t, rng, st, burn)
 		}
+		w.noArmor = false
 	}
 }
 
@@ -1236,7 +1271,7 @@ const missileSpeed = 18
 
 // salvo fires a missile battery: one missile at its target and one at each of the next
 // nearest creeps it can reach, round them again when there are fewer creeps than missiles.
-func (w *World) salvo(s *Structure, first int32, rng float32, st TurretStat) {
+func (w *World) salvo(s *Structure, first int32, rng float32, st TurretStat, burn float32) {
 	x, y := s.CX(), s.CY()
 	var marks [16]hitCand
 	marks[0] = hitCand{0, first}
@@ -1273,7 +1308,7 @@ func (w *World) salvo(s *Structure, first int32, rng float32, st TurretStat) {
 		dx, dy := c.X-x, c.Y-y
 		d := max(sqrt32(dx*dx+dy*dy), .1)
 		w.Rockets = append(w.Rockets, Projectile{X: x, Y: y, VX: dx / d * missileSpeed, VY: dy / d * missileSpeed,
-			TTL: d / missileSpeed, Damage: st.Damage, Blast: st.Blast, Owner: s.Owner, Turret: true})
+			TTL: d / missileSpeed, Damage: st.Damage, Blast: st.Blast, Owner: s.Owner, Turret: true, Burn: burn})
 		if k < n {
 			w.tracer(x, y, x+dx/d, y+dy/d, TracerTurret+uint8(STurretMissile))
 		}
@@ -1343,6 +1378,14 @@ func (w *World) stepRockets() {
 			}
 			w.turretFire = r.Turret
 			w.explode(r.X, r.Y, r.Blast, r.Damage, r.Owner, 0)
+			if r.Burn > 0 {
+				w.grid.each(r.X, r.Y, r.Blast, func(i int32) bool {
+					if c := &w.Creeps[i]; (c.X-r.X)*(c.X-r.X)+(c.Y-r.Y)*(c.Y-r.Y) <= r.Blast*r.Blast {
+						w.ignite(i, r.Burn)
+					}
+					return true
+				})
+			}
 			if r.Cluster > 0 {
 				w.mirv(&r)
 			}

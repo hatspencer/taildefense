@@ -17,6 +17,7 @@ const ORDER = ['idle', 'moving', 'attack-moving', 'attacking', 'holding', 'build
 
 // One digit after the point below ten seconds, whole seconds above.
 const secs = (s: number) => (s < 10 ? s.toFixed(1) : String(Math.ceil(s)));
+const ROMAN = ['', 'I', 'II', 'III', 'IV'];
 
 // A teammate's frame: their portrait, name, health and what they are doing.
 interface Mate { root: HTMLElement; face: CanvasRenderingContext2D; resp: HTMLElement; fill: HTMLElement; what: HTMLElement }
@@ -57,7 +58,7 @@ export class Hud {
   armory: Armory;
   buildCard = false;
   // The generator's health, always in the top bar: the one number the game is lost on.
-  private base: { root: HTMLElement; fill: HTMLElement; num: HTMLElement; hp: number; hitUntil: number };
+  private base: { root: HTMLElement; fill: HTMLElement; num: HTMLElement; lbl: HTMLElement; hp: number; hitUntil: number };
   private top: { wave: HTMLElement; diff: HTMLElement; weather: HTMLElement; kills: HTMLElement; fix: HTMLButtonElement; ready: HTMLButtonElement; readies: HTMLElement };
   private statusEl: HTMLElement;
   private pauseBtn!: HTMLElement;
@@ -118,8 +119,14 @@ export class Hud {
     const base = el('div', 'chip base', top);
     base.innerHTML = '<svg viewBox="0 0 16 16" width="16" height="16" shape-rendering="crispEdges"><path d="M3 5h10v10H3z" fill="#07080a"/><path d="M4 6h8v8H4z" fill="#5d604a"/><path d="M6 8h4v4H6z" fill="#e0a63a"/><path d="M7 1h2v4H7zM5 3h6v1H5z" fill="#86a2a6"/></svg><span class="lbl">base</span><span class="bbar"><i></i></span><span class="num crt"></span>';
     base.title = 'The generator: if it falls, the game is over. Click to look at it.';
-    base.onclick = () => { const c = ctl.game.welcome?.core; if (c) { ctl.rig.follow = false; ctl.rig.center(c.x, c.y, false); } };
-    this.base = { root: base, fill: base.querySelector('.bbar i') as HTMLElement, num: base.querySelector('.num') as HTMLElement, hp: -1, hitUntil: 0 };
+    base.onclick = () => {
+      const c = ctl.game.welcome?.core;
+      if (!c) return;
+      ctl.rig.follow = false; ctl.rig.center(c.x, c.y, false);
+      const id = ctl.game.structAtTile(Math.floor(c.x), Math.floor(c.y));
+      if (id >= 0) { this.buildCard = false; ctl.sel = { t: 'struct', id }; }
+    };
+    this.base = { root: base, fill: base.querySelector('.bbar i') as HTMLElement, num: base.querySelector('.num') as HTMLElement, lbl: base.querySelector('.lbl') as HTMLElement, hp: -1, hitUntil: 0 };
     const diff = el('div', 'chip diff', top);
     this.tipOn(diff, () => this.diffTip());
     // The host clicks through the difficulties, round to the easiest again.
@@ -475,7 +482,7 @@ export class Hud {
       ['<kbd>1</kbd>', 'use a medkit: heals over a few seconds unless a hit cuts it short; buy more at the armory'],
       ['<kbd>2</kbd>–<kbd>7</kbd>, <kbd>0</kbd>', 'equip an owned weapon: pistol, shotgun, SMG, rifle, minigun, launcher (0 is the crowbar, on brutal)'],
       ['<kbd>R</kbd> or Reload', 'reload now (the button sits next to your ammo)'],
-      ['<kbd>B</kbd>', 'build bar: <kbd>1</kbd>–<kbd>8</kbd> pick wall, gate, gun, cannon, frost, tesla, sniper, missile; left-click places. Walls and gates stay picked for the next one; Shift keeps a turret picked; Esc or B stops'],
+      ['<kbd>B</kbd>', 'build bar: <kbd>1</kbd>–<kbd>8</kbd> pick wall, gate, gun, cannon, frost, tesla, sniper, missile, <kbd>9</kbd> <kbd>0</kbd> <kbd>-</kbd> <kbd>=</kbd> the traps and <kbd>[</kbd> the pylon; left-click places. Walls and gates stay picked for the next one; Shift keeps a turret picked; Esc or B stops'],
       ['Left-click', 'select a structure, creep or hero'],
       ['<kbd>U</kbd> / <kbd>Del</kbd> twice', 'upgrade / sell the selected structure; a turret upgrades one track at a time, from its card'],
       ['<kbd>C</kbd>', 'armory window (opens by itself when you arrive)'],
@@ -691,10 +698,12 @@ export class Hud {
     const frac = Math.max(0, Math.min(1, hp / max));
     b.fill.style.width = `${(frac * 100).toFixed(1)}%`;
     setText(b.num, `${Math.ceil(frac * 100)}%`);
+    setText(b.lbl, f.tier > 1 ? `base ${ROMAN[f.tier]}` : 'base');
+    setClass(b.root, 'overload', f.overloadReady);
     setClass(b.root, 'mid', frac <= 0.6 && frac > 0.3);
     setClass(b.root, 'low', frac <= 0.3);
     setClass(b.root, 'hit', now < b.hitUntil);
-    b.root.title = `The generator: ${Math.ceil(hp)} / ${Math.ceil(max)}. If it falls, the game is over. Click to look at it.`;
+    b.root.title = `The generator, tier ${ROMAN[f.tier] ?? f.tier}: ${Math.ceil(hp)} / ${Math.ceil(max)}. If it falls, the game is over. Click for its card: pay into its next tier${f.overloadReady ? ', or set off its Overload' : ''}.`;
   }
 
   // The last seconds of a break count down big in the middle of the screen.
@@ -905,7 +914,7 @@ export class Hud {
     let key: string;
     const s = ctl.sel;
     if (this.buildCard) key = `b:${ctl.mode.k === 'build' ? ctl.mode.kind : -1}:${me ? Math.floor(me.gold) : 0}`;
-    else if (s?.t === 'struct') key = `s:${s.id}:${f.sKind[s.id]}:${f.sOwner[s.id]}:${f.sHp[s.id]}:${f.sMaxHp[s.id]}:${f.sLevel[s.id]}:${f.sOpen[s.id]}:${f.sLv.subarray(s.id * TURRET_TRACKS, (s.id + 1) * TURRET_TRACKS).join(',')}:${me ? Math.floor(me.gold) : 0}`;
+    else if (s?.t === 'struct') key = `s:${s.id}:${f.sKind[s.id]}:${f.sOwner[s.id]}:${f.sHp[s.id]}:${f.sMaxHp[s.id]}:${f.sLevel[s.id]}:${f.sOpen[s.id]}:${f.sEvo[s.id]}:${f.tier}:${f.tierPaid}:${f.tierCost}:${f.overloadReady}:${f.sLv.subarray(s.id * TURRET_TRACKS, (s.id + 1) * TURRET_TRACKS).join(',')}:${me ? Math.floor(me.gold) : 0}`;
     else if (s?.t === 'creep') { const i = g.indexById[s.id]; key = `c:${s.id}:${i >= 0 ? f.cHp[i] + ':' + f.cFlags[i] : ''}`; }
     else if (s?.t === 'hero') { const p = f.player(s.id); key = `h:${s.id}:${p?.hp}:${p?.maxHp}:${p?.cur}:${p?.kills}:${Math.floor(p?.damage ?? 0)}:${p?.order}:${p?.flags}:${p?.respawn}`; }
     else { const fc = ctl.fixCost(); key = `none:${f.phase}:${fc.gold}:${fc.ghosts + fc.damaged}:${me ? Math.floor(me.gold) : 0}`; }
@@ -930,22 +939,25 @@ export class Hud {
       for (const k of wd.buildable) {
         const d = wd.structs[k];
         const b = el('button', ctl.mode.k === 'build' && ctl.mode.kind === k ? 'sel' : '', grid);
-        // Twelve to a card: the first word of the name, the whole of it on the title.
-        b.innerHTML = `<span class="n">${esc(d.name.split(' ')[0])}</span><span class="p">${d.price}g</span><span class="k">${esc(d.key)}</span>`;
-        b.disabled = gold < d.price;
+        // Thirteen to a card, four to a row and tight to fit: the first word of the name, the whole of it on the title.
+        const locked = (d.tier ?? 0) > f.tier;
+        b.innerHTML = `<span class="n">${esc(d.name.split(' ')[0])}</span><span class="p">${locked ? `tier ${ROMAN[d.tier!]}` : `${d.price}g`}</span><span class="k">${esc(d.key)}</span>`;
+        b.disabled = locked || gold < d.price;
         b.title = `${d.name}: ${d.desc}`;
+        if (locked) b.classList.add('locked');
         b.onclick = () => ctl.startBuild(k);
       }
-      // How to place is said by the placement prompt; the card is full with twelve to build.
+      // How to place is said by the placement prompt; the card is full with thirteen to build.
       return;
     }
     if (s?.t === 'struct') {
       const id = s.id, d = wd.structs[f.sKind[id]];
       const owner = f.sOwner[id] < 0 ? 'base' : f.player(f.sOwner[id])?.name ?? `player ${f.sOwner[id]}`;
-      head(esc(d?.name ?? '?'), esc(owner));
+      const evo = f.sEvo[id] ? d?.evolve?.[f.sEvo[id] - 1] : undefined;
+      head(esc(evo ? `${evo.name} · ${d?.name}` : d?.name ?? '?'), esc(owner), evo ? `evo${f.sEvo[id]}` : '');
       const upg = d?.upgradable ?? d?.turret;
       const lv = (t: number) => f.sLv[id * TURRET_TRACKS + t];
-      el('div', 'sub', c, `HP ${f.sHp[id]} / ${f.sMaxHp[id]}${upg && !d?.turret ? ` · level ${f.sLevel[id]}/${wd.maxStructLevel}` : ''}${d?.turret ? ` · range ${turretRange(d, lv(TTrack.Range)).toFixed(1).replace(/\.0$/, '')}` : ''}`);
+      el('div', 'sub', c, `HP ${f.sHp[id]} / ${f.sMaxHp[id]}${upg && !d?.turret ? ` · level ${f.sLevel[id]}/${wd.maxStructLevel}` : ''}${d?.turret ? ` · range ${turretRange(d, lv(TTrack.Range), f.sEvo[id]).toFixed(1).replace(/\.0$/, '')}` : ''}`);
       // A turret's card is full with its tracks; its description goes on the title instead.
       if (d?.desc && !d.turret) el('div', 'sub', c, d.desc);
       if (d?.turret) {
@@ -962,6 +974,45 @@ export class Hud {
           b.title = t === TTrack.Special && d.special ? `Each level: ${d.special}` : '';
           b.disabled = max || gold < cost;
           b.onclick = () => ctl.upgradeSel(t);
+        }
+        const tiers = wd.tiers;
+        if (evo) el('div', 'sub', c, evo.desc);
+        else if (d.evolve?.length && tiers) {
+          // Two branches, once the generator is at its tier and the tracks add up.
+          let sum = 0;
+          for (let t = 0; t < TURRET_TRACKS; t++) sum += lv(t);
+          if (f.tier < tiers.evolve || sum < tiers.evolveAt) {
+            el('div', 'sub muted', c, `Evolves into a ${d.evolve.map((e) => e.name).join(' or a ')} once its tracks add up to ${tiers.evolveAt} (${sum} now)${f.tier < tiers.evolve ? ` and the generator is at tier ${ROMAN[tiers.evolve]}` : ''}.`);
+          } else {
+            const eg = el('div', 'grid evolve', c);
+            d.evolve.forEach((e, k) => {
+              const b = el('button', `evo${k + 1}`, eg);
+              b.innerHTML = `<span class="n">${esc(e.name)}<span class="p">${fmtGold(d.price)}g</span></span><span class="v">${esc(e.desc)}</span>`;
+              b.title = `Evolve into a ${e.name}, for good`;
+              b.disabled = gold < d.price;
+              b.onclick = () => ctl.send({ op: 'evolve', s: id, track: k + 1 });
+            });
+          }
+        }
+      }
+      if (f.sKind[id] === K_CORE && wd.tiers) {
+        const tiers = wd.tiers;
+        el('div', 'sub', c, f.tier < tiers.max
+          ? `Tier ${ROMAN[f.tier]} · ${f.tierPaid} / ${f.tierCost}g paid in towards tier ${ROMAN[f.tier + 1]}, which ${f.tier + 1 === tiers.pylon ? 'unlocks the amplifier pylon' : 'unlocks turret evolutions and the Overload'}`
+          : `Tier ${ROMAN[f.tier]}, the last · the Overload ${f.overloadReady ? 'is ready' : 'is spent or waits for a wave'}`);
+        const tb = el('div', 'btns', c);
+        if (f.tier < tiers.max) {
+          const amt = Math.min(tiers.step, f.tierCost - f.tierPaid);
+          const pi = el('button', 'primary', tb); pi.innerHTML = `Pay in <span class="gold">${amt}g</span>`;
+          pi.title = 'The whole team pays into the generator; every tier makes it tougher';
+          pi.disabled = gold < amt;
+          pi.onclick = () => ctl.send({ op: 'payIn' });
+        }
+        if (f.tier >= tiers.overload) {
+          const ov = el('button', 'primary', tb); ov.innerHTML = 'Overload';
+          ov.title = `Shock and freeze every creep within ${tiers.overloadReach} tiles of the generator, once a wave`;
+          ov.disabled = !f.overloadReady;
+          ov.onclick = () => ctl.send({ op: 'overload' });
         }
       }
       const btns = el('div', 'btns', c);

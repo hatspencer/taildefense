@@ -260,6 +260,22 @@ them under the guns is the team's plan, and keeping it honest is the game.
   base clears the small ones.
 - **Turret fire never provokes.** A creep a turret hits doesn't turn on the turret's builder,
   missiles included, the same as a turret's bullets: aggro comes from what survivors do.
+- **Evolutions are the late game's turret choice.** Once the generator is at tier III, a turret
+  whose tracks add up to 12 (of 20) can evolve, once, into one of two branches for its price
+  again (`internal/game/evolve.go`). The pairs are built to pull against each other and the
+  affixes, so the team has something to argue about: the gun's Gatling (2.2× fire rate, 0.75×
+  damage) against its Penetrator (ignores armour, 1.3× damage: the armoured wave's answer);
+  the cannon's Mortar (1.8× range, lobs over walls) against Shrapnel (1.7× blast); the frost
+  tower's Cryo (every third pulse freezes for 0.8 s) against Blizzard (1.6× reach, longer slow);
+  the tesla's Storm conductor (up to 2× damage in rain, two more jumps) against the Arc web
+  (four more jumps, two tiles further each); the sniper's Spotter (marks its target: +25% from
+  everything for 5 s) against Anti-materiel (pierces 8 more, armour and all); the missile
+  battery's Swarm (twice the missiles, 0.6× damage) against Napalm (sets what it bursts on
+  alight). An evolution is mostly numbers on top of the tracks, so it stays readable, plus at
+  most one rule of its own.
+- **The amplifier pylon makes placement matter.** +15% fire rate to every turret within 3
+  tiles, not stacking: one pylon among four turrets is the play, not four pylons by one. It
+  needs tier II.
 - **Anyone can sell anyone's building.** The base belongs to the team: a wall someone who has
   left put in the wrong place, or a turret worth more moved, shouldn't wait on its builder. The
   gold goes to the seller and the team hears who sold whose, so it is never done unseen.
@@ -273,6 +289,24 @@ them under the guns is the team's plan, and keeping it honest is the game.
   top bar's button) between waves rebuilds every ghost at its first level and repairs everything
   damaged, after showing the total. Only between waves, so it is a decision of the break and
   not a way to refill walls under attack. Building over a ghost clears it.
+
+## A base that grows
+
+- **The generator's tiers are the team's shared project.** Gold is personal, so before this the
+  team never had to decide anything together. Anyone pays into the next tier from the
+  generator's card, 100 at a time (clicking the base chip opens it); the notes say who paid
+  what. Tier II takes 600 and tier III 1600, each half again for every player beyond the first
+  who is playing, so it lands around wave 8–10 and 18–20 if the team saves for it, and the
+  saving is the decision: a tier is gold not spent on turrets now.
+- **What a tier gives.** Each adds 30% of the generator's base health (healing it by as much),
+  and shows on its model: a radio mast on scaffolding at II, floodlights at III. Tier II unlocks
+  the amplifier pylon, tier III turret evolutions and the Overload.
+- **The Overload is the team's last word.** Once a wave, anyone sets it off from the
+  generator's card: everything within 18 tiles of the generator (the walls and a little past)
+  takes 150 + 10 per wave and is frozen for 1.5 s. It is turret fire, so it turns nobody on
+  anyone. Once a wave makes it a decision when to use it, not a cooldown to press.
+- **Not done: forward relays.** A relay at a cleared outpost, adding a build ring there, would
+  tie the raids out on the map to the base; it is left for when the middle game needs it.
 
 ## Loot
 
@@ -449,7 +483,8 @@ the long way round, or not at all. Map generation tries the spot again elsewhere
   Attack-move went away with click-to-move; Stop is a button on the orders card, and hold
   position came off the keys, since the hero standing still already holds.
 - **Building is a bar of numbers behind B.** 1–8 pick wall, gate, gun, cannon, frost, tesla,
-  sniper, missile, in the order of price, and 9, 0, - and = the traps (spikes, tar, vent, mine), so the build keys never clash with the fight keys,
+  sniper, missile, in the order of price, then 9, 0, - and = the traps (spikes, tar, vent, mine)
+  and [ the amplifier pylon, so the build keys never clash with the fight keys,
   and the letters they used to take (I, L, X) are free. Walls and gates stay picked after each
   one, because they go down in lines; a turret is one decision, so it places once and Shift
   keeps it.
