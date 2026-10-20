@@ -70,6 +70,7 @@ type structDef struct {
 	Range      float32    `json:"range"`
 	Ranges     []float32  `json:"ranges,omitempty"` // a turret's reach at each range track level
 	Turret     bool       `json:"turret"`
+	Floor      bool       `json:"floor,omitempty"` // a trap: laid flat, it stops nobody
 	Key        string     `json:"key"`
 	Desc       string     `json:"desc"`
 	Upgrade    []int32    `json:"upgrade"`
@@ -252,7 +253,7 @@ func welcome(wel netplay.Welcome, core point, host, hint string, hosting bool) w
 	}
 	for k, d := range game.Structs {
 		sk := game.StructKind(k)
-		sd := structDef{Name: d.Name, Price: d.Price, HP: d.HP, W: d.W, H: d.H, Range: d.Range, Turret: d.Turret, Desc: d.Desc, Special: d.Special}
+		sd := structDef{Name: d.Name, Price: d.Price, HP: d.HP, W: d.W, H: d.H, Range: d.Range, Turret: d.Turret, Floor: d.Floor, Desc: d.Desc, Special: d.Special}
 		if d.Key != 0 {
 			sd.Key = string(d.Key)
 		}

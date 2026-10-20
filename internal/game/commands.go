@@ -26,14 +26,14 @@ func (w *World) StructKindAt(x, y int) StructKind {
 }
 
 // CanStand reports whether a survivor fits at x, y: no solid ground and no structure under
-// any corner of its box, gates excepted.
+// any corner of its box, gates and traps excepted.
 func CanStand(b Blocker, x, y float32) bool {
 	for _, c := range [4][2]float32{{-PlayerRadius, -PlayerRadius}, {PlayerRadius, -PlayerRadius}, {-PlayerRadius, PlayerRadius}, {PlayerRadius, PlayerRadius}} {
 		tx, ty := int(math.Floor(float64(x+c[0]))), int(math.Floor(float64(y+c[1])))
 		if b.At(tx, ty).Solid() {
 			return false
 		}
-		if k := b.StructKindAt(tx, ty); k != SNone && k != SGate {
+		if k := b.StructKindAt(tx, ty); k != SNone && k != SGate && !Structs[k].Floor {
 			return false
 		}
 	}
@@ -320,7 +320,7 @@ func (w *World) canBuild(p *Player, k StructKind, x, y int, near bool) error {
 	if x < 1 || y < 1 || x >= w.W-1 || y >= w.H-1 || w.Terrain[y*w.W+x].Solid() {
 		return errors.New("cannot build there")
 	}
-	if w.StructAt(x, y) >= 0 {
+	if w.StructAt(x, y) >= 0 || w.floorAt[y*w.W+x] >= 0 {
 		return errors.New("something is already built there")
 	}
 	cx, cy := float32(x)+.5-w.CoreX-.5, float32(y)+.5-w.CoreY-.5
