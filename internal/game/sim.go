@@ -78,6 +78,7 @@ func (w *World) Step() {
 	w.stepPlayers()
 	w.stepTurrets()
 	w.stepGates()
+	w.stepTraps()
 	w.stepRockets()
 	w.stepEffects()
 	w.stepPumps()

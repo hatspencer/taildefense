@@ -431,11 +431,11 @@ async function main(): Promise<void> {
     // Build mode: radius and ghost.
     // The creeps' way in through the maze, while building or with a gate picked out: with
     // the ghost standing, and how much longer or shorter it makes their walk.
-    let ghost: { tx: number; ty: number; w: number; h: number } | undefined;
+    let ghost: { tx: number; ty: number; w: number; h: number; floor?: boolean } | undefined;
     if (m.k === 'build' && ctl.groundOk) {
       const t = ctl.buildTile(m.kind), ok = ctl.canPlace(m.kind, t.tx, t.ty) === '';
       overlays.buildGhost(m.kind, t.tx, t.ty, t.w, t.h, ok);
-      if (ok) ghost = t;
+      if (ok) ghost = { ...t, floor: wd.structs[m.kind]?.floor };
     } else overlays.buildGhost(-1);
     const gatePick = (ctl.sel?.t === 'struct' && f.sKind[ctl.sel.id] === K_GATE) || (ctl.hover?.t === 'struct' && f.sKind[ctl.hover.id] === K_GATE);
     if (m.k === 'build' || gatePick) {

@@ -200,11 +200,14 @@ const TracerTurret = 16
 // Blast is an explosion or pulse for one frame.
 type Blast struct {
 	X, Y, R float32
-	Kind    uint8 // 0 rocket/cannon, 1 frost, 2 tesla, … 11 the church bell, 12 a sac of bile bursting, 13 the evac Huey setting down
+	Kind    uint8 // 0 rocket/cannon, 1 frost, 2 tesla, … 11 the church bell, 12 a sac of bile bursting, 13 the evac Huey setting down, 14 a flame vent
 }
 
 // BlastLanded is the dust the evac Huey raises setting down on the pad.
 const BlastLanded = 13
+
+// BlastFlame is a flame vent bursting (traps.go).
+const BlastFlame = 14
 
 // EffectKind is a lasting effect on the ground.
 type EffectKind uint8
@@ -375,7 +378,8 @@ type World struct {
 	lightning   float32
 	shooter     int8 // the player whose shot is being resolved, -1 for turrets and the sky
 
-	structAt []int16 // per tile, structure index or -1
+	structAt []int16 // per tile, structure index or -1; traps are not in it
+	floorAt  []int16 // per tile, the trap's structure index or -1 (traps.go)
 	// The fields to the generator (flow.go, maze.go): the breach field, the maze field, and
 	// the maze field for the big creeps with the tiles they fit on, worked out only when one
 	// asks for it.
@@ -423,8 +427,10 @@ func NewGame(seed uint64, diff Difficulty) *World {
 	var ruins []ruin
 	wd.Terrain, ruins = generate(seed, w, h)
 	wd.structAt = make([]int16, w*h)
+	wd.floorAt = make([]int16, w*h)
 	for i := range wd.structAt {
 		wd.structAt[i] = -1
+		wd.floorAt[i] = -1
 	}
 	wd.freeIDs = make([]uint16, 0, MaxCreeps)
 	for i := MaxCreeps - 1; i >= 0; i-- {
@@ -540,25 +546,33 @@ func (w *World) place(k StructKind, x, y int, owner int8) int {
 	} else {
 		w.Structs[idx] = s
 	}
+	grid := w.structAt
+	if d.Floor {
+		grid = w.floorAt
+	}
 	for ty := y; ty < y+int(d.H); ty++ {
 		for tx := x; tx < x+int(d.W); tx++ {
-			w.structAt[ty*w.W+tx] = int16(idx)
+			grid[ty*w.W+tx] = int16(idx)
 		}
 	}
-	w.flowDirt = true
+	w.flowDirt = w.flowDirt || !d.Floor
 	return idx
 }
 
 // remove destroys a structure.
 func (w *World) remove(idx int) {
 	s := &w.Structs[idx]
+	grid := w.structAt
+	if Structs[s.Kind].Floor {
+		grid = w.floorAt
+	}
 	for ty := int(s.Y); ty < int(s.Y)+int(s.H); ty++ {
 		for tx := int(s.X); tx < int(s.X)+int(s.W); tx++ {
-			w.structAt[ty*w.W+tx] = -1
+			grid[ty*w.W+tx] = -1
 		}
 	}
 	s.Alive = false
-	w.flowDirt = true
+	w.flowDirt = w.flowDirt || !Structs[s.Kind].Floor
 }
 
 // Generate makes the terrain: grass with dirt and sand patches, lakes, forests, ruined

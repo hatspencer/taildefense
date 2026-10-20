@@ -916,16 +916,17 @@ export class Hud {
     };
     if (this.buildCard) {
       head('Build', 'B closes');
-      const grid = el('div', 'grid', c);
+      const grid = el('div', 'grid build', c);
       for (const k of wd.buildable) {
         const d = wd.structs[k];
         const b = el('button', ctl.mode.k === 'build' && ctl.mode.kind === k ? 'sel' : '', grid);
-        b.innerHTML = `<span class="n">${esc(d.name)}</span><span class="p">${d.price}g</span><span class="k">${esc(d.key)}</span>`;
+        // Twelve to a card: the first word of the name, the whole of it on the title.
+        b.innerHTML = `<span class="n">${esc(d.name.split(' ')[0])}</span><span class="p">${d.price}g</span><span class="k">${esc(d.key)}</span>`;
         b.disabled = gold < d.price;
-        b.title = d.desc;
+        b.title = `${d.name}: ${d.desc}`;
         b.onclick = () => ctl.startBuild(k);
       }
-      // How to place is said by the placement prompt; the card is full with eight to build.
+      // How to place is said by the placement prompt; the card is full with twelve to build.
       return;
     }
     if (s?.t === 'struct') {

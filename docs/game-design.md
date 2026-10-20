@@ -213,6 +213,13 @@ them under the guns is the team's plan, and keeping it honest is the game.
   wall; it keeps to the maze, and each second it can't reach them wears a tile of its
   patience. Otherwise standing behind the maze would undo it. A calm creep takes against only
   a turret it can walk to; a frenzied one takes against anything.
+- **Traps line the lanes.** Spikes, tar, the flame vent and the mine (`internal/game/traps.go`)
+  are flat buildings in their own grid, so nothing paths round them and nothing changes the
+  maze; they reward a long walk the way turrets reward range. Their damage is turret fire: it
+  never provokes, and the kills pay the builder. Each is cheap and narrow on its own: spikes
+  wear by the creep-second they cut (100 or so crossings), tar only slows, the vent bursts
+  once every three seconds, and the mine is spent at once, a ghost for H to lay again, so
+  traps are a running cost of a maze rather than a one-off.
 - **The preview is the client's own.** In build mode, or with a gate picked out, the page works
   out the maze field over the build ring itself (`web/src/route.ts`) and dots the way in from
   eight points round it, with the average walk and how much the ghost adds. It ignores the
@@ -424,7 +431,7 @@ the long way round, or not at all. Map generation tries the spot again elsewhere
   Attack-move went away with click-to-move; Stop is a button on the orders card, and hold
   position came off the keys, since the hero standing still already holds.
 - **Building is a bar of numbers behind B.** 1–8 pick wall, gate, gun, cannon, frost, tesla,
-  sniper, missile, in the order of price, so the build keys never clash with the fight keys,
+  sniper, missile, in the order of price, and 9, 0, - and = the traps (spikes, tar, vent, mine), so the build keys never clash with the fight keys,
   and the letters they used to take (I, L, X) are free. Walls and gates stay picked after each
   one, because they go down in lines; a turret is one decision, so it places once and Shift
   keeps it.
