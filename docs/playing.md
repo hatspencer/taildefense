@@ -254,6 +254,16 @@ east"), except on hard and brutal, where you find out when they arrive. Every fi
 hordes, a third of which pours out of every point on the wave's sides at once. Every tenth wave
 brings a boss: an abomination, a broodmother or a goliath, taking turns.
 
+From wave 4 a wave comes with an affix, and from wave 15 with two. During the break the scouts
+report what is coming, and the wave label at the top shows it, along with the sides it comes from:
+
+- **Armoured**: every creep shrugs off more of each hit. Gun turrets suffer; snipers and cannons
+  don't.
+- **Hasty**: every creep a fifth faster.
+- **Sappers** (a blinking red marker): they ignore your maze and walk straight for the walls,
+  blowing up against the first thing they reach. Kill them out in front.
+- **Splitters** (a green marker): they burst into two swarmers when they die.
+
 A wave holds until it is dead: the break before the next one starts only once every creep of it
 is gone (sleeping guards don't count), so two waves never land on the base at once. Stragglers
 don't stall the game: if nothing of the wave has died for 30 s and at most 10 are left, they

@@ -1330,7 +1330,7 @@ export class DemoHost implements Transport {
     w.reset();
     w.u8(1); w.u32(this.tick); w.u8(this.phase); w.u16(this.wave); w.u16(Math.max(0, this.phaseLeft));
     w.u32(this.waveLeft()); w.u32(this.totalKills); w.u16(this.best);
-    w.u8(this.weather); w.u8(Math.round(this.weatherAmt * 255)); w.u8(this.paused + 1);
+    w.u8(this.weather); w.u8(Math.round(this.weatherAmt * 255)); w.u8(this.paused + 1); w.u8(0); w.u8(0); w.u8(0);
     w.u8(this.players.length);
     for (const p of this.players) {
       const alive = p.hp > 0 && !p.aboard;

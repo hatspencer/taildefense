@@ -12,6 +12,7 @@ type Creep struct {
 	HP, MaxHP float32
 	Cool      float32 // seconds until the next attack
 	Slow      float32 // seconds of slow left
+	Aff       Affix   // its wave's affixes it carries: armoured, hasty, a sapper's charge, a splitter
 	Burn      float32 // seconds of burning left
 	BurnDPS   float32
 	ID        uint16
@@ -365,14 +366,19 @@ type World struct {
 	lastFront  float64
 	fronted    bool
 	frontNames []string
-	Core       int // structure index of the generator
-	Armory     int
-	CoreX      float32
-	CoreY      float32
-	Best       int // waves survived when the game ended
-	TotalKills uint32
-	Weather    WeatherKind
-	WeatherAmt float32 // 0..1, how strongly it holds
+	nextFronts [][][2]float32 // the next wave's, rolled for the break before it (forecast)
+	// This wave's affixes, and the next wave's and the sides it comes from (compassBit, 0
+	// unsaid), as forecast in the break before it.
+	Affix, NextAffix Affix
+	NextFrom         uint8
+	Core             int // structure index of the generator
+	Armory           int
+	CoreX            float32
+	CoreY            float32
+	Best             int // waves survived when the game ended
+	TotalKills       uint32
+	Weather          WeatherKind
+	WeatherAmt       float32 // 0..1, how strongly it holds
 
 	weatherNext WeatherKind
 	lightning   float32
@@ -470,6 +476,7 @@ func NewGame(seed uint64, diff Difficulty) *World {
 	}
 	wd.countGuards()
 	wd.fillWanderers()
+	wd.forecast()
 	return wd
 }
 

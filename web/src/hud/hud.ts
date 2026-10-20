@@ -1,5 +1,5 @@
 import type { ConnState } from '../net';
-import { CROWBAR, OWNED_DUAL, EvacStage, K_ARMORY, K_CORE, stickyKind, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, type Player, TTrack, TURRET_TRACKS, type Welcome, repairCost, sellValue, turretRange, WEAPON_SLOTS, K_GATE } from '../protocol';
+import { CROWBAR, OWNED_DUAL, EvacStage, K_ARMORY, K_CORE, stickyKind, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, type Player, TTrack, TURRET_TRACKS, type Welcome, repairCost, sellValue, turretRange, WEAPON_SLOTS, K_GATE, COMPASS, CX_ARMOURED, CX_FRENZY, CX_HASTY, CX_SAPPER, CX_SPLITTER } from '../protocol';
 import { type Controller, KEYS } from '../controller';
 import { cssHex, playerColor } from '../scene/util';
 import { Armory } from './armory';
@@ -38,6 +38,16 @@ function change(a: string, b: string): string {
   while (j > i && x[j] === y[j]) j--;
   if (i >= x.length) return a;
   return `${x.slice(0, j + 1).join(' ')} → ${y.slice(i).join(' ')}`;
+}
+
+// What the scouts say of a wave: its affixes, and the sides it comes from when told.
+function forecast(wd: Welcome, affix: number, from: number): string {
+  let s = '';
+  const names = (wd.affixes ?? []).filter((_, i) => affix & (1 << i));
+  if (names.length) s += `<span class="affix">${esc(names.join(' · ').toUpperCase())}</span>`;
+  const sides = COMPASS.filter((_, i) => from & (1 << i)).map((n) => n.replace(/(north|south|east|west)/g, (m) => m[0].toUpperCase()));
+  if (sides.length) s += `<span class="lbl">from ${sides.join(' ')}</span>`;
+  return s;
 }
 
 export class Hud {
@@ -624,8 +634,8 @@ export class Hud {
     let wave: string;
     if (f.phase === Phase.Build) {
       const left = Math.max(0, f.phaseLeft / 10 - (now - ctl.game.frameAt) / 1000);
-      wave = `<span class="lbl">wave ${f.wave + 1} in</span><span class="phase">${Math.ceil(left)}s</span>`;
-    } else if (f.phase === Phase.Wave) wave = `<span class="lbl">wave</span>${f.wave}<span class="lbl">·</span><span class="phase">${fmtGold(f.left)}</span><span class="lbl">creeps left</span>`;
+      wave = `<span class="lbl">wave ${f.wave + 1} in</span><span class="phase">${Math.ceil(left)}s</span>${forecast(wd, f.nextAffix, f.nextFrom)}`;
+    } else if (f.phase === Phase.Wave) wave = `<span class="lbl">wave</span>${f.wave}<span class="lbl">·</span><span class="phase">${fmtGold(f.left)}</span><span class="lbl">creeps left</span>${forecast(wd, f.affix, 0)}`;
     else if (f.phase === Phase.Evac) {
       const left = Math.ceil(Math.max(0, f.evacLeft - (now - ctl.game.frameAt) / 1000));
       wave = f.evac === EvacStage.Inbound ? `<span class="lbl">evac · Huey lands in</span><span class="phase">${left}s</span><span class="lbl">· hold the helipad</span>`
@@ -992,7 +1002,7 @@ export class Hud {
       if (d && i >= 0) {
         const fl = f.cFlags[i];
         el('div', 'sub', c, `HP ~${Math.round(f.cHp[i] / 255 * 100)}% · base HP ${d.hp} · speed ${d.speed}${d.ranged ? ' · ranged' : ''}`);
-        el('div', 'sub', c, `bounty ${d.bounty}g${fl & 1 ? ' · burning' : ''}${fl & 2 ? ' · slowed' : ''}${fl & 4 ? ' · loot guard' : ''}${fl & 32 ? ' · asleep' : ''}`);
+        el('div', 'sub', c, `bounty ${d.bounty}g${fl & 1 ? ' · burning' : ''}${fl & 2 ? ' · slowed' : ''}${fl & 4 ? ' · loot guard' : ''}${fl & 32 ? ' · asleep' : ''}${f.cFx[i] & CX_FRENZY ? ' · frenzied' : ''}${f.cFx[i] & CX_SAPPER ? ' · sapper' : ''}${f.cFx[i] & CX_SPLITTER ? ' · splitter' : ''}${f.cFx[i] & CX_ARMOURED ? ' · armoured' : ''}${f.cFx[i] & CX_HASTY ? ' · hasty' : ''}`);
         const btns = el('div', 'btns', c);
         const at = el('button', 'primary', btns, 'Attack');
         at.onclick = () => ctl.send({ op: 'attack', id: s.id });

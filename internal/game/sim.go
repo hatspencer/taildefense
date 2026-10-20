@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 )
 
 func sqrt32(v float32) float32 { return float32(math.Sqrt(float64(v))) }
@@ -119,6 +120,7 @@ func (w *World) startWave() {
 	w.Wave++
 	w.Phase = PhaseWave
 	w.WaveTime = 0
+	w.Affix, w.NextAffix, w.NextFrom = w.NextAffix, 0, 0
 	w.Queue = w.plan(w.Wave, w.active())
 	w.QueueHead = 0
 	w.stall, w.aliveLast = 0, 0
@@ -141,6 +143,9 @@ func (w *World) startWave() {
 	from := ""
 	if f := w.frontsSaid(); f != "" && !w.diff().Unsaid {
 		from = " from " + f
+	}
+	if w.Affix != 0 {
+		label += "  ·  " + strings.ToUpper(w.Affix.String())
 	}
 	w.note(2, "wave %d: %d creeps incoming%s%s", w.Wave, len(w.Queue), from, label)
 	if w.Wave == 1 && !w.PadKnown() && !w.Endless() {
@@ -195,6 +200,7 @@ func (w *World) endWave() {
 		w.PhaseLeft = w.diff().Rest
 	}
 	w.rollWeather()
+	defer w.forecast()
 	w.note(1, "wave %d cleared  ·  +%d gold each  ·  wave %d in %.0fs", w.Wave, bonus, w.Wave+1, w.PhaseLeft)
 	if w.longBreak() {
 		w.note(1, "long break: %.0fs to explore and loot before wave %d", w.PhaseLeft, w.Wave+1)
@@ -280,7 +286,11 @@ func (w *World) plan(wave, players int) []Spawn {
 		total += v
 	}
 	dur := 14 + min(float32(wave), 30)
-	fronts := w.pickFronts(wave)
+	fronts := w.nextFronts
+	if fronts == nil {
+		fronts = w.pickFronts(wave)
+	}
+	w.nextFronts = nil
 	at := func() [2]float32 {
 		f := fronts[w.rng.IntN(len(fronts))]
 		return f[w.rng.IntN(len(f))]
@@ -348,7 +358,9 @@ func (w *World) spawnDue() {
 	for w.QueueHead < len(w.Queue) && w.Queue[w.QueueHead].At <= w.WaveTime {
 		s := w.Queue[w.QueueHead]
 		w.QueueHead++
-		w.SpawnCreep(s.Kind, s.X, s.Y)
+		if w.SpawnCreep(s.Kind, s.X, s.Y) {
+			w.mark(&w.Creeps[len(w.Creeps)-1])
+		}
 	}
 }
 
@@ -394,6 +406,9 @@ func (w *World) stepCreeps() {
 		speed := d.Speed * w.creepSpeedMul()
 		if c.Frenzy {
 			speed *= frenzySpeed
+		}
+		if c.Aff&AffixHasty != 0 {
+			speed *= affixHaste
 		}
 		if c.Slow > 0 {
 			c.Slow -= Dt
@@ -444,14 +459,14 @@ func (w *World) stepCreeps() {
 				}
 				// It goes for what it can walk up to, and gives up on what a wall stands in front of.
 				ox, oy := c.X, c.Y
-				w.moveCreep(c, d, c.X+dx/dist*speed*Dt, c.Y+dy/dist*speed*Dt, c.Frenzy)
+				w.moveCreep(c, d, c.X+dx/dist*speed*Dt, c.Y+dy/dist*speed*Dt, c.breaks())
 				if c.X == ox && c.Y == oy {
 					c.Siege = -1
 				}
 				continue
 			}
 		}
-		brk := c.Frenzy // whether it breaks what it walks into
+		brk := c.breaks() // whether it breaks what it walks into
 		if tp != nil {
 			c.Chase = int8(tp.ID)
 			dx, dy := tp.X-c.X, tp.Y-c.Y
@@ -681,6 +696,10 @@ func (w *World) attackStruct(c *Creep, d *CreepDef, si int) {
 		return
 	}
 	if !s.Alive || s.Kind == SArmory {
+		return
+	}
+	if c.Aff&AffixSappers != 0 && si != w.Core {
+		w.sap(c)
 		return
 	}
 	dmg := d.Damage
@@ -1099,7 +1118,7 @@ func (w *World) hit(i int32, dmg float32, owner int8, stun float32) {
 	if c.HP <= 0 || owner >= 0 && w.hidden(c) {
 		return
 	}
-	d := dmg - Creeps[c.Kind].Armor
+	d := dmg - c.armor()
 	if d < dmg*.25 {
 		d = dmg * .25
 	}
@@ -1364,9 +1383,13 @@ func (w *World) reap() {
 		}
 		w.TotalKills++
 		w.freed = append(w.freed, c.ID)
+		split, x, y := c.Aff&AffixSplitters != 0, c.X, c.Y
 		last := len(w.Creeps) - 1
 		w.Creeps[i] = w.Creeps[last]
 		w.Creeps = w.Creeps[:last]
+		if split {
+			w.split(x, y)
+		}
 	}
 	for i := range w.Structs {
 		s := &w.Structs[i]

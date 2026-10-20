@@ -260,7 +260,7 @@ func (w *World) deadEye(p *Player) {
 		dmg := float32(deadEyeHeavy)
 		if !c.Kind.Heavy() {
 			// Enough to kill outright, armour and all.
-			dmg = c.HP + Creeps[c.Kind].Armor + 1
+			dmg = c.HP + c.armor() + 1
 			dmg = max(dmg, c.HP*4)
 		}
 		w.damage(i, dmg, owner)

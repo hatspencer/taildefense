@@ -134,6 +134,24 @@ it here along with the code.
   outrun a pack; you turn and shoot it. From wave 5 one wandering pack in six is hounds, and an
   ambush may bring some. They're there to make the open ground between the sites dangerous in
   a way walkers can't: walkers you walk away from.
+- **Affixes make one wave unlike the last.** From wave 4 every wave but the boss waves comes
+  with an affix, and from wave 15 with two, never all the last wave's again:
+  - *Armoured*: every creep shrugs off 3 more of each hit. The gun turret's small rounds feel it
+    most; snipers and cannons don't.
+  - *Hasty*: every creep a fifth faster, so a short maze gives the guns less time.
+  - *Sappers*: a fifth of the walkers and runners carry a charge. They ignore the maze, walk
+    straight for the walls and blow up against the first structure they reach (280 to
+    everything within 1.6 tiles but the generator and the armory), for no bounty. Traps and
+    turrets out in front of the walls are the answer.
+  - *Splitters*: a third of the walkers, runners and brutes burst into two swarmers when they
+    die, so what dies at the walls is still a problem. Area damage, flame vents and spikes are
+    the answer.
+
+  Each one rewards a different base, so a team that has built for one has something to change
+  for the next. That is why the next wave is **forecast**: the break before it says its affixes
+  and its sides ("scouts report wave 7: sappers…"), and the HUD's wave label shows them, so the
+  break is for deciding what to build. On Hard and Brutal the sides stay unsaid, as before; the
+  affixes are always told.
 - **The cap.** 16k creeps alive. Around wave 40 with 8 players the game reaches it.
 
 ## The end: get to the choppa
