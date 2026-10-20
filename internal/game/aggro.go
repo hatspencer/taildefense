@@ -196,11 +196,11 @@ func (w *World) nearbyStruct(c *Creep) int {
 				continue
 			}
 			s := &w.Structs[si]
-			if !s.Alive || s.Kind == SArmory || s.Kind == SCore || !c.Frenzy && !Structs[s.Kind].Turret {
+			if !s.Alive || s.Kind == SArmory || s.Kind == SCore || !c.breaks() && !Structs[s.Kind].Turret {
 				continue
 			}
 			dx, dy := float32(tx)+.5-x, float32(ty)+.5-y
-			if dd := dx*dx + dy*dy; dd < best && (c.Frenzy || w.openWalk(x, y, s.CX(), s.CY(), int16(si))) {
+			if dd := dx*dx + dy*dy; dd < best && (c.breaks() || w.openWalk(x, y, s.CX(), s.CY(), int16(si))) {
 				best, bi = dd, si
 			}
 		}

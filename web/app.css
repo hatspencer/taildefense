@@ -113,6 +113,7 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 17px/12p
 .top .wave { height: 26px; padding: 0 10px; display: flex; align-items: center; gap: 8px; font-size: 21px; line-height: 1; white-space: nowrap; }
 .top .wave .phase { color: #f4c25c; }
 .top .wave .lbl { color: #9c7a34; }
+.top .wave .affix { color: #e0603a; font-size: 17px; }
 .top .chip { display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px; border: 2px solid var(--black); background: var(--drab); box-shadow: var(--bevel); white-space: nowrap; cursor: default; }
 .top .chip .pips { display: inline-flex; gap: 2px; }
 .top .chip .pips i { width: 4px; height: 10px; background: #3c3f30; }

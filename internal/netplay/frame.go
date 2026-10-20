@@ -41,6 +41,8 @@ const (
 // More creep flags, in a second byte.
 const (
 	fxFrenzy = 1 << 0 // lost its patience with the maze: faster, tearing through walls
+	// Its wave's affixes it carries, game.Affix shifted up past fxFrenzy.
+	fxAffixShift = 1
 )
 
 // Player flags on the wire.
@@ -139,7 +141,7 @@ func creepFx(c *game.Creep) uint8 {
 	if c.Frenzy {
 		f |= fxFrenzy
 	}
-	return f
+	return f | uint8(c.Aff)<<fxAffixShift
 }
 
 // creepTarget is the chased player's id; else, for a creep attacking a structure, 128 + the
@@ -365,6 +367,9 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 	b.u8(uint8(w.Weather))
 	b.u8(uint8(w.WeatherAmt * 255))
 	b.u8(uint8(w.Paused + 1))
+	b.u8(uint8(w.Affix))
+	b.u8(uint8(w.NextAffix))
+	b.u8(w.NextFrom)
 	// Per loot site: searched in bit 7, living guards below; small enough to send whole.
 	b.uv(uint64(len(w.Sites)))
 	for i := range w.Sites {

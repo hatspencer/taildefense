@@ -75,7 +75,7 @@ func (w *World) wideField() *flowField {
 // on it: the maze while there is a way round, for a creep that has not lost its patience,
 // the wide one for a big creep while there is one; else the breach field.
 func (w *World) fieldFor(c *Creep, ti int) (*flowField, bool) {
-	if c.Frenzy {
+	if c.breaks() {
 		return &w.flow, true
 	}
 	if Creeps[c.Kind].Size >= 2 {
@@ -93,7 +93,7 @@ func (w *World) fieldFor(c *Creep, ti int) (*flowField, bool) {
 // too narrow for it: on such a tile it smashes the weakest wall beside it, and it reports
 // whether it did, standing there to do it.
 func (w *World) shoulder(c *Creep, d *CreepDef, ti int) bool {
-	if d.Size < 2 || c.Frenzy || w.wide == nil || w.wide[ti] {
+	if d.Size < 2 || c.breaks() || w.wide == nil || w.wide[ti] {
 		return false
 	}
 	x, y := ti%w.W, ti/w.W
@@ -140,7 +140,7 @@ const (
 // patience counts the ground creep c walked this tick, from ox, oy, inside the build ring;
 // past its patience it frenzies. Guards and wanderers never get that far.
 func (w *World) patience(c *Creep, ox, oy float32) {
-	if c.Frenzy || c.Home != 0 || c.Wander {
+	if c.breaks() || c.Home != 0 || c.Wander {
 		return
 	}
 	dx, dy := c.X-w.CoreX, c.Y-w.CoreY
