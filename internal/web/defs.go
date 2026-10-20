@@ -77,6 +77,27 @@ type structDef struct {
 	Upgradable bool       `json:"upgradable"`
 	Special    string     `json:"special,omitempty"`
 	Values     [][]string `json:"values,omitempty"` // a turret's [track][level] what the track gives
+	Tier       uint8      `json:"tier,omitempty"`   // the generator's tier it needs, past the first
+	Evolve     []evoDef   `json:"evolve,omitempty"` // a turret's two evolutions
+}
+
+// evoDef is one branch a turret evolves into; Range multiplies its reach (1 for none).
+type evoDef struct {
+	Name  string  `json:"name"`
+	Desc  string  `json:"desc"`
+	Range float32 `json:"range"`
+}
+
+// tiersDef is the generator's tiers: the gold a pay-in puts in, the top tier, what each
+// unlock needs, and the Overload's reach.
+type tiersDef struct {
+	Step          int32   `json:"step"`
+	Max           uint8   `json:"max"`
+	Pylon         uint8   `json:"pylon"`
+	Evolve        uint8   `json:"evolve"`
+	EvolveAt      int     `json:"evolveAt"`
+	Overload      uint8   `json:"overload"`
+	OverloadReach float32 `json:"overloadReach"`
 }
 
 type siteKindDef struct {
@@ -193,6 +214,7 @@ type welcomeMsg struct {
 	Patience        []float32     `json:"patience"` // per difficulty: how far past the straight way in a creep walks a maze before it frenzies
 	Gate            gateDef       `json:"gate"`
 	Affixes         []string      `json:"affixes"` // a wave's affixes, bit by bit
+	Tiers           tiersDef      `json:"tiers"`
 }
 
 // gateDef is working a gate: seconds at it, seconds before it swings again, how near to stand.
@@ -259,6 +281,12 @@ func welcome(wel netplay.Welcome, core point, host, hint string, hosting bool) w
 			sd.Key = string(d.Key)
 		}
 		sd.Upgradable = game.Upgradable(sk)
+		sd.Tier = d.Tier
+		for _, e := range game.Evolutions[sk] {
+			if e.Name != "" {
+				sd.Evolve = append(sd.Evolve, evoDef{Name: e.Name, Desc: e.Desc, Range: max(e.Range, 1)})
+			}
+		}
 		if d.Turret {
 			// A turret: what a track costs and gives at each level, the same for every track.
 			for l := uint8(0); l <= game.MaxLevel; l++ {
@@ -316,6 +344,8 @@ func welcome(wel netplay.Welcome, core point, host, hint string, hosting bool) w
 	gt, gc, gr := game.GateInfo()
 	m.Gate = gateDef{gt, gc, gr}
 	m.Affixes = game.AffixNames[:]
+	m.Tiers = tiersDef{Step: game.TierStep, Max: game.MaxTier, Pylon: game.PylonTier, Evolve: game.EvolveTier, EvolveAt: game.EvolveAt,
+		Overload: game.OverloadTier, OverloadReach: game.OverloadReach}
 	for _, d := range game.Weathers {
 		m.Weathers = append(m.Weathers, weatherDef{d.Name, d.Info})
 	}

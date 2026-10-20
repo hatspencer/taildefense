@@ -13,6 +13,7 @@ type Creep struct {
 	Cool      float32 // seconds until the next attack
 	Slow      float32 // seconds of slow left
 	Aff       Affix   // its wave's affixes it carries: armoured, hasty, a sapper's charge, a splitter
+	Mark      float32 // seconds left of a spotter's mark: everything hits it harder (evolve.go)
 	Burn      float32 // seconds of burning left
 	BurnDPS   float32
 	ID        uint16
@@ -81,8 +82,10 @@ type Structure struct {
 	Owner     int8             // player who built it, -1 for the starting base
 	Cool      float32
 	Alive     bool
-	Ghost     bool // destroyed, not sold: its outline stays to be rebuilt (see FixAll)
-	Open      bool // a gate swung open: open ground to creeps as well as survivors (maze.go)
+	Ghost     bool  // destroyed, not sold: its outline stays to be rebuilt (see FixAll)
+	Open      bool  // a gate swung open: open ground to creeps as well as survivors (maze.go)
+	Evo       uint8 // a turret's evolution, 1 or 2 (Evolutions), 0 none
+	pulses    uint8 // a cryo tower's pulses, to freeze on every cryoEvery
 }
 
 // CX and CY are the structure's centre.
@@ -156,6 +159,7 @@ type Player struct {
 	pingFree         uint32  // the tick from which a ping costs nothing; see World.Ping
 	Stamina          float32 // 0..1
 	Medkits          uint8   // carried, used one at a time with UseMedkit
+	PaidIn           int32   // gold put into the generator's tiers (PayIn)
 	Goggles          bool    // night vision: daytime sight at night, and no flashlight
 	Heal             float32 // seconds of a medkit's healing left
 	steerLeft        float32 // seconds until an OrderSteer lapses without a repeat
@@ -288,8 +292,9 @@ type Projectile struct {
 	Damage       float32
 	Blast        float32
 	Owner        int8
-	Turret       bool  // a missile battery's: its damage counts as the turret's
-	Cluster      uint8 // a cluster rocket: flies over creeps to its point and splits into this many bomblets
+	Turret       bool    // a missile battery's: its damage counts as the turret's
+	Burn         float32 // a napalm missile's: what it bursts on burns this much a second
+	Cluster      uint8   // a cluster rocket: flies over creeps to its point and splits into this many bomblets
 }
 
 // Spawn is one creep waiting to enter.
@@ -375,14 +380,21 @@ type World struct {
 	// unsaid), as forecast in the break before it.
 	Affix, NextAffix Affix
 	NextFrom         uint8
-	Core             int // structure index of the generator
-	Armory           int
-	CoreX            float32
-	CoreY            float32
-	Best             int // waves survived when the game ended
-	TotalKills       uint32
-	Weather          WeatherKind
-	WeatherAmt       float32 // 0..1, how strongly it holds
+	// The generator's tier, 1 to MaxTier, the gold paid into the next, and whether the
+	// Overload has gone off this wave (evolve.go).
+	Tier       uint8
+	TierPaid   int32
+	Overloaded bool
+	pylons     []int32 // standing amplifier pylons, found afresh each tick
+	noArmor    bool    // the shot being dealt ignores armour
+	Core       int     // structure index of the generator
+	Armory     int
+	CoreX      float32
+	CoreY      float32
+	Best       int // waves survived when the game ended
+	TotalKills uint32
+	Weather    WeatherKind
+	WeatherAmt float32 // 0..1, how strongly it holds
 
 	weatherNext WeatherKind
 	lightning   float32
@@ -519,6 +531,7 @@ func (w *World) buildBase() {
 		}
 	}
 	w.Core = w.place(SCore, cx-2, cy-2, -1)
+	w.Tier = 1
 	w.Armory = w.place(SArmory, cx+6, cy-1, -1)
 	for i := -r; i <= r; i++ {
 		for _, p := range [][2]int{{cx + i, cy - r}, {cx + i, cy + r}, {cx - r, cy + i}, {cx + r, cy + i}} {

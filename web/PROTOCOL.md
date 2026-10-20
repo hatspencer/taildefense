@@ -38,7 +38,7 @@ everything it knows, a terrain message follows).
 ```jsonc
 {
   "t": "welcome",
-  "proto": 22,
+  "proto": 23,
   "version": "a1b2c3d",
   "you": 0,                    // your player id
   "w": 352, "h": 220,          // map size in tiles
@@ -66,6 +66,10 @@ everything it knows, a terrain message follows).
                                // from where it entered the build ring (+12 tiles) before it frenzies
   "gate": {"time": 0.8, "cool": 4, "reach": 2.3}, // working a gate: s at it, s before it swings again, how near
   "affixes": ["armoured", "hasty", "sappers", "splitters"], // a wave's affixes, bit by bit (1, 2, 4, 8)
+  "tiers": {"step": 100, "max": 3,  // the generator's tiers: gold a pay-in puts in, the top tier,
+    "pylon": 2, "evolve": 3,        // the tier that unlocks the pylon, and evolutions (once a
+    "evolveAt": 12,                 // turret's tracks add up to evolveAt), and the Overload
+    "overload": 3, "overloadReach": 18},
   "evac": {                    // absent in an endless game. The helipad and the Huey's timing, seconds:
     "pad": {"x": 182, "y": 138},  // the pad's middle, on a tile corner; it is 2*half tiles square.
     "half": 3,                 // At night (dark) it shows once any of its tiles has been seen, or
@@ -119,11 +123,14 @@ everything it knows, a terrain message follows).
      "upgrade": [36, 54, 81, 122, 182],              // a turret: price to raise any track from level
      "ranges": [9, 9.7, 10.4, 11.2, 11.9, 12.6],     // reach at each range track level 0..5
      "special": "+1 pierce",                         // what the special track adds a level
-     "values": [["11 dmg", "14 dmg", ...], ...]}     // [track][level 0..5] what the track gives
+     "values": [["11 dmg", "14 dmg", ...], ...],     // [track][level 0..5] what the track gives
+     "evolve": [{"name": "Gatling", "desc": "...", "range": 1},   // a turret's two evolutions, 1 and
+                {"name": "Penetrator", "desc": "...", "range": 1}]}  // 2; range multiplies its reach
   ],
+  // The amplifier pylon (15) has "tier": 2: it can be built once the generator is at tier II.
   // A trap (11 spike strip, 12 tar pit, 13 flame vent, 14 mine) has "floor": true: laid flat,
   // it stops neither creeps nor survivors, and the maze runs over it.
-  "buildable": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],  // 9 sniper tower, 10 missile battery
+  "buildable": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],  // 9 sniper tower, 10 missile battery
   "siteKinds": [               // index = site kind
     {"name": "Ruined house", "search": 3},   // search: seconds it takes
     {"name": "Car wreck", "search": 2},
@@ -261,6 +268,10 @@ u8   nextAffix        during the break, the next wave's affixes as the scouts re
 u8   nextFrom         during the break, the sides the next wave comes from: 1 east, 2 southeast,
                       4 south, 8 southwest, 16 west, 32 northwest, 64 north, 128 northeast;
                       0 when unsaid (on the hardest settings)
+u8   tier             the generator's tier, 1 to tiers.max
+u16  tierPaid         gold paid into the next tier so far
+u16  tierCost         gold the next tier takes in all (more with more players); 0 at the top
+u8   overload         1: the generator's Overload can go off now (tier, a wave, not yet used)
 
 u8   nPlayers
   u8   id
@@ -346,7 +357,8 @@ u16  nStructs         the whole list; the index is the struct id used in command
   u8   level          a wall's or gate's; a turret's is 1 + its upgrades on every track
   u8   lv[4]          a turret's track levels: damage, fire rate, range, special (0 otherwise)
   i8   owner          player id, -1 for the starting base
-  u8   state          bit 0: a gate swung open (creeps walk through it; shut, it is a wall to them)
+  u8   state          bit 0: a gate swung open (creeps walk through it; shut, it is a wall to them);
+                      bits 1-2: a turret's evolution, 1 or 2 (its def's evolve), 0 none
 
 u16  nCreeps
   u16  id             stable for the creep's life; reused after death
@@ -381,7 +393,8 @@ u16  nBlasts          explosions and pulses this tick
                       9 revived (a survivor stands up), 10 guards wake (at the guard),
                       11 the church bell rung (at its rope), 12 bile bursting (a broodmother's
                       sac landing, or the broodmother splitting open), 13 the evac Huey touching
-                      down on the helipad, 14 a flame vent bursting
+                      down on the helipad, 14 a flame vent bursting, 15 the generator's Overload
+                      (at the generator, r its reach)
 u16  nDeaths          creeps that died this tick
   u16  x, y q8
   u8   kind
@@ -454,6 +467,9 @@ integers. The host checks everything; a refusal comes back as a `toast` with lev
 {"op": "give",    "p": 2, "gold": 250}       // anywhere: send 250 of your gold to player 2 (up to 65535)
 {"op": "gate",    "s": 12}                   // walk to gate 12 and open it, or shut it if no creep
                                              // stands in the gateway; it swings once per gate.cool s
+{"op": "payIn"}                              // put tiers.step gold into the generator's next tier
+{"op": "evolve",  "s": 7, "track": 1}        // evolve turret 7 into its branch 1 or 2 (structs[k].evolve)
+{"op": "overload"}                           // the generator's Overload, once a wave from tier tiers.overload
 {"op": "ready",   "on": true}                // ready for the next wave (all ready: starts in 3 s)
 {"op": "restart"}                            // a new map, only once the game is over
 {"op": "difficulty", "kind": 2}              // the host only: change the difficulty from here on
