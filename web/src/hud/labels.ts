@@ -101,7 +101,7 @@ export class Labels {
     }
     if (!caption) return;
     c.save();
-    c.font = `600 12px ${FONT}`; c.textAlign = 'left'; c.textBaseline = 'middle';
+    c.font = `600 14px ${FONT}`; c.textAlign = 'left'; c.textBaseline = 'middle';
     this.text(caption, x + r + 7, y, col);
     c.restore();
   }
@@ -124,7 +124,7 @@ export class Labels {
     // -1: fog of war, and nobody has been inside to count them. -2: night, never counted.
     const guards = game.guardsLeft(i);
     const level = Math.max(0, Math.min(4, s.guard ?? 0));
-    const fs = Math.round(13 * Math.max(0.9, zoom));
+    const fs = Math.round(15 * Math.max(0.9, zoom));
     c.save();
     c.textAlign = 'left'; c.textBaseline = 'middle';
     c.font = `600 ${fs}px ${FONT}`;
@@ -137,7 +137,7 @@ export class Labels {
     const h = line2 ? lh * 2 + 6 : lh + 6;
     const bx = Math.round(x - w / 2);
     let by = Math.round(y - h);
-    c.font = `600 12px ${FONT}`;
+    c.font = `600 14px ${FONT}`;
     for (let moved = true; moved;) {
       moved = false;
       for (const r of rings) {
@@ -202,7 +202,7 @@ export class Labels {
     c.globalAlpha = 1;
 
     // Heroes: name and HP; the downed show where they fell, their countdown and any revive.
-    const fs = Math.round(13 * Math.max(0.85, zoom));
+    const fs = Math.round(15 * Math.max(0.85, zoom));
     const lift = 30 * Math.max(0.85, zoom), fog = game.fogged();
     const rings: Ring[] = [];
     for (let i = 0; i < f.nPlayers; i++) {
@@ -306,7 +306,7 @@ export class Labels {
         c.fillStyle = col;
         for (let yy = top + 28; yy < gy - 2; yy += 6) c.fillRect(gx - 1, yy, 2, 3);
         this.glyph(gx, top, p.kind, col, age);
-        c.font = `600 12px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'bottom';
+        c.font = `600 14px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'bottom';
         this.text(name ? `${name} · ${PING_WORD[p.kind] ?? ''}` : PING_WORD[p.kind] ?? '', gx, top - 14, col);
       } else {
         // The edge arrow: on the line from the screen centre towards the spot.
@@ -322,7 +322,7 @@ export class Labels {
         c.fillStyle = INK; c.beginPath(); c.moveTo(14 + pulse, 0); c.lineTo(-8, -11); c.lineTo(-8, 11); c.closePath(); c.fill();
         c.fillStyle = col; c.beginPath(); c.moveTo(10 + pulse, 0); c.lineTo(-5, -7); c.lineTo(-5, 7); c.closePath(); c.fill();
         c.restore();
-        c.font = `600 12px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'middle';
+        c.font = `600 14px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'middle';
         const tx = Math.min(this.w - 40, Math.max(40, ex - Math.cos(ang) * 30)), ty = Math.min(this.h - 20, Math.max(20, ey - Math.sin(ang) * 22));
         this.text(name || PING_WORD[p.kind], tx, ty, col);
       }

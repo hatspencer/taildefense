@@ -118,7 +118,7 @@ faces, however the camera is turned, and the camera follows while you walk.
 | wheel | zoom |
 | arrows, screen edges | look around; walking brings the camera back, tapping Space recenters on your hero, a double tap locks the camera to it |
 | Enter | chat with the team; in the chat, Tab adds where you are ("NE of the base, 40 m") |
-| Tab, F1 (or ?), F3, F4 | scoreboard, help, performance readout, the pixel view on or off |
+| Tab, F1 (or ?), F3, F4 | scoreboard (everyone's gold, kills and kit), help, performance readout, the pixel view on or off |
 | Esc, F10 | cancel the current mode or window, else the menu |
 
 
