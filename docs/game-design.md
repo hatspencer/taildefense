@@ -578,6 +578,154 @@ choice, not a cheat guard.
   fills as someone revives them. Clicking a frame looks at that teammate, or revives them if
   they are down.
 
+## Sound
+
+**The direction.** The sound is a survival story heard from just above: close, dry and
+physical where you are, wider and darker with distance, and quiet enough between waves that a
+groan out in the dark means something. Three rules order everything else:
+
+1. **What you do answers you first.** Your own gun, reload, kill and hurt are never the sound
+   that gets dropped, and each is clear of the rest of the mix.
+2. **Warnings over texture.** The siren, the klaxon, the radio and a big one winding up cut
+   through. A horde is heard as a horde from a few voices, not as every one of them.
+3. **One place, one air.** Every sound shares one outdoor reverb and the same distance rule,
+   and the weather's sound changes the whole world's, so the guns, the dead and the rain sound
+   like the same field.
+
+The mix's bands, measured as loudness close by (K-weighted, 400 ms): explosions and heavy guns
+-8 to -13 LUFS, the player's guns -11 to -20, the big ones' groans and deaths -11 to -15, cues
+-12 to -22, the small dead -18 to -24, your own reload and handling -22 to -28, the kill knock
+about -29, ambience -32 to -42, footsteps under -45.
+
+- **Synthesized, not recorded.** Every sound is rendered by code in the page
+  (`web/src/sound/bank.ts`): no audio files, no licences, nothing to download, and like the
+  art, it is all generated. The bank is made once sound starts, in a worker so no frame waits
+  on it (about 1.3 s of work, guns first; a sound not made yet is skipped), and the long, low
+  sounds (explosions, voices, sirens) at 24 kHz, which they lose nothing by and which halves
+  their memory. What is left of a sound after it has died 60 dB away is cut: about 35 MB in
+  all. Each sound has a few variants from different seeds, and every play is pitched and set up
+  to 15% apart (mostly much less), so fire never sounds like a loop and the ear doesn't tire of
+  a sound repeated exactly. A voice varies by 5%, or it stops being the same person, and a cue
+  not at all, since its pitch is what it says.
+- **Levels from measurement.** Every sound is rendered peak-normalized, then trimmed where its
+  measured loudness stood out of line with its kind. Measured, the player's shout was the
+  loudest thing in the game, the big ones' groans as loud as a shotgun, the tesla tower a hiss
+  with most of its energy above 8 kHz, and the reloads lost under the gun they reload. The
+  shout and the groans were brought down, the tesla remade in the mids, the reloads and the
+  radio brought up.
+- **Guns are built like real shots,** because they are most of what is heard. Six layers: a
+  crack of a millisecond, the muzzle blast overdriven into distortion with its top end dying
+  first, a resonant body in the mids where the bang is, a low boom falling in pitch, a tail
+  rolling away and echoes off the treeline. Then the action: the shotgun's pump, the rifle's
+  bolt, the pistol's brass bouncing. Each gun has its own numbers, so a pistol, an SMG and a
+  sniper tower are told apart by ear. The pistol is heavy, a desert eagle rather than a 9 mm,
+  because it is the gun most of a game is played with and a weak snap makes it feel weak. The
+  rifle is a full-power bolt action, a springfield or an AWP: the sharpest crack, the deepest
+  boom of the guns and the longest report, then the bolt. The shotgun is a 12 gauge: the widest, hardest
+  blast with more crack than thump, a punch deeper than anything hand-held but the rifle and a
+  report rolling off the treeline three times, a little under the rifle so the rifle stays the
+  biggest shot; then the pump racked, the spent hull landing with a plastic tock, and the
+  fore-end slammed home. The SMG is a 9 mm machine pistol: a
+  snappy crack and a tight punch with a short boom, so eleven rounds a second stay apart, and
+  the bolt clacking home under each one, the clatter that makes a burst sound like a machine. The crowbar is Half-Life's, a little deeper:
+  a swish and a struck pipe ringing out for most of a second, measured against the original
+  for the ring's length, but pitched down from its 1.1 kHz to about 820 Hz, with a thump as it
+  lands and the bar's low modes louder, so a blow has weight rather than only a ping. The towers: the gun turret a sentry, a dry round,
+  a feed clack and a servo slewing; the cannon field artillery, the deepest boom in the game, the
+  barrel ringing, the recoil and the case dropped; the sniper tower a .50 whose muzzle brake
+  throws a wider, harsher blast than the rifle's; the missile battery's tubes popping like a
+  blown bottle before each motor lights. The Huey's door gun is an M60 heard from the ground.
+  A creep's spit is a hack, a wet pop and bubbling slime; a hurler's bone is torn out with a
+  crunch and tumbles through the air, then cracks, splinters and clatters. A dash is a boot
+  driving off, the air ripping past and a skid; a grenade is the pin, the spoon spinning away
+  ringing, and the throw. The tesla is a zap, an arc's crackle of ragged sparks with a
+  snap and a falling tone, kept under 7 kHz; the frost tower, which pulses every second, is a
+  short cold gust with ice crackling and a glint of glass, with nothing sustained up high.
+  The minigun fires full rifle rounds, so each is a hard slam with a boom under it and a tail
+  long enough that 22 a second run together into one roar, over a motor, six barrels chopping
+  the air and the feed rattling. A shot under an ultimate sounds like the gun's own, except the
+  rifle's Railgun, which has no powder: a snap of discharge, an electric tone diving five
+  octaves, the air fizzing behind the slug, the rails ringing and the capacitors whining back
+  up to a click.
+- **Reloads are built of clacks.** A click and metal sliding on metal is the light half of
+  handling a gun; what makes a reload sound solid is the heavy parts going home, each a click
+  with the gun's body knocked low under it and a short ring of steel. Each gun reloads its own
+  way: the pistol's magazine clattering down and its slide let go, the SMG's magazine slapped
+  home and its handle let fly, the rifle's clip pressed in round by round, the minigun's box
+  dropped, its belt fed link by link and its barrels given a turn, the launcher's rocket latched
+  and armed with two beeps.
+- **The siren is a machine across town,** not a tone: two rotors a minor third apart chopping
+  air, a buzz with wind in it that grows louder as the motor winds up, swept towards you and
+  away as the head turns, and sent back late by the hills. The wave's siren winds up, holds and
+  is cut; a boss wave's, every tenth, is the attack signal instead, wailing up and down with a
+  deeper siren farther off wailing out of step with it, a little louder and the world held
+  down under it longer, so it is known before the boss is seen; the all clear holds one lower
+  steady tone; the end groans all the way down.
+- **Explosions throw things.** A shock front, the air slammed up and sucked back in a few
+  milliseconds; the fireball driven into distortion with its top end dying, a whump and a
+  falling boom under it, crackling as it burns off; then what was thrown up raining back down
+  for a second, clods thumping and stones ticking, metal ringing among them from the bigger
+  ones, all of it sent back off the treeline over a rumble. A rocket leaves its tube with a
+  crack and a backblast, its motor tearing and crackling as it flies off; a missile's motor
+  lights with a pop and fizzes away.
+- **The base and the pickups are tools and things handled.** Building is a nail hammered into
+  a plank, its ring rising and the last blow a dead thump; an upgrade an impact gun rattling a
+  bolt tight and the part seated with a clank; paying coins tipped onto a pile, the last one
+  spinning down. A supply crate lands hard, its planks booming in their straps, and its
+  parachute settles over it. A find knocks a latch up and creaks a hinge before its two
+  glockenspiel notes; a jackpot runs up a chord and rains coins. A medkit is velcro ripped, a
+  packet torn, antiseptic hissed and a bandage pulled tight; changing guns is webbing, a grip
+  slapped into the palm and a safety thumbed off. Footsteps: a boot's heel then its toe on
+  grit, a dead foot dragged then slapped down bare, a big one's weight crushing the dirt.
+  What plays often is kept from tiring: the coins, heard on every buy and sell and often
+  several in a row, ring briefly and below the harshest band, their spin a short rattle; a
+  dead foot's drag is short, since a horde's steps are the commonest sound and long ones ran
+  together into a hiss under everything.
+- **Thunder rips, then booms, then rolls.** A close bolt crackles along its length faster and
+  faster into the clap; the roll is that clap arriving again from each stretch of the bolt
+  further off, later and darker, for five seconds. One in four is further off, all roll.
+- **Heard round the camera, outdoors.** Distance makes a sound quieter, darker (low-passed)
+  and wetter, and the screen position pans it. One shared reverb is open ground with buildings
+  round it, not a hall.
+- **Priorities, not first come.** At most 40 sounds play at once and six of one (more for the
+  guns that fire in streams). A sound past those limits doesn't simply go unheard: every sound
+  has a priority (footsteps, texture such as blows and groans, ordinary, heavy, your own, cues),
+  and a new one takes the place of the least of those playing, a lower priority or the same one
+  and quieter by now, with a fade of a few milliseconds. Past six of one sound, the oldest of
+  them gives way once its first third (the part heard) is over, so a stream of fire stays
+  current instead of the newest shots going missing. In a 3000-creep demo wave this took the
+  sounds lost from 35% to under 7%, and none of them is yours or a cue.
+- **Cues over noise.** A tick's events are thinned to the nearest few of each sound and spread
+  across the tick. The more creeps are awake within earshot, the fewer of their groans, throws
+  and deaths are played: from 6 to 30 awake they thin to about half, since a horde reads as a
+  horde from a few voices. Blows landing were the commonest sound of a wave, eleven a second, a
+  drum roll that hid the rest: now the nearest blow of a tick plays at most every 0.12 s alone
+  and 0.28 s in a crowd. What needs attention gets its own sound that cuts through, and the
+  world steps back a few dB under it: the siren, the generator's klaxon, the radio for pings
+  and chat, a nest waking.
+- **The ear warns before the eye.** A brute, an abomination or a broodmother drawing up to
+  strike breathes in and growls, the nearest one that has just started, so at night a blow
+  coming out of the dark is heard first.
+- **Your own feedback.** A short, dry knock for each kill of your own shooting (at most 14 a
+  second, rising a little with each in quick succession), a charge-up when your ultimate is
+  full, your heart once your health is under a quarter, and the countdown's last beep higher
+  and longer than the two before it.
+- **Footsteps, barely there.** Survivors and creeps step once per step's length of ground
+  covered (a survivor's lengthening with speed, a creep's with its size), some 30 dB under a
+  pistol shot: enough to hear something coming in a quiet build phase, nothing in a fight.
+  Only the nearest two of the dead are heard stepping each tick (one in a crowd), the big
+  ones first, and steps are the first sounds dropped once 32 of the 40 voices are playing.
+- **The weather and the night are heard.** Rain, wind (stronger in snow and a storm), the
+  night's crickets, which fall quiet when the dead are about, and the generator's hum round the
+  base. Rain and wind are two loops each, apart in time and either side, so they are wide
+  rather than a point in the middle. The ambience is far under everything else and steps back
+  as a fight fills the mix. Rain also muffles the whole world a little, as it muffles gunfire
+  for the creeps, and a pause muffles it a lot. No music: the game's own sounds carry the mood
+  and the warnings.
+- **The same mix at every volume.** Three buses (the world, the cues, the ambience) meet in a
+  gentle compressor and a clipper that is clean until the last 2 dB; the volume setting comes
+  after them. Each player's volume is a setting like any other, saved from the menu.
+
 ## Boot splash
 
 The page opens on a short splash (about 1.5 s, any key or click skips it, reduced motion shows

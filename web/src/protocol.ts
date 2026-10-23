@@ -135,6 +135,8 @@ export interface Welcome {
   lastWave?: number;
   // The helipad and the evac Huey's timing, in seconds; absent in an endless game.
   evac?: EvacDef;
+  // This machine's VOLUME setting, 0..100; 0 is no sound. Absent from a td too old to say.
+  volume?: number;
 }
 // pad: the helipad's middle, half its size; reach: how near the Huey a survivor boards, taking
 // board seconds. inbound: from the call to touchdown, the last flight of it in the air and the
@@ -215,7 +217,9 @@ export type Command =
   | { op: 'drop'; w: number }
   | { op: 'pickup'; id: number }
   // Walks to the landed evac Huey and gets aboard.
-  | { op: 'board' };
+  | { op: 'board' }
+  // To this machine's td only, never the host: save the VOLUME setting.
+  | { op: 'volume'; v: number };
 
 export class Player {
   id = 0; flags = 0; x = 0; y = 0; aim = 0; hp = 0; maxHp = 1; cur = 0; ammo = 0; mag = 0;

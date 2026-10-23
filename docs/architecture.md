@@ -49,6 +49,11 @@ Browser                   local td (web.Session)               host td (netplay.
     about 2 ms per tick simulating and 0.3 ms encoding, and each player gets about 135 KiB/s
     over the tailnet (`td bench --wave 40 --players 8`).
 - **Generated art.** Everything is low-poly geometry built in code with three.js: no asset files.
+- **Generated sound.** The page makes every sound in code from what each frame already says (the
+  shots, blasts and deaths of that tick, and what changed since the last one): the protocol
+  carries no audio, and the binary no sound files. A worker renders the bank, so making it never
+  costs a frame; `web/build.mjs` inlines the worker into `app.js`, because a separate script
+  would not load as a worker when the demo is opened from disk.
 - **The launcher is Bubble Tea.** It hosts, finds games and holds settings, then opens the browser
   and shows the game's status until it ends.
 - **No tsnet.** The game uses the Tailscale already installed on the machine, so your identity
