@@ -6,7 +6,7 @@ import (
 )
 
 // Supply drops: after every tenth wave a Huey gunship flies a crate out beyond the walls. Its
-// door gunner works over the drop zone on the way in, the crate comes down under a chute, and
+// door gunner works over the drop zone on the way in with the minigun, the crate comes down under a chute, and
 // whoever stands by it long enough opens it for the whole team. It is the long break's lure:
 // worth the walk, out where the creeps are.
 
@@ -14,8 +14,9 @@ const (
 	dropEvery  = 10  // waves
 	dropFlight = 14  // seconds from the call to the crate landing
 	dropHover  = 3   // of those, seconds the Huey hangs over the zone before the crate is down
-	dropGunR   = 11  // tiles the door gunner reaches from the Huey
-	dropGunGap = .12 // seconds between the gunner's shots
+	heliGunR   = 16  // tiles the door gunner's minigun reaches from the Huey
+	heliGunGap = .04 // seconds between its rounds
+	heliCover  = 10  // tiles round a survivor in which the gunner covers them first
 	crateReach = 1.8 // tiles from the crate to open it
 	crateOpen  = 2.5 // seconds of standing by it, unhurt, to open it
 	crateMax   = 3   // unopened crates kept; the oldest goes when a fourth lands
@@ -91,18 +92,8 @@ func (w *World) dropZone() (float32, float32, bool) {
 // Left runs out.
 func (w *World) stepDrop(e *Effect) {
 	if e.Total-e.Left > 2 {
-		e.R -= Dt // R is the gunner's cooldown
 		hx, hy := heliAt(e)
-		for e.R <= 0 {
-			e.R += dropGunGap
-			t := w.nearestVisible(hx, hy, dropGunR)
-			if t < 0 {
-				break
-			}
-			c := &w.Creeps[t]
-			w.tracer(hx, hy, c.X, c.Y, TracerHeli)
-			w.damage(t, 28+3*float32(w.Wave), -1)
-		}
+		w.heliGun(hx, hy, &e.R) // R is the gunner's cooldown
 	}
 	if e.Left <= 0 {
 		if len(w.Crates) >= crateMax {
@@ -170,4 +161,59 @@ func absf(v float32) float32 {
 		return -v
 	}
 	return v
+}
+
+// heliGun is a Huey's door gunner on its minigun for one tick, from x, y, cool its cooldown.
+// It is there for the survivors: first whatever has one of them in its hands, then whatever
+// is closest to one of them on the ground near the Huey, and only with nobody near, whatever
+// is closest to the Huey. From the air it shoots over walls and trees.
+func (w *World) heliGun(x, y float32, cool *float32) {
+	if *cool -= Dt; *cool > 0 {
+		return
+	}
+	var near [MaxPlayers]*Player
+	n := 0
+	for _, p := range w.Players {
+		dx, dy := p.X-x, p.Y-y
+		if r := float32(heliGunR + heliCover); p.Alive && !p.Aboard && dx*dx+dy*dy < r*r && n < len(near) {
+			near[n] = p
+			n++
+		}
+	}
+	for *cool <= 0 {
+		t := w.heliTarget(x, y, near[:n])
+		if t < 0 {
+			*cool = 0
+			return
+		}
+		*cool += heliGunGap
+		c := &w.Creeps[t]
+		w.tracer(x, y, c.X, c.Y, TracerHeli)
+		w.damage(t, 14+2*float32(w.Wave), -1)
+	}
+}
+
+// heliTarget picks the door gunner's next creep within its reach of x, y, or -1.
+func (w *World) heliTarget(x, y float32, near []*Player) int32 {
+	best, bi, grip := float32(math.MaxFloat32), int32(-1), false
+	w.grid.each(x, y, heliGunR, func(i int32) bool {
+		c := &w.Creeps[i]
+		dx, dy := c.X-x, c.Y-y
+		if c.HP <= 0 || dx*dx+dy*dy > heliGunR*heliGunR || grip && c.grip == 0 {
+			return true
+		}
+		score := dx*dx + dy*dy + heliCover*heliCover*4 // anything near a survivor first
+		for _, p := range near {
+			px, py := c.X-p.X, c.Y-p.Y
+			score = min(score, px*px+py*py)
+		}
+		if c.grip > 0 && !grip {
+			grip, best = true, score+1
+		}
+		if score < best {
+			best, bi = score, i
+		}
+		return true
+	})
+	return bi
 }

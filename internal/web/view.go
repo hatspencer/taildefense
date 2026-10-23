@@ -82,7 +82,11 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 		e.u16(p.Ammo)
 		mag := int16(0)
 		if p.Cur < game.NumWeapons {
-			mag = game.WeaponStats(p.Cur, p.Lv[p.Cur]).Mag
+			st := game.WeaponStats(p.Cur, p.Lv[p.Cur])
+			if p.Dual && p.Cur == game.WPistol {
+				st = st.Dual()
+			}
+			mag = st.Mag
 		}
 		e.u16(uint16(max(mag, 0)))
 		e.u8(uint8(min(max(p.ReloadFrac, 0), 1) * 255))
@@ -95,6 +99,9 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 			if o {
 				owned |= 1 << k
 			}
+		}
+		if p.Dual {
+			owned |= game.DualBit
 		}
 		e.u8(owned)
 		for k := range p.Lv {
@@ -127,6 +134,15 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 		}
 		if p.Aboard {
 			sp |= 32
+		}
+		if p.Stunned {
+			sp |= 4
+		}
+		if p.Held {
+			sp |= 64
+		}
+		if p.Airborne {
+			sp |= 128
 		}
 		e.u8(sp)
 		e.u32(p.Look)

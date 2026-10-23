@@ -96,6 +96,8 @@ func TestBlowsSlowSurvivors(t *testing.T) {
 	}
 }
 
+// A slam stops a survivor where they land: a brute's for a while, an abomination's longer, and
+// a mauler's and a goliath's longer still.
 func TestSlamsStunSurvivorsTheBossLongest(t *testing.T) {
 	w := newBare(4)
 	w.Phase = PhaseWave
@@ -105,12 +107,12 @@ func TestSlamsStunSurvivorsTheBossLongest(t *testing.T) {
 	// stopped is how many ticks a survivor holding a key stands still after a slam of kind k.
 	stopped := func(k CreepKind) int {
 		p.X, p.Y, p.HP, p.stunLeft = w.CoreX+.5, w.CoreY+6, p.MaxHP, 0
-		w.slamLands(&Effect{Kind: EffSlam, X: p.X - 1, Y: p.Y, R: slams[k].radius, Damage: slams[k].hurt})
+		w.slamLands(&Effect{Kind: EffSlam, X: p.X - 1, Y: p.Y, R: slams[k].radius, Damage: slams[k].hurt, Lv: uint8(k)})
 		if p.HP > p.MaxHP-slams[k].hurt*.5 {
 			t.Fatalf("%v's slam hurt only %.0f", k, p.MaxHP-p.HP)
 		}
 		n := 0
-		for i := 0; i < TickRate*4; i++ {
+		for i := 0; i < TickRate*5; i++ {
 			x0 := p.X
 			w.Steer(p, 0, true)
 			w.stepPlayers()
@@ -124,6 +126,10 @@ func TestSlamsStunSurvivorsTheBossLongest(t *testing.T) {
 	brute, boss := stopped(CBrute), stopped(CBoss)
 	if brute < TickRate || boss <= brute {
 		t.Fatalf("stopped %d ticks by a brute's slam, %d by the abomination's", brute, boss)
+	}
+	// The mauler and the goliath stun the worst.
+	if mauler, goliath := stopped(CMauler), stopped(CGoliath); mauler <= brute || goliath <= boss || goliath <= mauler {
+		t.Fatalf("stopped %d ticks by a mauler's slam, %d by the goliath's", mauler, goliath)
 	}
 	p.stun(1)
 	if err := w.Cast(p, 0, p.X+3, p.Y); err == nil {

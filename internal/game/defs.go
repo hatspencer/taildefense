@@ -54,8 +54,11 @@ const (
 	CBrute
 	CSpitter
 	CBoss
-	CHurler // throws bone from far off; a hit slows
-	CMother // the broodmother: the other boss, lobs bile and spills swarmers
+	CHurler  // throws bone from far off; a hit slows
+	CMother  // the broodmother: the other boss, lobs bile and spills swarmers
+	CHound   // a dead dog: in packs, faster than a survivor, leaps to bite
+	CMauler  // a brute that charges, slams to stun and throws whoever it catches
+	CGoliath // the third boss: charges, slams to stun longest and throws whoever it catches furthest
 	NumCreepKinds
 )
 
@@ -90,6 +93,9 @@ var Creeps = [NumCreepKinds]CreepDef{
 	CBoss:    {Name: "abomination", HP: 3200, Speed: .95, Damage: 87.5, Rate: .6, Radius: 1.4, Reach: .8, Armor: 9, Bounty: 300, Cost: 60, Size: 3, MinWave: 10, Aggro: 8, Windup: .7},
 	CHurler:  {Name: "hurler", HP: 45, Speed: 1.4, Damage: 9, Rate: .4, Radius: .45, Reach: 13, Bounty: 8, Cost: 3, Size: 1, MinWave: 8, Aggro: 15, Windup: .8, Ranged: true},
 	CMother:  {Name: "broodmother", HP: 2600, Speed: 1.05, Damage: 60, Rate: .7, Radius: 1.3, Reach: .8, Armor: 6, Bounty: 300, Cost: 60, Size: 3, MinWave: 10, Aggro: 12, Windup: .6},
+	CHound:   {Name: "hound", HP: 20, Speed: 5, Damage: 4.5, Rate: 2, Radius: .38, Reach: 1.1, Bounty: 2, Cost: .8, Size: 1, MinWave: 5, Aggro: 13, Windup: .22, Sprint: .5},
+	CMauler:  {Name: "mauler", HP: 420, Speed: 2.6, Damage: 38, Rate: .8, Radius: 1, Reach: .7, Armor: 5, Bounty: 30, Cost: 10, Size: 2, MinWave: 12, Aggro: 7, Windup: .5, Sprint: 1},
+	CGoliath: {Name: "goliath", HP: 3600, Speed: 1.7, Damage: 95, Rate: .7, Radius: 1.5, Reach: .9, Armor: 9, Bounty: 300, Cost: 60, Size: 3, MinWave: 10, Aggro: 10, Windup: .6, Sprint: 1},
 }
 
 // HPScale is how much tougher creeps are on wave w.
@@ -168,6 +174,26 @@ var Weapons = [NumWeapons]WeaponDef{
 	WCrowbar:  {Name: "Crowbar", Short: "BAR", Price: 0, Damage: 34, Rate: 1.8, Range: 1.9, Mag: 1, Reload: 0, Pellets: 1, Spread: .8, Fire: FireMelee, Special: "+wider swing"},
 }
 
+// DualBit marks, in a frame's byte of owned weapons, a survivor with a second pistol.
+const DualBit = 1 << 7
+
+// Dual is the stats of a pair of pistols: each as the survivor upgraded it, both firing, so
+// twice the rounds a second and twice the magazine.
+func (s Stats) Dual() Stats {
+	s.Rate *= 2
+	s.Mag *= 2
+	return s
+}
+
+// Stats is the numbers of weapon k as ws holds it: its upgrades, and a second pistol.
+func (ws *WeaponState) Stats(k WeaponKind) Stats {
+	s := WeaponStats(k, ws.Lv)
+	if ws.Dual && k == WPistol {
+		s = s.Dual()
+	}
+	return s
+}
+
 // UpgradeCost is the price of raising a weapon's track from level to level+1.
 func UpgradeCost(w WeaponKind, level uint8) int32 {
 	base := 60 + float64(Weapons[w].Price)*.25
@@ -201,7 +227,9 @@ func WeaponStats(w WeaponKind, lv [NumTracks]uint8) Stats {
 	}
 	sp := int(lv[TrackSpecial])
 	switch w {
-	case WPistol, WSMG:
+	case WPistol:
+		s.Pierce += sp
+	case WSMG:
 		s.Pierce += sp
 	case WShotgun:
 		s.Pellets += 2 * sp

@@ -1,5 +1,5 @@
 import type { ConnState } from '../net';
-import { CROWBAR, EvacStage, K_ARMORY, K_CORE, stickyKind, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, type Player, TTrack, TURRET_TRACKS, type Welcome, repairCost, sellValue, turretRange, WEAPON_SLOTS } from '../protocol';
+import { CROWBAR, OWNED_DUAL, EvacStage, K_ARMORY, K_CORE, stickyKind, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, type Player, TTrack, TURRET_TRACKS, type Welcome, repairCost, sellValue, turretRange, WEAPON_SLOTS } from '../protocol';
 import { type Controller, KEYS } from '../controller';
 import { cssHex, playerColor } from '../scene/util';
 import { Armory } from './armory';
@@ -335,7 +335,7 @@ export class Hud {
     const owned = (me.owned & (1 << i)) !== 0;
     const reloading = (me.reloading & (1 << i)) !== 0;
     const lv = [0, 1, 2, 3].map((t) => `${wd!.tracks[t]} ${me.levels[i * 4 + t]}`).join(' · ');
-    return `<b>${esc(w.name)}</b><kbd>${i === CROWBAR ? 0 : i + 2}</kbd><br><span class="muted">${w.fire} · range ${w.range} · special ${esc(w.special)}</span><br>${owned ? lv : `not owned · <span class="c">${w.price}g</span> at the armory`}<br><span class="muted">ultimate: ${esc(w.ult.name)}${reloading ? ' · reloading' : ''}</span>`;
+    return `<b>${esc(w.name)}</b><kbd>${i === CROWBAR ? 0 : i + 2}</kbd><br><span class="muted">${w.fire} · range ${w.range} · special ${esc(w.special)}</span><br>${i === 0 && me.owned & OWNED_DUAL ? 'dual pistols: twice the rounds a second and the magazine<br>' : ''}${owned ? lv : `not owned · <span class="c">${w.price}g</span> at the armory`}<br><span class="muted">ultimate: ${esc(w.ult.name)}${reloading ? ' · reloading' : ''}</span>`;
   }
 
   private diffTip(): string {
@@ -829,7 +829,7 @@ export class Hud {
     h.reload.disabled = !alive || full || reloading;
     setClass(h.reload, 'busy', reloading);
     h.reload.title = reloading ? 'Reloading' : full ? 'The magazine is full' : 'Reload now (R)';
-    setText(h.order, alive ? (me.stunned ? 'stunned' : me.emote === Emote.Taunt && me.emoteLeft > 0 ? `taunting · ${me.emoteLeft.toFixed(1)}s` : ORDER[me.order] ?? '') : `down · ${me.respawn}s`);
+    setText(h.order, alive ? (me.held ? 'caught' : me.airborne ? 'thrown' : me.stunned ? 'stunned' : me.emote === Emote.Taunt && me.emoteLeft > 0 ? `taunting · ${me.emoteLeft.toFixed(1)}s` : ORDER[me.order] ?? '') : `down · ${me.respawn}s`);
     setText(h.buff, me.buff && me.buffLeft > 0 ? `${wd.weapons[me.buff - 1]?.ult.name ?? 'ultimate'} · ${me.buffLeft.toFixed(1)}s` : '');
 
     const since = (now - this.ctl.game.frameAt) / 1000;
@@ -881,7 +881,7 @@ export class Hud {
       setClass(e, 'owned', (me.owned & (1 << i)) !== 0);
       setClass(e, 'cur', me.cur === i);
       setClass(e, 'reloading', (me.reloading & (1 << i)) !== 0);
-      setText(e.children[1] as HTMLElement, w2.short);
+      setText(e.children[1] as HTMLElement, i === 0 && me.owned & OWNED_DUAL ? `${w2.short}×2` : w2.short);
     }
     setClass(this.med, 'owned', me.medkits > 0);
     setClass(this.med, 'cur', me.heal > 0);

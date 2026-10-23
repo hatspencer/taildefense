@@ -434,10 +434,11 @@ func (w *World) grant(p *Player, r Rarity, f Favor) string {
 }
 
 // unowned picks a weapon p does not own, priced up to most, or NumWeapons when there is none.
+// A second pistol, for one who carries a single one, is among them.
 func (w *World) unowned(p *Player, most int32) WeaponKind {
 	var c []WeaponKind
 	for k := WeaponKind(0); k < NumWeapons; k++ {
-		if !p.Weapons[k].Owned && k != WCrowbar && Weapons[k].Price <= most {
+		if (!p.Weapons[k].Owned || k == WPistol && !p.Weapons[k].Dual) && k != WCrowbar && Weapons[k].Price <= most {
 			c = append(c, k)
 		}
 	}
@@ -447,8 +448,13 @@ func (w *World) unowned(p *Player, most int32) WeaponKind {
 	return c[w.rng.IntN(len(c))]
 }
 
-// giveWeapon hands over weapon k with levels on one random track, and equips it.
+// giveWeapon hands over weapon k with levels on one random track, and equips it. A pistol
+// to one who carries one is a second pistol for the other hand, as upgraded as the first.
 func (w *World) giveWeapon(p *Player, k WeaponKind, levels uint8) (string, bool) {
+	if k == WPistol && p.Weapons[k].Owned && !p.Weapons[k].Dual {
+		w.dualPistols(p)
+		return "a second pistol: dual pistols", true
+	}
 	if k >= NumWeapons || p.Weapons[k].Owned {
 		return "", false
 	}
@@ -463,6 +469,16 @@ func (w *World) giveWeapon(p *Player, k WeaponKind, levels uint8) (string, bool)
 	p.Weapons[k] = ws
 	p.Cur = k
 	return article(Weapons[k].Name) + note, true
+}
+
+// dualPistols puts a second pistol in p's other hand, loaded, and the pair in their hands.
+func (w *World) dualPistols(p *Player) {
+	ws := &p.Weapons[WPistol]
+	ws.Dual = true
+	if ws.Reload <= 0 {
+		ws.Ammo = ws.Stats(WPistol).Mag
+	}
+	p.Cur = WPistol
 }
 
 // giveUpgrade raises a random unmaxed track of weapon k by up to n levels.
@@ -480,7 +496,7 @@ func (w *World) giveUpgrade(p *Player, k WeaponKind, n uint8) (string, bool) {
 	t := c[w.rng.IntN(len(c))]
 	ws.Lv[t] = min(ws.Lv[t]+n, MaxLevel)
 	if t == TrackHandling && ws.Reload <= 0 {
-		ws.Ammo = WeaponStats(k, ws.Lv).Mag
+		ws.Ammo = ws.Stats(k).Mag
 	}
 	return fmt.Sprintf("%s parts (%s → %d)", Weapons[k].Name, TrackNames[t], ws.Lv[t]), true
 }
@@ -739,6 +755,8 @@ func (w *World) springAmbush(si int, p *Player) {
 			k = CSpitter
 		case r == 5 && (s.Kind == SiteOutpost || s.Kind == SiteStation || s.Kind == SitePlane) && w.Wave >= 6:
 			k = CBrute
+		case r == 6 && w.Wave >= 5:
+			k = CHound
 		}
 		for try := 0; try < 12; try++ {
 			a := w.rng.Float64() * 2 * math.Pi

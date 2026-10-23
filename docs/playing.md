@@ -32,6 +32,11 @@ On hard and brutal the armory also sells night vision goggles, for 3000 gold. Wo
 see as far at night as by day, in place of brutal's flashlight; everyone sees you wearing them,
 and you keep them when you go down.
 
+Weapons go up at the armory by track: damage, fire rate, handling and a special of their own.
+Find a second pistol in the loot, or pick up one someone dropped, and it goes in your other hand:
+dual pistols, each as upgraded as yours, fire twice as fast from twice the magazine. Dropping
+one leaves you the other.
+
 ## Turrets
 
 Six turrets, from the build bar (B, then the number):
@@ -110,7 +115,7 @@ wave off the base or to empty the sites for a raid, and don't be there when they
 can be rung again after a couple of minutes.
 
 After every tenth wave a Huey gunship (surfboards strapped to its side) flies a supply crate out
-beyond the walls, its door gunner working over the zone on the way in. The crate comes down under
+beyond the walls, its door gunner working over the zone with a minigun on the way in. The crate comes down under
 a chute and marks itself with green smoke. Stand by it for a few seconds, unhurt, to open it:
 gold and full medkits for everyone, and a rare find for the one who opened it. E walks you to a
 crate nearby.
@@ -138,13 +143,21 @@ Every hit you land stops one for a moment, though, which buys a step.
 The dead come in kinds, and new ones join the waves as the game goes on: walkers from the
 start, runners from wave 2, swarmers (small, fast, weak, many) from wave 3, brutes from wave 4,
 spitters, which spit from a few steps off, from wave 6, and hurlers, which throw shards of bone
-from twice as far, from wave 8. From wave 10 the bosses come.
+from twice as far, from wave 8. Hounds, dead dogs in packs, come from wave 5: they run you down
+even at a sprint, so turn and shoot. Maulers, brutes that charge, come from wave 12. From wave 10
+the bosses come.
 
 Brutes and abominations slam the ground when you come near: a ring shows where it will land a
 moment before. Get out of it, and don't fight them next to your turrets: the slam wrecks those
 too. The broodmother, the other boss, fights from afar instead: she lobs sacs of bile over walls
 at where you stand. Keep moving when the ring shows under you; a sac leaves a pool of acid and
 a few swarmers behind, and every quarter of her life you shoot away spills a brood of them.
+
+Maulers and the goliath, the third boss, charge, and their slams stun longest. Worse, get within
+arm's reach and they catch you: held up, helpless, then thrown far behind them into the crowd,
+and the fall hurts and stuns you. If a teammate is caught, shoot whatever holds them: enough
+damage makes it let go. The evac Huey's door gunner does the same, firing first at anything
+holding a survivor.
 
 Gunfire is loud. Shooting wakes guards nearby and pulls wave creeps in earshot towards you; rain
 and storms muffle it.
@@ -205,7 +218,7 @@ count). Each wave comes in from one side of the map, or from two or three later 
 from the side the last one did; the wave's notice says where ("incoming from the north and
 east"), except on hard and brutal, where you find out when they arrive. Every fifth wave is a swarm that swells as the game goes on; from wave 10 they are
 hordes, a third of which pours out of every point on the wave's sides at once. Every tenth wave
-brings a boss: an abomination or a broodmother, taking turns.
+brings a boss: an abomination, a broodmother or a goliath, taking turns.
 
 A wave holds until it is dead: the break before the next one starts only once every creep of it
 is gone (sleeping guards don't count), so two waves never land on the base at once. Stragglers

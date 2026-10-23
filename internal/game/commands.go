@@ -182,7 +182,7 @@ func (w *World) Upgrade(p *Player, k WeaponKind, t Track) error {
 	}
 	ws.Lv[t]++
 	if t == TrackHandling && ws.Reload <= 0 {
-		ws.Ammo = WeaponStats(k, ws.Lv).Mag
+		ws.Ammo = ws.Stats(k).Mag
 	}
 	w.note(NoteBrief, "%s upgraded their %s's %s to %d", p.Name, Weapons[k].Name, TrackNames[t], ws.Lv[t])
 	return nil
@@ -293,8 +293,8 @@ func (w *World) Select(p *Player, k WeaponKind) error {
 // Reload starts a reload of the current weapon.
 func (w *World) Reload(p *Player) {
 	ws := &p.Weapons[p.Cur]
-	if ws.Reload <= 0 && ws.Ammo < WeaponStats(p.Cur, ws.Lv).Mag {
-		ws.Reload = WeaponStats(p.Cur, ws.Lv).Reload
+	if st := ws.Stats(p.Cur); ws.Reload <= 0 && ws.Ammo < st.Mag {
+		ws.Reload = st.Reload
 	}
 }
 

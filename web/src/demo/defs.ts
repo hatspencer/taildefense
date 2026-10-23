@@ -12,6 +12,9 @@ export const CREEPS: CreepDef[] = [
   { name: 'abomination', hp: 3200, speed: 0.95, radius: 1.4, size: 3, ranged: false, bounty: 300, rate: 0.6, windup: 0.7 },
   { name: 'hurler', hp: 45, speed: 1.4, radius: 0.45, size: 1, ranged: true, bounty: 8, rate: 0.4, windup: 0.8 },
   { name: 'broodmother', hp: 2600, speed: 1.05, radius: 1.3, size: 3, ranged: false, bounty: 300, rate: 0.7, windup: 0.6 },
+  { name: 'hound', hp: 20, speed: 5, radius: 0.38, size: 1, ranged: false, bounty: 2, rate: 2, windup: 0.22 },
+  { name: 'mauler', hp: 420, speed: 2.6, radius: 1, size: 2, ranged: false, bounty: 30, rate: 0.8, windup: 0.5 },
+  { name: 'goliath', hp: 3600, speed: 1.7, radius: 1.5, size: 3, ranged: false, bounty: 300, rate: 0.7, windup: 0.6 },
 ];
 
 interface W0 { name: string; short: string; price: number; range: number; fire: string; special: string; dmg: number; rate: number; mag: number; reload: number; ult: WeaponDef['ult'] }

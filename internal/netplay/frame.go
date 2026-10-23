@@ -453,11 +453,17 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 		if p.Aboard {
 			sprint |= 32
 		}
+		if p.Held() {
+			sprint |= 64
+		}
+		if p.Airborne() {
+			sprint |= 128
+		}
 		b.u8(sprint)
 		b.u32(p.Look)
 		b.u8(uint8(p.Cur))
 		b.u16(uint16(max(ws.Ammo, 0)))
-		st := game.WeaponStats(p.Cur, ws.Lv)
+		st := ws.Stats(p.Cur)
 		reload := uint8(0)
 		if ws.Reload > 0 && st.Reload > 0 {
 			reload = uint8(min(ws.Reload/st.Reload, 1) * 255)
@@ -472,6 +478,9 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 			if p.Weapons[k].Owned {
 				owned |= 1 << k
 			}
+		}
+		if p.Weapons[game.WPistol].Dual {
+			owned |= game.DualBit
 		}
 		b.u8(owned)
 		for k := range p.Weapons {

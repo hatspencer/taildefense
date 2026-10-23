@@ -231,8 +231,8 @@ func Budget(wave, players int) float32 {
 const hordeFrom = 10
 
 // mixWeight is how often each kind is picked for a group once its wave is reached; brutes
-// grow more common up to wave 24.
-var mixWeight = [NumCreepKinds]float32{CWalker: 1, CRunner: .5, CSwarmer: .6, CBrute: .1, CSpitter: .25, CHurler: .15}
+// grow more common up to wave 24, maulers up to wave 30.
+var mixWeight = [NumCreepKinds]float32{CWalker: 1, CRunner: .5, CSwarmer: .6, CBrute: .1, CSpitter: .25, CHurler: .15, CHound: .3, CMauler: .02}
 
 // walkersFor is how many times over a wave's budget pays for walkers: twice from wave 3. The
 // first wave is left as it was, all the starting turrets can hold alone, the second between.
@@ -249,7 +249,7 @@ func cost(k CreepKind, wave int) float32 {
 }
 
 // groupSize is the range of a group's size per kind.
-var groupSize = [NumCreepKinds][2]int{CWalker: {4, 12}, CRunner: {3, 8}, CSwarmer: {12, 30}, CBrute: {1, 2}, CSpitter: {2, 4}, CBoss: {1, 1}, CHurler: {1, 3}, CMother: {1, 1}}
+var groupSize = [NumCreepKinds][2]int{CWalker: {4, 12}, CRunner: {3, 8}, CSwarmer: {12, 30}, CBrute: {1, 2}, CSpitter: {2, 4}, CBoss: {1, 1}, CHurler: {1, 3}, CMother: {1, 1}, CHound: {4, 8}, CMauler: {1, 1}, CGoliath: {1, 1}}
 
 // plan lays out every spawn of a wave: groups of one kind at one place on one of the wave's
 // fronts, spread over the wave's opening seconds.
@@ -262,8 +262,11 @@ func (w *World) plan(wave, players int) []Spawn {
 			continue
 		}
 		weights[k] = mixWeight[k]
-		if k == CBrute {
+		switch k {
+		case CBrute:
 			weights[k] *= float32(min(wave, 24)) / 4
+		case CMauler:
+			weights[k] *= float32(min(wave, 30) - 9)
 		}
 	}
 	if swarm {
@@ -406,7 +409,7 @@ func (w *World) stepCreeps() {
 		// a structure goes for it, and the rest follow the field to the generator.
 		tp := w.creepTarget(c, d)
 		w.rally(c, tp)
-		if w.bossSlam(c, tp) || w.motherLob(c, tp) {
+		if w.creepGrab(c, d, tp) || w.bossSlam(c, tp) || w.motherLob(c, tp) {
 			continue
 		}
 		var mx, my float32
@@ -549,10 +552,18 @@ func (w *World) stepCreeps() {
 		nyp := c.Y + my*step + py*.6
 		ox, oy := c.X, c.Y
 		w.moveCreep(c, d, nxp, nyp)
-		if moved := abs32(c.X-ox) + abs32(c.Y-oy); moved < step*.1 {
-			c.jam += Dt
-		} else {
+		// Let through, it keeps going for jamThrough seconds before the crowd pushes again:
+		// pressed against one that never moves, a sleeping guard, the first free step would
+		// otherwise bring the push back and it would stand there for good.
+		switch moved := abs32(c.X-ox) + abs32(c.Y-oy); {
+		case moved >= step*.1 && c.jam > jamAfter:
+			c.jam = max(c.jam-Dt, jamAfter)
+		case moved >= step*.1:
 			c.jam = 0
+		case c.jam <= jamAfter:
+			if c.jam += Dt; c.jam > jamAfter {
+				c.jam = jamAfter + jamThrough
+			}
 		}
 	}
 }
@@ -607,8 +618,12 @@ func (w *World) moveCreep(c *Creep, d *CreepDef, nx, ny float32) {
 	}
 }
 
-// jamAfter is how long a creep gets nowhere before the crowd stops pushing it about.
-const jamAfter = 1
+// jamAfter is how long a creep gets nowhere before the crowd stops pushing it about, and
+// jamThrough how long after that it walks through the crowd.
+const (
+	jamAfter   = 1
+	jamThrough = 2
+)
 
 // reachable reports whether the generator's field reaches the tile under x, y.
 func (w *World) reachable(x, y float32) bool {
@@ -641,7 +656,7 @@ func (w *World) attackStruct(c *Creep, d *CreepDef, si int) {
 		return
 	}
 	dmg := d.Damage
-	if c.Kind == CBrute || c.Kind.Boss() {
+	if c.Kind.Heavy() {
 		dmg *= 1.5 // built for walls
 	}
 	s.HP -= dmg
@@ -674,6 +689,7 @@ func (w *World) hurtPlayer(p *Player, dmg float32) {
 		p.Order = Order{}
 		p.Search, p.Revived, p.Emote, p.EmoteLeft = 0, 0, 0, 0
 		p.BuffLeft = 0
+		p.held, p.fly = false, 0
 		w.note(2, "%s is down  ·  revive them within %.0fs or they are back at the base", p.Name, p.Respawn)
 	}
 }
@@ -706,13 +722,14 @@ func (w *World) respawn(p *Player) {
 	p.Order = Order{}
 	p.Search, p.Revived = 0, 0
 	p.slowLeft, p.slowCool, p.stunLeft = 0, 0, 0
+	p.held, p.fly = false, 0
 	p.walk.reset()
 	p.BuffLeft = 0
 	p.Stamina, p.Winded = 1, false
 	for i := range p.Weapons {
 		if p.Weapons[i].Owned {
 			p.Weapons[i].Reload = 0
-			p.Weapons[i].Ammo = WeaponStats(WeaponKind(i), p.Weapons[i].Lv).Mag
+			p.Weapons[i].Ammo = p.Weapons[i].Stats(WeaponKind(i)).Mag
 		}
 	}
 }

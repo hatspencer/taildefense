@@ -20,7 +20,7 @@ const (
 // keeps a swarm from holding a survivor slowed.
 
 // playerSlow is how long a blow from each kind of creep slows a survivor, in seconds.
-var playerSlow = [NumCreepKinds]float32{CWalker: .4, CRunner: .3, CSwarmer: .25, CBrute: 1, CSpitter: .4, CBoss: 1.5, CHurler: 2.2, CMother: 1.2}
+var playerSlow = [NumCreepKinds]float32{CWalker: .4, CRunner: .3, CSwarmer: .25, CBrute: 1, CSpitter: .4, CBoss: 1.5, CHurler: 2.2, CMother: 1.2, CHound: .25, CMauler: 1.2, CGoliath: 1.6}
 
 // Seconds a fuel pump going up slows a survivor; how much of their speed a slowed survivor
 // keeps; the gap before they can be slowed again.
@@ -48,8 +48,9 @@ func (p *Player) stun(t float32) {
 	}
 }
 
-// Stunned reports whether survivor p is stopped by a slam.
-func (p *Player) Stunned() bool { return p.stunLeft > 0 }
+// Stunned reports whether survivor p is stopped: by a slam or a fall, or held or thrown by a
+// mauler or a goliath (grab.go).
+func (p *Player) Stunned() bool { return p.stunLeft > 0 || p.held || p.fly > 0 }
 
 // tickSlow counts a survivor's slow and stun down, once a tick.
 func (p *Player) tickSlow() {
@@ -72,9 +73,9 @@ func (c *Creep) stun(mul float32) {
 	}
 	t := float32(stunFor)
 	switch c.Kind {
-	case CBrute:
+	case CBrute, CMauler:
 		t = .15
-	case CBoss, CMother:
+	case CBoss, CMother, CGoliath:
 		t = .08
 	}
 	t *= mul

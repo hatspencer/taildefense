@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import type { CameraRig } from './camera';
-import { EvacStage, K_ARMORY, lootable, stickyKind, repairCost, walled, type Command, Order, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_READY, Phase, PingKind, SiteKind, siteX, siteY, Tile } from './protocol';
+import { canTake, EvacStage, K_ARMORY, lootable, stickyKind, repairCost, walled, type Command, Order, PF_ALIVE, PF_ARMORY, PF_CONNECTED, OWNED_DUAL, PF_READY, Phase, PingKind, SiteKind, siteX, siteY, Tile } from './protocol';
 import type { Effects } from './scene/effects';
 import type { Game } from './state';
 
@@ -222,15 +222,15 @@ export class Controller {
     const name = wd.weapons[g.kind]?.name ?? 'Weapon';
     const lv = g.lv.some((l) => l > 0) ? ' ' + g.lv.join('/') : '';
     const by = this.game.cur.player(g.by)?.name;
-    const mine = me && me.owned & (1 << g.kind);
-    return `${name}${lv}${by ? ` · ${by}'s` : ''} · ${mine ? 'you carry one' : 'pick up'}`;
+    const take = !me || canTake(me.owned, g.kind);
+    return `${name}${lv}${by ? ` · ${by}'s` : ''} · ${!take ? 'you carry one' : me && me.owned & (1 << g.kind) ? 'pick up: dual pistols' : 'pick up'}`;
   }
 
   // Why G can't drop the weapon in hand, said before the hold starts rather than after it
   // fills; '' when it can. The host checks again.
   dropRefusal(): string {
     const me = this.me();
-    if (me && !(me.owned & ~(1 << me.cur))) return `the ${this.game.welcome?.weapons[me.cur]?.name ?? 'weapon'} is the only weapon you have`;
+    if (me && !(me.owned & ~(1 << me.cur) & ~OWNED_DUAL) && !(me.cur === 0 && me.owned & OWNED_DUAL)) return `the ${this.game.welcome?.weapons[me.cur]?.name ?? 'weapon'} is the only weapon you have`;
     return '';
   }
 
@@ -327,7 +327,7 @@ export class Controller {
       take({ t: 'site', id: i }, siteX(s), siteY(s));
     }
     // A weapon on the ground comes before a site beside it: it is the quicker grab.
-    for (const k of f.guns) if (!(me.owned & (1 << k.kind))) take({ t: 'gun', id: k.id }, k.x, k.y, 0.5);
+    for (const k of f.guns) if (canTake(me.owned, k.kind)) take({ t: 'gun', id: k.id }, k.x, k.y, 0.5);
     if (atHand) return best;
     for (let s = 0; s < f.nStructs; s++) {
       if (!f.sAlive[s]) continue;
@@ -372,7 +372,7 @@ export class Controller {
     if (h.t === 'gun') {
       const k = f.guns.find((g) => g.id === h.id);
       if (!k) return false;
-      if (me.owned & (1 << k.kind)) { this.onToast(`you already carry a ${g.welcome?.weapons[k.kind]?.name ?? 'weapon'} like it`, 2); return true; }
+      if (!canTake(me.owned, k.kind)) { this.onToast(`you already carry a ${g.welcome?.weapons[k.kind]?.name ?? 'weapon'} like it`, 2); return true; }
       this.toArmory = false;
       this.send({ op: 'pickup', id: h.id });
       this.fx.ping(k.x, k.y, 0xffd040);

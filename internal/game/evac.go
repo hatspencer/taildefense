@@ -270,20 +270,8 @@ func (w *World) aboard() (aboard, waiting int) {
 	return
 }
 
-// doorGunner fires from the Huey at the dead near it.
-func (w *World) doorGunner(e *Evac) {
-	e.gun -= Dt
-	for e.gun <= 0 {
-		e.gun += dropGunGap
-		t := w.nearestVisible(e.X, e.Y, dropGunR)
-		if t < 0 {
-			break
-		}
-		c := &w.Creeps[t]
-		w.tracer(e.X, e.Y, c.X, c.Y, TracerHeli)
-		w.damage(t, 28+3*float32(w.Wave), -1)
-	}
-}
+// doorGunner works the minigun from the evac Huey, covering the survivors (heliGun).
+func (w *World) doorGunner(e *Evac) { w.heliGun(e.X, e.Y, &e.gun) }
 
 // OrderBoard sends the player to the Huey on the pad to get aboard.
 func (w *World) OrderBoard(p *Player) error {
