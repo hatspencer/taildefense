@@ -273,14 +273,18 @@ export class Heroes {
     h.group.traverse((c) => { c.userData.hl = h.group.userData.hl ?? 0; });
   }
 
-  // A second pistol in the left hand, once the pistol's special track has bought it.
+  // A second pistol in the left hand, once one has been found.
   private setDual(h: Hero, on: boolean): void {
     if (h.dual === on) return;
     h.dual = on;
     h.gun.add(h.flash);
     h.alt = false;
     for (const c of [...h.gun2.children]) { h.gun2.remove(c); (c as THREE.Mesh).geometry.dispose(); }
-    if (on) this.mesh(gunParts(0, h.color).body, h.gun2);
+    if (on) {
+      const m = new THREE.Mesh(gunGeometry(0, h.color)!, this.mat);
+      m.castShadow = true;
+      h.gun2.add(m);
+    }
     h.group.traverse((c) => { c.userData.hl = h.group.userData.hl ?? 0; });
   }
 

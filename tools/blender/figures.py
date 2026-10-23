@@ -1322,6 +1322,7 @@ def show_survivors():
 BLOOD, GORE, BONE, SOCKET, EYEBALL, GUM, SHOE = 0x4a0c0a, 0x6a1410, 0xd8ccb0, 0x1a0c08, 0xc8c098, 0x2a0806, 0x2a2420
 ROT, FLESH, VEST, REFLECT, HARDHAT = 0x4e4a3e, 0x8a3a30, 0xe0661c, 0xe8d040, 0xe8b818
 BILE, PUS, VEIN, EGG = 0x7a8a34, 0xc8c060, 0x3e2e2a, 0xc4c890
+EYE_RED, APRON, STEEL, STITCH, PATCH, PATCH2, IRON = 0xc8301c, 0x8a7a62, 0x5a5a56, 0x2a1a16, 0x8e7a70, 0x6a564e, 0x4a4a46
 
 
 def noise(x, y, z, f=10.0, seed=0):
@@ -1809,8 +1810,172 @@ def broodmother():
     return [(trunk, bones, None), (arms, abones, None), (hd, None, HEAD), (sacs, None, CHEST), (lumps, None, X)], piv
 
 
+def hound():
+    """A dead dog, a big one: a deep chest and a waist tucked up to the spine, the ribs
+    through mangy fur, a stump of a tail, the long skull low and the jaws open on its teeth,
+    ears flat back. Forelegs move as arms, hind legs as legs."""
+    sp = dict(rump=(-0.34, 0.5, 0), waist=(-0.1, 0.47, 0), ribs=(0.12, 0.43, 0), withers=(0.2, 0.56, 0), nk=(0.34, 0.6, 0))
+    nodes = {
+        'rump': (sp['rump'], (0.13, 0.11, 0.1)),
+        'waist': (sp['waist'], (0.12, 0.075, 0.075)),
+        'ribs': (sp['ribs'], (0.17, 0.15, 0.115)),
+        'withers': (sp['withers'], (0.1, 0.075, 0.1)),
+        'nk': (sp['nk'], (0.075, 0.075, 0.062)),
+        'tail': ((-0.56, 0.6, 0), (0.035, 0.03, 0.03)),
+    }
+    links = [('rump', 'waist'), ('waist', 'ribs'), ('ribs', 'withers'), ('withers', 'nk'), ('rump', 'tail')]
+    segs = [('rump', sp['rump'], sp['waist']), ('belly', sp['waist'], sp['ribs']), ('chest', sp['ribs'], sp['withers']),
+            ('neck', sp['withers'], sp['nk']), ('tail', sp['rump'], (-0.56, 0.6, 0))]
+    bones = [(CHEST, sp['rump'], sp['waist']), (CHEST, sp['waist'], sp['ribs']), (CHEST, sp['ribs'], sp['withers']),
+             (CHEST, (-0.56, 0.6, 0), sp['rump']), (HEAD, vlerp(sp['withers'], sp['nk'], 0.6), sp['nk'])]
+    piv = {'chest': (0.0, 0.5, 0.0), 'head': vlerp(sp['withers'], sp['nk'], 0.55)}
+    for s in (1, -1):
+        L, R_ = ('L', '') if s > 0 else ('R', 'R')
+        z = 0.08 * s
+        # The foreleg: shoulder, elbow tucked back, the wrist and the paw.
+        sh, el, wr, pw = (0.2, 0.47, z), (0.15, 0.27, z), (0.19, 0.08, z), (0.25, 0.025, z)
+        # The hind leg: the hip, the stifle forward, the hock back, the paw.
+        hp, st, hk, hpw = (-0.34, 0.46, z), (-0.24, 0.28, z), (-0.39, 0.12, z), (-0.33, 0.025, z)
+        nodes.update({
+            'sh' + L: (sh, (0.07, 0.08, 0.05)), 'el' + L: (el, (0.035, 0.035, 0.032)), 'wr' + L: (wr, (0.025, 0.025, 0.025)),
+            'pw' + L: (pw, (0.045, 0.022, 0.032)),
+            'hp' + L: (hp, (0.09, 0.09, 0.055)), 'th' + L: (vlerp(hp, st, 0.5), (0.07, 0.07, 0.045)),
+            'st' + L: (st, (0.035, 0.035, 0.032)), 'hk' + L: (hk, (0.025, 0.025, 0.024)), 'hpw' + L: (hpw, (0.045, 0.022, 0.032)),
+        })
+        links += [('withers', 'sh' + L), ('sh' + L, 'el' + L), ('el' + L, 'wr' + L), ('wr' + L, 'pw' + L),
+                  ('rump', 'hp' + L), ('hp' + L, 'th' + L), ('th' + L, 'st' + L), ('st' + L, 'hk' + L), ('hk' + L, 'hpw' + L)]
+        u, f = (UARM_L, FARM_L) if s > 0 else (UARM_R, FARM_R)
+        th, sn = (THIGH_L, SHIN_L) if s > 0 else (THIGH_R, SHIN_R)
+        segs += [('upper', sh, el), ('fore', el, wr), ('paw', wr, pw), ('thigh', hp, st), ('shin', st, hk), ('paw', hk, hpw)]
+        bones += [(u, sh, el), (f, el, wr), (f, wr, pw), (th, hp, st), (sn, st, hk), (sn, hk, hpw)]
+        piv['uarm' + R_], piv['farm' + R_] = sh, el
+        piv['thigh' + R_], piv['shin' + R_] = hp, st
+    trunk = fuse(blob(nodes, links), voxel=0.0075, faces=1300, smooth_iter=5)
+
+    def fur(name, t, p, c):
+        x, y, z = p
+        side = abs(z - c[2])
+        # Ribs through the hide on the flanks.
+        if name in ('chest', 'belly') and side > 0.07 and y < 0.52 and 0.0 < x < 0.24 and abs(math.sin(x * 70)) > 0.8:
+            return fixed(BONE) if noise(x, y, z, 9, 21) > 0.45 else fixed(GORE)
+        if name == 'paw' and y < 0.04:
+            return fixed(SHOE)
+        n = noise(x, y, z, 11, 20)
+        if n > 0.72:
+            return fixed(BLOOD)
+        if n < 0.24:
+            return S['skin']
+        if noise(x, y, z, 6, 23) > 0.62 or y < 0.36 and name in ('belly', 'chest'):
+            return fixed(ROT)
+        return S['hair']
+    paint_segs(trunk, segs, fur)
+    # The head: a long skull, the muzzle, the jaw hanging open, teeth, ears back, red eyes.
+    hx, hy = 0.43, 0.66
+    skull = fuse([ellipsoid((hx, hy, 0), (0.085, 0.07, 0.068)), hull(ellipsoid((hx + 0.04, hy - 0.005, 0), (0.05, 0.05, 0.05)),
+                  ellipsoid((hx + 0.15, hy - 0.025, 0), (0.035, 0.03, 0.032))),
+                  ellipsoid((hx - 0.03, hy + 0.035, 0), (0.06, 0.03, 0.055))], voxel=0.005, faces=420, smooth_iter=3)
+    paint_by(skull, lambda x, y, z: fixed(SOCKET) if x > hx + 0.17 else fixed(GUM) if x > hx + 0.06 and y < hy - 0.045
+             else fixed(BLOOD) if noise(x, y, z, 30, 24) > 0.7 else S['skin'] if x > hx + 0.08 else S['hair'])
+    jaw = hull(ellipsoid((hx + 0.02, hy - 0.06, 0), (0.04, 0.02, 0.04)), ellipsoid((hx + 0.14, hy - 0.1, 0), (0.025, 0.012, 0.022)))
+    paint_by(jaw, lambda x, y, z: fixed(GUM) if y > hy - 0.085 else S['skin'])
+    parts = [skull, jaw]
+    for s in (1, -1):
+        for i in range(4):
+            x = hx + 0.07 + i * 0.026
+            parts.append(spike((x, hy - 0.05, 0.026 * s), (x + 0.004, hy - 0.08, 0.024 * s), 0.007))
+            parts.append(spike((x, hy - 0.092 - i * 0.005, 0.02 * s), (x, hy - 0.066 - i * 0.005, 0.019 * s), 0.006))
+        ear = cylinder((hx - 0.03, hy + 0.05, 0.04 * s), (hx - 0.13, hy + 0.08, 0.06 * s), 0.025, 0.004, seg=5)
+        paint(ear, S['hair'])
+        eye = ball((hx + 0.055, hy + 0.02, 0.045 * s), 0.012, 6, 4)
+        paint(eye, fixed(EYE_RED))
+        parts += [ear, eye]
+    hd = join(*parts)
+    return [(trunk, bones, None), (hd, None, HEAD)], piv
+
+
+def mauler():
+    """A brute gone further: hunched like an ape, its knuckles near the ground on arms as
+    long as it is tall, hands like shovels; bare to the waist under a butcher's apron, a
+    meat hook through its belt, bone breaking out along its back."""
+    sp = dict(pel=(0.0, 0.56), wai=(0.09, 0.74), chs=(0.21, 0.94), top=(0.29, 1.07), nk=(0.38, 1.06),
+              sh=(0.27, 1.05, 0.27), el=(0.36, 0.64, 0.36), wr=(0.42, 0.24, 0.34),
+              hp=(0.0, 0.53, 0.14), kn=(0.1, 0.29, 0.16), an=(0.0, 0.075, 0.16), to=(0.15, 0.03, 0.165),
+              w=1.55, g=1.35, armk=(1.55, 1.55), hand=1.5, faces=1500, armfaces=420,
+              shirt=None, pants='long', seed=12)
+    trunk, arms, bones, abones, segs, piv = zombie(sp)
+
+    # The apron hangs over what faces forward of the spine, hunched over as it is.
+    pel, top = sp['pel'], sp['top']
+    fwd = vnorm((top[1] - pel[1], pel[0] - top[0], 0))
+
+    def apron(x, y, z):
+        return (x - pel[0]) * fwd[0] + (y - pel[1]) * fwd[1] > 0.05 and 0.4 < y < 1.0 and abs(z) < 0.24
+    ap = shell(trunk, apron, 0.014)
+    paint_by(ap, lambda x, y, z: fixed(BLOOD) if noise(x, y, z, 7, 12) > 0.58 else fixed(APRON))
+    hook = join(cylinder((0.1, 0.62, 0.24), (0.12, 0.42, 0.25), 0.012, seg=6),
+                cylinder((0.12, 0.42, 0.25), (0.18, 0.38, 0.25), 0.01, 0.003, seg=6))
+    paint(hook, fixed(STEEL))
+    spurs = join(*[spike((x, y, z), (x - 0.16, y + 0.16, z * 1.4), 0.04) for x, y, z in
+                   ((0.18, 1.05, 0.08), (0.08, 0.98, -0.06), (-0.02, 0.88, 0.05), (0.24, 1.08, -0.12))])
+    hd = dead_head(piv['head'], 1.12, hairdo='bald', tilt=0.35, gape=1.5, seed=12)
+    return [(trunk, bones, None), (arms, abones, None), (ap, bones, None), (hook, None, CHEST), (spurs, None, CHEST), (hd, None, HEAD)], piv
+
+
+def goliath():
+    """A giant stitched together from the dead, twice a man's height: patches of different
+    skins sewn over a barrel of a chest, a head too small for it sunk between the shoulders,
+    the right arm grown monstrous, iron shackles on both wrists with the chains broken off,
+    rags of trousers."""
+    sp = dict(pel=(0.0, 1.16), wai=(0.04, 1.44), chs=(0.1, 1.78), top=(0.14, 2.04), nk=(0.21, 2.02),
+              sh=(0.12, 2.0, 0.42), el=(0.17, 1.52, 0.52), wr=(0.23, 1.06, 0.5),
+              R={'sh': (0.12, 2.02, 0.5), 'el': (0.17, 1.45, 0.7), 'wr': (0.26, 0.86, 0.68)},
+              hp=(0.0, 1.12, 0.22), kn=(0.08, 0.64, 0.25), an=(0.0, 0.12, 0.25), to=(0.2, 0.05, 0.26),
+              w=2.4, g=2.15, armk=(1.4, 2.3), faces=3400, voxel=0.012, armfaces=560,
+              extra=[lambda: ellipsoid((0.08, 1.85, 0.0), (0.3, 0.32, 0.4)), lambda: ellipsoid((0.0, 2.02, 0.0), (0.2, 0.14, 0.42))],
+              shirt=None, pants='shorts', shoes=False, seed=13)
+    base = outfit(sp)
+
+    def dress(name, t, p, c):
+        x, y, z = p
+        k = base(name, t, p, c)
+        # The seams between the pieces it was sewn from, and one down the middle of the chest.
+        if name in ('belly', 'chest') and x > c[0] and abs(z) < 0.018 and 1.4 < y < 2.0:
+            return fixed(STITCH)
+        if abs(noise(x, y, z, 4, 13) - 0.5) < 0.016:
+            return fixed(STITCH)
+        if k == S['skin']:
+            n = noise(x, y, z, 4, 14)
+            return fixed(PATCH) if n > 0.6 else fixed(PATCH2) if n < 0.36 else k
+        return k
+    sp['dress'] = dress
+    trunk, arms, bones, abones, segs, piv = zombie(sp)
+    hd = dead_head(vadd(piv['head'], (0.02, -0.06, 0)), 1.0, hairdo='bald', tilt=0.05, gape=1.2, seed=13)
+    out = [(trunk, bones, None), (arms, abones, None), (hd, None, HEAD)]
+    for s, sc in ((1, 1.4), (-1, 2.3)):
+        el, wr = Skel(sp)('el', s), Skel(sp)('wr', s)
+        at = vlerp(el, wr, 0.82)
+        ring = bmesh_torus(0.055 * sc, 0.016 * sc, 0, seg=14, ring=6)
+        link = bmesh_torus(0.03 * sc, 0.008 * sc, 0, seg=8, ring=4)
+        rotate(link, (math.pi / 2, 0, 0))
+        for v in link.verts:
+            v.co += G(0.03 * sc, -0.07 * sc, 0.03 * s)
+        bm = join(ring, link)
+        d = vnorm(vsub(wr, el))
+        tilt = math.atan2(d[0], -d[1])
+        for v in bm.verts:
+            x, y, z = back(v.co)
+            x, y = x * math.cos(tilt) - y * math.sin(tilt), x * math.sin(tilt) + y * math.cos(tilt)
+            v.co = G(at[0] + x, at[1] + y, at[2] + z)
+        paint(bm, fixed(IRON))
+        out.append((bm, None, FARM_L if s > 0 else FARM_R))
+    spurs = join(*[spike((x, y, z), (x - 0.25, y + 0.25, z * 1.3), 0.07) for x, y, z in ((-0.12, 2.0, 0.22), (-0.18, 1.85, 0.0), (-0.12, 2.0, -0.24))])
+    out.append((spurs, None, CHEST))
+    return out, piv
+
+
 CREEPS = {'walker': walker, 'runner': runner, 'swarmer': swarmer, 'brute': brute, 'spitter': spitter, 'hurler': hurler,
-          'abomination': abomination, 'broodmother': broodmother}
+          'abomination': abomination, 'broodmother': broodmother,
+          'hound': hound, 'mauler': mauler, 'goliath': goliath}
 
 
 def creep_pieces():
