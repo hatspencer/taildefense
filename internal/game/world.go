@@ -52,8 +52,15 @@ type Creep struct {
 	stunLeft, stunCool float32
 	// Drawn to the church bell while it rings (church.go).
 	lured bool
-	// Seconds it has tried to move and got nowhere; past jamAfter the crowd stops pushing it.
+	// Seconds it has tried to move and got nowhere; past jamAfter the crowd stops pushing it
+	// until it has walked jamThrough seconds.
 	jam float32
+	// A mauler or a goliath (grab.go): the survivor in its hands, their id + 1, 0 none; the
+	// seconds it holds them before the throw; its health when it grabbed them; and the
+	// seconds until it can grab again.
+	grip         uint8
+	hold, gripHP float32
+	grab         float32
 }
 
 // Structure is a building. Index in World.Structs is its ID; dead slots are reused.
@@ -79,6 +86,7 @@ func (s *Structure) CY() float32 { return float32(s.Y) + float32(s.H)/2 }
 // WeaponState is one weapon in a player's loadout.
 type WeaponState struct {
 	Owned  bool
+	Dual   bool // the pistol only: a second one, found, in the other hand
 	Lv     [NumTracks]uint8
 	Ammo   int16
 	Reload float32 // seconds of reload left, 0 when ready
@@ -123,23 +131,30 @@ type Player struct {
 	// A slow (stun.go): seconds the survivor walks at half speed for, and until another can land.
 	slowLeft, slowCool float32
 	stunLeft           float32 // seconds a slam keeps the survivor stopped
-	Search             float32 // seconds into searching a loot site or reviving a teammate
-	Revived            float32 // while down: how far the best revive on them is, 0..1
-	Emote              uint8   // 0 none, 1 taunting
-	EmoteLeft          float32
-	TauntCool          float32
-	Sprint             bool    // sprint held
-	Winded             bool    // stamina ran out; no sprinting until it is back to windedUntil
-	pingFree           uint32  // the tick from which a ping costs nothing; see World.Ping
-	Stamina            float32 // 0..1
-	Medkits            uint8   // carried, used one at a time with UseMedkit
-	Goggles            bool    // night vision: daytime sight at night, and no flashlight
-	Heal               float32 // seconds of a medkit's healing left
-	steerLeft          float32 // seconds until an OrderSteer lapses without a repeat
-	noise              float32 // seconds until firing makes noise again
-	Dry                uint8   // searches in a row that found little, which makes the next luckier
-	lastAct            uint32  // the tick of the player's last command
-	Look               uint32  // what the survivor looks like, dealt on joining; see Look
+	// Caught by a mauler or a goliath (grab.go): held in the hands of the creep holder, or
+	// thrown, fly seconds from landing at flyX, flyY tiles a second, to take flyHurt and be
+	// stunned flyStun seconds where they come down.
+	held             bool
+	holder           uint16
+	fly, flyX, flyY  float32
+	flyHurt, flyStun float32
+	Search           float32 // seconds into searching a loot site or reviving a teammate
+	Revived          float32 // while down: how far the best revive on them is, 0..1
+	Emote            uint8   // 0 none, 1 taunting
+	EmoteLeft        float32
+	TauntCool        float32
+	Sprint           bool    // sprint held
+	Winded           bool    // stamina ran out; no sprinting until it is back to windedUntil
+	pingFree         uint32  // the tick from which a ping costs nothing; see World.Ping
+	Stamina          float32 // 0..1
+	Medkits          uint8   // carried, used one at a time with UseMedkit
+	Goggles          bool    // night vision: daytime sight at night, and no flashlight
+	Heal             float32 // seconds of a medkit's healing left
+	steerLeft        float32 // seconds until an OrderSteer lapses without a repeat
+	noise            float32 // seconds until firing makes noise again
+	Dry              uint8   // searches in a row that found little, which makes the next luckier
+	lastAct          uint32  // the tick of the player's last command
+	Look             uint32  // what the survivor looks like, dealt on joining; see Look
 
 	walk walker
 	// repairOwed is the part of a gold coin repairs have cost and not yet charged.
@@ -206,7 +221,7 @@ type Effect struct {
 	Left, Total  float32
 	Damage       float32 // on landing, or per second for a pool
 	Owner        int8
-	Lv           uint8 // a grenade's level
+	Lv           uint8 // a grenade's level; a slam's creep kind
 }
 
 // Toast is a message for one player only, such as why a build was refused.

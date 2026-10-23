@@ -30,16 +30,18 @@ const (
 	broodBurst = 6   // swarmers spilled at each quarter of its life lost
 )
 
-// Boss reports whether creeps of kind k are bosses: an abomination or a broodmother.
-func (k CreepKind) Boss() bool { return k == CBoss || k == CMother }
+// Boss reports whether creeps of kind k are bosses: an abomination, a broodmother or a
+// goliath.
+func (k CreepKind) Boss() bool { return k == CBoss || k == CMother || k == CGoliath }
 
-// bossKind picks the boss for a wave's i-th boss or an outpost's warlord: the abomination
-// and the broodmother take turns from n.
+// Heavy reports whether creeps of kind k are the big ones: brutes, maulers and bosses. They
+// are built for walls, shrug off a hit quicker, and Dead Eye only wounds them.
+func (k CreepKind) Heavy() bool { return k == CBrute || k == CMauler || k.Boss() }
+
+// bossKind picks the boss for a wave's i-th boss or an outpost's warlord: the abomination,
+// the broodmother and the goliath take turns from n.
 func bossKind(n int) CreepKind {
-	if n%2 == 0 {
-		return CBoss
-	}
-	return CMother
+	return [...]CreepKind{CBoss, CMother, CGoliath}[n%3]
 }
 
 // motherLob runs the broodmother c's sac at tp, and reports whether it took the creep's tick:

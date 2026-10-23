@@ -38,7 +38,7 @@ everything it knows, a terrain message follows).
 ```jsonc
 {
   "t": "welcome",
-  "proto": 18,
+  "proto": 19,
   "version": "a1b2c3d",
   "you": 0,                    // your player id
   "w": 352, "h": 220,          // map size in tiles
@@ -264,7 +264,8 @@ u8   nPlayers
   u8   respawn        seconds until respawn when down; until then a teammate can revive
                       them where they fell
   u32  gold, u32 kills, u32 damage
-  u8   owned          bit k set: weapon k owned
+  u8   owned          bit k set: weapon k owned; bit 7 a second pistol, dual pistols: twice
+                      the pistol's fire rate and magazine
   u8   levels[28]     weapon-major: levels[w*4 + track]
   u8   gear[4]        Armor, Boots, Vitamins, Scavenger
   u8   order          0 idle, 1 move, 2 attack-move, 3 attack, 4 hold, 5 build, 6 repair,
@@ -282,7 +283,9 @@ u8   nPlayers
                       bit 2 stunned by a slam (not moving, firing or casting), bit 3 wears night vision
                       goggles (sees DAY_SIGHT all round at night, no flashlight), bit 4 shielded: just
                       put back at the base, takes no harm for 5s (drawn blinking), bit 5 aboard the
-                      evac Huey (not alive, not down: drawn nowhere, rides at the Huey's x, y)
+                      evac Huey (not alive, not down: drawn nowhere, rides at the Huey's x, y), bit 6
+                      held up in the hands of a mauler or a goliath, bit 7 thrown by one, in the air
+                      for THROW_FLIGHT (0.7 s) or until something stops them; both also set bit 2
   u32  look           what the survivor looks like, dealt by the host on joining, bits:
                         0-3 archetype (0 paramedic, 1 mechanic, 2 hunter, 3 student, 4 builder,
                             5 nurse, 6 biker, 7 farmer, 8 ex-soldier, 9 office worker),

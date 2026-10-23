@@ -310,7 +310,7 @@ func (w *World) stepPlayers() {
 			if o.Reload > 0 {
 				if o.Reload -= Dt; o.Reload <= 0 {
 					o.Reload = 0
-					o.Ammo = WeaponStats(WeaponKind(k), o.Lv).Mag
+					o.Ammo = o.Stats(WeaponKind(k)).Mag
 				}
 			}
 		}
@@ -320,6 +320,7 @@ func (w *World) stepPlayers() {
 
 		// A stunned survivor stands and holds fire; their order waits for them.
 		p.tickSlow()
+		w.stepHeld(p)
 		target := int32(-1)
 		if p.Stunned() {
 			p.Moving = false

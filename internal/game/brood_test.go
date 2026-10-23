@@ -89,24 +89,24 @@ func TestTheBroodmotherSplitsOpenEachQuarter(t *testing.T) {
 
 func TestBossWavesTakeTurns(t *testing.T) {
 	w := newBare(4)
-	bosses := func(wave int) (abom, mother int) {
+	bosses := func(wave int) (n [NumCreepKinds]int) {
 		for _, s := range w.plan(wave, 1) {
-			switch s.Kind {
-			case CBoss:
-				abom++
-			case CMother:
-				mother++
+			if s.Kind.Boss() {
+				n[s.Kind]++
 			}
 		}
 		return
 	}
-	if a, m := bosses(10); a != 1 || m != 0 {
-		t.Fatalf("wave 10: %d abominations, %d broodmothers", a, m)
+	if n := bosses(10); n[CBoss] != 1 || n[CMother]+n[CGoliath] != 0 {
+		t.Fatalf("wave 10: %v", n)
 	}
-	if a, m := bosses(20); a != 1 || m != 1 {
-		t.Fatalf("wave 20: %d abominations, %d broodmothers", a, m)
+	if n := bosses(20); n[CBoss] != 0 || n[CMother] != 1 || n[CGoliath] != 1 {
+		t.Fatalf("wave 20: %v", n)
 	}
-	if a, m := bosses(9); a+m != 0 {
+	if n := bosses(30); n[CBoss] != 1 || n[CMother] != 1 || n[CGoliath] != 1 {
+		t.Fatalf("wave 30: %v", n)
+	}
+	if n := bosses(9); n[CBoss]+n[CMother]+n[CGoliath] != 0 {
 		t.Fatal("a boss on wave 9")
 	}
 }

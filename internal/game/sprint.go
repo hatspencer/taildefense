@@ -3,10 +3,12 @@ package game
 // The chase: every creep that has a survivor to go for runs faster than a survivor walks, so
 // walking away is no escape; a survivor has to sprint, fight, or get behind a wall. Some of
 // the dead are sprinters on top of that: in bursts they outrun even a sprinting survivor, and
-// whoever keeps running gets away only while one stops to catch its breath.
+// whoever keeps running gets away only while one stops to catch its breath. Hounds chase
+// faster than the rest, and every mauler and goliath is a sprinter: its bursts are its charge.
 
 const (
 	chaseSpeed  = 6.6  // tiles per second: a tenth faster than a survivor without boots
+	houndSpeed  = 9    // a hound's chase: well past a survivor walking, just short of one sprinting
 	sprintSpeed = 10.5 // a sprinter's burst: faster than a survivor sprinting
 	sprintFor   = 3.5  // seconds a burst lasts
 	sprintRest  = 4    // seconds before the next
@@ -33,7 +35,11 @@ func (c *Creep) sprintSpeed(speed float32) float32 {
 	// Rain, snow and a slowing shot hold a chaser back as much as anything.
 	mul := speed / Creeps[c.Kind].Speed
 	if !c.Sprinter || c.sprint <= 0 {
-		return max(speed, chaseSpeed*mul)
+		chase := float32(chaseSpeed)
+		if c.Kind == CHound {
+			chase = houndSpeed
+		}
+		return max(speed, chase*mul)
 	}
 	if c.sprint -= Dt; c.sprint <= 0 {
 		c.sprint = -sprintRest

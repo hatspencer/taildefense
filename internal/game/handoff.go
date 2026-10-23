@@ -54,8 +54,13 @@ func (w *World) DropWeapon(p *Player, k WeaponKind) error {
 	case len(w.Guns) >= gunMax:
 		return errors.New("too many weapons lying about already; pick some up first")
 	}
+	ws := p.Weapons[k]
+	dual := k == WPistol && ws.Dual
 	other := NumWeapons
-	for o := WeaponKind(0); o < NumWeapons; o++ {
+	if dual {
+		other = k
+	}
+	for o := WeaponKind(0); o < NumWeapons && !dual; o++ {
 		if o != k && p.Weapons[o].Owned && (other == NumWeapons || Weapons[o].Price > Weapons[other].Price) {
 			other = o
 		}
@@ -63,13 +68,21 @@ func (w *World) DropWeapon(p *Player, k WeaponKind) error {
 	if other == NumWeapons {
 		return fmt.Errorf("the %s is the only weapon you have", Weapons[k].Name)
 	}
-	ws := p.Weapons[k]
 	x, y := p.X, p.Y
 	sin, cos := math.Sincos(float64(p.Aim))
 	if ax, ay := p.X+float32(cos)*gunDropAway, p.Y+float32(sin)*gunDropAway; CanStand(w, ax, ay) {
 		x, y = ax, ay
 	}
 	w.gunSerial++
+	if dual {
+		// One of the pair: the half of the rounds in it go with it, the other stays in hand.
+		half := max(ws.Ammo, 0) / 2
+		w.Guns = append(w.Guns, Gun{ID: w.gunSerial, Kind: k, Lv: ws.Lv, Ammo: half, X: x, Y: y, By: p.ID})
+		p.Weapons[k].Dual = false
+		p.Weapons[k].Ammo = max(ws.Ammo, 0) - half
+		w.note(0, "%s dropped one of their pistols%s", p.Name, levelsNote(ws.Lv))
+		return nil
+	}
 	w.Guns = append(w.Guns, Gun{ID: w.gunSerial, Kind: k, Lv: ws.Lv, Ammo: max(ws.Ammo, 0), X: x, Y: y, By: p.ID})
 	p.Weapons[k] = WeaponState{}
 	if p.Cur == k {
@@ -105,7 +118,7 @@ func (w *World) OrderPickup(p *Player, id uint16) error {
 		return errOver
 	case gi < 0:
 		return errors.New("that weapon is gone")
-	case p.Weapons[w.Guns[gi].Kind].Owned:
+	case !w.canTake(p, w.Guns[gi].Kind):
 		return fmt.Errorf("you already carry a %s", Weapons[w.Guns[gi].Kind].Name)
 	}
 	g := &w.Guns[gi]
@@ -121,7 +134,7 @@ func (w *World) actPickup(p *Player, o *Order, walk func() bool) bool {
 		return false
 	}
 	g := &w.Guns[gi]
-	if p.Weapons[g.Kind].Owned {
+	if !w.canTake(p, g.Kind) {
 		w.toast(p, 2, "you already carry a %s", Weapons[g.Kind].Name)
 		return false
 	}
@@ -145,10 +158,23 @@ func (w *World) actPickup(p *Player, o *Order, walk func() bool) bool {
 	return true
 }
 
-// pickUp hands weapon gi on the ground to p, upgrades and all, and puts it in their hands.
+// canTake reports whether p has a hand free for a weapon of kind k: one they do not carry,
+// or a pistol to pair with theirs.
+func (w *World) canTake(p *Player, k WeaponKind) bool {
+	ws := &p.Weapons[k]
+	return !ws.Owned || k == WPistol && !ws.Dual
+}
+
+// pickUp hands weapon gi on the ground to p, upgrades and all, and puts it in their hands. A
+// pistol to one who carries one goes in the other hand, the pair as upgraded as theirs.
 func (w *World) pickUp(p *Player, gi int) {
 	g := w.Guns[gi]
 	w.Guns = append(w.Guns[:gi], w.Guns[gi+1:]...)
+	if p.Weapons[g.Kind].Owned {
+		w.dualPistols(p)
+		w.note(0, "%s picked up a second pistol: dual pistols", p.Name)
+		return
+	}
 	ws := WeaponState{Owned: true, Lv: g.Lv, Ammo: g.Ammo}
 	if ws.Ammo <= 0 {
 		ws.Reload = WeaponStats(g.Kind, g.Lv).Reload

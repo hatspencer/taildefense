@@ -1,13 +1,14 @@
 import {
-  CF_ASLEEP, CF_BURNING, CF_GUARD, CF_STRIKE, CF_WINDUP, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_FIRING, PF_HURT, PF_MOVING, PF_RELOADING, Player,
+  OWNED_DUAL, THROW_FLIGHT, CF_ASLEEP, CF_BURNING, CF_GUARD, CF_STRIKE, CF_WINDUP, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_FIRING, PF_HURT, PF_MOVING, PF_RELOADING, Player,
 } from './protocol';
 import type { Game } from './state';
 
 // #lab: the animation bench. Each creep kind in a row, one column per state (walking back and
 // forth, idle, attacking, hit, burning, asleep, dying), and the survivors beside them, each
 // showing a pose: walking a circle while aiming one way (so strafing and backpedalling show),
-// sprinting, kneeling to search and to revive, reloading, taunting and down, each at its own
-// health so the HUD's portraits show every state. It takes the demo's world over after its
+// sprinting, kneeling to search and to revive, reloading, taunting and down, firing dual
+// pistols, and caught and thrown by a mauler, each at its own health so the HUD's portraits
+// show every state. It takes the demo's world over after its
 // first frame and stops it, then poses everything itself.
 
 const COLS = ['walk', 'idle', 'attack', 'hit', 'burn', 'sleep', 'die'] as const;
@@ -19,7 +20,7 @@ export class Lab {
   private tick = 0;
   private last = 0;
   // Player poses, by player slot.
-  private poses = ['circle', 'sprint', 'loot', 'revive', 'reload', 'taunt', 'down', 'shoot'];
+  private poses = ['circle', 'sprint', 'loot', 'revive', 'reload', 'taunt', 'down', 'shoot', 'dual', 'thrown'];
 
   // gun, when 0 or more, puts that weapon in every survivor's hands (#lab=h&gun=6).
   constructor(private game: Game, cx: number, cy: number, private gun = -1) {
@@ -86,9 +87,10 @@ export class Lab {
     for (let i = 0; i < this.poses.length; i++) {
       const p = f.players[i], pose = this.poses[i];
       // Health varies so the portraits show their wounds; the sprinter has a medkit working.
-      p.id = i; p.look = (i * 2654435761) >>> 0; p.cur = this.gun >= 0 ? this.gun : i % 6; p.hp = [80, 50, 55, 80, 22, 80, 0, 45][i]; p.maxHp = 100;
+      p.id = i; p.look = (i * 2654435761) >>> 0; p.cur = this.gun >= 0 ? this.gun : i % 6; p.hp = [80, 50, 55, 80, 22, 80, 0, 45, 70, 35][i]; p.maxHp = 100;
       p.heal = pose === 'sprint' ? 5 : 0;
       p.flags = PF_CONNECTED | PF_ALIVE; p.order = Order.Idle; p.channel = 0; p.emote = Emote.None; p.emoteLeft = 0; p.sprinting = false;
+      p.held = false; p.airborne = false; p.stunned = false; p.owned = 0;
       let x = hx + (i % 2) * 3.4, y = this.y0 + Math.floor(i / 2) * DY, aim = Math.PI / 2;
       switch (pose) {
         case 'circle': {
@@ -110,6 +112,16 @@ export class Lab {
         case 'taunt': p.emote = Emote.Taunt; p.emoteLeft = 1; break;
         case 'down': p.flags = PF_CONNECTED; break;
         case 'shoot': aim = t * 0.7; p.flags |= PF_FIRING; if (t % 2.5 < 0.25) p.flags |= PF_HURT; break;
+        case 'dual': p.cur = 0; p.owned |= OWNED_DUAL; aim = Math.PI / 2 + Math.sin(t) * 0.6; p.flags |= PF_FIRING; break;
+        case 'thrown': {
+          // Held up for a second, thrown three tiles, then stunned where they land.
+          const u = t % 3, hold = 1;
+          p.stunned = true;
+          if (u < hold) p.held = true;
+          else if (u < hold + THROW_FLIGHT) { p.airborne = true; x -= (u - hold) / THROW_FLIGHT * 3; }
+          else x -= 3;
+          break;
+        }
       }
       g.prx[i] = x; g.pry[i] = y; g.paim[i] = aim;
       p.x = x; p.y = y; p.aim = aim;

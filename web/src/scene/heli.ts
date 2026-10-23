@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { mrt, output, vec4 } from 'three/tsl';
-import { EffectKind, EvacStage } from '../protocol';
+import { EffectKind, EvacStage, TRACER_HELI } from '../protocol';
 import type { Game } from '../state';
 import type { Effects } from './effects';
 import { litMaterial } from './structs';
@@ -9,7 +9,8 @@ import { box, cyl, merge, part, type Part, sphere } from './util';
 // Supply drops: the Huey gunship that flies the crate in, with the surfboards strapped to its
 // side (a nod to Kilgore in Apocalypse Now), the crate coming down under a chute, and the crates
 // waiting on the ground with green smoke over them. And at the end of the last wave the same Huey
-// coming in to the helipad to get the survivors out.
+// coming in to the helipad to get the survivors out. Its door gunner works a minigun, its
+// barrels spinning up whenever it fires.
 
 const OD = 0x4b5631, OD_DARK = 0x363e22, GLASS = 0x34505a, BLACK = 0x1c1c1a, STEEL = 0x55574f;
 const CRUISE = 10, HOVER = 6.5; // flying height in, and over the drop zone
@@ -21,6 +22,7 @@ const OUTRO = 3.5; // seconds the evac Huey flies on, climbing away, once the ho
 
 interface Flight {
   root: THREE.Group; body: THREE.Group; rotor: THREE.Object3D; tail: THREE.Object3D; crate: THREE.Group; chute: THREE.Object3D;
+  gun: THREE.Object3D; spin: number; // the minigun's barrels, and how fast they turn
   x0: number; y0: number; x: number; y: number;
   heading: number; seen: number; landedAt: number; // landedAt: seconds, 0 while still in flight
 }
@@ -60,15 +62,32 @@ function hueyBody(): THREE.BufferGeometry {
     add(0.1, 0.75, 0.1, STEEL, 1.1, 0.42, z * 0.88, z > 0 ? 0.25 : -0.25);
     add(0.1, 0.75, 0.1, STEEL, -0.9, 0.42, z * 0.88, z > 0 ? 0.25 : -0.25);
   }
-  // The door gunner on the right, helmet and M60 out of the door.
+  // The door gunner on the right, helmet on, behind the minigun on its pintle mount: the
+  // post, the receiver and its motor, the ammo can and the feed chute up into it. The barrels
+  // are their own mesh (minigunGeo), to spin.
   add(0.45, 0.65, 0.4, 0x5a5f3a, 0.1, 1.2, 0.62);
   p.push(part(sphere(0.2), 0x3d4426, 0.1, 1.7, 0.62));
-  add(0.09, 0.09, 1.0, BLACK, 0.25, 1.4, 1.2);
-  add(0.12, 0.18, 0.2, BLACK, 0.25, 1.3, 0.78);
+  add(0.08, 0.5, 0.08, STEEL, 0.25, 1.05, 0.98);
+  add(0.22, 0.24, 0.34, BLACK, 0.25, 1.4, 0.92);
+  p.push(part(cyl(0.08, 0.08, 0.18, 8), STEEL, 0.25, 1.4, 0.72, Math.PI / 2, 0, 0));
+  add(0.3, 0.26, 0.24, OD_DARK, 0.3, 0.95, 0.7);
+  add(0.06, 0.4, 0.1, 0x8a7a3a, 0.2, 1.2, 0.84, 0.3, 0, 0);
   // Two surfboards strapped along the left skid struts, Kilgore style.
   p.push(...board(0xf1ece0, 0xc8402a, 0.2, 0.95, -1.13));
   p.push(...board(0xf2c64a, 0x2d6fb0, 0.05, 1.05, -1.24));
   for (const x of [-0.55, 0.75]) add(0.08, 0.75, 0.32, BLACK, x, 1.0, -1.18);
+  return merge(p);
+}
+
+// The minigun's six barrels round its axis, along +z, with the clamp at the muzzle end.
+function minigunGeo(): THREE.BufferGeometry {
+  const p: Part[] = [];
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    p.push(part(cyl(0.03, 0.03, 1.15, 6), BLACK, Math.cos(a) * 0.07, Math.sin(a) * 0.07, 0.575, Math.PI / 2, 0, 0));
+  }
+  p.push(part(cyl(0.11, 0.11, 0.08, 8), STEEL, 0, 0, 0.9, Math.PI / 2, 0, 0));
+  p.push(part(cyl(0.11, 0.11, 0.1, 8), STEEL, 0, 0, 0.1, Math.PI / 2, 0, 0));
   return merge(p);
 }
 
@@ -131,6 +150,7 @@ export class Helis {
   private rotorGeo = merge([part(box(10, 0.05, 0.36), 0x262624, 0, 0, 0), part(box(0.5, 0.15, 0.5), STEEL, 0, 0, 0)]);
   private tailGeo = merge([part(box(0.1, 1.5, 0.16), 0x262624, 0, 0, 0)]);
   private crateG = crateGeo();
+  private gunG = minigunGeo();
   private chuteG = chuteGeo();
   private blurMat = new THREE.MeshBasicNodeMaterial({ color: 0x1a1a18, transparent: true, opacity: 0.07, depthWrite: false });
   private blurGeo = new THREE.CircleGeometry(5, 24).rotateX(-Math.PI / 2);
@@ -170,6 +190,9 @@ export class Helis {
     const tail = new THREE.Mesh(this.tailGeo, this.mat);
     tail.position.set(-6.4, 2.9, 0.26);
     body.add(tail);
+    const gun = new THREE.Mesh(this.gunG, this.mat);
+    gun.position.set(0.25, 1.4, 1.09);
+    body.add(gun);
     const crate = new THREE.Group();
     const cm = new THREE.Mesh(this.crateG, this.mat);
     cm.castShadow = true;
@@ -177,7 +200,7 @@ export class Helis {
     chute.visible = false;
     crate.add(cm, chute);
     this.group.add(root, crate);
-    return { root, body, rotor, tail, crate, chute, x0, y0, x, y, heading: -Math.atan2(y - y0, x - x0), seen: 0, landedAt: 0 };
+    return { root, body, rotor, tail, crate, chute, gun, spin: 0, x0, y0, x, y, heading: -Math.atan2(y - y0, x - x0), seen: 0, landedAt: 0 };
   }
 
   update(game: Game, now: number, dt: number): void {
@@ -225,6 +248,13 @@ export class Helis {
       this.fx.rotorWash(game, fl.x + dx * d, fl.y + dz * d, Math.max(0, 1 - s / 2.5), dt);
     }
     this.updateEvac(game, now, t, dt);
+    // The minigun spins up while its rounds go out, and winds down after.
+    let firing = false;
+    for (let i = 0; i < f.nTracers && !firing; i++) firing = f.tKind[i] === TRACER_HELI;
+    for (const fl of this.evac ? [...this.flights.values(), this.evac] : this.flights.values()) {
+      fl.spin += ((firing ? 45 : 0) - fl.spin) * Math.min(1, dt * (firing ? 8 : 1.5));
+      fl.gun.rotation.z += fl.spin * dt;
+    }
     // Crates on the ground, with green marker smoke.
     while (this.grounded.length < f.crates.length) {
       const g = new THREE.Group();

@@ -294,7 +294,7 @@ export class Effects {
     const t = this.now();
     const c = Math.cos(heading), s = Math.sin(heading);
     const ix = x + c * radius * 1.15, iy = y + s * radius * 1.15;
-    const big = kind === 3 || radius > 1.2;
+    const big = kind === 3 || kind === 9 || radius > 1.2; // a brute's or a mauler's fists, or a boss's
     if (big) {
       this.rings.add(t, ix, 0.1, iy, 0, 0, 0, 0.45, 0xa89a7a, 0.2, radius * 1.7, 0, 1, 0.8, 1);
       for (let k = 0; k < 8; k++) {

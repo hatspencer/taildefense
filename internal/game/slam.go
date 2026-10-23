@@ -2,11 +2,12 @@ package game
 
 import "math"
 
-// The slam: a brute or an abomination, once it has a survivor in reach, stops, rears up and
+// The slam: a brute, an abomination, a mauler or a goliath, once it has a survivor in reach, stops, rears up and
 // brings both fists down, and the ground round it heaves. The blow is telegraphed for a
 // moment by a ring on the ground (EffSlam); whoever is still inside it when it lands is hurt
 // hard, thrown clear and stunned: stopped where they land, not moving or firing. The
-// abomination's ring is the bigger, hurts the more and stuns the longest.
+// bosses' rings are the bigger and hurt the more; the mauler's and the goliath's stun the
+// longest.
 
 // slamDef is a kind's slam.
 type slamDef struct {
@@ -15,8 +16,10 @@ type slamDef struct {
 
 // slams is indexed by creep kind; a zero radius is a kind that does not slam.
 var slams = [NumCreepKinds]slamDef{
-	CBrute: {every: 4.5, windup: .9, radius: 6, hurt: 75, throw: 1.6, stun: 1.5},
-	CBoss:  {every: 4, windup: 1.1, radius: 9, hurt: 130, throw: 2.6, stun: 2.5},
+	CBrute:   {every: 4.5, windup: .9, radius: 6, hurt: 75, throw: 1.6, stun: 1.5},
+	CBoss:    {every: 4, windup: 1.1, radius: 9, hurt: 130, throw: 2.6, stun: 2.5},
+	CMauler:  {every: 4, windup: .8, radius: 6.5, hurt: 70, throw: 1.8, stun: 3},
+	CGoliath: {every: 3.6, windup: 1, radius: 9.5, hurt: 120, throw: 2.8, stun: 4.2},
 }
 
 // slamStart is how long after a survivor first comes within the ring before the first slam.
@@ -50,16 +53,16 @@ func (w *World) bossSlam(c *Creep, tp *Player) bool {
 	c.slam = sd.every
 	c.Swing = SwingWindup
 	c.Face = float32(math.Atan2(float64(dy), float64(dx)))
-	w.Effects = append(w.Effects, Effect{Kind: EffSlam, X0: c.X, Y0: c.Y, X: c.X, Y: c.Y, R: sd.radius, Left: sd.windup, Total: sd.windup, Damage: sd.hurt, Owner: -1})
+	w.Effects = append(w.Effects, Effect{Kind: EffSlam, X0: c.X, Y0: c.Y, X: c.X, Y: c.Y, R: sd.radius, Left: sd.windup, Total: sd.windup, Damage: sd.hurt, Owner: -1, Lv: uint8(c.Kind)})
 	return true
 }
 
 // slamLands is a slam coming down: survivors inside the ring are hurt, thrown out of it and
 // stunned, and whatever is built inside it is hurt too.
 func (w *World) slamLands(e *Effect) {
-	sd := slams[CBrute]
-	if e.R >= slams[CBoss].radius {
-		sd = slams[CBoss]
+	sd := slams[e.Lv] // the kind that slammed
+	if sd.radius == 0 {
+		sd = slams[CBrute]
 	}
 	throw := sd.throw
 	for _, p := range w.Players {

@@ -141,7 +141,7 @@ func (p *Player) charge(v float32) {
 
 // playerStats is the equipped weapon's numbers with any running ultimate.
 func (w *World) playerStats(p *Player) Stats {
-	st := WeaponStats(p.Cur, p.Weapons[p.Cur].Lv)
+	st := p.Weapons[p.Cur].Stats(p.Cur)
 	st.Range *= w.rangeMul()
 	if p.ulting(p.Cur) {
 		switch p.Cur {
@@ -258,7 +258,7 @@ func (w *World) deadEye(p *Player) {
 			return true
 		}
 		dmg := float32(deadEyeHeavy)
-		if c.Kind != CBrute && !c.Kind.Boss() {
+		if !c.Kind.Heavy() {
 			// Enough to kill outright, armour and all.
 			dmg = c.HP + Creeps[c.Kind].Armor + 1
 			dmg = max(dmg, c.HP*4)

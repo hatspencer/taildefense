@@ -50,6 +50,7 @@ type PlayerView struct {
 	Look                                       uint32  // see game.dealLook
 	Sprinting, Winded, Goggles, Shielded       bool
 	Aboard                                     bool // got aboard the evac Huey
+	Stunned, Held, Airborne                    bool // stunned; in a creep's hands; thrown
 	Cur                                        game.WeaponKind
 	Ammo                                       uint16
 	ReloadFrac                                 float32 // 1 just started, 0 done
@@ -57,6 +58,7 @@ type PlayerView struct {
 	Gold, Kills, Damage                        uint64
 	Stats                                      StatsView
 	Owned                                      [game.NumWeapons]bool
+	Dual                                       bool // a second pistol, in the other hand
 	Lv                                         [game.NumWeapons][game.NumTracks]uint8
 	Gear                                       [game.NumGear]uint8
 	Buff                                       uint8   // 0 none, else the weapon kind + 1
@@ -491,6 +493,7 @@ func (r *Replica) header(d *dec) {
 		p.Stamina = float32(d.u8()) / 255
 		sp := d.u8()
 		p.Sprinting, p.Winded, p.Goggles, p.Shielded, p.Aboard = sp&1 != 0, sp&2 != 0, sp&8 != 0, sp&16 != 0, sp&32 != 0
+		p.Stunned, p.Held, p.Airborne = sp&4 != 0, sp&64 != 0, sp&128 != 0
 		p.Look = d.u32()
 		p.Cur = game.WeaponKind(d.u8())
 		p.Ammo = d.u16()
@@ -498,6 +501,7 @@ func (r *Replica) header(d *dec) {
 		p.Respawn = d.u8()
 		p.Gold, p.Kills, p.Damage = d.uv(), d.uv(), d.uv()
 		owned := d.u8()
+		p.Dual = owned&game.DualBit != 0
 		for k := 0; k < int(game.NumWeapons); k++ {
 			if owned&(1<<k) != 0 {
 				p.Owned[k] = true

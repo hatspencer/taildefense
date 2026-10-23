@@ -100,9 +100,9 @@ it here along with the code.
 - **Hordes from wave 10.** On swarm waves from 10 on, a third of the budget pours out of every
   entry point on the wave's fronts at once, within 4–8 s, mostly swarmers. The HUD labels the wave "HORDE". This is
   the moment the base has to hold, and why the walls matter.
-- **Every tenth wave brings a boss** to rally around: wave 10 an abomination, 20 one of each,
-  and so on, the abomination and the broodmother taking turns. Outposts' warlords are one or
-  the other too.
+- **Every tenth wave brings a boss** to rally around: wave 10 an abomination, 20 a
+  broodmother and a goliath, 30 one of each, and so on, the three taking turns. Outposts'
+  warlords are one of them too.
 - **The broodmother** is the boss that fights at range. Bloated and slow (she never breaks
   into a run), 2600 health, armour 6. With a survivor 4–16 tiles off, every 4.5 s she rears
   back for 0.7 s and lobs a sac of bile at where they stand, over walls and all; it lands
@@ -112,6 +112,28 @@ it here along with the code.
   burns survivors (14/s) and structures (20/s), though not the dead, and two swarmers crawl
   out of the burst. Closer than 4 tiles she claws (60 a blow). Each quarter of her life lost
   splits her open and spills six swarmers round her.
+- **The goliath** is the boss that comes for you. A stitched-together giant, 3600 health,
+  armour 9, faster on the march than the other two (1.7 to their 1), and every one of them
+  charges: in bursts it runs down even a sprinting survivor, like a sprinter. It slams (9.5
+  tiles, 120 at the middle) and its slam stuns longest of anything, 4.2 s. Whoever gets within
+  arm's reach is caught: held up for 1.1 s, then thrown 10 tiles behind it, back the way it came
+  and into whatever follows it, and the fall takes 55 and stuns 1.8 s. A throw that meets a wall
+  ends there, hurting the same. The team can break the hold: 6% of its health shot off it while
+  it holds someone makes it let go. It grabs again 5 s after a throw. The goliath exists
+  because the other bosses can be kited: the abomination is slow and the broodmother keeps her
+  distance, so standing off and shooting was always safe. The goliath punishes that, and the
+  grab is what makes a teammate's fire matter in the moment rather than eventually.
+- **Maulers** are the goliath's brute: from wave 12, alone, growing commoner up to wave 30 (a
+  fifth as common as brutes at their peak). 420 health, armour 5, 2.6 tiles a second where a
+  brute walks 1.5, and charging like the goliath. Its slam is a brute's size but stuns 3 s; its
+  grab holds 0.9 s, throws 7 tiles and the fall takes 35 and stuns 1.2 s; 12% of its health
+  shot off frees whoever it holds. A level 4 site's second guard is a mauler from wave 15.
+- **Hounds** are the dead dogs: from wave 5, in packs of four to eight, 20 health, a quick
+  weak bite. They chase at 9 tiles a second (a survivor walks 6 and sprints 9.6), half of them
+  sprinters on top of that, and they bite from further than they look, leaping in. You can't
+  outrun a pack; you turn and shoot it. From wave 5 one wandering pack in six is hounds, and an
+  ambush may bring some. They're there to make the open ground between the sites dangerous in
+  a way walkers can't: walkers you walk away from.
 - **The cap.** 16k creeps alive. Around wave 40 with 8 players the game reaches it.
 
 ## The end: get to the choppa
@@ -135,8 +157,11 @@ endless, which goes on as before until the generator falls.
   leaves when everyone still playing is aboard, or 30 s later at most, so one player can't
   hold the rest hostage. A player who has given no command for 90 s is not waited for, as the
   waves don't count them either. Nobody aboard after 90 s, it leaves empty.
-- **The door gunner** fires from the air on the way in and from the pad, as on a supply drop,
-  so the pad is a little easier to hold than open ground.
+- **The door gunner** works a minigun from the air on the way in and from the pad, as on a
+  supply drop: 25 rounds a second, 16 tiles' reach, over walls and trees. It covers the
+  survivors rather than itself: first whatever has one of them in its hands, then whatever is
+  closest to one of them near the Huey, and only with nobody near, whatever is closest to the
+  Huey. The pad is easier to hold than open ground, and running for the Huey is helped in.
 - **The pad is further out the harder the game.** About 22 tiles from the generator on easy,
   28 on normal (in the build ring, where it can be fortified round but not built on), 48 on
   hard and 58 on brutal, out past the generator's lights. At night it has to be found: the pad
@@ -214,6 +239,7 @@ each wave, but Normal is the reference for timing.
   first, and whoever is still inside is hurt hard (75 at the middle for a brute, 130 for an
   abomination, half that at the edge), thrown clear and stunned where they land: no walking,
   firing or abilities for 1.5 s (brute) or 2.5 s (abomination), with stars round their head.
+  Maulers and goliaths slam too, and stun longer still (3 s and 4.2 s; above).
   Turrets, walls and other buildings caught by the ring are hurt the same (the armory excepted).
   Step out, or eat it. A broodmother warlord lobs bile instead (above).
 - **The gas station.** One per map, beside a road out near the edge. Its shop always gives a
@@ -240,19 +266,20 @@ each wave, but Normal is the reference for timing.
   that can't settles where it stands. The bell can be rung again two and a half minutes after.
 - **Wanderers.** The dead roam the wastes between the sites, away from the base, in packs of
   three to six that keep together: walkers mostly, now and then a runner, spitter or brute
-  among them. About four dozen at the start, four more each wave (up to 300), more on harder
+  among them, and from wave 5 now and then a pack of hounds. About four dozen at the start, four more each wave (up to 300), more on harder
   settings. They come for a survivor who gets close or shoots them, and new packs turn up, out
   of sight, as they are killed. The way out is never quite empty.
 - **The chain.** A creep that goes for a survivor howls a moment later, and everything within
   seven tiles that isn't after that survivor yet wakes and comes too, and howls in its turn.
   One shot, or one guard woken, can bring a whole stretch of the wastes down on you.
 - **Chasing.** Every creep after a survivor runs faster than a walking survivor (6.6 to 6), but
-  slower than a sprinting one, so sprinting still gets you away. Out of a straight line they
+  slower than a sprinting one, so sprinting still gets you away. Hounds chase at 9, just short
+  of a sprint. Out of a straight line they
   path round walls: hide in a ruin and they find its door and pour in.
   Only one that can see the survivor (within its aggro) runs; one pulled from further off, by
   a shot, the noise, a howl or a taunt, comes on at half again its own pace until it can.
-- **Hits stun.** A survivor's hit stops a creep for a moment (a quarter second; a brute
-  0.15 s, an abomination 0.08 s), its windup held where it was, so its blow comes late but
+- **Hits stun.** A survivor's hit stops a creep for a moment (a quarter second; a brute or a
+  mauler 0.15 s, a boss 0.08 s), its windup held where it was, so its blow comes late but
   still comes. A creep just stunned can't be stunned again for half a second, so a fast gun
   doesn't pin one down. A shotgun's load stuns two and a half times as long, and 0.3 times
   longer for each level of its special track. Turrets and burning ground never stun.
@@ -264,7 +291,7 @@ each wave, but Normal is the reference for timing.
   Each hit is light but slows the survivor longest of any blow, pinning them for the rest of
   the crowd. They hunt survivors and never siege the base, which their reach would let them
   shell from beyond the turrets.
-- **Sprinters.** Some runners, swarmers and walkers sprint once they have a survivor to chase:
+- **Sprinters.** Some runners, swarmers, walkers and hounds, and every mauler and goliath, sprint once they have a survivor to chase:
   faster than even a sprinting survivor for about three and a half seconds, then four seconds
   at the usual chase. You can't simply run from a pull; you have to outlast it.
 - **The call.** Every tenth wave, partway in, every wanderer left rushes the generator as part of
@@ -275,7 +302,7 @@ each wave, but Normal is the reference for timing.
   in a long game.
 - **Supply drops.** After every tenth wave a Huey gunship flies a crate 36–50 tiles out from the
   base, onto open ground a survivor can walk to. It's the long break's lure: worth the walk, out
-  where the creeps are. The door gunner thins them on the way in. Opening it takes 2.5 s of
+  where the creeps are. The door gunner's minigun thins them on the way in. Opening it takes 2.5 s of
   standing by it unhurt, and it pays the whole team (gold, full medkits) plus a rare find for the
   opener. Up to three wait unopened. The surfboards on the Huey's side are for Kilgore.
 - **Weapons change hands.** A survivor can drop a weapon they carry and a teammate pick it up,
@@ -420,6 +447,14 @@ the long way round, or not at all. Map generation tries the spot again elsewhere
   special track maxed (more pellets, each pushing harder). The push is full within 2 tiles and
   fades to nothing at 5, half the gun's range: the shotgun is meant to be high risk and high
   reward, and a shove from a safe distance would make it neither. Bosses aren't pushed.
+- **Dual pistols are found, not bought.** A weapon find offers a second pistol to whoever
+  carries one, among the guns they don't own, and a pistol on the ground can be picked up
+  into the other hand. The pair is twice the pistol: each as the survivor upgraded theirs, so
+  twice the rounds a second and twice the magazine, and the upgrades bought for one pistol
+  pay double. The pistol is the gun everyone starts with and Dead Eye makes it worth keeping;
+  a lucky find makes it worth upgrading, and keeps looting worth it for whoever would rather
+  spend on turrets. The second pistol carries nothing of its own: a pistol found with levels,
+  or dropped by a teammate, is just the other hand.
 - **The grenade grows with the game.** Five levels where it had three, from 120 damage to 400,
   wider and quicker each level, and from level 4 it leaves fire burning; a three-level grenade
   stopped mattering by the mid game, when it was the one ability always at hand.

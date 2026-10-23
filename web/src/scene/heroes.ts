@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { color, sin, time } from 'three/tsl';
 import { WEAPON_BASE } from '../demo/defs';
-import { Emote, Order, PF_ALIVE, PF_FIRING, PF_HURT, PF_RELOADING } from '../protocol';
+import { Emote, Order, PF_ALIVE, PF_FIRING, PF_HURT, PF_RELOADING, OWNED_DUAL, THROW_FLIGHT } from '../protocol';
 import type { Game } from '../state';
 import { litMaterial } from './structs';
 import { Body, type Look, readLook, shade } from './look';
@@ -13,10 +13,11 @@ interface Hero {
   group: THREE.Group; body: THREE.Group; hips: THREE.Group; torso: THREE.Group; head: THREE.Group; tail: THREE.Group | null; pack: THREE.Group;
   legL: Limb; legR: Limb; armL: Limb; armR: Limb;
   gun: THREE.Group; gunMesh: THREE.Mesh | null; spin: THREE.Group | null; flash: THREE.Object3D; finger: THREE.Object3D; hand: THREE.Object3D;
+  gun2: THREE.Group; dual: boolean; alt: boolean; // the second pistol, in the left hand; alt: the last shot was its
   shout: THREE.Object3D; stars: THREE.Object3D; goggles: THREE.Object3D; marker: THREE.Object3D; cross: THREE.Object3D; progress: THREE.Object3D;
   look: number; wd: number; ht: number; weapon: number; color: number;
   phase: number; seen: number; down: boolean; pop: number; shotAt: number; crouch: number; downAmt: number; taunt: number; reload: number;
-  sprint: number; leap: number; hurt: boolean;
+  sprint: number; leap: number; hurt: boolean; flyAt: number; // when a throw took them off their feet, -1 on them
   x: number; y: number; vx: number; vy: number; legYaw: number; dirSign: number; fresh: boolean;
   leanX: Spring; leanZ: Spring; aim: Spring; flinch: Spring; tailS: Spring; packS: Spring; kick: Spring;
 }
@@ -103,6 +104,7 @@ export class Heroes {
   private ringGeo: THREE.BufferGeometry; private discGeo: THREE.BufferGeometry; private crossGeo: THREE.BufferGeometry;
   private serial = 0;
   private q = new THREE.Quaternion();
+  private axis = new THREE.Vector3();
 
   constructor(scene: THREE.Scene) {
     scene.add(this.group);
@@ -211,8 +213,9 @@ export class Heroes {
     finger.visible = false;
     armR.lower.add(finger);
 
-    const gun = new THREE.Group();
-    torso.add(gun);
+    const gun = new THREE.Group(), gun2 = new THREE.Group();
+    gun2.visible = false;
+    torso.add(gun, gun2);
     const flash = new THREE.Mesh(sphere(0.14, 6, 4), this.flashMat);
     flash.scale.set(1.6, 0.8, 0.8);
     gun.add(flash);
@@ -239,9 +242,9 @@ export class Heroes {
     g.scale.setScalar(1.15);
     this.group.add(g);
     const h: Hero = {
-      group: g, body, hips, torso, head, tail, pack, legL, legR, armL, armR, gun, gunMesh: null, spin: null, flash, finger, hand,
+      group: g, body, hips, torso, head, tail, pack, legL, legR, armL, armR, gun, gunMesh: null, spin: null, flash, finger, hand, gun2, dual: false, alt: false,
       shout, stars, goggles, marker, cross, progress, look, wd: L.width, ht: L.height, weapon: -1, color: c,
-      phase: 0, seen: 0, down: false, pop: 0, shotAt: -1e9, crouch: 0, downAmt: 0, taunt: 0, reload: 0, sprint: 0, leap: 0, hurt: false,
+      phase: 0, seen: 0, down: false, pop: 0, shotAt: -1e9, crouch: 0, downAmt: 0, taunt: 0, reload: 0, sprint: 0, leap: 0, hurt: false, flyAt: -1,
       x: 0, y: 0, vx: 0, vy: 0, legYaw: 0, dirSign: 1, fresh: true,
       leanX: new Spring(2.2, 0.45, 0), leanZ: new Spring(2.2, 0.45, 0), aim: new Spring(4.5, 0.75, 1.6), flinch: new Spring(3, 0.3, 0),
       tailS: new Spring(1.8, 0.25, 0), packS: new Spring(3.5, 0.3, 0), kick: new Spring(9, 0.35, 0),
@@ -269,6 +272,17 @@ export class Heroes {
     h.group.traverse((c) => { c.userData.hl = h.group.userData.hl ?? 0; });
   }
 
+  // A second pistol in the left hand, once the pistol's special track has bought it.
+  private setDual(h: Hero, on: boolean): void {
+    if (h.dual === on) return;
+    h.dual = on;
+    h.gun.add(h.flash);
+    h.alt = false;
+    for (const c of [...h.gun2.children]) { h.gun2.remove(c); (c as THREE.Mesh).geometry.dispose(); }
+    if (on) this.mesh(gunParts(0, h.color).body, h.gun2);
+    h.group.traverse((c) => { c.userData.hl = h.group.userData.hl ?? 0; });
+  }
+
   setHover(id: number, on: boolean): void {
     const h = this.heroes.get(id);
     if (h) { h.group.userData.hl = on ? 1 : 0; h.group.traverse((c) => { c.userData.hl = on ? 1 : 0; }); }
@@ -285,6 +299,7 @@ export class Heroes {
       if (h && h.look !== p.look) { this.group.remove(h.group); h = undefined; }
       if (!h) { h = this.make(p.id, p.look, p.cur); this.heroes.set(p.id, h); }
       this.setWeapon(h, p.cur);
+      this.setDual(h, p.cur === 0 && (p.owned & OWNED_DUAL) !== 0);
       h.seen = serial;
       const alive = (p.flags & PF_ALIVE) !== 0;
       // Standing up again (revived or respawned): a little pop.
@@ -293,7 +308,22 @@ export class Heroes {
       // Shielded just after being put back at the base: blinking, and still shooting.
       h.group.visible = !p.aboard && ((p.flags & 1) !== 0 || alive) && !(alive && p.shielded && Math.floor(t * 8) % 2 === 1);
       const x = game.prx[p.id], y = game.pry[p.id], aim = game.paim[p.id];
-      h.group.position.set(x, 0, y);
+      // Caught by a mauler or a goliath: held up off the ground, kicking; thrown: arcing high
+      // over the throw, tumbling head over heels the way they fly.
+      const held = alive && p.held, air = alive && p.airborne;
+      if (!air) h.flyAt = -1;
+      else if (h.flyAt < 0) h.flyAt = t;
+      let lift = 0;
+      if (air) {
+        const s = Math.min(1, (t - h.flyAt) / THROW_FLIGHT);
+        lift = 9.6 * s * (1 - s);
+        const v = Math.hypot(h.vx, h.vy);
+        if (v > 0.5) h.group.quaternion.setFromAxisAngle(this.axis.set(h.vy / v, 0, -h.vx / v), s * Math.PI * 1.8);
+      } else {
+        h.group.quaternion.identity();
+        if (held) lift = 1.1 + Math.sin(t * 17) * 0.06;
+      }
+      h.group.position.set(x, lift, y);
 
       // Velocity, smoothed over the frames' steps; a jump (respawn) starts afresh.
       if (h.fresh || Math.abs(x - h.x) + Math.abs(y - h.y) > 3) {
@@ -322,7 +352,11 @@ export class Heroes {
       h.pop = Math.max(0, h.pop - dt * 2.2);
       // One kick and flash per shot, at the weapon's own rate: a shotgun booms, an SMG chatters.
       if (!firing) h.shotAt = -1e9;
-      else if (now - h.shotAt >= 1000 / (WEAPON_BASE[h.weapon]?.rate ?? 3)) { h.shotAt = now; h.kick.kick(h.weapon === 1 || h.weapon === 5 ? 9 : h.weapon === 6 ? -14 : 3); }
+      else if (now - h.shotAt >= 1000 / (WEAPON_BASE[h.weapon]?.rate ?? 3)) {
+        h.shotAt = now; h.kick.kick(h.weapon === 1 || h.weapon === 5 ? 9 : h.weapon === 6 ? -14 : 3);
+        // Dual pistols fire turn about, the flash at whichever went off.
+        if (h.dual) { h.alt = !h.alt; (h.alt ? h.gun2 : h.gun).add(h.flash); }
+      }
       const hurt = (p.flags & PF_HURT) !== 0;
       if (hurt && !h.hurt && alive) { h.flinch.kick(7); h.tailS.kick(4); }
       h.hurt = hurt;
@@ -418,6 +452,14 @@ export class Heroes {
         const sw = u < 0 || u >= 1 ? 0 : u < 0.25 ? Math.sin((u / 0.25) * Math.PI / 2) : 1 - (u - 0.25) / 0.75;
         h.gun.position.set(hold.at[0] + sw * 0.18 - sp * 0.04, hold.at[1] - sw * 0.06 - sp * 0.06, hold.at[2] + sw * 0.22);
         h.gun.rotation.set(-0.35 + sw * 0.75, -sw * 0.5, 1.4 - sw * 2.2 + sp * 0.3);
+      } else if (h.dual) {
+        // One in each hand, held out apart, each kicking when it fires.
+        const k1 = h.alt ? kick * 0.3 : kick, k2 = h.alt ? kick : kick * 0.3;
+        h.gun.position.set(hold.at[0] - k1 * 0.25 - sp * 0.06, hold.at[1] - sp * 0.1 - rl * 0.06, -0.17 + sp * 0.05);
+        h.gun.rotation.set(rl * 0.7, sp * 0.35 + 0.08, k1 * 0.6 - sp * 0.55 - rl * 0.3);
+        h.gun2.position.set(hold.at[0] - k2 * 0.25 - sp * 0.06, hold.at[1] - sp * 0.1 - rl * 0.06, 0.17 - sp * 0.05);
+        h.gun2.rotation.set(-rl * 0.7, -sp * 0.35 - 0.08, k2 * 0.6 - sp * 0.55 - rl * 0.3);
+        h.gun2.updateMatrix();
       } else {
         h.gun.position.set(hold.at[0] - kick * 0.25 - sp * 0.06, hold.at[1] - sp * 0.1 - rl * 0.06, hold.at[2] + sp * 0.05);
         h.gun.rotation.set(rl * 0.7, sp * 0.35, kick * 0.6 - sp * 0.55 - rl * 0.3);
@@ -428,8 +470,9 @@ export class Heroes {
 
       // Hands: on the gun, unless kneeling, taunting or down.
       TR.set(...hold.grip).applyMatrix4(h.gun.matrix);
-      TL.set(...hold.fore).applyMatrix4(h.gun.matrix);
-      if (rl > 0.01) {
+      if (h.dual) TL.set(...hold.grip).applyMatrix4(h.gun2.matrix);
+      else TL.set(...hold.fore).applyMatrix4(h.gun.matrix);
+      if (rl > 0.01 && !h.dual) {
         // The off hand to the magazine, down to the belt for a fresh one, and back.
         const u = (t * 1.3) % 1;
         const belt = V.set(0.06, 0.02, 0.2);
@@ -454,6 +497,7 @@ export class Heroes {
       ik2(h.armR.upper, h.armR.lower, UPPER, FORE, TR, PR);
       ik2(h.armL.upper, h.armL.lower, UPPER, FORE, TL, PL);
       h.gun.visible = cr < 0.5 && tn < 0.5 && dn < 0.5;
+      h.gun2.visible = h.dual && h.gun.visible;
       h.finger.visible = tn >= 0.5;
       h.hand.visible = tn < 0.5;
 
@@ -466,7 +510,7 @@ export class Heroes {
       }
       // Night vision goggles, worn at night.
       h.goggles.visible = p.goggles && !!game.welcome?.dark;
-      h.stars.visible = alive && p.stunned;
+      h.stars.visible = alive && p.stunned && !held && !air;
       if (h.stars.visible) {
         h.stars.position.set(0, 1.75 + Math.sin(t * 7) * 0.04, 0);
         h.stars.rotation.set(0, t * 5, 0);

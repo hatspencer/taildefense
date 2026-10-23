@@ -67,7 +67,8 @@ func (w *World) fillWanderers() {
 
 // spawnPack puts a pack of wanderers down somewhere out in the wastes, away from the base,
 // the survivors and the loot sites, where the generator can be reached from: walkers
-// huddled together, now and then something worse among them. It returns how many came.
+// huddled together, now and then something worse among them, or from wave 5 now and then a
+// pack of hounds. It returns how many came.
 func (w *World) spawnPack() int {
 	for try := 0; try < 40; try++ {
 		x, y := float32(w.rng.IntN(w.W))+.5, float32(w.rng.IntN(w.H))+.5
@@ -76,6 +77,7 @@ func (w *World) spawnPack() int {
 		}
 		// Never past the map's share of them.
 		n, got := min(packLo+w.rng.IntN(packHi-packLo+1), w.wanderCap()-w.wanderers()), 0
+		hounds := w.Wave >= 5 && w.rng.IntN(6) == 0
 		for j := 0; j < n*3 && got < n; j++ {
 			px, py := x, y
 			if got > 0 {
@@ -86,7 +88,9 @@ func (w *World) spawnPack() int {
 				continue
 			}
 			k := CWalker
-			if got == n-1 {
+			if hounds {
+				k = CHound
+			} else if got == n-1 {
 				// The last of a pack may be something other than a walker.
 				switch r := w.rng.IntN(10); {
 				case w.Wave >= 8 && r == 0:
