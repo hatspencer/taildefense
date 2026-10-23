@@ -53,7 +53,7 @@
   --bottom-h: 196px;
   --mm-w: 210px;
   --hero-w: 236px;
-  --card-w: 330px;
+  --card-w: 410px;
   --slot: 56px;
 }
 * { box-sizing: border-box; }
@@ -119,7 +119,10 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 17px/12p
 .top .chip .pips i.on { background: var(--rust); }
 .top .chip.diff { cursor: pointer; }
 .top .chip.weather svg { display: block; }
-.top .chip.weather .info { color: var(--khaki); font-family: var(--small); font-size: 14px; max-width: 360px; overflow: hidden; text-overflow: ellipsis; }
+/* The weather's note is what gives way when the bar is short of room. */
+.top .chip.weather { min-width: 0; flex: 0 1 auto; overflow: hidden; }
+.top .chip.weather > :not(.info) { flex: none; }
+.top .chip.weather .info { color: var(--khaki); font-family: var(--small); font-size: 14px; max-width: 360px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .top .chip.base { gap: 7px; cursor: pointer; }
 .top .chip.base svg { display: block; }
 .top .chip.base .lbl { font: 700 14px/1 var(--small); color: var(--khaki); text-transform: uppercase; letter-spacing: 0.06em; }
@@ -141,10 +144,10 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 17px/12p
 .top .readies { display: flex; gap: 3px; }
 .top .readies span { width: 10px; height: 14px; border: 2px solid var(--black); opacity: 0.3; }
 .top .readies span.on { opacity: 1; box-shadow: 0 -3px 0 -1px var(--moss); }
-.top button { height: 28px; }
+.top button { height: 28px; white-space: nowrap; flex: none; }
 .top button.ready { padding: 0 14px; }
 .top button.fix { padding: 0 10px; }
-.top button.fix.short { color: var(--rust); }
+.top button.fix.short, .card button.short .gold { color: var(--rust); }
 .top button.ready.on { background: var(--moss); color: #142010; box-shadow: inset 0 2px 0 #a8c46a, inset 0 -2px 0 #5a7230; }
 .compass { position: absolute; top: 44px; left: 50%; transform: translateX(-50%); width: min(300px, calc(100% - 32px)); height: 28px; cursor: pointer;
   background: var(--grain), rgba(20, 22, 15, 0.82); border: 2px solid var(--black); box-shadow: 0 0 0 1px var(--line), 3px 3px 0 rgba(0, 0, 0, 0.35); }
@@ -323,28 +326,31 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 17px/12p
 .wslot.med.owned { color: #ffd8d0; background: #6a2a22; }
 .wslot.med.cur { color: var(--screen); background: #e05a40; box-shadow: 0 0 0 2px #e05a40, 0 0 0 4px var(--black); }
 
-.card { width: var(--card-w); flex: none; padding: 16px 12px 10px; display: flex; flex-direction: column; gap: 6px; overflow: visible; position: relative; min-width: 0; }
+/* The command card sits on the bottom bar and grows up out of it to fit what it holds, so its
+   last row, the upgrade, repair and sell buttons, is never cut off. */
+.card { width: var(--card-w); flex: none; align-self: flex-end; min-height: 100%; padding: 18px 12px 10px; display: flex; flex-direction: column; gap: 6px; overflow: visible; position: relative; min-width: 0; }
 .card h3 { margin: 0; position: absolute; top: -11px; left: 10px; right: 10px; display: flex; align-items: center; gap: 8px; font-weight: 400; pointer-events: none; }
 .card h3 .tape { pointer-events: auto; }
-.card h3 .muted { font-family: var(--small); font-size: 14px; text-shadow: var(--hard); margin-left: auto; }
-.card .sub { flex: none; color: #b9b090; font-family: var(--small); font-size: 15px; line-height: 1.25; overflow: hidden; }
+.card h3 .muted { font-family: var(--small); font-size: 15px; text-shadow: var(--hard); margin-left: auto; }
+.card .sub { flex: none; color: #b9b090; font-family: var(--small); font-size: 16px; line-height: 1.25; overflow: hidden; }
 .card .btns { display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; }
-.card .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
-.card .grid button { padding: 4px 18px 4px 6px; text-align: left; font-family: var(--small); font-size: 15px; position: relative; white-space: nowrap; overflow: hidden; min-width: 0; }
+.card .btns button { font-size: 17px; padding: 6px 12px 7px; }
+.card .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.card .grid button { padding: 5px 20px 5px 7px; text-align: left; font-family: var(--small); font-size: 16px; position: relative; white-space: nowrap; overflow: hidden; min-width: 0; }
 .card .grid button .n { display: block; overflow: hidden; text-overflow: ellipsis; }
-.card .grid button .k { position: absolute; top: 3px; right: 4px; font: 17px/1 var(--crt); color: var(--tape); }
-.card .grid button .p { display: block; color: var(--amber); font: 18px/1 var(--crt); }
+.card .grid button .k { position: absolute; top: 3px; right: 4px; font: 19px/1 var(--crt); color: var(--tape); }
+.card .grid button .p { display: block; color: var(--amber); font: 20px/1 var(--crt); }
 .card .grid.tracks { grid-template-columns: repeat(2, 1fr); }
-.card .grid.tracks { gap: 4px; }
-.card .grid.tracks button { padding: 2px 6px; line-height: 1.15; }
+.card .grid.tracks { gap: 5px; }
+.card .grid.tracks button { padding: 4px 8px; line-height: 1.2; }
 .card .grid.tracks .n { display: flex; align-items: center; gap: 5px; }
-.card .grid.tracks .n .p { display: inline; margin-left: auto; font-size: 17px; }
-.card .grid.tracks .v { display: block; color: var(--bone); font-size: 14px; overflow: hidden; text-overflow: ellipsis; }
+.card .grid.tracks .n .p { display: inline; margin-left: auto; font-size: 20px; }
+.card .grid.tracks .v { display: block; color: var(--bone); font-size: 15px; overflow: hidden; text-overflow: ellipsis; }
 .card .grid.tracks .pips { display: inline-flex; gap: 2px; }
-.card .grid.tracks .pips i { width: 5px; height: 5px; background: #3c3f30; box-shadow: 0 0 0 1px var(--black); }
+.card .grid.tracks .pips i { width: 7px; height: 7px; background: #3c3f30; box-shadow: 0 0 0 1px var(--black); }
 .card .grid.tracks .pips i.on { background: var(--amber); }
 .card .grid button.sel { background: #3a4a24; box-shadow: 0 0 0 2px var(--moss), inset 0 2px 0 #4d6030; }
-.card .hint { font-family: var(--small); font-size: 14px; color: var(--khaki); }
+.card .hint { font-family: var(--small); font-size: 15px; color: var(--khaki); }
 
 /* ---------- windows ---------- */
 
@@ -471,24 +477,30 @@ canvas, .hud img, .hud svg { image-rendering: pixelated; }
 /* ---------- smaller windows ---------- */
 
 @media (max-width: 1360px) {
-  :root { --mm-w: 180px; --card-w: 300px; --hero-w: 214px; --slot: 52px; }
-  .card .grid button { font-size: 14px; }
+  :root { --mm-w: 180px; --card-w: 360px; --hero-w: 214px; --slot: 52px; }
+  .card .grid button { font-size: 15px; }
+  .top { gap: 8px; }
+  .top button { padding-left: 8px; padding-right: 8px; }
   .top .chip.weather .info { max-width: 200px; }
 }
 @media (max-width: 1180px) {
-  :root { --bottom-h: 184px; --mm-w: 150px; --card-w: 252px; --hero-w: 196px; --slot: 46px; }
+  :root { --bottom-h: 184px; --mm-w: 150px; --card-w: 300px; --hero-w: 196px; --slot: 46px; }
   .console { gap: 10px; padding: 8px 10px; }
   .wslot { width: 42px; height: 32px; }
   .top .chip.weather .info { display: none; }
+  .top .kills, .top .chip.base .lbl { display: none; }
+  .top { gap: 6px; }
+  .top button.ready, .top button.fix { padding: 0 8px; }
   .card .grid { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 1000px) {
-  :root { --mm-w: 124px; --card-w: 226px; --hero-w: 178px; --slot: 42px; }
+  :root { --mm-w: 124px; --card-w: 260px; --hero-w: 178px; --slot: 42px; }
   .top { gap: 6px; padding: 0 6px; }
   .top .kills { display: none; }
+  .top .chip.weather > span { display: none; }
   .top .chip.base .lbl { display: none; }
   .top .chip.base .bbar { width: 60px; }
-  .top button { padding: 0 8px; }
+  .top button { padding: 0 6px; }
   .slot .cooltxt { font-size: 22px; }
   .wslot { width: 36px; }
   .abilities { gap: 5px; }

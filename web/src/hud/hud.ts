@@ -898,7 +898,7 @@ export class Hud {
     else if (s?.t === 'struct') key = `s:${s.id}:${f.sKind[s.id]}:${f.sOwner[s.id]}:${f.sHp[s.id]}:${f.sMaxHp[s.id]}:${f.sLevel[s.id]}:${f.sLv.subarray(s.id * TURRET_TRACKS, (s.id + 1) * TURRET_TRACKS).join(',')}:${me ? Math.floor(me.gold) : 0}`;
     else if (s?.t === 'creep') { const i = g.indexById[s.id]; key = `c:${s.id}:${i >= 0 ? f.cHp[i] + ':' + f.cFlags[i] : ''}`; }
     else if (s?.t === 'hero') { const p = f.player(s.id); key = `h:${s.id}:${p?.hp}:${p?.maxHp}:${p?.cur}:${p?.kills}:${Math.floor(p?.damage ?? 0)}:${p?.order}:${p?.flags}:${p?.respawn}`; }
-    else key = 'none';
+    else { const fc = ctl.fixCost(); key = `none:${f.phase}:${fc.gold}:${fc.ghosts + fc.damaged}:${me ? Math.floor(me.gold) : 0}`; }
     if (key === this.cardKey) return;
     this.cardKey = key;
     // Gold and HP change the card nearly every tick in a big wave: it is drawn afresh and patched
@@ -1013,7 +1013,12 @@ export class Hud {
     const b1 = el('button', '', btns); b1.innerHTML = 'Build <kbd>B</kbd>'; b1.onclick = () => { this.buildCard = true; };
     const b2 = el('button', '', btns); b2.innerHTML = 'Armory <kbd>C</kbd>'; b2.onclick = () => ctl.openArmory(true);
     const b3 = el('button', '', btns); b3.innerHTML = 'Stop'; b3.onclick = () => ctl.send({ op: 'stop' });
-    const b4 = el('button', '', btns); b4.innerHTML = 'Rebuild all <kbd>H</kbd>'; b4.onclick = () => ctl.fixAll();
+    // What rebuilding everything costs, as on the top bar's button; between waves, when it can be done.
+    const fc = ctl.fixCost(), fixing = f.phase === Phase.Build && fc.ghosts + fc.damaged > 0;
+    const b4 = el('button', fixing && gold < fc.gold ? 'short' : '', btns);
+    b4.innerHTML = `Rebuild all${fixing ? ` <span class="gold">${fmtGold(fc.gold)}g</span>` : ''} <kbd>H</kbd>`;
+    b4.title = fixing ? `Rebuild ${fc.ghosts} destroyed and repair ${fc.damaged} damaged, for ${fmtGold(fc.gold)}g` : 'Nothing to rebuild or repair, or a wave is on';
+    b4.onclick = () => ctl.fixAll();
     el('div', 'hint', c, 'WASD to walk · E to use · Q: ultimate · Shift F V: abilities · F1 for all controls');
   }
 
