@@ -135,6 +135,9 @@ func TestShopAndBuild(t *testing.T) {
 	if s.Lv != [NumTracks]uint8{0, 1, 0, MaxLevel} || s.Level != 7 {
 		t.Fatalf("tracks %v, level %d", s.Lv, s.Level)
 	}
+	if n := w.Notes[len(w.Notes)-1]; n.Level != NoteBrief || n.Text != p.Name+" upgraded a "+Structs[STurretTesla].Name+"'s fire rate to 1" {
+		t.Errorf("upgrade note %+v", n)
+	}
 	if st := TurretStats(STurretTesla, s.Lv); st.Chains != 11 || st.Rate <= Structs[STurretTesla].Rate {
 		t.Errorf("tesla at %v: %+v", s.Lv, st)
 	}
@@ -153,6 +156,9 @@ func TestShopAndBuild(t *testing.T) {
 	si = w.StructAt(x, y)
 	if err := w.UpgradeStruct(p, si, 0); err != nil || w.Structs[si].Level != 2 || w.Structs[si].MaxHP != Structs[SWall].HP*1.6 {
 		t.Fatalf("wall upgrade: %v, %+v", err, w.Structs[si])
+	}
+	if n := w.Notes[len(w.Notes)-1].Text; n != p.Name+" upgraded a "+Structs[SWall].Name+" to level 2" {
+		t.Errorf("wall upgrade note %q", n)
 	}
 	if err := w.UpgradeStruct(p, w.Core, 0); err == nil {
 		t.Fatal("upgraded the generator")

@@ -378,7 +378,7 @@ u16  nEffects         lasting effects, the full current list every frame
   u8   left           deciseconds left
   u8   total          deciseconds it lasts in all
 u8   nNotes           announcements to everyone this tick
-  u8   level          0 info, 1 good, 2 bad, 3 a player's chat line "name: text"
+  u8   level          0 info, 1 good, 2 bad, 3 a player's chat line "name: text", 4 an upgrade, "name upgraded ..."
   u16  len, text (utf-8)
 u8   nPings           spots players marked for the team this tick
   u8   player         who pinged

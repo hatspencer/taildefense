@@ -184,6 +184,7 @@ func (w *World) Upgrade(p *Player, k WeaponKind, t Track) error {
 	if t == TrackHandling && ws.Reload <= 0 {
 		ws.Ammo = WeaponStats(k, ws.Lv).Mag
 	}
+	w.note(NoteBrief, "%s upgraded their %s's %s to %d", p.Name, Weapons[k].Name, TrackNames[t], ws.Lv[t])
 	return nil
 }
 
@@ -206,6 +207,7 @@ func (w *World) BuyGear(p *Player, g Gear) error {
 		p.MaxHP += 25
 		p.HP += 25
 	}
+	w.note(NoteBrief, "%s upgraded their %s to %d", p.Name, strings.ToLower(GearNames[g]), p.Gear[g])
 	return nil
 }
 
@@ -471,6 +473,7 @@ func (w *World) UpgradeStruct(p *Player, si int, t Track) error {
 			return err
 		}
 		s.Lv[t]++
+		w.note(NoteBrief, "%s upgraded a %s's %s to %d", p.Name, Structs[s.Kind].Name, TurretTrackNames[t], s.Lv[t])
 	} else {
 		if s.Level >= MaxStructLevel {
 			return errMaxed
@@ -478,6 +481,7 @@ func (w *World) UpgradeStruct(p *Player, si int, t Track) error {
 		if err := w.pay(p, StructUpgradeCost(s.Kind, s.Level)); err != nil {
 			return err
 		}
+		w.note(NoteBrief, "%s upgraded a %s to level %d", p.Name, Structs[s.Kind].Name, s.Level+1)
 	}
 	s.Level++
 	grow := Structs[s.Kind].HP * StructGrowth(s.Kind)
