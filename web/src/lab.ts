@@ -22,17 +22,22 @@ export class Lab {
   // Player poses, by player slot.
   private poses = ['circle', 'sprint', 'loot', 'revive', 'reload', 'taunt', 'down', 'shoot', 'dual', 'thrown'];
 
-  // gun, when 0 or more, puts that weapon in every survivor's hands (#lab=h&gun=6).
-  constructor(private game: Game, cx: number, cy: number, private gun = -1) {
+  // gun, when 0 or more, puts that weapon in every survivor's hands (#lab=h&gun=6); still
+  // keeps the shooter aiming one way, unhurt, to study how it holds the gun (&still); nv
+  // brings the night and puts the survivors in night vision goggles (&nv).
+  constructor(private game: Game, cx: number, cy: number, private gun = -1, private still = false, private nv = false) {
     this.x0 = cx - 3 * DX;
     this.y0 = cy + 9;
+    if (nv && game.welcome) game.setDifficulty(game.welcome.difficulty, 7);
   }
 
-  // Where to look: the whole bench, or one creep row (0..7), or the survivors ('h'), or one
-  // of them ('h0'..'h7').
+  // Where to look: the whole bench, or one creep row (0..7), or one creep ('0.6'), or the
+  // survivors ('h'), or one of them ('h0'..'h7').
   center(at = ''): [number, number] {
     if (/^h\d$/.test(at)) { const i = Number(at[1]); return [this.x0 + COLS.length * DX + 2.5 + (i % 2) * 3.4, this.y0 + Math.floor(i / 2) * DY]; }
     if (at === 'h') return [this.x0 + COLS.length * DX + 4.2, this.y0 + 1.5 * DY];
+    // A row and a column of it: '0.6' is the walker dying.
+    if (/^\d\.\d$/.test(at)) return [this.x0 + Number(at[2]) * DX, this.y0 + Number(at[0]) * DY];
     if (at !== '') return [this.x0 + 3 * DX, this.y0 + Number(at) * DY];
     return [this.x0 + 3 * DX + 3, this.y0 + 2.5 * DY];
   }
@@ -68,7 +73,7 @@ export class Lab {
           if (t % 1.1 < 0.02) g.flashUntil[id] = now + 90;
         } else if (col === 'burn') fl |= CF_BURNING;
         else if (col === 'sleep') fl |= CF_ASLEEP | CF_GUARD;
-        else if (col === 'die' && t % 4.5 > 1.2) continue;
+        else if (col === 'die' && t % 7 > 1.2) continue;
         f.cId[n] = id; f.cKind[n] = k; f.cFlags[n] = fl; f.cTarget[n] = col === 'attack' ? 128 + 32 : 255;
         f.cHp[n] = col === 'hit' ? 200 : 255;
         f.cX[n] = px; f.cY[n] = py;
@@ -88,7 +93,7 @@ export class Lab {
       const p = f.players[i], pose = this.poses[i];
       // Health varies so the portraits show their wounds; the sprinter has a medkit working.
       p.id = i; p.look = (i * 2654435761) >>> 0; p.cur = this.gun >= 0 ? this.gun : i % 6; p.hp = [80, 50, 55, 80, 22, 80, 0, 45, 70, 35][i]; p.maxHp = 100;
-      p.heal = pose === 'sprint' ? 5 : 0;
+      p.heal = pose === 'sprint' ? 5 : 0; p.goggles = this.nv;
       p.flags = PF_CONNECTED | PF_ALIVE; p.order = Order.Idle; p.channel = 0; p.emote = Emote.None; p.emoteLeft = 0; p.sprinting = false;
       p.held = false; p.airborne = false; p.stunned = false; p.owned = 0;
       let x = hx + (i % 2) * 3.4, y = this.y0 + Math.floor(i / 2) * DY, aim = Math.PI / 2;
@@ -111,7 +116,10 @@ export class Lab {
         case 'reload': p.flags |= PF_RELOADING; break;
         case 'taunt': p.emote = Emote.Taunt; p.emoteLeft = 1; break;
         case 'down': p.flags = PF_CONNECTED; break;
-        case 'shoot': aim = t * 0.7; p.flags |= PF_FIRING; if (t % 2.5 < 0.25) p.flags |= PF_HURT; break;
+        case 'shoot':
+          if (this.still) aim = Math.PI / 2;
+          else { aim = t * 0.7; if (t % 2.5 < 0.25) p.flags |= PF_HURT; }
+          p.flags |= PF_FIRING; break;
         case 'dual': p.cur = 0; p.owned |= OWNED_DUAL; aim = Math.PI / 2 + Math.sin(t) * 0.6; p.flags |= PF_FIRING; break;
         case 'thrown': {
           // Held up for a second, thrown three tiles, then stunned where they land.
