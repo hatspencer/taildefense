@@ -224,7 +224,7 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 17px/12p
 .chat .log div { text-shadow: var(--hard); padding: 1px 0; transition: opacity 0.6s; }
 .chat .log div.old { opacity: 0; }
 .chat.open .log div.old { opacity: 0.85; }
-.chat .log .lvl1 { color: #c3dc86; } .chat .log .lvl2 { color: #f09276; }
+.chat .log .lvl1 { color: #c3dc86; } .chat .log .lvl2 { color: #f09276; } .chat .log .lvl4 { color: var(--khaki); }
 .chat input { pointer-events: auto; width: 100%; margin-top: 6px; font: 18px var(--font); color: var(--bone); background: var(--scan), var(--screen); border: 2px solid var(--black); box-shadow: 0 0 0 2px var(--tape-dk); border-radius: 0; padding: 7px 10px; outline: none; }
 .chat input::placeholder { color: #6d6a52; }
 

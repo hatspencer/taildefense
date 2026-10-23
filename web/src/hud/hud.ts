@@ -353,9 +353,11 @@ export class Hud {
     return `<b>${esc(w.name)}</b><br>${w.info ? esc(w.info) : 'No effect on the fight.'}${state}<br><span class="muted">Changes between waves.</span>`;
   }
 
-  // Level 3 is a player's chat line, "name: text"; the others are the game's announcements.
+  // Level 3 is a player's chat line, "name: text"; level 4 an upgrade, in the log only for a
+  // moment; the others are the game's announcements.
   note(level: number, text: string): void {
     if (level === 3) { this.chatSaid(text); return; }
+    if (level === 4) { this.chatLine(text, 4, 1000); return; }
     if (level >= 1) {
       const d = el('div', level === 1 ? 'good' : 'bad', this.announceEl, text);
       setTimeout(() => d.remove(), 4000);

@@ -512,6 +512,10 @@ choice, not a cheat guard.
 - North is the top of the map. The compass strip shows where the camera faces, and the minimap
   is always north up. Calls like "brute from the NW" mean the same to everyone.
 - Chat with Tab inserts where you are ("NE of the base, 40 m").
+- Every upgrade bought on a weapon, gear, turret, wall or gate is logged in the chat
+  ("ana upgraded a Cannon's fire rate to 3"), so the team sees where the gold goes. The line is
+  shown for only a second, because upgrades come in bursts and would push the talk off screen.
+  Opening the chat shows them again.
 - **Pings, like DOTA.** Alt+click (or Z, then click) marks a spot for everyone, in the world
   or on the minimap. Talking is better, but a ping is faster in a fight. The ping's meaning comes
   from what is under the cursor, so there is one gesture to learn: a creep is "danger" (always

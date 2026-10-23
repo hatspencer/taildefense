@@ -225,11 +225,15 @@ type Death struct {
 // Note is an announcement shown to everyone.
 type Note struct {
 	Text  string
-	Level uint8 // 0 info, 1 good, 2 bad, NoteChat a player talking
+	Level uint8 // 0 info, 1 good, 2 bad, NoteChat a player talking, NoteBrief an upgrade
 }
 
 // NoteChat is the level of a player's chat line, "name: text".
 const NoteChat uint8 = 3
+
+// NoteBrief is the level of a line the chat log shows only for a moment, such as who upgraded
+// what: worth seeing as it happens, not worth keeping on screen.
+const NoteBrief uint8 = 4
 
 // Ping is a spot a player marked on the map for the team: everyone sees it in the world and
 // on the minimap for a few seconds.
