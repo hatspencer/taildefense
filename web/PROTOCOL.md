@@ -38,7 +38,7 @@ everything it knows, a terrain message follows).
 ```jsonc
 {
   "t": "welcome",
-  "proto": 23,
+  "proto": 24,
   "version": "a1b2c3d",
   "you": 0,                    // your player id
   "w": 352, "h": 220,          // map size in tiles
@@ -382,7 +382,7 @@ u16  nCreeps
 u16  nTracers         shots fired this tick
   u16  x0, y0, x1, y1 q8
   u8   kind           0..6 player weapon kind (6 the crowbar: a swing, the survivor to its
-                      reach), 8 + weapon kind the same under its ultimate (drawn red and wider), 16+structKind turret shot (a missile battery's is a one-tile stub at launch; its missiles fly as 5, rocket, tracers), 32 spitter spit, 35 a hurler's bone, 33 dash (the hero's leap, start to end), 34 the Huey's door gunner
+                      reach), 8 + weapon kind the same under its ultimate (drawn red and wider), 16+structKind turret shot (a missile battery's is a one-tile stub at launch; its missiles fly as 5, rocket, tracers), 32 spitter spit, 35 a hurler's bone, 33 dash (the hero's leap, start to end), 34 the Huey's door gunner, 36 a napalm missile in flight (as 5, burning), 37 an arc web's jump from creep to creep (and from each struck creep to the one two back)
                       (x0,y0 is the Huey over the ground; it fires from the air)
 u16  nBlasts          explosions and pulses this tick
   u16  x, y q8
@@ -394,7 +394,8 @@ u16  nBlasts          explosions and pulses this tick
                       11 the church bell rung (at its rope), 12 bile bursting (a broodmother's
                       sac landing, or the broodmother splitting open), 13 the evac Huey touching
                       down on the helipad, 14 a flame vent bursting, 15 the generator's Overload
-                      (at the generator, r its reach)
+                      (at the generator, r its reach), 16 a napalm missile bursting (the
+                      ground burns a moment where it lands)
 u16  nDeaths          creeps that died this tick
   u16  x, y q8
   u8   kind
