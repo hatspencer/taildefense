@@ -3,7 +3,7 @@ import {
   cameraPosition, clamp, cross, float, instancedDynamicBufferAttribute, length, mix, normalize, positionGeometry,
   abs, exp, mrt, normalView, output, vec4, pow, sin, smoothstep, step, time, uniform, uv, vec3,
 } from 'three/tsl';
-import { BlastKind, EffectKind, LOB_WINDUP, TRACER_HELI, TRACER_SHARD, TRACER_ULT, Tile } from '../protocol';
+import { BlastKind, EffectKind, LOB_WINDUP, TRACER_ARC, TRACER_HELI, TRACER_NAPALM, TRACER_SHARD, TRACER_ULT, Tile } from '../protocol';
 import type { Game } from '../state';
 import { K_ARMORY, K_CORE, K_MISSILE, K_SNIPER, K_TESLA } from './structs';
 import { linInto, writeMatrix } from './util';
@@ -221,6 +221,21 @@ export class Effects {
         this.glow.add(t + 0.2 + dist * 0.01, x1, 0.8, y1, 0, 0.6, 0, 0.25, 0xc8b898, 0.35, 0.15);
         continue;
       }
+      if (k === TRACER_NAPALM) {
+        // A napalm missile: a burning streak, not a white one, shedding burning drops that
+        // fall away under it and a greasy black smoke behind.
+        this.streaks.add(t, x0, 1.0, y0, x1, 1.0, y1, 0.3, 0xffd070, 0.12, 0, 0, 1, 1, 1.6);
+        this.streaks.add(t, x0, 1.0, y0, x1, 1.0, y1, 0.5, 0xff4a10, 0.34, 0, 0, 1, 1, 0.8);
+        this.glow.add(t, x1, 1.0, y1, 0, 0, 0, 0.08, 0xffe0a0, 0.45, 0.3, 0, 1, 1, 1.4);
+        for (let j = 0; j < 2; j++) {
+          const u = Math.random();
+          this.glow.add(t + u * 0.05, x0 + (x1 - x0) * u, 0.95, y0 + (y1 - y0) * u, (Math.random() - 0.5) * 1.2, 0.4 + Math.random(), (Math.random() - 0.5) * 1.2,
+            0.35 + Math.random() * 0.25, j ? 0xff7a1a : 0xffc040, 0.2, 0.04, 9);
+        }
+        this.smoke.add(t + 0.04, x0, 1.0, y0, (Math.random() - 0.5) * 0.4, 0.5, (Math.random() - 0.5) * 0.4, 1.1, 0x2a2420, 0.3, 0.9, 0, 1, 0.55);
+        continue;
+      }
+      if (k === TRACER_ARC) { this.arcWeb(t, x0, 0.6, y0, x1, 0.6, y1); continue; }
       if (k >= 32) {
         this.streaks.add(t, x0, 0.8, y0, x1, 0.9, y1, 0.35, 0x8cff3a, 0.2, 0, 0, 0.25, 1, 1.2);
         this.glow.add(t + 0.3, x1, 0.9, y1, 0, 0.5, 0, 0.25, 0x8cff3a, 0.6, 0.2);
@@ -356,6 +371,26 @@ export class Effects {
     this.glow.add(t, x1, y1, z1, 0, 0, 0, 0.15, 0xc8a0ff, 0.9, 0.3);
   }
 
+  // An arc web's jump: a heavier violet bolt than a coil's that crackles, a thin second bolt a
+  // beat later on a new path, and a spark on what it reached; the crossing jumps make the web.
+  private arcWeb(t: number, x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): void {
+    const n = 6;
+    for (let k = 0; k < 2; k++) {
+      const tk = t + k * 0.07;
+      let px = x0, py = y0, pz = z0;
+      for (let s = 1; s <= n; s++) {
+        const u = s / n;
+        const j = s === n ? 0 : 0.6;
+        const nx = x0 + (x1 - x0) * u + (Math.random() - 0.5) * j, ny = y0 + (y1 - y0) * u + Math.random() * j * 0.5, nz = z0 + (z1 - z0) * u + (Math.random() - 0.5) * j;
+        this.streaks.add(tk, px, py, pz, nx, ny, nz, 0.28, 0xf4e8ff, 0.08, 0, 0, 1.3, 1, 1.8);
+        if (k === 0) this.streaks.add(tk, px, py, pz, nx, ny, nz, 0.28, 0xa040ff, 0.3, 0, 0, 1.3, 1, 0.7);
+        px = nx; py = ny; pz = nz;
+      }
+    }
+    this.glow.add(t, x1, y1, z1, 0, 0, 0, 0.25, 0xc070ff, 1.2, 0.3);
+    for (let j = 0; j < 3; j++) this.glow.add(t, x1, y1, z1, (Math.random() - 0.5) * 5, Math.random() * 3, (Math.random() - 0.5) * 5, 0.25, 0xffffff, 0.1, 0.02, 10);
+  }
+
   private blast(t: number, x: number, y: number, r: number, kind: number): void {
     switch (kind) {
       case BlastKind.Frost:
@@ -442,6 +477,30 @@ export class Effects {
             0.4 + Math.random() * 0.3, j % 3 ? 0xff7a1a : 0xffd060, 0.3, 0.06, -2);
         }
         for (let j = 0; j < 4; j++) this.smoke.add(t + 0.2 + Math.random() * 0.2, x, 1.2, y, 0, 0.8, 0, 1.4, 0x3a2a20, 0.5, 1.6, 0, 1, 0.4);
+        return;
+      }
+      case BlastKind.Napalm: {
+        // A napalm missile bursting: a sticky orange fireball, burning gobs thrown out to land
+        // round it, a scorch, and the ground there burning on for a few seconds, flames
+        // licking up here and there under a column of black smoke.
+        this.flashLight(x, 1.2, y, 14);
+        this.spheres.add(t, x, 0.3, y, 0, 0, 0, 0.5, 0xff5a10, r * 0.3, r * 1.1, 0, 0.7, 1, 1.1);
+        this.spheres.add(t, x, 0.4, y, 0, 0, 0, 0.3, 0xffd060, r * 0.2, r * 0.6, 0, 0.9, 1, 0.9);
+        this.rings.add(t, x, 0.12, y, 0, 0, 0, 0.5, 0xff7a1a, r * 0.3, r * 1.3, 0, 1, 1, 1.1);
+        for (let j = 0; j < 16; j++) {
+          const a = Math.random() * 6.28, s = r * (0.8 + Math.random() * 1.4);
+          this.glow.add(t, x, 0.5, y, Math.cos(a) * s, 3 + Math.random() * 3, Math.sin(a) * s, 0.55 + Math.random() * 0.2, j % 3 ? 0xff7a1a : 0xffd060, 0.3, 0.12, 14);
+        }
+        this.decals.add(t, x, 0.066, y, 0, 0, 0, 10, 0x1a120c, r * 0.9, r * 1.1, 0, 1, 0.8);
+        for (let j = 0; j < 60; j++) {
+          const a = Math.random() * 6.28, s = Math.sqrt(Math.random()) * r * 1.1;
+          this.glow.add(t + 0.2 + Math.random() * 2.8, x + Math.cos(a) * s, 0.15, y + Math.sin(a) * s, (Math.random() - 0.5) * 0.4, 1.2 + Math.random() * 1.6, (Math.random() - 0.5) * 0.4,
+            0.45 + Math.random() * 0.35, j % 3 ? 0xff6a10 : 0xffc040, 0.5, 0.08, -2, 1, 1, 1.2);
+        }
+        for (let j = 0; j < 7; j++) {
+          this.smoke.add(t + 0.15 + j * 0.35, x + (Math.random() - 0.5) * r, 0.8, y + (Math.random() - 0.5) * r, (Math.random() - 0.5) * 0.4, 1.3, (Math.random() - 0.5) * 0.4,
+            2 + Math.random(), 0x221c18, r * 0.4, r * 1.4, 0, 1, 0.55);
+        }
         return;
       }
       case BlastKind.Bell: {
