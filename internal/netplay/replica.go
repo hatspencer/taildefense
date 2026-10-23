@@ -372,7 +372,9 @@ func (r *Replica) Apply(p []byte) error {
 			r.Seen = append(r.Seen, uint64(d.u32())|uint64(d.u32())<<32)
 		}
 	} else if nf := int(d.uv()); nf > 0 {
-		if r.Seen == nil {
+		// Empty, not just nil: a keyframe by day leaves it empty, and the host can turn night
+		// on mid-game by changing the difficulty.
+		if len(r.Seen) == 0 {
 			r.Seen = make(game.Seen, (r.W*r.H+63)/64)
 		}
 		i := 0

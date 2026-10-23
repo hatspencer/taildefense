@@ -19,6 +19,8 @@ export class FogOfWar {
   private shown = new Float32Array(0);
   private seen = new Float32Array(0);
   private vision: Game['vision'] = null;
+  // Textures swapped out, disposed once they have gone unused for a few frames.
+  private retired: { tex: THREE.DataTexture; frames: number }[] = [];
   // Fog and rain close in round your survivor: past about their sight the world fades into
   // the fog colour, by uHaze at most. Every difficulty, fog of war or not.
   private uHaze = uniform(0);
@@ -49,6 +51,11 @@ export class FogOfWar {
   // a rendered frame. tx, tz: the view target, where the haze centres with no survivor of yours up.
   update(game: Game, dt: number, tx: number, tz: number): void {
     this.haze(game, dt, tx, tz);
+    for (let i = this.retired.length - 1; i >= 0; i--) {
+      if (--this.retired[i].frames > 0) continue;
+      this.retired[i].tex.dispose();
+      this.retired.splice(i, 1);
+    }
     const v = game.vision;
     if (v !== this.vision) {
       this.vision = v;
@@ -56,12 +63,19 @@ export class FogOfWar {
       this.uMem.value = game.lightOnly() ? 0 : game.welcome?.dark ? 0.16 : 0.4;
       this.uNever.value = game.welcome?.dark ? 0 : 0.07;
       if (v) {
-        this.tex.dispose();
-        this.tex = new THREE.DataTexture(new Uint8Array(v.w * v.h * 4), v.w, v.h, THREE.RGBAFormat);
-        this.tex.magFilter = THREE.LinearFilter; this.tex.minFilter = THREE.LinearFilter;
-        this.tex.wrapS = this.tex.wrapT = THREE.ClampToEdgeWrapping;
-        this.node.value = this.tex;
-        this.uSize.value.set(v.w, v.h);
+        // A new sight (the host changed the difficulty) on the same map keeps the texture and
+        // rewrites it. One of another size takes a new one, and the old is disposed only once
+        // frames have been drawn without it: the fog node still has it bound until the next
+        // render, and WebGPU fails every submit that uses a destroyed texture.
+        const img = this.tex.image as { width: number; height: number };
+        if (img.width !== v.w || img.height !== v.h) {
+          this.retired.push({ tex: this.tex, frames: 30 });
+          this.tex = new THREE.DataTexture(new Uint8Array(v.w * v.h * 4), v.w, v.h, THREE.RGBAFormat);
+          this.tex.magFilter = THREE.LinearFilter; this.tex.minFilter = THREE.LinearFilter;
+          this.tex.wrapS = this.tex.wrapT = THREE.ClampToEdgeWrapping;
+          this.node.value = this.tex;
+          this.uSize.value.set(v.w, v.h);
+        }
         this.shown = new Float32Array(v.w * v.h);
         this.seen = new Float32Array(v.w * v.h);
         // The first look is instant: no fade in from black on joining.

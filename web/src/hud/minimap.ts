@@ -222,7 +222,7 @@ export class Minimap {
     c.closePath(); c.stroke();
     // The map is always north up.
     const W = this.canvas.width, Hh = this.canvas.height, m = 8 * dpr;
-    c.font = `${Math.round(14 * dpr)}px VT323, monospace`; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.font = `${Math.round(16 * dpr)}px VT323, monospace`; c.textAlign = 'center'; c.textBaseline = 'middle';
     c.lineWidth = 3 * dpr; c.strokeStyle = 'rgba(0,0,0,0.85)';
     for (const [t, x, y] of [['N', W / 2, m], ['S', W / 2, Hh - m], ['W', m, Hh / 2], ['E', W - m, Hh / 2]] as [string, number, number][]) {
       c.strokeText(t, x, y);

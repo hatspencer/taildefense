@@ -517,7 +517,7 @@ export class Hud {
       const nums = r.nums.map((n) => `<div class="n${n.bad ? ' bad' : ''}"><b>${fmtGold(n.v)}</b><span>${n.label}</span></div>`).join('');
       const kit = r.chips.map((c) => `<span class="pchip${c.held ? ' held' : ''}${c.ab ? ' ab' : ''}" title="${esc(c.title)}">${esc(c.text)}${c.lv ? `<b>${esc(c.lv)}</b>` : ''}</span>`).join('');
       return `<div class="pcard${r.away ? ' away' : ''}">
-        <div class="who"><span class="dot" style="background:${r.color}"></span><span class="name">${esc(p.name)}</span>${you} <span class="muted">${esc(r.arch)}</span>${st}<span class="gold">${fmtGold(p.gold)}g</span></div>
+        <div class="who"><span class="dot" style="background:${r.color}"></span><span class="name">${esc(p.name)}</span>${you} <span class="muted">${esc(r.arch)}</span>${st}<span class="gold" title="gold to spend"><span class="lbl">gold</span>${fmtGold(p.gold)}g</span></div>
         <div class="nums">${nums}</div>
         <div class="kit">${kit}</div>
       </div>`;
@@ -527,7 +527,10 @@ export class Hud {
 
   private renderScore(): void {
     const f = this.ctl.game.cur;
-    this.score.innerHTML = `<h2><span class="tape">Scoreboard</span><span class="muted">wave ${f.wave} · ${fmtGold(f.totalKills)} kills</span></h2>${this.scoreTable()}`;
+    // The team's gold, what everyone still in the game has to spend between them.
+    let gold = 0;
+    for (let i = 0; i < f.nPlayers; i++) if (f.players[i].flags & PF_CONNECTED) gold += f.players[i].gold;
+    this.score.innerHTML = `<h2><span class="tape">Scoreboard</span><span class="muted">wave ${f.wave} · ${fmtGold(f.totalKills)} kills · team gold <span class="gold">${fmtGold(gold)}g</span></span></h2>${this.scoreTable()}`;
   }
 
   // --- per frame ---
