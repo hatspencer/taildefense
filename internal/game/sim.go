@@ -1316,15 +1316,28 @@ func (w *World) salvo(s *Structure, first int32, rng float32, st TurretStat, bur
 }
 
 // chain arcs from a tesla coil to its target and on to the nearest creep not yet struck,
-// losing some damage at every jump, each jump at most hop tiles.
+// losing some damage at every jump, each jump at most hop tiles. An arc web's jumps are drawn
+// as its own, and each struck creep is linked to the one two back too, so the strike reads as
+// a web rather than a line.
 func (w *World) chain(s *Structure, first int32, dmg float32, jumps int, hop float32) {
 	var struck [16]uint16
+	var at [16][2]float32
 	n := 0
 	x, y := s.CX(), s.CY()
+	web := s.Evo == 2
 	cur := first
 	for j := 0; j <= jumps && cur >= 0 && n < len(struck); j++ {
 		c := &w.Creeps[cur]
-		w.tracer(x, y, c.X, c.Y, TracerTurret+uint8(STurretTesla))
+		switch {
+		case j == 0 || !web:
+			w.tracer(x, y, c.X, c.Y, TracerTurret+uint8(STurretTesla))
+		default:
+			w.tracer(x, y, c.X, c.Y, TracerArc)
+			if n >= 2 {
+				w.tracer(at[n-2][0], at[n-2][1], c.X, c.Y, TracerArc)
+			}
+		}
+		at[n] = [2]float32{c.X, c.Y}
 		w.damage(cur, dmg, s.Owner)
 		struck[n] = c.ID
 		n++
@@ -1379,6 +1392,7 @@ func (w *World) stepRockets() {
 			w.turretFire = r.Turret
 			w.explode(r.X, r.Y, r.Blast, r.Damage, r.Owner, 0)
 			if r.Burn > 0 {
+				w.Blasts = append(w.Blasts, Blast{r.X, r.Y, r.Blast, BlastNapalm})
 				w.grid.each(r.X, r.Y, r.Blast, func(i int32) bool {
 					if c := &w.Creeps[i]; (c.X-r.X)*(c.X-r.X)+(c.Y-r.Y)*(c.Y-r.Y) <= r.Blast*r.Blast {
 						w.ignite(i, r.Burn)
@@ -1395,6 +1409,9 @@ func (w *World) stepRockets() {
 		kind := uint8(WLauncher)
 		if r.Cluster > 0 {
 			kind += TracerUlt
+		}
+		if r.Burn > 0 {
+			kind = TracerNapalm
 		}
 		w.tracer(r.X-r.VX*Dt, r.Y-r.VY*Dt, r.X, r.Y, kind)
 		live = append(live, r)

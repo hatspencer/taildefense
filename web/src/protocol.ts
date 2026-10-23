@@ -35,7 +35,7 @@ export const AX_ARMOURED = 1, AX_HASTY = 2, AX_SAPPERS = 4, AX_SPLITTERS = 8;
 export const COMPASS = ['east', 'southeast', 'south', 'southwest', 'west', 'northwest', 'north', 'northeast'];
 
 export const enum Order { Idle = 0, Move, AMove, Attack, Hold, Build, Repair, Loot, Revive, Steer, Pickup, Board, Gate }
-export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake, Bell, Bile, Landed, Flame, Overload }
+export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake, Bell, Bile, Landed, Flame, Overload, Napalm }
 export const enum Weather { Clear = 0, Fog, Rain, Storm, Snow, Drizzle, Thunder, HeavySnow }
 // How much each weather counts as rain (internal/game/weather.go wetness).
 export const WET = [0, 0, 1, 1, 0, 0.3, 0.5, 0];
@@ -78,8 +78,9 @@ export const OWNED_DUAL = 128;
 export function canTake(owned: number, k: number): boolean {
   return !(owned & (1 << k)) || (k === 0 && !(owned & OWNED_DUAL));
 }
-// The door gunner's shots, from the Huey in the air.
-export const TRACER_HELI = 34, TRACER_SHARD = 35;
+// The door gunner's shots, from the Huey in the air; a hurler's bone; a napalm missile in
+// flight; an arc web's jump from creep to creep.
+export const TRACER_HELI = 34, TRACER_SHARD = 35, TRACER_NAPALM = 36, TRACER_ARC = 37;
 // Added to a weapon's tracer kind for a shot fired under its ultimate.
 export const TRACER_ULT = 8;
 

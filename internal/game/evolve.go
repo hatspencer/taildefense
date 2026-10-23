@@ -43,8 +43,11 @@ var tierBase = [MaxTier - 1]int32{600, 1600}
 // TierNames name the generator's tiers.
 var TierNames = [MaxTier + 1]string{"", "I", "II", "III"}
 
-// BlastOverload is the generator's Overload going off.
-const BlastOverload = 15
+// BlastOverload is the generator's Overload going off, BlastNapalm a napalm missile bursting.
+const (
+	BlastOverload = 15
+	BlastNapalm   = 16
+)
 
 // TierCost is the gold the next tier takes in all, more with every player who is playing;
 // 0 at the top.

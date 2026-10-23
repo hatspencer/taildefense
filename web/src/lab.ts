@@ -1,5 +1,5 @@
 import {
-  OWNED_DUAL, THROW_FLIGHT, CF_ASLEEP, CF_BURNING, CF_GUARD, CF_STRIKE, CF_WINDUP, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_FIRING, PF_HURT, PF_MOVING, PF_RELOADING, Player,
+  BlastKind, K_TESLA, OWNED_DUAL, THROW_FLIGHT, TRACER_ARC, TRACER_NAPALM, CF_ASLEEP, CF_BURNING, CF_GUARD, CF_STRIKE, CF_WINDUP, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_FIRING, PF_HURT, PF_MOVING, PF_RELOADING, Player,
 } from './protocol';
 import type { Game } from './state';
 
@@ -8,8 +8,9 @@ import type { Game } from './state';
 // showing a pose: walking a circle while aiming one way (so strafing and backpedalling show),
 // sprinting, kneeling to search and to revive, reloading, taunting and down, firing dual
 // pistols, and caught and thrown by a mauler, each at its own health so the HUD's portraits
-// show every state. It takes the demo's world over after its
-// first frame and stops it, then poses everything itself.
+// show every state. Past them, the turret evolutions' shots ('fx'): a napalm missile flying
+// and bursting, and an arc web striking a knot of points. It takes the demo's world over after
+// its first frame and stops it, then poses everything itself.
 
 const COLS = ['walk', 'idle', 'attack', 'hit', 'burn', 'sleep', 'die'] as const;
 const DX = 3.2, DY = 3.6;
@@ -28,20 +29,27 @@ export class Lab {
     this.y0 = cy + 9;
   }
 
-  // Where to look: the whole bench, or one creep row (0..7), or the survivors ('h'), or one
-  // of them ('h0'..'h7').
+  // Where to look: the whole bench, or one creep row (0..10), or the survivors ('h'), or one
+  // of them ('h0'..'h9'), or the turret shots ('fx').
   center(at = ''): [number, number] {
+    if (at === 'fx') return [this.fx() + 4.5, this.y0 + 2.5];
     if (/^h\d$/.test(at)) { const i = Number(at[1]); return [this.x0 + COLS.length * DX + 2.5 + (i % 2) * 3.4, this.y0 + Math.floor(i / 2) * DY]; }
     if (at === 'h') return [this.x0 + COLS.length * DX + 4.2, this.y0 + 1.5 * DY];
     if (at !== '') return [this.x0 + 3 * DX, this.y0 + Number(at) * DY];
     return [this.x0 + 3 * DX + 3, this.y0 + 2.5 * DY];
   }
 
-  step(now: number): void {
+  // The left edge of the turret shots, past the survivors.
+  private fx(): number { return this.x0 + COLS.length * DX + 11; }
+
+  // Poses everything for this moment, and reports whether a new frame came with it: its
+  // tracers and blasts are the turret shots, for the effects to spawn.
+  step(now: number): boolean {
     const g = this.game, f = g.cur, wd = g.welcome!;
     const t = (now - this.t0) / 1000;
     // A new frame 20 times a second, for what keys off frames (the dead).
-    if (now - this.last >= 50) { this.last = now; g.frames++; this.tick++; }
+    let fresh = false;
+    if (now - this.last >= 50) { this.last = now; g.frames++; this.tick++; fresh = true; }
     const kinds = wd.creeps.length;
     let n = 0;
     for (let k = 0; k < kinds; k++) {
@@ -125,6 +133,35 @@ export class Lab {
       }
       g.prx[i] = x; g.pry[i] = y; g.paim[i] = aim;
       p.x = x; p.y = y; p.aim = aim;
+    }
+    if (fresh) this.shots();
+    return fresh;
+  }
+
+  // The turret evolutions' shots for one frame: a napalm missile 18 tiles a second over nine
+  // tiles, bursting at the end, every 1.4 s; and every 1.2 s a tesla coil's arc web through
+  // six points, each jump linked to the point two back.
+  private shots(): void {
+    const f = this.game.cur, x = this.fx(), y = this.y0;
+    const tracer = (x0: number, y0: number, x1: number, y1: number, k: number) => {
+      const i = f.nTracers++;
+      f.tX0[i] = x0; f.tY0[i] = y0; f.tX1[i] = x1; f.tY1[i] = y1; f.tKind[i] = k;
+    };
+    const blast = (bx: number, by: number, r: number, k: number) => {
+      const i = f.nBlasts++;
+      f.bX[i] = bx; f.bY[i] = by; f.bR[i] = r; f.bKind[i] = k;
+    };
+    const m = this.tick % 28, step = 0.9;
+    if (m < 10) tracer(x + m * step, y, x + (m + 1) * step, y, TRACER_NAPALM);
+    else if (m === 10) { blast(x + 9, y, 1.5, BlastKind.Explosion); blast(x + 9, y, 1.5, BlastKind.Napalm); }
+    if (this.tick % 24 === 0) {
+      const pts = [[2, 4], [4.5, 3.5], [3.5, 6], [6.5, 5], [5.5, 7.5], [8.5, 6.5]].map(([dx, dy]) => [x + dx, y + dy]);
+      tracer(x, y + 5, pts[0][0], pts[0][1], 16 + K_TESLA);
+      for (let k = 1; k < pts.length; k++) {
+        tracer(pts[k - 1][0], pts[k - 1][1], pts[k][0], pts[k][1], TRACER_ARC);
+        if (k >= 2) tracer(pts[k - 2][0], pts[k - 2][1], pts[k][0], pts[k][1], TRACER_ARC);
+      }
+      blast(pts[pts.length - 1][0], pts[pts.length - 1][1], 0.8, BlastKind.Tesla);
     }
   }
 }
