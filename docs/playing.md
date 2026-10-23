@@ -62,7 +62,8 @@ Walls (1) and gates (2) keep placing after each one goes down, so a line goes do
 click; Esc stops. A turret places once, unless you hold Shift.
 
 A destroyed building leaves a pale ghost where it stood. Between waves, H (or Rebuild on the top
-bar) shows what it costs to rebuild every ghost and repair everything damaged; H again pays it.
+bar, or Rebuild all on the card with nothing selected, both showing the price) shows what it
+costs to rebuild every ghost and repair everything damaged; H again pays it.
 Rebuilt buildings come back at their first level, owned by whoever built them. Building on a
 ghost clears it, and when the gold runs short the rest waits.
 
