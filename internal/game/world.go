@@ -190,13 +190,16 @@ func (p *Player) Speed() float32 { return 6 * (1 + .08*float32(p.Gear[GearBoots]
 // Tracer is a visible shot for one frame.
 type Tracer struct {
 	X0, Y0, X1, Y1 float32
-	Kind           uint8 // 0..NumWeapons-1 player weapons, 8+ the same under an ultimate (TracerUlt), 16+ turret kinds, 32 spit
+	Kind           uint8 // 0..NumWeapons-1 player weapons, 8+ the same under an ultimate (TracerUlt), 16+ turret kinds, 32+ the rest below
 }
 
-// TracerSpit marks a spitter's shot, TracerShard a hurler's.
+// TracerSpit marks a spitter's shot, TracerShard a hurler's, TracerNapalm a napalm missile
+// in flight and TracerArc an arc web's jump from creep to creep.
 const (
-	TracerSpit  = 32
-	TracerShard = 35
+	TracerSpit   = 32
+	TracerShard  = 35
+	TracerNapalm = 36
+	TracerArc    = 37
 )
 
 // TracerTurret is added to a turret StructKind.

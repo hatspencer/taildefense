@@ -327,7 +327,9 @@ async function main(): Promise<void> {
         rig.follow = false; rig.center(lx, ly); rig.setDist(Number(P.get('dist')) || 26);
         if (P.has('yaw')) rig.setYaw(Number(P.get('yaw')) * Math.PI / 180);
       }
-      if (lab) lab.step(now); else game.interpolate(now);
+      if (lab) {
+        if (lab.step(now)) effects.onFrame(game, turretHeight, (x0, y0, x1, y1) => structs.onShot(game, x0, y0, x1, y1, now));
+      } else game.interpolate(now);
       const me = game.me();
       if (me && (me.flags & PF_ALIVE) && !lab) rig.track(game.prx[me.id], game.pry[me.id]);
       // Aboard the evac Huey, and for everyone as it lifts off, the camera rides with it, panned
