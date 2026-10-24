@@ -23,6 +23,8 @@ camera-controls, esbuild). `web/PROTOCOL.md` is the contract between `td` and th
 `#demo&webgl` forces the WebGL 2 path, `#demo&creeps=8000` stresses it, and `#demo&evac` plays
 the end: the evac Huey flying in to the helipad, boarding (E), lift-off and the field report.
 The demo plays sound at 70 after the first click; `#demo&vol=0` silences it, `#demo&vol=40` sets it.
+`#demo&firstrun` opens the first steps (a real game shows them once per machine), `#demo&phase=over`
+the field report, and `#demo&help`, `#demo&menu` and `#demo&score` the windows.
 The demo and the lab are a bundle of their own, `demo.js`, which the page fetches only for `#demo` and `#lab`.
 F3's `sound` line shows the voices playing and the most at once, the sounds dropped and taken
 over since the last frame, the output's peak in dBFS and the compressor's pull in dB. The demo
