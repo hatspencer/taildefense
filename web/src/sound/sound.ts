@@ -491,6 +491,7 @@ export class Sound {
         case EffectKind.Slam: at('groan3', x0, y0, 1, 1.8); break;
         case EffectKind.Bile: at('retch', x0, y0, 0.8, 1.6); break;
         case EffectKind.Acid: at('sizzle', x, y, 0.5); break;
+        case EffectKind.Spit: if (this.once('spit', 0.08)) at('spit', x0, y0, LOUD.spit); break;
       }
     }
     for (const [key, e] of this.effects) {
@@ -499,6 +500,7 @@ export class Sound {
       const p = (loud: number, reach = 1.6) => this.place(e.x, e.y, loud, reach);
       if (e.kind === EffectKind.Slam) { const q = p(1.1, 2); if (q) this.synth.play('slam', q, t0); }
       if (e.kind === EffectKind.Drop) { const q = p(0.9); if (q) this.synth.play('crateLand', q, t0); }
+      if (e.kind === EffectKind.Spit && this.once('splat', 0.1)) { const q = p(0.3, 1); if (q) this.synth.play('boneLand', q, t0, 1.6); }
     }
   }
 

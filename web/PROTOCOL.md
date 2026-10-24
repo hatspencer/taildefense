@@ -407,7 +407,9 @@ u16  nEffects         lasting effects, the full current list every frame
                       all but the last 3 s); the crate lands at x,y when it ends, 5 a brute's or an
                       abomination's slam coming down on everything within r of x,y when it ends,
                       6 a broodmother's sac of bile: she rears back at x0,y0 for its first 0.7 s,
-                      then it arcs to x,y and bursts within r when it ends, 7 a pool of acid
+                      then it arcs to x,y and bursts within r when it ends, 7 a pool of acid,
+                      8 a spitter's glob flying from x0,y0 to where its mark stood, x,y; it
+                      splashes within r there when it ends
   u16  x0, y0, x, y q8
   u8   r              radius * 8
   u8   left           deciseconds left

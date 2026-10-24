@@ -360,6 +360,10 @@ func (w *World) stepEffects() {
 			}
 		case EffAcid:
 			w.stepAcid(&e)
+		case EffSpit:
+			if e.Left <= 0 {
+				w.spitLands(&e)
+			}
 		case EffAirstrike:
 			if e.Left <= 0 {
 				w.explode(e.X, e.Y, e.R, e.Damage, e.Owner, 4)

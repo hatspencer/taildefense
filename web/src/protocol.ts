@@ -65,8 +65,9 @@ export function lootable(k: number): boolean { return k !== SiteKind.Pump && k !
 // Drop: a Huey flying in from (x0, y0); its crate lands on (x, y) when left runs out.
 // Slam: a warlord's fists coming down on everything within r of (x, y) when left runs out.
 // Bile: a broodmother's sac, rearing back from (x0, y0) for LOB_WINDUP seconds, then in the
-// air; it bursts within r of (x, y) when left runs out. Acid: the pool it leaves.
-export const enum EffectKind { Grenade = 1, Napalm = 2, AirTarget = 3, Drop = 4, Slam = 5, Bile = 6, Acid = 7 }
+// air; it bursts within r of (x, y) when left runs out. Acid: the pool it leaves. Spit: a
+// spitter's glob flying from (x0, y0) to where its mark stood, (x, y), splashing within r there.
+export const enum EffectKind { Grenade = 1, Napalm = 2, AirTarget = 3, Drop = 4, Slam = 5, Bile = 6, Acid = 7, Spit = 8 }
 export const LOB_WINDUP = 0.7;
 // Seconds a survivor a mauler or a goliath threw is in the air (internal/game/grab.go).
 export const THROW_FLIGHT = 0.7;

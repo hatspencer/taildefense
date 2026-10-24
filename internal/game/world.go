@@ -230,6 +230,7 @@ const (
 	EffSlam                            // a brute's or an abomination's slam coming: it lands on everything within R when Left runs out
 	EffBile                            // a broodmother's sac, from X0, Y0: rearing for lobWindup, then in the air; it bursts on X, Y within R when Left runs out
 	EffAcid                            // a pool of acid where a sac burst, eating at survivors and structures
+	EffSpit                            // a spitter's glob in flight from X0, Y0 to where its mark stood, X, Y; it splashes within R when Left runs out
 )
 
 // Effect is something that lasts more than a tick: a grenade in the air, a pool of napalm.

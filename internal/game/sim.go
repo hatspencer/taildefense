@@ -479,6 +479,10 @@ func (w *World) stepCreeps() {
 			// A spitter needs a clear line, the same one a survivor's shot needs back.
 			if d.Ranged && dist <= reach && w.clearShot(c.X, c.Y, tp.X, tp.Y) {
 				if c.swing(d, tp.X, tp.Y) {
+					if c.Kind == CSpitter {
+						w.spit(c, d, tp)
+						continue
+					}
 					w.hurtPlayer(tp, d.Damage)
 					tp.slow(playerSlow[c.Kind])
 					kind := uint8(TracerSpit)
