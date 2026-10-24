@@ -578,6 +578,50 @@ canvas, .hud img, .hud svg { image-rendering: pixelated; }
   .wslot { width: 36px; }
   .abilities { gap: 5px; }
 }
+/* ---------- bigger screens: the in-game HUD grows with the view ---------- */
+
+@media (min-width: 1700px) and (min-height: 940px) {
+  :root { --bottom-h: 226px; --mm-w: 246px; --hero-w: 290px; --card-w: 480px; --slot: 66px; }
+  .top { height: 44px; }
+  .top .wave { height: 30px; font-size: 24px; }
+  .top .wave .affix { font-size: 20px; }
+  .top .chip { height: 30px; font-size: 17px; }
+  .top .chip.base .bbar { width: 120px; height: 12px; }
+  .top .chip.base .num { font-size: 21px; }
+  .top button { height: 32px; font-size: 17px; }
+  .top .kills { font-size: 18px; }
+  .compass { top: 52px; width: 340px; height: 30px; }
+  .status { top: 52px; }
+  .team { top: 74px; }
+  .mate { width: 230px; }
+  .mate .av { width: 42px; height: 42px; }
+  .mate .nm { font-size: 15px; }
+  .portrait { width: 84px; height: 84px; }
+  .hero .name { font-size: 19px; }
+  .hero .goldline { font-size: 20px; }
+  .bar { height: 18px; }
+  .bar .txt { font-size: 14px; line-height: 14px; }
+  .bar.stamina { height: 11px; }
+  .hero .gun .wname { font-size: 18px; }
+  .hero .gun .ammo { font-size: 26px; height: 28px; }
+  .hero .gun button.reload { height: 28px; font-size: 15px; }
+  .hero .order { font-size: 16px; }
+  .slot .key { font-size: 13px; }
+  .slot .cooltxt { font-size: 23px; }
+  .weapons { gap: 6px; }
+  .wslot { width: 60px; height: 42px; font-size: 16px; }
+  .wslot .key { font-size: 18px; }
+  .card .sub { font-size: 17px; }
+  .card .btns button { font-size: 18px; }
+  .card .grid button { font-size: 17px; }
+  .card .grid.build button .n { font-size: 17px; }
+  .card .grid.build button .pk .p { font-size: 21px; }
+  .card .grid.tracks .v { font-size: 16px; }
+  .card .hint { font-size: 16px; }
+  .chat { font-size: 19px; }
+  .announce div { font-size: 30px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   body.cine::before, body.cine::after, .over .stamp, .cover .spin, .top .chip.base.low, .wslot.reloading::after { animation: none; }
   /* The in-game warnings hold still: the hatching, words and edge still say them. */

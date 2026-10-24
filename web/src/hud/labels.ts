@@ -310,7 +310,7 @@ export class Labels {
       } else {
         // The edge arrow: on the line from the screen centre towards the spot.
         // It keeps inside the play area, clear of the top bar and the console.
-        const x0 = 28, x1 = this.w - 28, y0 = 84, y1 = this.h - 210;
+        const x0 = 28, x1 = this.w - 28, y0 = 84, y1 = this.h - consoleH() - 14;
         const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
         const dx = (nx + 1) / 2 * this.w - cx, dy = (1 - ny) / 2 * this.h - cy;
         const k = 1 / Math.max(Math.abs(dx) / ((x1 - x0) / 2), Math.abs(dy) / ((y1 - y0) / 2), 1e-6);
@@ -340,4 +340,15 @@ export class Labels {
     c.fillStyle = flash ? col : '#ffffff';
     for (let yy = 0; yy < n; yy++) for (let xx = 0; xx < n; xx++) if (g[yy][xx] === '#') c.fillRect(bx + 3 + xx * px, top + 3 + yy * px, px, px);
   }
+}
+
+// The bottom console's height, which the stylesheet sets by the size of the screen.
+let consoleAt = 0, consoleVal = 196;
+function consoleH(): number {
+  const now = performance.now();
+  if (now - consoleAt > 1000) {
+    consoleAt = now;
+    consoleVal = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--bottom-h')) || 196;
+  }
+  return consoleVal;
 }
