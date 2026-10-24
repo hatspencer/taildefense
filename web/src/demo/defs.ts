@@ -74,11 +74,11 @@ const up = (price: number) => [0, 1, 2, 3, 4].map((l) => Math.round(price * 0.8 
 export interface TurretBase { dmg: number; rate: number; range: number; blast: number; slow: number; chains: number; pierce: number; salvo: number }
 export const TURRET_BASE: Record<number, TurretBase> = {
   5: { dmg: 11, rate: 4, range: 9, blast: 0, slow: 0, chains: 0, pierce: 0, salvo: 0 },
-  6: { dmg: 60, rate: 0.7, range: 11, blast: 2.2, slow: 0, chains: 0, pierce: 0, salvo: 0 },
+  6: { dmg: 60, rate: 0.6, range: 11, blast: 2.2, slow: 0, chains: 0, pierce: 0, salvo: 0 },
   7: { dmg: 3, rate: 1, range: 6, blast: 0, slow: 1.6, chains: 0, pierce: 0, salvo: 0 },
-  8: { dmg: 32, rate: 1.2, range: 8, blast: 0, slow: 0, chains: 1, pierce: 0, salvo: 0 },
+  8: { dmg: 36, rate: 1.2, range: 8, blast: 0, slow: 0, chains: 2, pierce: 0, salvo: 0 },
   9: { dmg: 150, rate: 0.35, range: 22, blast: 0, slow: 0, chains: 0, pierce: 1, salvo: 0 },
-  10: { dmg: 45, rate: 0.5, range: 14, blast: 1.5, slow: 0, chains: 0, pierce: 0, salvo: 3 },
+  10: { dmg: 45, rate: 0.5, range: 14, blast: 2, slow: 0, chains: 0, pierce: 0, salvo: 3 },
 };
 
 // turretStats applies track levels (damage, rate, range, special) the way the host does.
@@ -86,7 +86,7 @@ export function turretStats(kind: number, lv: ArrayLike<number>): TurretBase & {
   const b = TURRET_BASE[kind], sp = lv[3];
   const s = { ...b, dmg: b.dmg * (1 + 0.3 * lv[0]), rate: b.rate * (1 + 0.15 * lv[1]), range: b.range * (1 + 0.08 * lv[2]), hop: 3.5 };
   if (kind === 5 || kind === 9) s.pierce += sp;
-  else if (kind === 6) s.blast += 0.35 * sp;
+  else if (kind === 6) s.blast += 0.3 * sp;
   else if (kind === 7) s.slow += 0.4 * sp;
   else if (kind === 8) { s.chains += 2 * sp; s.hop += 0.5 * sp; }
   else if (kind === 10) s.salvo += sp;
@@ -100,7 +100,7 @@ function turretValue(kind: number, t: number, l: number): string {
   if (t === 1) return s.rate < 1 ? `every ${(1 / s.rate).toFixed(1)}s` : `${s.rate.toFixed(1)}/s`;
   if (t === 2) return `${s.range.toFixed(1)} range`;
   if (kind === 6) return `${s.blast.toFixed(1)} blast`;
-  if (kind === 7) return `${s.slow.toFixed(1)}s slow`;
+  if (kind === 7) return `${Math.round((0.45 + 0.06 * l) * 100)}% slow`;
   if (kind === 8) return `${s.chains + 1} creeps, ${s.hop.toFixed(1)} jump`;
   if (kind === 10) return `${s.salvo} missiles`;
   return `${s.pierce} pierce`;
@@ -123,11 +123,11 @@ export const STRUCTS: StructDef[] = [
   { name: 'Wall', price: 20, hp: 320, w: 1, h: 1, range: 0, turret: false, key: '1', desc: 'Blocks creeps; they have to break through.', upgrade: up(20), upgradable: true },
   { name: 'Gate', price: 45, hp: 320, w: 1, h: 1, range: 0, turret: false, key: '2', desc: 'Players walk through, creeps break it down.', upgrade: up(45), upgradable: true },
   turret(5, { name: 'Gun turret', price: 120, hp: 220, key: '3', desc: 'Fast single shots at the nearest creep.', special: '+1 pierce' }),
-  turret(6, { name: 'Cannon', price: 240, hp: 280, key: '4', desc: 'Slow shells that burst on a crowd.', special: '+blast radius' }),
-  turret(7, { name: 'Frost tower', price: 180, hp: 220, key: '5', desc: 'Pulses cold, slowing everything around it.', special: '+slow time' }),
-  turret(8, { name: 'Tesla coil', price: 320, hp: 220, key: '6', desc: 'Lightning that jumps from creep to creep.', special: '+2 jumps, further' }),
-  turret(9, { name: 'Sniper tower', price: 380, hp: 200, key: '7', desc: 'A slow, heavy round from far off at the toughest creep it can see.', special: '+1 pierce' }),
-  turret(10, { name: 'Missile battery', price: 420, hp: 260, key: '8', desc: 'A salvo of small rockets, each at a different creep.', special: '+1 missile' }),
+  turret(6, { name: 'Cannon', price: 240, hp: 280, key: '4', desc: 'Slow, heavy shells that burst on a crowd.', special: '+blast radius' }),
+  turret(7, { name: 'Frost tower', price: 180, hp: 220, key: '5', desc: 'Pulses cold, slowing everything around it.', special: '+deeper slow' }),
+  turret(8, { name: 'Tesla coil', price: 280, hp: 220, key: '6', desc: 'Lightning that jumps from creep to creep.', special: '+2 jumps, further' }),
+  turret(9, { name: 'Sniper tower', price: 380, hp: 200, key: '7', desc: 'A slow, heavy round from far off at the toughest creep it can see, tearing out a share of its health: the boss killer.', special: '+1 pierce' }),
+  turret(10, { name: 'Missile battery', price: 420, hp: 260, key: '8', desc: 'A salvo of rockets with a wide blast, each at a different creep, coming down only near it.', special: '+1 missile' }),
 ];
 
 export const WEATHERS = [

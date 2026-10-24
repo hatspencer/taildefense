@@ -266,8 +266,9 @@ them under the guns is the team's plan, and keeping it honest is the game.
   affixes, so the team has something to argue about: the gun's Gatling (2.2× fire rate, 0.75×
   damage) against its Penetrator (ignores armour, 1.3× damage: the armoured wave's answer);
   the cannon's Mortar (1.8× range, lobs over walls) against Shrapnel (1.7× blast); the frost
-  tower's Cryo (every third pulse freezes for 0.8 s) against Blizzard (1.6× reach, longer slow);
-  the tesla's Storm conductor (up to 2× damage in rain, two more jumps) against the Arc web
+  tower's Cryo (every third pulse freezes for 0.8 s) against Blizzard (1.6× reach, longer and
+  10% deeper slow); the tesla's Storm conductor (1.2× damage, up to twice that in rain, two more
+  jumps) against the Arc web
   (four more jumps, two tiles further each); the sniper's Spotter (marks its target: +25% from
   everything for 5 s) against Anti-materiel (pierces 8 more, armour and all); the missile
   battery's Swarm (twice the missiles, 0.6× damage) against Napalm (sets what it bursts on
@@ -290,6 +291,95 @@ them under the guns is the team's plan, and keeping it honest is the game.
   damaged, after showing the total. Only between waves, so it is a decision of the break and
   not a way to refill walls under attack. Building over a ghost clears it.
 
+### Turret balance, by measurement
+
+The turrets, their evolutions, the traps and the Overload are set on the balance bench
+(`internal/game/balance_test.go`; `./build.sh go test ./internal/game -run TestBalanceTable -v
+-args -balance`, `-balance-only lane,support,...` for parts), and
+`internal/game/balance_bands_test.go` holds what came of it. The weapons have their own section.
+
+- **A blob is the wrong yardstick.** Time to clear a frozen blob of 30 creeps flatters splash
+  without limit (a level 5 cannon's 4-tile blast takes all 30 at once) and says nothing about
+  range or slows. The main measure is the lane: 60 creeps sampled from a real wave's plan walk
+  single file down a 50-tile road 3 tiles from the turret, and what counts is the share of their
+  health taken off and the hit points per 100 gold. Range is time with them, a slow is more of
+  it, splash is how bunched they come. Waves 4, 9, 19 and 29 (the normal mix), 20 (a swarm). A
+  turret that takes the whole lane says nothing about its gold, so comparisons are made where
+  nothing does.
+- **Frost is a pure slow, valued by what it adds.** Its 3 a pulse never kills anything big; its
+  worth is the hit points a partner (gun, cannon, tesla, sniper, missile at 3s) takes with it
+  beside them, against what the same gold in more of the partner would take. Tar and the
+  spotter's mark are measured the same way, the pylon among four turrets.
+- **Bosses by gold-seconds.** One creep of every kind, bosses and armoured ones too, killed by
+  one turret 6 tiles off at wave 20; a boss killer's figure is seconds times gold.
+- **The gold curve.** A solo game earns about 9 000 by wave 10, 54 000 by 20 and 190 000 by 30
+  while a wave's health grows from 70 000 to 2.6 million: gold outruns health, so late on
+  nothing is short of gold, only of value per gold and of room.
+
+What the bench found, and what changed:
+
+- **The sniper was not the boss killer.** A missile battery killed a wave 20 abomination for
+  about half the sniper's gold-seconds (198 against 408 at 3s) and a level 0 sniper never
+  killed one. Now each round also tears 1.6% of its mark's full health out of it (armour and
+  all, growing with the damage track), which means nothing to a walker and everything to a
+  boss: a level 0 sniper kills it in 128 s, at 3s in 46 s, and every sniper does it for less
+  than any other turret (117 against 150 for the next, the penetrator; 289 for missiles). It
+  is also the only turret that kills a wave 30 boss inside a minute.
+- **Missiles were accurate.** Each missile now goes for where its mark stands, up to 1.6 tiles
+  off, leading nothing, and bursts where it comes down rather than on the first creep it
+  passes; the blast is 2 tiles where it was 1.5. A crowd still eats the whole salvo; a lone or
+  a quick creep sees much of it land wide. The level 0 battery clears the wave 30 pack in 35 s
+  (never, before); its boss figure went from 198 to 289.
+- **Frost's upgrades bought nothing.** Inside its reach a creep was slowed for good whatever
+  the special said, since the next pulse came before the slow ran out, so a level 3 tower
+  added a quarter of what more gun would. The special now deepens the slow, 45% of a creep's
+  pace at level 0 to 75% at 5 (Blizzard another 10%); the deepest slow on a creep holds, so
+  frost and tar don't stack. Beside a level 3 gun at wave 29, frost 3 now adds 913 per 100 gold
+  (741 before) against the gun's own 672, Blizzard 1541 (919), Cryo 1285 (1076). A level 0
+  tower adds 2 000 to 4 000: the first slow on a lane is the best buy there is, and because a
+  second adds nothing it stays one per lane.
+- **The tesla trailed.** At level 3 it took the least per gold of the fighting turrets late
+  (629 against 794 to 1006 at wave 29). It now starts with two jumps rather than one, keeps 90%
+  of its damage at each jump (85%), costs 280 (320) and strikes for 36 (32): 899 now, and ahead
+  of the gun turret per gold on a bunched crowd. Its storm conductor, the arc web without its
+  jumps when dry, hits a fifth harder rain or not.
+- **The cannon at level 0 was the best buy of all**, 1 600 to 1 900 per 100 gold where the
+  other turrets get 700 to 1 400, so it fires every 1.7 s rather than 1.4 and its special adds
+  0.3 blast a level (0.35): 1 609 at wave 29, still the cheap crowd answer, and slow and heavy
+  as it should be. Cannon 5, missile 5 and swarm are the fastest on a blob, but in the lane per
+  gold they sit at or below the median (516, 472, 864), so they were left.
+- **Napalm and vents burned a flat 14 and 10 a second**, nothing at wave 29; they now burn by
+  their damage (35% of a missile's, a quarter of a vent's burst), and trap levels add half
+  their damage each, not a third.
+- **Mines didn't grow** and missed a wave 29 walker by half; a mine is laid again every wave,
+  so its damage now grows with the square root of the creeps' health (260 at wave 1, 900 at
+  29) and it reaches 3 tiles, not 2.4. Mines are a crowd's answer: in a sparse stream the first
+  quick creep sets each off alone.
+- **The Overload grows with the creeps' health** (above): 450 at wave 30 no longer killed a
+  walker.
+
+Wave 29 lane, hit points per 100 gold (before → after):
+
+| | level 0 | level 3 | evolutions |
+|---|---|---|---|
+| Gun | 1058 → 1058 | 794 → 794 | Gatling 1049 → 1049, Penetrator 929 → 929 |
+| Cannon | 1920 → 1609 | 975 → 872 | Mortar 945 → 765, Shrapnel 1074 → 955 |
+| Tesla | 687 → 1233 | 629 → 899 | Storm 579 → 935, Arc web 680 → 942 |
+| Sniper | 1131 → 1392 | 1006 → 1120 | Spotter 932 → 1032, Anti-materiel 1158 → 1189 |
+| Missile | 1203 → 1368 | 823 → 869 | Swarm 789 → 864, Napalm 758 → 941 |
+
+The evolutions went from a spread of 579 to 1185 (2×) to 765 to 1189 (1.55×). The tests hold
+the shape rather than the numbers: every fighting evolution within 0.65 to 1.45 of their median
+at wave 29, frost's two worth 0.8 of more gun beside one; every level 3 and evolution above half
+the median late; every fighting turret at level 0 taking a fifth of a wave 9 lane, and frost 0
+beside a gun adding more than more gun; the sniper killing a boss for less than 1/1.2 of anyone
+else's gold-seconds and by 1.5 at level 0; missiles landing spread and short of their true
+damage on a lone creep; the tesla ahead of the gun on a pack and per gold on a bunched crowd;
+the cannon the slowest crowd turret with the heaviest shell; frost hurting under a tenth of a
+gun, deepening with its special, and adding at least 0.65 of more partner beside each; spikes,
+vents and mines at least 0.6 of a gun turret's gold, tar beside a gun as good as more gun; and
+the Overload killing every small creep at waves 10 to 30 but no brute.
+
 ## A base that grows
 
 - **The generator's tiers are the team's shared project.** Gold is personal, so before this the
@@ -303,7 +393,9 @@ them under the guns is the team's plan, and keeping it honest is the game.
   the amplifier pylon, tier III turret evolutions and the Overload.
 - **The Overload is the team's last word.** Once a wave, anyone sets it off from the
   generator's card: everything within 18 tiles of the generator (the walls and a little past)
-  takes 150 + 10 per wave and is frozen for 1.5 s. It is turret fire, so it turns nobody on
+  takes 120 times the wave's health scale (360 at wave 10, 1500 at 30: every small creep dies,
+  a brute loses about 40%) and is frozen for 1.5 s. A flat 150 + 10 a wave fell behind the
+  creeps' health, which grows twelvefold by wave 30, and by then failed to kill a walker. It is turret fire, so it turns nobody on
   anyone. Once a wave makes it a decision when to use it, not a cooldown to press.
 - **Not done: forward relays.** A relay at a cleared outpost, adding a build ring there, would
   tie the raids out on the map to the base; it is left for when the middle game needs it.

@@ -92,16 +92,16 @@ Six turrets, from the build bar (B, then the number):
 | | | |
 |---|---|---|
 | Gun turret (3) | 120 | fast single shots at the nearest creep |
-| Cannon (4) | 240 | slow shells that burst on a crowd |
-| Frost tower (5) | 180 | pulses cold round itself, slowing everything in reach |
-| Tesla coil (6) | 320 | lightning that jumps from creep to creep |
-| Sniper tower (7) | 380 | a heavy round every few seconds from far off, at the toughest creep it can see; the answer to brutes and bosses, whose armour shrugs off a gun turret |
-| Missile battery (8) | 420 | a salvo of small rockets, each at a different creep |
+| Cannon (4) | 240 | slow, heavy shells that burst on a crowd |
+| Frost tower (5) | 180 | pulses cold round itself, slowing everything in reach by nearly half; it barely hurts, but whatever else covers its reach gets twice as long at them |
+| Tesla coil (6) | 280 | lightning that jumps from creep to creep, three at a time to start; the more of them bunched together, the better |
+| Sniper tower (7) | 380 | a heavy round every few seconds from far off, at the toughest creep it can see, tearing out a share of its health besides, armour and all: the bigger the creep the harder it hits, so it is the boss killer |
+| Missile battery (8) | 420 | a salvo of rockets, each at a different creep, with a wide blast; they come down where the creep stood, give or take a tile or so, so they wreck a crowd and waste themselves on a lone or a quick one |
 
 A turret goes up the way a weapon does: four tracks, damage, fire rate, range and a special,
 each to level 5, bought one at a time from the buttons on its card (select it, or T to step
 through your turrets). The special is the turret's own: pierce for the gun and the sniper, blast
-radius for the cannon, longer slow for frost, two more jumps and a longer reach for the tesla
+radius for the cannon, a deeper slow for frost (up to three quarters of a creep's pace), two more jumps and a longer reach for the tesla
 coil, one more missile for the battery. Each button shows what the next level changes and costs;
 the coloured pips on the turret's side show its levels, a column per track. Every upgrade also
 gives the turret a little more health. Selling returns half of everything that went into it, less for a damaged one, to whoever
@@ -121,19 +121,20 @@ the way in.
 | Spike strip (9) | 60 | cuts every creep standing on it, and wears down as it does |
 | Tar pit (0) | 50 | slows every creep wading through it, so they spend longer under the guns |
 | Flame vent (-) | 150 | bursts into flame when a creep steps on it, setting everything round it alight; again every few seconds |
-| Mine (=) | 40 | blows up under the first creep to step on it, and is gone |
+| Mine (=) | 40 | blows up under the first creep to step on it, everything within 3 tiles, harder every wave, and is gone |
 
 A spike strip worn out or a mine gone off leaves a ghost, which H lays again between waves.
-Spike strips and flame vents go up levels: tougher, and each level adds about a third to their
-damage.
+Spike strips and flame vents go up levels: tougher, and each level adds half to their damage.
+Tar and a frost tower don't add up on the same creep: the deeper slow holds.
 
 ### Evolutions and the pylon
 
 Once the generator is at tier III, a turret whose tracks add up to 12 can evolve, once, for its
 price again: its card shows the two branches when it can. Each turret has two, and each answers
 a different wave: the gun's Gatling (fast) or Penetrator (ignores armour), the cannon's Mortar
-(far, over walls) or Shrapnel (wide), the frost tower's Cryo (freezes) or Blizzard (wide), the
-tesla's Storm conductor (stronger in rain) or Arc web (jumps further), the sniper's Spotter
+(far, over walls) or Shrapnel (wide), the frost tower's Cryo (freezes) or Blizzard (wider and
+deeper), the tesla's Storm conductor (harder, and stronger still in rain) or Arc web (jumps
+further), the sniper's Spotter
 (marks its target to take more from everything) or Anti-materiel (through everything), and the
 missile battery's Swarm (twice the missiles) or Napalm (fire). An evolved turret wears a brass
 collar and a lamp, amber or violet by branch.
@@ -148,7 +149,8 @@ Pay in puts 100 of your gold into its next tier; everyone's pay-ins add up. Tier
 with more players) makes it tougher and unlocks the amplifier pylon; tier III (1600) makes it
 tougher again and unlocks evolutions and the Overload. Once a wave, anyone can set off the
 Overload from its card: everything within 18 tiles of the generator is shocked and frozen for a
-moment. The base chip glows violet while it is ready.
+moment; the shock grows with the waves, enough to kill the small ones at any wave and to dent a
+brute. The base chip glows violet while it is ready.
 
 ### Gates and mazes
 
