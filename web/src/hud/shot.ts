@@ -1,6 +1,6 @@
 import type { Frame, Welcome } from '../protocol';
 import { fmtGold } from './dom';
-import { type ScoreRow, scoreRows, verdict } from './score';
+import { type ScoreRow, awards, ending, scoreRows, verdict } from './score';
 
 // The field report drawn as a picture, to keep: td saves it in its install folder when a game
 // ends. Drawn rather than captured, since a page cannot photograph itself, in the report's own
@@ -8,7 +8,7 @@ import { type ScoreRow, scoreRows, verdict } from './score';
 
 const C = {
   black: '#07080a', soot: '#1c1e16', drab: '#2d3123', line: '#4d523c', khaki: '#938a66', bone: '#d9d1b3',
-  moss: '#86a24c', amber: '#e0a63a', lit: '#f4c25c', dim: '#9c7a34', rust: '#b5472f', sore: '#d98a62', steel: '#86a2a6', screen: '#11160d',
+  moss: '#86a24c', tape: '#bfab72', amber: '#e0a63a', lit: '#f4c25c', dim: '#9c7a34', rust: '#b5472f', sore: '#d98a62', steel: '#86a2a6', screen: '#11160d',
 };
 const FONT = '"Fira Code", Menlo, Consolas, monospace';
 
@@ -19,7 +19,7 @@ export async function drawReport(wd: Welcome, f: Frame): Promise<Blob | null> {
     await Promise.all([`700 52px ${FONT}`, `30px ${FONT}`, `14px ${FONT}`].map((s) => document.fonts.load(s)));
   } catch { /* fall back to the stand-ins */ }
   const rows = scoreRows(wd, f);
-  const top = 300, H = top + rows.length * (CARD + 14) + 70;
+  const top = 372, H = top + rows.length * (CARD + 14) + 70;
   const cv = document.createElement('canvas');
   cv.width = W; cv.height = H;
   const g = cv.getContext('2d');
@@ -57,16 +57,43 @@ export async function drawReport(wd: Welcome, f: Frame): Promise<Blob | null> {
   g.font = `16px ${FONT}`; g.fillStyle = C.khaki;
   g.fillText(`${wd.difficulty.name} · ${here} ${here === 1 ? 'survivor' : 'survivors'} · map ${wd.seed} · ${when}`, PAD, 142);
 
+  // The story: what broke through, or who the Huey left behind.
+  g.font = `20px ${FONT}`; g.fillStyle = C.bone;
+  wrap(g, ending(wd, f), W - 2 * PAD - 260).slice(0, 2).forEach((l, i) => g.fillText(l, PAD, 178 + i * 26));
+
   // The tally.
   const nt = v.evac ? 3 : 2, tw = (W - 2 * PAD - 16 * (nt - 1)) / nt;
-  tally(g, PAD, 166, tw, String(f.best), f.best === 1 ? 'wave held' : 'waves held');
-  tally(g, PAD + tw + 16, 166, tw, fmtGold(f.totalKills), 'creeps killed');
-  if (v.evac) tally(g, PAD + 2 * (tw + 16), 166, tw, `${v.out}/${v.n}`, 'extracted');
+  tally(g, PAD, 222, tw, String(f.best), f.best === 1 ? 'wave held' : 'waves held');
+  tally(g, PAD + tw + 16, 222, tw, fmtGold(f.totalKills), 'creeps killed');
+  if (v.evac) tally(g, PAD + 2 * (tw + 16), 222, tw, `${v.out}/${v.n}`, 'extracted');
+
+  // The citations, on one line under the tally.
+  let ax = PAD;
+  for (const a of awards(rows)) {
+    g.font = `700 14px ${FONT}`; g.fillStyle = C.tape; g.fillText(a.title.toUpperCase(), ax, 350);
+    ax += g.measureText(a.title.toUpperCase()).width + 8;
+    g.font = `700 17px ${FONT}`; g.fillStyle = a.row.color; g.fillText(a.row.p.name, ax, 350);
+    ax += g.measureText(a.row.p.name).width + 8;
+    g.font = `15px ${FONT}`; g.fillStyle = C.khaki; g.fillText(a.why, ax, 350);
+    ax += g.measureText(a.why).width + 28;
+  }
 
   rows.forEach((r, i) => card(g, PAD, top + i * (CARD + 14), W - 2 * PAD, r));
   g.font = `13px ${FONT}`; g.fillStyle = C.khaki;
   g.fillText('taildefense', PAD, H - 34);
   return new Promise((ok) => cv.toBlob((b) => ok(b), 'image/png'));
+}
+
+// Splits text into lines no wider than w in the current font.
+function wrap(g: CanvasRenderingContext2D, text: string, w: number): string[] {
+  const out: string[] = [];
+  let line = '';
+  for (const word of text.split(' ')) {
+    const t = line ? `${line} ${word}` : word;
+    if (line && g.measureText(t).width > w) { out.push(line); line = word; } else line = t;
+  }
+  if (line) out.push(line);
+  return out;
 }
 
 function screen(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
