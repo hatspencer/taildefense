@@ -23,8 +23,7 @@ const (
 
 var benchRanges = [3]float32{benchClose, benchMid, benchFar}
 
-// benchKinds are the creeps the weapon tables kill one at a time.
-var benchKinds = []CreepKind{CWalker, CRunner, CSwarmer, CHound, CSpitter, CBrute, CMauler, CBoss, CMother, CGoliath}
+// The weapon tables kill one of each of benchKinds (balance_test.go) at a time.
 
 // role is the range each weapon is built to fight at, for the late-wave tables and bands.
 var role = [NumWeapons]float32{
@@ -71,14 +70,14 @@ func weaponDPSFor(r rig, k CreepKind, aff Affix, d float32, ult bool, secs int) 
 	c := &a.w.Creeps[0]
 	c.HP, c.MaxHP, c.Aff = 1e6, 1e6, aff
 	for range secs * TickRate {
-		a.tick(false)
+		a.tick(still)
 		a.w.Creeps[0].X, a.w.Creeps[0].Y = a.ox+d, a.oy // a shove is not a retreat
 	}
 	return (1e6 - a.w.Creeps[0].HP) / float32(secs)
 }
 
-// ttk is the seconds r takes to kill one creep of kind k on wave, at dps.
-func ttk(k CreepKind, wave int, dps float32) float32 {
+// weaponTTK is the seconds r takes to kill one creep of kind k on wave, at dps.
+func weaponTTK(k CreepKind, wave int, dps float32) float32 {
 	if dps <= 0 {
 		return float32(math.Inf(1))
 	}
@@ -112,7 +111,7 @@ func clearHurt(r rig, m mix, d float32, wave int, walk bool, aff Affix, ult bool
 	const limit = 60
 	at := map[uint16]bool{}
 	for i := range limit * TickRate {
-		a.tick(walk)
+		a.tick(moveOf(walk))
 		for j := range a.w.Creeps {
 			c := &a.w.Creeps[j]
 			if dx, dy := c.X-a.ox, c.Y-a.oy; dx*dx+dy*dy <= (Creeps[c.Kind].Radius+.8)*(Creeps[c.Kind].Radius+.8) {
@@ -218,7 +217,7 @@ func TestWeaponTable(t *testing.T) {
 		for _, rr := range benchRanges {
 			fmt.Fprintf(&b, "%-11s", fmt.Sprintf("%s@%g", r.name, rr))
 			cell := func(k CreepKind, aff Affix) {
-				s := ttk(k, late, weaponDPS(r, k, aff, rr, false))
+				s := weaponTTK(k, late, weaponDPS(r, k, aff, rr, false))
 				if s > 999 {
 					fmt.Fprintf(&b, " %7s", "-")
 				} else {
@@ -244,13 +243,13 @@ func TestWeaponTable(t *testing.T) {
 			pa, _ := clearMix(r, mixPack, rr, wave, false, AffixArmoured, false)
 			ar, _ := clearMix(r, mixArmy, rr, wave, false, 0, false)
 			hv, _ := clearMix(r, mixHeavy, rr, wave, false, 0, false)
-			bg := ttk(CGoliath, wave, weaponDPS(r, CGoliath, 0, rr, false))
+			bg := weaponTTK(CGoliath, wave, weaponDPS(r, CGoliath, 0, rr, false))
 			ch, n, self := clearHurt(r, mixArmy, 16, wave, true, 0, false)
 			hc, hn := clearMix(r, mixArmy, 16, wave, true, AffixHasty, false)
 			ul, un, ub := float32(0), 0, float32(0)
 			if Ultimates[r.weapon].Time > 0 && r.weapon != WPistol {
 				ul, un = clearMix(r, mixArmy, 16, wave, true, 0, true)
-				ub = ttk(CGoliath, wave, weaponDPS(r, CGoliath, 0, rr, true))
+				ub = weaponTTK(CGoliath, wave, weaponDPS(r, CGoliath, 0, rr, true))
 			}
 			fmt.Fprintf(&b, "%-8s %5.1f | %6.1f %6.1f %6.1f %6.1f %7.1f | %6.1f %3d %4.0f %6.1f %3d | %6.1f %3d %7.1f\n", r.name, rr, p, pa, ar, hv, bg, ch, n, self, hc, hn, ul, un, ub)
 		}
@@ -436,4 +435,12 @@ func TestGrenadeKeepsUpLate(t *testing.T) {
 	if lateScale(5) != 1 {
 		t.Errorf("the grenade grows before wave %d", lateFrom)
 	}
+}
+
+// moveOf is the bench's way of moving for a weapon table's walk: at the survivor, or still.
+func moveOf(walking bool) int {
+	if walking {
+		return walk
+	}
+	return still
 }

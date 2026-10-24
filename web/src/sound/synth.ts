@@ -48,8 +48,9 @@ function prioOf(name: string): Prio {
 // Every play is pitched and set a little apart, up to this either way, so no sound repeats
 // exactly: the ear stops hearing a sound that varies and keeps hearing one that doesn't. A
 // voice varies less, or it stops being the same person; a cue not at all, since its pitch is
-// what it says.
-const JITTER = 0.15, VOICE_JITTER = 0.05;
+// what it says. Pitch (JITTER) and level (VOL_JITTER, up to about ±2.5 dB) are drawn apart;
+// a recording's pitch spread is its set's, at least REC_JITTER.
+const JITTER = 0.15, VOICE_JITTER = 0.05, VOL_JITTER = 0.25, VOICE_VOL_JITTER = 0.1, REC_JITTER = 0.05;
 const VOICES = /^(shout|hurt|down|revived)_/;
 // Rendered first in the idle warm-up: what is heard in the first seconds of a fight.
 const FIRST = ['pistol', 'smg', 'shotgun', 'rifle', 'minigun', 'turretGun', 'death0', 'strike', 'groan0', 'explosion', 'crowbar'];
@@ -80,6 +81,7 @@ export class Synth {
   private mix: GainNode | null = null;
   private reverb: GainNode | null = null;
   private bufs = new Map<string, AudioBuffer>();
+  private lastVariant = new Map<string, number>();
   private voices: Voice[] = [];
   // How many sounds are playing: the least of them (footsteps) wait for a quieter moment.
   get busy(): number { return this.voices.length / MAX_VOICES; }
@@ -210,6 +212,18 @@ export class Synth {
   }
 
   // A variant that is ready, or any ready variant of the sound, or null while none is.
+  // variant picks one at random, but never the one played last, so a sound with takes never
+  // plays the same take twice running.
+  private variant(name: string): number {
+    const n = RECIPES[name][0];
+    if (n < 2) return 0;
+    const last = this.lastVariant.get(name) ?? -1;
+    let v = Math.floor(Math.random() * (last < 0 ? n : n - 1));
+    if (last >= 0 && v >= last) v++;
+    this.lastVariant.set(name, v);
+    return v;
+  }
+
   private buffer(name: string, v: number): AudioBuffer | null {
     const rec = RECIPES[name];
     if (!rec) return null;
@@ -238,18 +252,22 @@ export class Synth {
     const bufs: [AudioBuffer, number][] = [];
     if (got) bufs.push([got.buf, 1]);
     if (!got || over) {
-      const n = got ? underName : name, b = this.buffer(n, Math.floor(Math.random() * RECIPES[n][0]));
+      const n = got ? underName : name, b = this.buffer(n, this.variant(n));
       if (b) bufs.push([b, got ? set!.underGain : 1]);
     }
     if (!bufs.length) return;
     const now = ctx.currentTime;
     if ((this.playing.get(name) ?? 0) >= (SAME_OF[name] ?? SAME) && !this.giveWay(name, now)) return this.drop(name);
     if (this.voices.length >= MAX_VOICES && !this.makeRoom(prio, p.vol, now)) return this.drop(name);
-    const cue = prio === Prio.Cue;
-    const j = set?.jitter ?? (cue ? 0 : VOICES.test(name) ? VOICE_JITTER : JITTER);
+    const cue = prio === Prio.Cue, voice = VOICES.test(name);
+    // Pitch and level are varied apart, so no two plays of a sound are the same. A recording
+    // keeps its set's pitch spread (a real shot pitched far sounds wrong) but never less than
+    // REC_JITTER, and its level varies as a recipe's does.
+    const j = cue ? 0 : set?.jitter !== undefined ? Math.max(REC_JITTER, set.jitter) : voice ? VOICE_JITTER : JITTER;
+    const jv = cue ? 0 : voice ? VOICE_VOL_JITTER : VOL_JITTER;
     const at = Math.max(now, t);
     const r = rate * jitter(j);
-    const vol = p.vol * jitter(j);
+    const vol = p.vol * jitter(jv);
     const { g, out, send } = this.chain({ ...p, vol }, cue ? 'cue' : 'world', cue ? 0.06 : -1);
     const srcs: AudioBufferSourceNode[] = [];
     let len = 0;

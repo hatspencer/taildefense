@@ -1,9 +1,4 @@
-
-  ▄▄▄▄▄▄  ▄▄▄▄  ▄▄ ▄▄     ▄▄▄▄▄  ▄▄▄▄▄▄ ▄▄▄▄▄▄ ▄▄▄▄▄▄ ▄▄  ▄▄  ▄▄▄▄▄ ▄▄▄▄▄▄
-  ▀▀▀▀▀▀ ▀█  ▀▀ ▀▀ ▀▀     ▀▀  ▀▀ ▀▀     ▀▀     ▀▀     ▀▀▀▄▀▀ ▀▀     ▀▀
-    ▀▀   ▀▀▀▀▀▀ ▀▀ ▀▀     ▀▀  ▀▀ ▀▀▀▀▀  ▀▀▀▀▀  ▀▀▀▀▀  ▀▀ ▀▀▀  ▀▀▀▀▄ ▀▀▀▀▀
-    ▀▀   ▀▀  ▀▀ ▀▀ ▀▀▀▀▀▀ ▀▀▄▄▀▀ ▀▀▄▄▄▄ ▀▀     ▀▀▄▄▄▄ ▀▀  ▀▀ ▄▄▄▄▀▀ ▀▀▄▄▄▄
-  co-op wave defense over your tailnet
+  TAIL DEFENSE  co-op wave defense over your tailnet
 
   td abc1234  ✔ updated abc1234 → def5678 · R restart now
   ● box  100.64.0.7  ada@example.com
@@ -22,4 +17,8 @@
     music       50  (default)
     browser     auto  (default)
     autoupdate  on  (default)
+
+
+
+
   ↑↓ move · enter edit · esc back · ? help

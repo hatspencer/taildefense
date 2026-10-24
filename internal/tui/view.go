@@ -32,6 +32,7 @@ func (m *Model) View() string {
 	} else {
 		head = m.header(w, h)
 	}
+	foot := m.footer()
 	var body []string
 	switch {
 	case m.help:
@@ -39,7 +40,11 @@ func (m *Model) View() string {
 	case m.screen == screenJoin:
 		body = m.joinView(elapsed, h-len(head)-3)
 	case m.screen == screenSettings:
-		body = m.settingsView()
+		// Every setting in view first: a short header (the wordmark's line) before scrolling.
+		if len(head)+len(m.settingsView(h))+len(foot) > h {
+			head = m.header(w, 0)
+		}
+		body = m.settingsView(h - len(head) - len(foot))
 	case m.screen == screenChangelog:
 		body = m.changelogView(elapsed, h-len(head)-1)
 	case m.screen == screenDoctor:
@@ -47,7 +52,6 @@ func (m *Model) View() string {
 	default:
 		body = m.menuView(w)
 	}
-	foot := m.footer()
 
 	room := h - len(head) - len(foot)
 	if len(body) > room {
@@ -414,13 +418,19 @@ func (m *Model) doctorView(elapsed time.Duration, room int) []string {
 	return out
 }
 
-func (m *Model) settingsView() []string {
+// settingsView is the settings, as many as room rows hold: past that the list scrolls to keep
+// the one picked out, and its help, in view, so a short window or a long error over it never
+// hides a setting for good.
+func (m *Model) settingsView(room int) []string {
 	out := []string{gutter + ui.StyleBold.Render("Settings") + "  " + ui.StyleDim.Render("saved to "+prefsPath()), ""}
+	var rows []string
+	at := 0 // the picked-out setting's row
 	for i, k := range config.Keys {
 		v := m.prefs.Get(k.Name)
 		mark := "  "
 		if i == m.scursor {
 			mark = ui.StyleAccent.Render("▶ ")
+			at = len(rows)
 		}
 		value := ui.StyleCyan.Render(v.Value)
 		if i == m.scursor && m.editing {
@@ -430,16 +440,29 @@ func (m *Model) settingsView() []string {
 		if v.Source == config.SourceEnv {
 			src = k.Env + " overrides"
 		}
-		out = append(out, fmt.Sprintf("%s%s%s %s  %s", gutter, mark, ui.StyleBold.Render(pad(strings.ToLower(k.Name), 11)),
+		rows = append(rows, fmt.Sprintf("%s%s%s %s  %s", gutter, mark, ui.StyleBold.Render(pad(strings.ToLower(k.Name), 11)),
 			value, ui.StyleDim.Render("("+src+")")))
 		if i == m.scursor {
-			out = append(out, gutter+"    "+ui.StyleDim.Render(k.Help))
+			rows = append(rows, gutter+"    "+ui.StyleDim.Render(k.Help))
 		}
 	}
+	var tail []string
 	if m.notice != "" {
-		out = append(out, "", gutter+m.noticeText())
+		tail = []string{"", gutter + m.noticeText()}
 	}
-	return out
+	if fit, total := room-len(out)-len(tail), len(rows); fit >= 4 && total > fit {
+		// A row each way says there is more; the picked-out setting and its help stay between.
+		start := min(max(at-(fit-2)/2, 0), len(rows)-fit)
+		rows = rows[start : start+fit]
+		if start > 0 {
+			rows[0] = gutter + ui.StyleDim.Render("  ↑ more")
+		}
+		if start+fit < total {
+			rows[len(rows)-1] = gutter + ui.StyleDim.Render("  ↓ more")
+		}
+	}
+	out = append(out, rows...)
+	return append(out, tail...)
 }
 
 func (m *Model) helpView() []string {
