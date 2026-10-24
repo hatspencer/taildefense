@@ -150,6 +150,9 @@ func (a *arena) tick(walk bool) {
 			continue
 		}
 		sp := Creeps[c.Kind].Speed
+		if c.Aff&AffixHasty != 0 {
+			sp *= affixHaste
+		}
 		if c.Slow > 0 {
 			c.Slow -= Dt
 			sp *= .45
