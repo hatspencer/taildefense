@@ -18,6 +18,10 @@ side, and far away is quieter, darker and more echo. Some sounds are there to wa
 Sound starts with your first click or key press (browsers insist). `VOLUME` in
 `docs/settings.md` sets it, and so does the slider in the menu (F10); 0 is off.
 
+The music follows the fight: a quiet track while you build, a fight that grows as more of the
+dead wake and close on the generator and as it takes hits, and a boss's music on every tenth
+wave. `MUSIC` (and its slider) sets it apart from the rest of the sound.
+
 ## The screen
 
 The top bar always shows the base's health, the generator's, next to the wave. Click it to look at

@@ -28,7 +28,7 @@ import { Sound } from './sound/sound';
 import { World } from './scene/world';
 import { Game } from './state';
 
-// #demo&vol=40&drop&fog&weather=3&down&corehp=0.3&creeps=5000&phase=build&cam=x,y,yawDeg,dist&build=5&armory&help&score&shot&f3&sel=struct:12&mouse=x,y&webgl
+// #demo&vol=40&music=30&drop&fog&weather=3&down&corehp=0.3&creeps=5000&phase=build&cam=x,y,yawDeg,dist&build=5&armory&help&score&shot&f3&sel=struct:12&mouse=x,y&webgl
 // A malformed escape is left as typed rather than failing the start.
 function unescape(v: string): string {
   try { return decodeURIComponent(v); } catch { return v; }
@@ -150,6 +150,7 @@ async function main(): Promise<void> {
   const toast = (t: string, l: number) => { hud.toast(t, l); if (l === 2) sound.ui('radio_error', 0.45, 0.3); };
   ctl.onToast = toast;
   hud.onVolume = (v, save) => { sound.synth.setVolume(v); if (save && !demo) send({ op: 'volume', v }); };
+  hud.onMusic = (v, save) => { sound.music.setMusic(v); if (save && !demo) send({ op: 'music', v }); };
   const input = new Input(canvas, ctl, rig, hud);
   // A lost WebGPU device reloads once on WebGL2 (kept for this tab's session) instead of looping.
   world.onDeviceLost((msg) => {
@@ -179,6 +180,8 @@ async function main(): Promise<void> {
       const vol = w.volume ?? (P.has('vol') ? Number(P.get('vol')) : 70);
       sound.synth.setVolume(vol);
       hud.setVolume(sound.synth.volume);
+      sound.music.setMusic(w.music ?? (P.has('music') ? Number(P.get('music')) : 50));
+      hud.setMusic(sound.music.level);
       creeps.setup(w.creeps);
       structs.setup(w.structs);
       loot.setup(w.sites);
@@ -200,6 +203,7 @@ async function main(): Promise<void> {
       if (!game.welcome) return;
       const f = game.applyFrame(buf, performance.now());
       sound.onFrame(game);
+      sound.music.onFrame(game);
       effects.onFrame(game, turretHeight, (x0, y0, x1, y1) => structs.onShot(game, x0, y0, x1, y1, performance.now()));
       for (const n of f.notes) hud.note(n.level, n.text);
       for (const g of f.pings) effects.teamPing(g.x, g.y, g.kind === PingKind.Danger ? 0xff5a3c : playerColor(g.player));
@@ -434,6 +438,7 @@ async function main(): Promise<void> {
         `frame ${game.cur.tick}  ${game.interval.toFixed(0)} ms`,
         `ping  ${Number.isNaN(game.rtt) ? '-' : `${game.rtt.toFixed(0)} ms  avg ${game.rttAvg.toFixed(0)}`}`,
         `sound ${sound.synth.readout()}`,
+        sound.music.readout(),
       ].join('\n'));
     }
   };

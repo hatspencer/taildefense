@@ -816,8 +816,17 @@ about -29, ambience -32 to -42, footsteps under -45.
   base. Rain and wind are two loops each, apart in time and either side, so they are wide
   rather than a point in the middle. The ambience is far under everything else and steps back
   as a fight fills the mix. Rain also muffles the whole world a little, as it muffles gunfire
-  for the creeps, and a pause muffles it a lot. No music: the game's own sounds carry the mood
-  and the warnings.
+  for the creeps, and a pause muffles it a lot.
+- **Music that follows the fight, never in its way.** Four CC0 loops (credits in
+  `web/src/sound/music/CREDITS.md`): an ambient piece for the build, a light and a pressing
+  fight for a wave, and a boss's on every tenth. A wave's intensity (the dead awake, those
+  near the generator, how hard it was just hit, how much of it is left) opens the track's
+  low-pass and lifts it first, so the music thickens with the wave before it changes; between
+  the light and the pressing fight there is a gap between thresholds and twelve seconds' hold,
+  so it never flaps. Crossfades take three seconds. The music sits after the limiter, so the
+  explosions do not pump it, and under the game at its own setting, so a player who wants the
+  warnings alone turns it off. It streams from files beside the page once wanted (the next
+  fight's loaded during the build), so nothing ever waits on it.
 - **The same mix at every volume.** Three buses (the world, the cues, the ambience) meet in a
   gentle compressor and a clipper that is clean until the last 2 dB; the volume setting comes
   after them. Each player's volume is a setting like any other, saved from the menu.

@@ -1,6 +1,6 @@
 // Bundles the client into ../internal/web/dist, which the td binary embeds.
 import * as esbuild from 'esbuild';
-import { copyFileSync, mkdirSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readdirSync } from 'node:fs';
 
 const out = '../internal/web/dist';
 const dev = process.argv.includes('--dev');
@@ -33,3 +33,7 @@ await esbuild.build({
 });
 copyFileSync('index.html', `${out}/index.html`);
 copyFileSync('app.css', `${out}/app.css`);
+// The music, files of their own beside the page rather than inlined: a few megabytes the page
+// streams once it needs them, so nothing waits on them (src/sound/music.ts).
+mkdirSync(`${out}/music`, { recursive: true });
+for (const f of readdirSync('src/sound/music').filter((f) => f.endsWith('.ogg'))) copyFileSync(`src/sound/music/${f}`, `${out}/music/${f}`);

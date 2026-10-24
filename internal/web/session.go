@@ -19,6 +19,7 @@ import (
 	"html"
 	"io/fs"
 	"math"
+	"mime"
 	"net"
 	"net/http"
 	"strconv"
@@ -31,6 +32,11 @@ import (
 
 //go:embed all:dist
 var dist embed.FS
+
+// The music under dist/music is Ogg Opus, which Go's own table of types does not know, and
+// a machine's mime.types may not either; served as anything else, a nosniff browser may
+// refuse it.
+func init() { _ = mime.AddExtensionType(".ogg", "audio/ogg") }
 
 // EnvListen is where the page is served, host:port; the default is a free port on loopback.
 // Only loopback is accepted: the page is the player's own, nobody else's.
@@ -57,6 +63,10 @@ type Options struct {
 	// keeps a volume the player chose in the page's menu, so the next game starts with it.
 	Volume     int
 	SaveVolume func(int) error
+	// Music is the page's music, 0 (off) to 100 of the volume, the MUSIC setting; SaveMusic
+	// keeps it as SaveVolume does the volume.
+	Music     int
+	SaveMusic func(int) error
 	// Listen overrides where the page is served, for tests.
 	Listen string
 }
@@ -284,6 +294,7 @@ func (s *session) greet() {
 	m := welcome(s.wel, s.core, s.o.Host, s.o.Hint, s.o.Hosting)
 	m.Seen = seenBytes(s.r.Seen)
 	m.Volume = s.o.Volume
+	m.Music = s.o.Music
 	s.text(b, m)
 	s.send(b, terrainMsg(s.wel.Terrain))
 	b.ready = true
@@ -370,6 +381,12 @@ func (s *session) command(p []byte) bool {
 		s.o.Volume = min(max(c.V, 0), 100)
 		if s.o.SaveVolume != nil {
 			_ = s.o.SaveVolume(s.o.Volume)
+		}
+		return false
+	case "music":
+		s.o.Music = min(max(c.V, 0), 100)
+		if s.o.SaveMusic != nil {
+			_ = s.o.SaveMusic(s.o.Music)
 		}
 		return false
 	case "move":

@@ -5,6 +5,7 @@ import {
 } from '../protocol';
 import { K_CANNON, K_CORE, K_GUN, K_MISSILE, K_SNIPER, K_TESLA } from '../scene/structs';
 import type { Game } from '../state';
+import { Music } from './music';
 import { type Loop, type Placed, Prio, Synth } from './synth';
 
 // What the game sounds like: reads each frame as it arrives (the shots, blasts and deaths of
@@ -52,6 +53,8 @@ interface Shot { x: number; y: number; vol: number; extra?: number; p?: Placed; 
 
 export class Sound {
   readonly synth: Synth;
+  // The music under it all (music.ts), which follows the game from onFrame.
+  readonly music: Music;
   private cam: THREE.Camera | null = null;
   private lx = 0; private ly = 0; private dist = 30;
   private v = new THREE.Vector3();
@@ -86,6 +89,7 @@ export class Sound {
 
   constructor(volume: number) {
     this.synth = new Synth(volume);
+    this.music = new Music(this.synth);
     const unlock = () => this.synth.gesture();
     window.addEventListener('pointerdown', unlock, true);
     window.addEventListener('keydown', unlock, true);
