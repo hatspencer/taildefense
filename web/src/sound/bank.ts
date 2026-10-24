@@ -655,14 +655,21 @@ function creepVoice(b: Buf, r: R, at: number, kind: number, scale = 1): void {
     case 5: v(jit(r, 1.6, 0.1), jit(r, 42, 0.08), 34, V.oh, V.aa, 0.85, 0.12, 1.2, 0, 3.5); break;
     case 6: v(jit(r, 0.9, 0.2), jit(r, 115, 0.1), 90, V.aa, V.uh, 0.45, 0.07, 0.9); break;
     case 7: v(jit(r, 1.5, 0.1), jit(r, 50, 0.08), 40, V.aa, V.er, 0.9, 0.12, 1.2, 9, 3.5); break;
+    // The hound snarls: short, high for the dead, a growl bubbling through it.
+    case 8: v(jit(r, 0.35, 0.25), jit(r, 210, 0.1), 160, V.aa, V.uh, 0.8, 0.12, 0.7, 32, 2.5); break;
+    // The mauler a brute's chest with a runner's rage in it.
+    case 9: v(jit(r, 1, 0.15), jit(r, 75, 0.08), 58, V.aa, V.uh, 0.8, 0.1, 1.1, 0, 3.2); break;
+    // The goliath the deepest throat there is, slow and rolling.
+    case 10: v(jit(r, 1.8, 0.1), jit(r, 36, 0.06), 30, V.oh, V.uh, 0.9, 0.12, 1.25, 7, 3.6); break;
     default: v(jit(r, 1.2, 0.2), jit(r, 92, 0.12), 72, r() < 0.5 ? V.uh : V.er, V.aa, 0.38, 0.07, 0.9); break;
   }
 }
 
-const BIG = new Set([3, 5, 7]);
+// The big ones: brute, abomination, broodmother, mauler, goliath; the huge are the bosses.
+const BIG = new Set([3, 5, 7, 9, 10]);
 
 function creepDeath(sr: number, r: R, kind: number): Buf {
-  const big = BIG.has(kind), huge = kind === 5 || kind === 7;
+  const big = BIG.has(kind), huge = kind === 5 || kind === 7 || kind === 10;
   const b = new Buf(sr, huge ? 2.2 : big ? 1.4 : 0.7);
   // Flesh giving way: a wet, overdriven splat with bone crunching in it.
   roar(b, r, 0, 0.5, kind === 2 ? 2400 : 1500, 250, 0.002, big ? 0.12 : 0.07, 1, 3);
@@ -1410,6 +1417,582 @@ function hum(sr: number, r: R): Buf {
   return b.normalize(0.7);
 }
 
+// --- the base grown, traps, affixes, evolutions -----------------------------------------------
+//
+// The features that came after the first sound pass (web/src/sound/coverage.ts and
+// ambience.ts play them). Built of the same parts as the rest: clicks and clacks for metal,
+// thuds and roars for weight and fire, voices through formants, nothing above about 7 kHz that
+// repeats often.
+
+// A spike strip biting: the steel's point going in with a short ring, flesh giving, and the
+// strip's chain rattling under the weight.
+function spikes(sr: number, r: R): Buf {
+  const b = new Buf(sr, 0.35);
+  const f = jit(r, 2900, 0.12);
+  click(b, r, 0, f * 1.1, 0.5, 0.0025, f * 0.7);
+  ping(b, 0.001, [f, f * 1.43, f * 2.2], 0.02, 0.12);
+  roar(b, r, 0.003, 0.07, jit(r, 2000, 0.25), 600, 0.001, jit(r, 0.016, 0.3), 0.45, 2.5);
+  thud(b, r, 0.002, jit(r, 140, 0.2), 80, 0.02, 0.5, 0.7, 1300);
+  debris(b, r, 0.015, 0.09, 4 + Math.floor(r() * 3), 2400, 5000, 0.1);
+  return b.normalize(0.7).fadeOut();
+}
+
+// A spike strip worn through: a tine snapping with a twang, the strip's links clattering loose.
+function spikesBreak(sr: number, r: R): Buf {
+  const b = new Buf(sr, 1);
+  const f = jit(r, 380, 0.1);
+  click(b, r, 0, 2600, 0.6, 0.002, 1700);
+  ping(b, 0.002, [f, f * 2.76, f * 5.1], 0.16, 0.35);
+  thud(b, r, 0, 150, 80, 0.02, 0.4, 0.6, 1500);
+  debris(b, r, 0.02, 0.45, 14, 1500, 4500, 0.25);
+  return b.normalize(0.75).fadeOut();
+}
+
+// Wading into tar: a slow, thick glop as the foot sinks, the pitch sagging, the suck of it
+// coming free and a few fat, low bubbles bursting.
+function tar(sr: number, r: R): Buf {
+  const b = new Buf(sr, 0.7);
+  const f0 = jit(r, 130, 0.2);
+  let ph = 0;
+  for (let i = 0; i < sr * 0.18; i++) {
+    const t = i / sr;
+    ph += TAU * f0 * (1 - 0.45 * t / 0.18) / sr;
+    b.d[i] += Math.sin(ph) * ad(t, 0.006, 0.06) * 0.7;
+  }
+  const sv = new SVF(sr), o = Math.floor(jit(r, 0.12, 0.2) * sr);
+  for (let i = 0; i < sr * 0.18 && o + i < b.len; i++) {
+    const t = i / sr;
+    b.d[o + i] += sv.run(r() * 2 - 1, 380 + 500 * t / 0.18, 3).band * bump(t, 0.1, 0.05) * 0.8;
+  }
+  thud(b, r, 0, 90, 50, 0.03, 0.5, 0.6, 500);
+  for (let k = 0; k < 3 + Math.floor(r() * 3); k++) {
+    const at = 0.2 + r() * 0.4, f = 150 + r() * 200, d = 0.02 + r() * 0.02, s = Math.floor(at * sr);
+    let p = 0;
+    for (let i = 0; i < d * 3 * sr && s + i < b.len; i++) {
+      const t = i / sr;
+      p += TAU * f * (1 + 1.5 * t / d) / sr;
+      b.d[s + i] += Math.sin(p) * ad(t, 0.002, d) * 0.25;
+    }
+  }
+  return b.normalize(0.65).fadeOut();
+}
+
+// A flame vent: the gas hissing up through the grate, catching with a whump, and a jet of fire
+// roaring out over the ground, fluttering, crackling as it burns off.
+function flameVent(sr: number, r: R): Buf {
+  const b = new Buf(sr, 1.7);
+  const hs = new SVF(sr);
+  for (let i = 0; i < sr * 0.14; i++) {
+    const t = i / sr;
+    b.d[i] += hs.run(r() * 2 - 1, 2200 + 2500 * t / 0.14, 0.8).band * Math.min(1, t / 0.1) * 0.3;
+  }
+  const at = jit(r, 0.11, 0.1);
+  thud(b, r, at, 85, 40, 0.09, 1, 0.4, 400);
+  roar(b, r, at, 0.9, 2600, 260, 0.02, 0.25, 0.9, 2.5);
+  const jet = new SVF(sr), flutter = slowNoise(r, sr, 1.7, 26), o = Math.floor(at * sr);
+  for (let i = 0; i < sr * 1.1 && o + i < b.len; i++) {
+    const t = i / sr;
+    b.d[o + i] += jet.run(r() * 2 - 1, 900 - 300 * t, 0.6).band * (0.75 + 0.35 * flutter[i]) * ad(t, 0.05, 0.45) * 0.8;
+  }
+  crackle(b, r, at + 0.05, 1.3, 90, 1300, 4500, 0.25);
+  return b.normalize(0.85).fadeOut(0.1);
+}
+
+// A mine: the pressure plate going down under a foot with a click and its spring, then the
+// charge, a crack sharper than a shell's (it is right under the ground) and a geyser of soil
+// thrown up and raining back. The explosion's own boom is played with it.
+function mine(sr: number, r: R): Buf {
+  const b = new Buf(sr, 2.2);
+  click(b, r, 0, 2200, 0.35, 0.003, 900);
+  clack(b, r, 0.006, 1400, 0.3, 300);
+  const at = jit(r, 0.03, 0.2), o = Math.floor(at * sr), nn = Math.ceil(0.0018 * sr);
+  for (let i = 0; i < nn; i++) { const u = i / nn; b.d[o + i] += (1 - 2 * u) * Math.min(1, u * 12, (1 - u) * 12) * 1.2; }
+  roar(b, r, at, 0.25, 6500, 900, 0.0005, 0.03, 0.9, 4);
+  roar(b, r, at + 0.02, 1.1, 1400, 200, 0.03, 0.3, 0.7, 2);
+  for (let k = 0; k < 14; k++) {
+    const u = r();
+    thud(b, r, at + 0.25 + u * 1.1, 160 + r() * 120, 70, 0.012, 0.2 * (1 - u * 0.6), 0.9, 900);
+  }
+  debris(b, r, at + 0.2, 1.5, 40, 600, 3500, 0.18);
+  return b.normalize(0.9).fadeOut(0.2);
+}
+
+// A gate swung: the latch knocked up, the hinges creaking (stick and slip, heavier and lower
+// than a crate's lid), the air the leaf pushes, and the steel stopping against its post. Open
+// it stops with a clank and a rattle; shut it slams and the latch drops home.
+function gate(sr: number, r: R, open: boolean): Buf {
+  const b = new Buf(sr, 1.3);
+  clack(b, r, 0, jit(r, 1400, 0.1), 0.45, 260);
+  const sv = new SVF(sr), crk = slowNoise(r, sr, 0.7, 9), cl = open ? jit(r, 0.45, 0.15) : jit(r, 0.3, 0.15);
+  const base = jit(r, 120, 0.15);
+  let ph = 0;
+  for (let i = Math.floor(0.05 * sr), n = Math.floor((0.05 + cl) * sr); i < n; i++) {
+    const t = i / sr - 0.05;
+    ph += (base + 50 * crk[i]) / sr;
+    const x = ph >= 1 ? 1 : 0;
+    if (ph >= 1) ph -= 1;
+    b.d[i] += sv.run(x * 4 + (r() * 2 - 1) * 0.08, jit(r, 1050, 0.02), 4).band * Math.sin(Math.PI * t / cl) * 0.4;
+  }
+  whoosh(b, r, 0.05, cl + 0.1, 250, 500, 0.25, 0.7);
+  const stop = 0.05 + cl, f = jit(r, 310, 0.08);
+  if (open) {
+    clack(b, r, stop, 900, 0.6, 170);
+    ping(b, stop, [f, f * 2.68, f * 4.7], 0.12, 0.3);
+    debris(b, r, stop + 0.01, 0.15, 6, 1200, 3000, 0.15);
+  } else {
+    thud(b, r, stop, 120, 55, 0.05, 1, 0.5, 700);
+    clack(b, r, stop, 1200, 0.9, 200);
+    ping(b, stop, [f * 0.9, f * 2.4, f * 4.1], 0.18, 0.35);
+    click(b, r, stop + jit(r, 0.12, 0.2), 2100, 0.35, 0.003, 1100);
+  }
+  return b.normalize(0.8).fadeOut();
+}
+
+// A pylon switched on: the contactor shutting, the coil charging up in a rising whine, and
+// the steady buzz it settles to, a spark ticking off its top.
+function pylonOn(sr: number, r: R): Buf {
+  const b = new Buf(sr, 1.4);
+  clack(b, r, 0, 1600, 0.6, 240);
+  let ph = 0;
+  for (let i = 0; i < b.len; i++) {
+    const t = i / sr, u = Math.min(1, t / 0.7);
+    ph += TAU * (120 + 1900 * u * u) / sr;
+    const buzz = Math.tanh(Math.sin(TAU * 120 * t) * 3) * 0.12;
+    b.d[i] += (Math.sin(ph) * 0.18 * (1 - 0.6 * u) + buzz) * Math.min(1, t / 0.05) * Math.max(0, Math.min(1, (1.4 - t) / 0.5));
+  }
+  for (let k = 0; k < 4; k++) click(b, r, 0.6 + r() * 0.6, 2500 + r() * 2500, 0.25, 0.001, 3000);
+  return b.normalize(0.7).fadeOut();
+}
+
+// A pylon standing: a transformer's buzz at twice the mains, a thin whine high over it, beating
+// slowly. Two seconds of whole cycles, filters run in from before the start, so no seam.
+function pylon(sr: number, r: R): Buf {
+  const b = new Buf(sr, 2);
+  const sv = new SVF(sr), noise = new Float32Array(b.len);
+  for (let i = 0; i < b.len; i++) noise[i] = r() * 2 - 1;
+  for (let i = -Math.floor(sr * 0.1); i < b.len; i++) {
+    const t = i / sr;
+    const buzz = Math.tanh(Math.sin(TAU * 120 * t) * 2.5) + 0.3 * Math.sin(TAU * 240 * t);
+    const y = sv.run(buzz + noise[(i + b.len) % b.len] * 0.15, 700, 1).band * (0.85 + 0.15 * Math.sin(TAU * t))
+      + Math.sin(TAU * 2400 * t) * 0.04 * (0.6 + 0.4 * Math.sin(TAU * 2 * t));
+    if (i >= 0) b.d[i] = y;
+  }
+  return b.normalize(0.6);
+}
+
+// Paying into the generator: a hundred in coin tipped into its hopper, rattling down a metal
+// chute, and the counter ticking it up with a clunk.
+function payIn(sr: number, r: R): Buf {
+  const b = new Buf(sr, 1.1);
+  let t = 0;
+  for (let k = 0; k < 9; k++) {
+    t += 0.01 + r() * 0.025;
+    const f = jit(r, 2000, 0.25);
+    ping(b, t, [f, f * 1.47, f * 2.09], 0.015 + r() * 0.012, 0.25 * (1 - k / 14));
+  }
+  // The chute: the coins knocking down a tube, ringing in it.
+  const tube = new SVF(sr), o = Math.floor(0.2 * sr);
+  for (let i = 0; i < sr * 0.35 && o + i < b.len; i++) {
+    const x = r() < 0.004 ? (r() * 2 - 1) * 4 : 0;
+    b.d[o + i] += tube.run(x, jit(r, 950, 0.01), 5).band * Math.max(0, 1 - i / (sr * 0.35)) * 0.6;
+  }
+  for (let k = 0; k < 3; k++) click(b, r, 0.62 + k * 0.07, 1700, 0.3, 0.002, 900);
+  clack(b, r, 0.86, 1100, 0.5, 220);
+  return b.normalize(0.7).fadeOut();
+}
+
+// The generator going up a tier: a breaker thrown, the machine spinning up from a growl to a
+// higher, fuller hum, the transformer buzzing in, pressure let off, and its housing ringing.
+function tierUp(sr: number, r: R): Buf {
+  const b = new Buf(sr, 3);
+  clack(b, r, 0, 900, 1, 160);
+  thud(b, r, 0, 90, 45, 0.06, 0.8, 0.5, 600);
+  let ph = 0;
+  for (let i = 0; i < b.len; i++) {
+    const t = i / sr, u = Math.min(1, t / 1.8);
+    const f = 25 + 75 * (1 - Math.pow(1 - u, 2));
+    ph += TAU * f / sr;
+    const tone = Math.sin(ph) + 0.5 * Math.sin(2 * ph) + 0.3 * Math.sin(3 * ph) + 0.15 * Math.sin(4 * ph);
+    const buzz = Math.tanh(Math.sin(TAU * 100 * t) * 2) * 0.25 * Math.min(1, Math.max(0, (t - 1) / 0.6));
+    b.d[i] += (tone * 0.45 * u + buzz) * Math.min(1, t / 0.1) * Math.max(0, Math.min(1, (3 - t) / 0.8));
+  }
+  const hs = new SVF(sr), o = Math.floor(1.6 * sr);
+  for (let i = 0; i < sr * 0.7 && o + i < b.len; i++) b.d[o + i] += hs.run(r() * 2 - 1, 3200, 0.7).band * ad(i / sr, 0.02, 0.25) * 0.3;
+  ping(b, 1.75, [jit(r, 180, 0.05), 455, 760, 1180], 0.5, 0.3);
+  return b.normalize(0.8).fadeOut(0.2);
+}
+
+// The Overload: the generator's capacitors whining up for a breath, then letting go all at
+// once, a crack and a slam felt in the chest, arcs crackling out over the walls, and the cold
+// it leaves crackling into ice on everything it caught.
+function overload(sr: number, r: R): Buf {
+  const b = new Buf(sr, 3.4);
+  const charge = 0.3;
+  let ph = 0;
+  for (let i = 0; i < charge * sr; i++) {
+    const t = i / sr, u = t / charge;
+    ph += TAU * (200 + 2200 * u * u) / sr;
+    b.d[i] += (Math.sin(ph) + 0.3 * Math.sin(2 * ph)) * u * u * 0.3;
+  }
+  const o = Math.floor(charge * sr), nn = Math.ceil(0.004 * sr);
+  for (let i = 0; i < nn; i++) { const u = i / nn; b.d[o + i] += (1 - 2 * u) * Math.min(1, u * 12, (1 - u) * 12) * 1.2; }
+  roar(b, r, charge, 1.2, 5200, 300, 0.0008, 0.12, 1.1, 4);
+  thud(b, r, charge, 65, 20, 0.35, 1.5, 0.2, 250);
+  crackle(b, r, charge + 0.02, 1.6, 260, 1800, 6000, 0.35);
+  // The arcs: a buzz thrown about in pitch, dying out over a second.
+  const buzz = new SVF(sr), fm = slowNoise(r, sr, 3.4, 40);
+  let bp = 0;
+  for (let i = o; i < b.len; i++) {
+    const t = i / sr - charge;
+    bp += (110 + 60 * fm[i]) / sr; bp -= Math.floor(bp);
+    b.d[i] += buzz.run((bp < 0.5 ? 1 : -1) + (r() * 2 - 1) * 0.5, 1400, 1).band * ad(t, 0.005, 0.5) * 0.35;
+  }
+  // The freeze: ice cracking on what was caught, crowded at first and thinning.
+  for (let k = 0; k < 40; k++) {
+    const u = Math.pow(r(), 1.6), f = 1800 + r() * 3200;
+    click(b, r, charge + 0.4 + u * 1.6, f, (0.2 + r() * 0.3) * Math.exp(-u * 1.5), 0.0012 + r() * 0.002, f * 0.6);
+  }
+  const dry = b.d.slice(o, o + Math.ceil(0.5 * sr));
+  for (const [d, g] of [[0.3, 0.25], [0.7, 0.12], [1.3, 0.05]] as const) {
+    const a = new LP1(sr), c = new LP1(sr), e = o + Math.floor(jit(r, d, 0.1) * sr);
+    for (let i = 0; i < dry.length && e + i < b.len; i++) b.d[e + i] += c.run(a.run(dry[i], 900), 900) * g;
+  }
+  return b.normalize(0.95).fadeOut(0.3);
+}
+
+// The Overload charged for this wave: the capacitor bank whining up and a relay shutting.
+function overloadReady(sr: number, r: R): Buf {
+  const b = new Buf(sr, 1.1);
+  let ph = 0;
+  for (let i = 0; i < 0.85 * sr; i++) {
+    const t = i / sr, u = t / 0.85;
+    ph += TAU * (300 + 1500 * u) / sr;
+    b.d[i] += Math.sin(ph) * (0.6 + 0.4 * Math.sin(TAU * 50 * t)) * Math.min(1, t / 0.1) * (0.3 + 0.7 * u) * 0.25;
+  }
+  clack(b, r, 0.85, 1500, 0.6, 260);
+  click(b, r, 0.9, 2800, 0.25, 0.002, 1900);
+  return b.normalize(0.65).fadeOut();
+}
+
+// A turret evolving: the hydraulics hissing as it is lifted apart, an impact gun rattling the
+// new parts on, a heavy clank as they seat, and the servos running it through its arc once.
+function evolve(sr: number, r: R): Buf {
+  const b = new Buf(sr, 1.6);
+  const hs = new SVF(sr);
+  for (let i = 0; i < sr * 0.3; i++) b.d[i] += hs.run(r() * 2 - 1, 3500, 0.8).band * ad(i / sr, 0.02, 0.12) * 0.35;
+  for (const [s, e] of [[0.25, 0.4], [0.48, 0.66]]) for (let t = s; t < e; t += 1 / jit(r, 28, 0.1)) clack(b, r, t, 2200 + r() * 300, 0.25, 500);
+  const f = jit(r, 520, 0.06);
+  thud(b, r, 0.78, 110, 50, 0.06, 1, 0.5, 600);
+  ping(b, 0.78, [f, f * 2.5, f * 4.05], 0.25, 0.4);
+  servo(b, r, 1, 0.4, 0.06);
+  clack(b, r, 1.42, 1900, 0.35, 300);
+  return b.normalize(0.8).fadeOut();
+}
+
+// The gatling evolution: lighter rounds than the sentry's, more than twice as many, the six
+// barrels ticking round under them.
+const GATLING: Gun = {
+  len: 0.45, crack: 0.85, crackTau: 0.0006, blast: 1, blastTau: 0.011, blastF0: 6800, blastF1: 1200, body: 0.5, bodyF: 1300,
+  boom: 0.7, boomF0: 175, boomF1: 60, boomTau: 0.016, drive: 3, tail: 0.18, tailTau: 0.08, tailF: 950,
+  echoes: [[0.09, 0.1], [0.2, 0.04]],
+};
+// The penetrator: armour-piercing rounds, a harder crack and more weight behind each.
+const PENETRATOR: Gun = {
+  len: 0.9, crack: 1.3, crackTau: 0.0006, blast: 1.1, blastTau: 0.02, blastF0: 7000, blastF1: 900, body: 0.45, bodyF: 1100,
+  boom: 0.95, boomF0: 140, boomF1: 45, boomTau: 0.035, drive: 3.4, tail: 0.3, tailTau: 0.16, tailF: 800,
+  echoes: [[0.12, 0.18], [0.3, 0.08]],
+};
+// Anti-materiel: a 20 mm through everything in its line, deeper and wider than the .50.
+const ANTIMAT: Gun = {
+  len: 3, crack: 1.8, crackTau: 0.0007, blast: 1.3, blastTau: 0.05, blastF0: 6500, blastF1: 650, body: 0.55, bodyF: 700,
+  boom: 1.2, boomF0: 85, boomF1: 26, boomTau: 0.09, drive: 4, tail: 0.55, tailTau: 0.38, tailF: 650,
+  echoes: [[0.22, 0.34], [0.55, 0.18], [1, 0.09], [1.6, 0.04]],
+};
+
+// A mortar: the shell slid down the tube and ringing on the way, then the hollow thoomp of it
+// going, the tube sounding, and the shell whispering up out of earshot.
+function mortar(sr: number, r: R): Buf {
+  const b = new Buf(sr, 1.6);
+  slide(b, r, 0, 0.08, 1800, 0.15);
+  ping(b, 0.07, [1500, 2380], 0.03, 0.1);
+  const at = 0.1, f = jit(r, 160, 0.1), o = Math.floor(at * sr);
+  let ph = 0;
+  for (let i = 0; i < sr * 0.4 && o + i < b.len; i++) {
+    const t = i / sr;
+    ph += TAU * f * (0.8 + 0.2 * Math.exp(-t / 0.04)) / sr;
+    b.d[o + i] += Math.sin(ph) * ad(t, 0.002, 0.08) * 0.8;
+  }
+  thud(b, r, at, 95, 38, 0.09, 1.2, 0.4, 400);
+  roar(b, r, at, 0.3, 1600, 200, 0.002, 0.05, 0.7, 3);
+  whoosh(b, r, at + 0.05, 0.6, 1300, 650, 0.12, 2);
+  const dry = b.d.slice(o, o + Math.ceil(0.3 * sr));
+  for (const [d, g] of [[0.25, 0.25], [0.6, 0.1]] as const) {
+    const a = new LP1(sr), c = new LP1(sr), e = o + Math.floor(jit(r, d, 0.1) * sr);
+    for (let i = 0; i < dry.length && e + i < b.len; i++) b.d[e + i] += c.run(a.run(dry[i], 1000), 1000) * g;
+  }
+  return b.normalize(0.9).fadeOut(0.1);
+}
+
+// A napalm missile leaving: over the tube's pop, the jelly in its nose burning as it goes, a
+// fluttering, fiery roar streaking off.
+function napalmFlight(sr: number, r: R): Buf {
+  const b = new Buf(sr, 1.1);
+  const sv = new SVF(sr), lp = new LP1(sr), flutter = slowNoise(r, sr, 1.1, 30);
+  const comp = Math.sqrt(sr / (2 * 300));
+  for (let i = 0; i < b.len; i++) {
+    const t = i / sr, n = r() * 2 - 1;
+    const f = 600 + 900 * Math.exp(-t / 0.4);
+    b.d[i] += (sv.run(n, f, 0.8).band * (0.7 + 0.4 * flutter[i]) + lp.run(n, 300) * comp * 0.3) * ad(t, 0.03, 0.35);
+  }
+  crackle(b, r, 0.02, 0.9, 120, 1200, 4000, 0.2);
+  return b.normalize(0.8).fadeOut(0.05);
+}
+
+// Napalm bursting: no shock front but a soft, heavy whump of jelly catching, a liquid splash as
+// it sheets out, the fire rolling up over it and crackling.
+function napalmBurst(sr: number, r: R): Buf {
+  const b = new Buf(sr, 2.2);
+  thud(b, r, 0, 75, 30, 0.2, 1.2, 0.3, 300);
+  roar(b, r, 0, 1.3, 1900, 220, 0.03, 0.35, 1, 2.5);
+  // The splash: wet noise rising and falling, and the fat bubbles in it.
+  const sv = new SVF(sr);
+  for (let i = 0; i < sr * 0.35; i++) {
+    const t = i / sr;
+    b.d[i] += sv.run(r() * 2 - 1, 700 + 900 * Math.sin(Math.PI * t / 0.35), 1.5).band * bump(t, 0.1, 0.08) * 0.5;
+  }
+  for (let k = 0; k < 10; k++) {
+    const at = 0.05 + r() * 0.5, f = 200 + r() * 300, o = Math.floor(at * sr);
+    for (let i = 0; i < sr * 0.04 && o + i < b.len; i++) { const t = i / sr; b.d[o + i] += Math.sin(TAU * f * t * (1 + 8 * t)) * ad(t, 0.002, 0.012) * 0.25; }
+  }
+  crackle(b, r, 0.1, 1.9, 140, 1300, 4500, 0.3);
+  return b.normalize(0.85).fadeOut(0.2);
+}
+
+// The arc web: one strike crackling out from creep to creep, a snap at each jump and a zap
+// falling through it, the buzz of the web held between them. Kept under 7 kHz.
+function arcWeb(sr: number, r: R): Buf {
+  const b = new Buf(sr, 0.55);
+  const n = 4 + Math.floor(r() * 4);
+  let at = 0;
+  for (let k = 0; k < n; k++) {
+    const f = 2000 + r() * 2500, o = Math.floor(at * sr), z0 = jit(r, 2600, 0.2);
+    click(b, r, at, f, 0.7 * (1 - k / (n + 2)), 0.0015, f * 0.6);
+    let ph = 0;
+    for (let i = 0; i < sr * 0.04 && o + i < b.len; i++) {
+      const t = i / sr;
+      ph += TAU * (350 + (z0 - 350) * Math.exp(-t / 0.012)) / sr;
+      b.d[o + i] += Math.tanh(Math.sin(ph) * 3) * ad(t, 0.0005, 0.015) * 0.3;
+    }
+    at += 0.025 + r() * 0.045;
+  }
+  const buzz = new SVF(sr), top = new LP1(sr);
+  let bp = 0;
+  for (let i = 0; i < b.len; i++) {
+    const t = i / sr;
+    bp += (120 + r() * 40) / sr; bp -= Math.floor(bp);
+    b.d[i] += buzz.run((bp < 0.5 ? 1 : -1) + (r() * 2 - 1) * 0.6, 1300, 1.1).band * Math.min(1, t / 0.01) * Math.max(0, 1 - t / (at + 0.08)) * 0.35;
+    b.d[i] = top.run(b.d[i], 7000);
+  }
+  return b.normalize(0.8).fadeOut(0.03);
+}
+
+// A round off armour: the plate's ring, and now and then the round whining off it, else a
+// dull clank where it bit in.
+function ricochet(sr: number, r: R): Buf {
+  const b = new Buf(sr, 0.4);
+  const f = jit(r, 1900, 0.2);
+  click(b, r, 0, f * 1.4, 0.5, 0.0015, f);
+  ping(b, 0.001, [f, f * 1.62, f * 2.31], 0.03, 0.3);
+  if (r() < 0.55) {
+    const w0 = jit(r, 3000, 0.15), w1 = w0 * (0.4 + r() * 0.15), d = jit(r, 0.22, 0.2), o = Math.floor(0.008 * sr);
+    let ph = 0;
+    for (let i = 0; i < d * sr && o + i < b.len; i++) {
+      const t = i / sr;
+      ph += TAU * (w1 + (w0 - w1) * Math.exp(-t / (d * 0.5))) * (1 + 0.01 * Math.sin(TAU * 40 * t)) / sr;
+      b.d[o + i] += Math.sin(ph) * bump(t, d * 0.3, d * 0.3) * 0.18;
+    }
+  } else thud(b, r, 0, 300, 180, 0.012, 0.4, 0.4, 2000);
+  return b.normalize(0.6).fadeOut();
+}
+
+// A sapper's fuse: a lit cord spitting and hissing, crackling unevenly. Made whole.
+function fuse(sr: number, r: R): Buf {
+  return seamless(sr, 2, 0.2, (b) => {
+    const sv = new SVF(sr), sputter = slowNoise(r, sr, b.len / sr, 22);
+    for (let i = 0; i < b.len; i++) b.d[i] = sv.run(r() * 2 - 1, 3600, 0.8).band * (0.4 + 0.6 * Math.max(0, sputter[i])) * 0.5;
+    for (let k = 0; k < 120; k++) click(b, r, r() * (b.len / sr - 0.01), 1500 + r() * 3000, 0.2 + r() * 0.3, 0.001 + r() * 0.0015);
+    b.normalize(0.6);
+  });
+}
+
+// A splitter bursting: the body tearing open wet, and the two swarmers inside squealing out.
+function splitBurst(sr: number, r: R): Buf {
+  const b = new Buf(sr, 0.9);
+  roar(b, r, 0, 0.4, 1800, 300, 0.002, 0.08, 1, 3);
+  thud(b, r, 0, 160, 70, 0.04, 0.6, 0.6);
+  debris(b, r, 0.01, 0.25, 10, 600, 2200, 0.35);
+  creepVoice(b, r, 0.08, 2, 0.5);
+  creepVoice(b, r, 0.15 + r() * 0.05, 2, 0.45);
+  return b.normalize(0.8).fadeOut();
+}
+
+// A creep frenzying: it has lost patience with the maze, and it shrieks it.
+function frenzy(sr: number, r: R): Buf {
+  const b = new Buf(sr, 0.8);
+  const f = jit(r, 190, 0.15);
+  vox(b, r, 0, {
+    dur: jit(r, 0.55, 0.15), f0: (u) => f * (1 + 0.7 * Math.sin(Math.PI * Math.min(1, u * 1.3))), vowel: (u) => lerpV(V.ae, V.ee, u),
+    rasp: 0.75, jitter: 0.12, a: 0.03, rel: 0.2, gain: 1, drive: 3, fry: 0.3,
+  });
+  vox(b, r, 0.02, { dur: 0.45, f0: (u) => f * 0.5 * (1 + 0.4 * u), vowel: () => [...V.aa], rasp: 0.85, jitter: 0.15, a: 0.03, rel: 0.15, gain: 0.5, drive: 3 });
+  return b.normalize(0.75).fadeOut();
+}
+
+// The horde far off: dozens of the dead moaning over one another, blurred by distance into one
+// sound, a shuffle of feet and a deep swell under it. Heard as one thing, never as one creep.
+function horde(sr: number, r: R): Buf {
+  return seamless(sr, 6, 0.6, (b) => {
+    const voices = new Buf(sr, b.len / sr);
+    for (let k = 0; k < 40; k++) {
+      const kind = [0, 0, 0, 1, 3, 8][Math.floor(r() * 6)];
+      creepVoice(voices, r, r() * (b.len / sr - 1.6), kind, 0.8 + r() * 0.6);
+    }
+    const a = new LP1(sr), c = new LP1(sr), sv = new SVF(sr), swell = slowNoise(r, sr, b.len / sr, 0.6);
+    for (let i = 0; i < b.len; i++) {
+      const v = c.run(a.run(voices.d[i], 1100), 1100) * 0.25;
+      const rumble = sv.run(r() * 2 - 1, 140, 0.7).band * 1.5;
+      b.d[i] = (v + rumble) * (0.8 + 0.2 * swell[i]);
+    }
+    for (let k = 0; k < 70; k++) thud(b, r, r() * (b.len / sr - 0.1), 90 + r() * 50, 50, 0.02, 0.05 + r() * 0.05, 0.9, 500);
+    b.normalize(0.7);
+  });
+}
+
+// A war horn blown far off: a long bone horn, the breath catching as it starts, brassy as it
+// swells, wavering, and the hills sending it back. A boss wave's is two, lower, one under the
+// other.
+function horn(b: Buf, r: R, at: number, f0: number, dur: number, gain: number): void {
+  const sr = b.sr, o = Math.floor(at * sr), wob = slowNoise(r, sr, dur + 0.1, 5), sv = new SVF(sr), br = new SVF(sr);
+  let ph = 0;
+  for (let i = 0; i < dur * sr && o + i < b.len; i++) {
+    const t = i / sr, u = t / dur;
+    const env = Math.min(1, t / 0.35) * (u > 0.8 ? Math.max(0, (1 - u) / 0.2) : 1) * (0.85 + 0.15 * Math.sin(TAU * 0.7 * t));
+    const f = f0 * (0.94 + 0.06 * Math.min(1, t / 0.3)) * (1 + 0.006 * wob[i]) * (u > 0.85 ? 1 - 0.06 * (u - 0.85) / 0.15 : 1);
+    ph += f / sr; ph -= Math.floor(ph);
+    const saw = 1 - 2 * ph, cut = 250 + 1500 * env;
+    const y = sv.run(saw, cut, 0.9).low * 1.3 + br.run(saw, 900, 3).band * 0.3 * env;
+    b.d[o + i] += sat(y * (0.4 + env), 2) * env * gain + (r() * 2 - 1) * 0.02 * env * gain;
+  }
+}
+function warHorn(sr: number, r: R, boss: boolean): Buf {
+  const b = new Buf(sr, boss ? 6 : 4.5);
+  if (boss) { horn(b, r, 0, jit(r, 73, 0.03), 3.2, 1); horn(b, r, 0.5, jit(r, 55, 0.03), 3.4, 0.9); } else horn(b, r, 0, jit(r, 98, 0.05), 2.4, 1);
+  const len = Math.ceil((boss ? 3.9 : 2.4) * sr), dry = b.d.slice(0, len);
+  for (const [d, g] of [[0.55, 0.35], [1.2, 0.18], [1.9, 0.08]] as const) {
+    const a = new LP1(sr), c = new LP1(sr), e = Math.floor(jit(r, d, 0.1) * sr);
+    for (let i = 0; i < dry.length && e + i < b.len; i++) b.d[e + i] += c.run(a.run(dry[i], 900), 900) * g;
+  }
+  return b.normalize(0.8).fadeOut(0.3);
+}
+
+// A boss roaring: two throats in one chest beating against each other, the breath tearing, a
+// thump in the chest under it. The abomination bellows; the broodmother's is wet, gurgling, a
+// shriek riding on it; the goliath's the deepest and longest.
+function bossRoar(sr: number, r: R, kind: number): Buf {
+  const b = new Buf(sr, 3);
+  const def: { f: number; dur: number; a: Vowel; z: Vowel; am: number; top: boolean } = kind === 7
+    ? { f: 62, dur: 1.6, a: V.aa, z: V.er, am: 9, top: true }
+    : kind === 10 ? { f: 34, dur: 2.2, a: V.oh, z: V.uh, am: 0, top: false } : { f: 44, dur: 1.8, a: V.oh, z: V.aa, am: 0, top: false };
+  const { f, dur, a, z, am, top } = def;
+  const f0 = jit(r, f, 0.06), d = jit(r, dur, 0.1);
+  for (const [k, g] of [[1, 1], [1.07, 0.6]]) {
+    vox(b, r, 0.05, {
+      dur: d, f0: (u) => f0 * k * (1 + 0.3 * Math.sin(Math.PI * Math.min(1, u * 1.4))), vowel: (u) => lerpV(a, z, u),
+      rasp: 0.9, jitter: 0.12, a: 0.15, rel: d * 0.35, gain: g, am, drive: 3.8, fry: 0.4, swell: 0.4,
+    });
+  }
+  if (top) vox(b, r, 0.25, { dur: d * 0.6, f0: (u) => 300 + 120 * Math.sin(Math.PI * u), vowel: () => [...V.eh], rasp: 0.7, jitter: 0.1, a: 0.08, rel: 0.2, gain: 0.35, drive: 2.5 });
+  roar(b, r, 0.05, d, 900, 200, 0.12, d * 0.4, 0.35, 2);
+  thud(b, r, 0.08, 55, 25, 0.3, 0.8, 0.3, 250);
+  return b.normalize(0.85).fadeOut(0.2);
+}
+
+// A boss's tread: the ground itself thumping, felt more than heard, so it carries, with the
+// dirt shaken loose round it.
+function bossStep(sr: number, r: R): Buf {
+  const b = new Buf(sr, 1.1);
+  thud(b, r, 0, jit(r, 45, 0.1), 20, 0.14, 1.4, 0.4, 250);
+  roar(b, r, 0.005, 0.6, 450, 80, 0.006, 0.12, 0.6, 2);
+  debris(b, r, 0.04, 0.5, 14, 600, 2000, 0.12);
+  return b.normalize(0.85).fadeOut();
+}
+
+// The generator shorting: a burst of sparks, snaps ringing off the housing over an arc's buzz.
+function sparks(sr: number, r: R): Buf {
+  const b = new Buf(sr, 0.6);
+  const n = 3 + Math.floor(r() * 6), len = jit(r, 0.25, 0.4);
+  for (let k = 0; k < n; k++) {
+    const f = 2000 + r() * 3500;
+    click(b, r, Math.pow(r(), 1.5) * len, f, 0.4 + r() * 0.5, 0.001 + r() * 0.0015, f * 0.55);
+  }
+  const buzz = new SVF(sr), top = new LP1(sr);
+  let bp = 0;
+  for (let i = 0; i < b.len; i++) {
+    const t = i / sr;
+    bp += (100 + r() * 30) / sr; bp -= Math.floor(bp);
+    const on = t < len ? 1 : Math.exp(-(t - len) / 0.03);
+    b.d[i] = top.run(b.d[i] + buzz.run((bp < 0.5 ? 1 : -1) * (r() < 0.9 ? 1 : 0), 1500, 1.2).band * on * Math.min(1, t / 0.003) * 0.3, 7000);
+  }
+  return b.normalize(0.7).fadeOut();
+}
+
+// The generator burning: wiring crackling and arcing in fits, a low fire under it. Made whole.
+function coreCrackle(sr: number, r: R): Buf {
+  return seamless(sr, 4, 0.4, (b) => {
+    const lp = new LP1(sr), comp = Math.sqrt(sr / (2 * 300)), fits = slowNoise(r, sr, b.len / sr, 3), buzz = new SVF(sr);
+    let bp = 0;
+    for (let i = 0; i < b.len; i++) {
+      const t = i / sr;
+      bp += 100 / sr; bp -= Math.floor(bp);
+      const arc = Math.max(0, fits[i] - 0.2) * 1.4;
+      b.d[i] = lp.run(r() * 2 - 1, 300) * comp * 0.25 + buzz.run(bp < 0.5 ? 1 : -1, 1400, 1.2).band * arc * 0.3 * (0.6 + 0.4 * Math.sin(TAU * 7 * t));
+    }
+    for (let k = 0; k < 160; k++) click(b, r, r() * (b.len / sr - 0.01), 1300 + r() * 4000, (0.2 + r() * 0.6) * (r() < 0.08 ? 2 : 0.8), 0.0012 + r() * 0.003);
+    b.normalize(0.65);
+  });
+}
+
+// The generator's critical alarm: three rising electronic whoops, unlike the klaxon that calls
+// a hit, so a failing generator is known from a struck one.
+function coreAlarm(sr: number): Buf {
+  const b = new Buf(sr, 1.5);
+  const lp = new LP1(sr);
+  for (let k = 0; k < 3; k++) {
+    const o = Math.floor(k * 0.45 * sr), d = 0.36;
+    let ph = 0;
+    for (let i = 0; i < d * sr; i++) {
+      const t = i / sr, u = t / d;
+      ph += TAU * (450 + 600 * u) / sr;
+      b.d[o + i] += (Math.tanh(Math.sin(ph) * 3) + 0.3 * Math.sin(2 * ph)) * Math.min(1, t / 0.01, (d - t) / 0.03);
+    }
+  }
+  for (let i = 0; i < b.len; i++) b.d[i] = lp.run(b.d[i], 2500);
+  return b.normalize(0.6);
+}
+
+// The evac Huey touching down: the skids hitting the pad, one and then the other, its frame
+// creaking as it settles, and the dust blown out from under it.
+function touchdown(sr: number, r: R): Buf {
+  const b = new Buf(sr, 1.2);
+  thud(b, r, 0, 90, 45, 0.06, 1, 0.6, 700);
+  thud(b, r, jit(r, 0.06, 0.3), 100, 50, 0.05, 0.8, 0.6, 700);
+  clack(b, r, 0.02, 700, 0.4, 150);
+  ping(b, 0.05, [420, 1130, 1870], 0.1, 0.12);
+  whoosh(b, r, 0.03, 0.8, 1500, 400, 0.5, 0.7);
+  debris(b, r, 0.1, 0.6, 14, 1500, 4000, 0.1);
+  return b.normalize(0.8).fadeOut();
+}
+
 // --- the table ----------------------------------------------------------------------------
 
 type Maker = (sr: number, r: R) => Buf;
@@ -1514,8 +2097,8 @@ const TRIM: Record<string, number> = {
   radio_chat: 5, radio_here: 4, radio_danger: 5, radio_loot: 4, radio_defend: 3, radio_good: 4, radio_bad: 4, radio_error: 4, beep: 3,
 };
 for (const k of ['chat', 'here', 'danger', 'loot', 'defend', 'good', 'bad', 'error']) RECIPES['radio_' + k] = [1, (sr, r) => radio(sr, r, k)];
-for (let k = 0; k < 8; k++) {
-  RECIPES['groan' + k] = [k === 5 || k === 7 ? 3 : 4, (sr, r) => { const b = new Buf(sr, 2.2); creepVoice(b, r, 0, k); return b.normalize(0.8).fadeOut(); }, LOW];
+for (let k = 0; k < 11; k++) {
+  RECIPES['groan' + k] = [k === 5 || k === 7 || k === 10 ? 3 : 4, (sr, r) => { const b = new Buf(sr, 2.2); creepVoice(b, r, 0, k); return b.normalize(0.8).fadeOut(); }, LOW];
   RECIPES['death' + k] = [BIG.has(k) ? 2 : 4, (sr, r) => creepDeath(sr, r, k), BIG.has(k) ? LOW : undefined];
 }
 for (const [s, p] of [['m', 1], ['f', 1.7]] as const) {
@@ -1528,6 +2111,52 @@ for (let w = 0; w < 6; w++) {
   RECIPES['reload' + w] = [1, (sr, r) => reload(sr, r, w, false)];
   RECIPES['reloaded' + w] = [1, (sr, r) => reload(sr, r, w, true)];
 }
+
+// The features that came after the first pass: traps, the generator's tiers, the pylon and the
+// Overload, gates, the turrets' evolutions, the waves' affixes, the bosses and the horde
+// (coverage.ts and ambience.ts play them).
+Object.assign(RECIPES, {
+  spikes: [4, spikes],
+  spikesBreak: [2, spikesBreak, LOW],
+  tar: [4, tar, LOW],
+  flameVent: [3, flameVent],
+  mine: [3, mine],
+  gateOpen: [3, (sr: number, r: R) => gate(sr, r, true)],
+  gateShut: [3, (sr: number, r: R) => gate(sr, r, false)],
+  pylonOn: [1, pylonOn],
+  pylon: [1, pylon, LOW],
+  payIn: [3, payIn],
+  tierUp: [2, tierUp, LOW],
+  overload: [2, overload],
+  overloadReady: [1, overloadReady],
+  evolve: [2, evolve],
+  gatling: [5, gun(GATLING, (b, r) => click(b, r, 0.022 + r() * 0.004, 2600, 0.06, 0.002, 1500))],
+  penetrator: [4, gun(PENETRATOR, (b, r) => { clack(b, r, 0.04 + r() * 0.005, 1900, 0.13, 340); servo(b, r, 0.08, 0.14, 0.03); })],
+  antiMat: [3, gun(ANTIMAT, (b, r) => { bolt(b, r, 0.6, 0.12); brass(b, r, 1.05, 0.05); })],
+  mortar: [3, mortar],
+  napalmFlight: [3, napalmFlight, LOW],
+  napalmBurst: [3, napalmBurst, LOW],
+  arcWeb: [4, arcWeb],
+  ricochet: [6, ricochet],
+  fuse: [1, fuse],
+  splitBurst: [3, splitBurst, LOW],
+  frenzy: [4, frenzy, LOW],
+  horde: [1, horde, LOW],
+  warHorn: [2, (sr: number, r: R) => warHorn(sr, r, false), LOW],
+  warHornBoss: [1, (sr: number, r: R) => warHorn(sr, r, true), LOW],
+  roar5: [2, (sr: number, r: R) => bossRoar(sr, r, 5), LOW],
+  roar7: [2, (sr: number, r: R) => bossRoar(sr, r, 7), LOW],
+  roar10: [2, (sr: number, r: R) => bossRoar(sr, r, 10), LOW],
+  bossStep: [4, bossStep, LOW],
+  sparks: [5, sparks],
+  coreCrackle: [1, coreCrackle, LOW],
+  coreAlarm: [1, coreAlarm, LOW],
+  touchdown: [1, touchdown, LOW],
+} satisfies Record<string, [number, Maker, number?]>);
+for (const n of ['pylon', 'fuse', 'horde', 'coreCrackle']) LOOPS.add(n);
+// Measured as the rest were: the mauler's groan and a frenzy's shriek stood out like the
+// brute's did, the horns and roars a little hot for being long.
+Object.assign(TRIM, { groan8: -3, groan9: -6, groan10: -1, frenzy: -4, warHorn: -3, warHornBoss: -2, roar5: -3, roar7: -1, roar10: -3 });
 
 // render makes variant v of a sound at the context's rate sr, or the lower one its recipe
 // asks for. Seeded by name and variant: the same sound every load.
