@@ -52,7 +52,7 @@ it here along with the code.
   dark ahead. The minimap keeps the
   team's map, which is the one thing brutal leaves you to find your way back by.
 - **Brutal starts in melee.** Survivors begin with a crowbar and no gun: a short swing that
-  hits up to three creeps in front, never runs dry, and is quiet. Its ultimate, Berserk, doubles
+  hits up to four creeps in front, never runs dry, and is quiet. Its ultimate, Berserk, doubles
   the swings, heals by the hit and can't be slowed or stunned. Guns are bought or found as usual; the crowbar is
   never sold or found, so it is brutal's alone. Nor do they start with any gold: the first
   turret or gun is paid for with the first wave's bounties, swung for with the crowbar.
@@ -517,6 +517,93 @@ the long way round, or not at all. Map generation tries the spot again elsewhere
   since Firefox opens them before the page hears the key. The demo, the lab and `#dev` leave the
   browser alone.
 
+## Weapons
+
+Weapons are balanced by measurement, on the bench in `internal/game/weapon_balance_test.go`
+(the turrets' half is `balance_test.go`): each weapon fired as the game fires it at creeps on
+open ground, at every upgrade level, close (1.5 tiles), mid (8) and far (15), against every
+creep kind and the armoured affix, with its uptime, the share of its fire that lands, the gold in
+it and the wave a solo game has earned that by; then fully bought against late waves at the
+range it is for. `./build.sh go test ./internal/game -run TestWeaponTable -v -args -balance`
+prints it. Tests beside it hold each weapon to its role, so a number tuned later can't quietly
+take one's place.
+
+- **Each weapon a way of fighting.** Shotgun: brutal up close and weak far out. Rifle: precise,
+  long, the one-target killer at range. SMG: instant, cheap crowd fire with frequent reloads.
+  Minigun: the heaviest stream, slow to start. Rocket launcher: the biggest splash, slow and
+  dangerous to its shooter. Pistol: the sidearm, carried by its upgrades and a second one.
+  Crowbar: a melee panic option that holds up.
+- **Shotgun falloff.** A pellet keeps its damage out to 3 tiles, then loses it evenly to 35% at
+  the end of its range (shotFall). Its spread already thinned it with distance, but a pellet
+  that landed at 9 tiles still hit as hard as at 1, so a maxed shotgun at mid range did as much
+  as a maxed SMG. It now does about a third of the rifle's there, and over twice the rifle's up
+  close. Dragon's breath burns as hot at the end of its reach, and its shove at range is a third
+  of what it was: the old shove pushed creeps out past the gun's range faster than they came
+  back, so the ultimate slowed the kill it was meant to speed.
+- **The minigun spins up.** From 30% of its rate to full over 2 s of firing, back down over
+  1.5 s of not firing, a reload included (spinIdle, spinUp, spinDown); Overdrive spins it at
+  once. Without it the minigun was a better SMG at every moment; now an SMG outshoots it for
+  the first two seconds (416 a second against 284, both maxed), and it leads by half again once
+  spun.
+- **Rockets burn their shooter.** A rocket bursting within its blast of the survivor who fired
+  it hits them for 15 at its heart, half at its edge, whatever its upgrades (rocketSelf): about
+  seven in a row at a creep in your face put down a survivor with no armour. Fire is automatic,
+  so the risk is in what you hold, not where you click: the launcher for what is still coming,
+  another gun for what has arrived. The cluster rocket goes to a point and spares its shooter.
+- **The crowbar hits four.** Four creeps a swing where it was three, 42 a hit at 2 swings a
+  second: in reach, fully bought, it does a pistol and a half, and beats back a wave 25 charge in
+  about the time the guns do.
+
+The numbers that moved, and why:
+
+| | before | after | why |
+|---|---|---|---|
+| pistol | 14 damage, +22% a level | 15, +30% a level | the free gun is upgraded first and longest; a maxed pair now matches a maxed SMG |
+| SMG | 8 at 11/s, magazine 40 | 11 at 12/s, magazine 50 | armour took most of an 8-damage round; maxed, it trailed a maxed pair of pistols |
+| rifle | 60 at 1.4/s | 80 at 1.5/s | it was out-killed on one big creep by the minigun and the rocket at its own range |
+| rocket | 140 | 120 | it was the best at crowds and at single targets; it keeps the crowds |
+| crowbar | 34 at 1.8/s, 3 a swing | 42 at 2/s, 4 a swing | maxed, it was half a pistol pair's damage in reach and let a whole charge in |
+
+Sustained damage a second on one walker (close, mid, far), and on an armoured brute and an
+abomination at mid (the crowbar in reach), at level 0 and fully bought; gold is what is in it:
+
+| | gold | before 0 | after 0 | before 5 | after 5 | before 5 brute+A / boss | after 5 brute+A / boss |
+|---|---|---|---|---|---|---|---|
+| pistol | 0 / 3464 | 36 36 0 | 38 38 0 | 140 140 0 | 178 178 0 | 106 / 97 | 145 / 135 |
+| shotgun | 250 / 7330 | 100 27 0 | 100 15 0 | 952 259 0 | 952 139 0 | 317 / 414 | 120 / 130 |
+| SMG | 400 / 9648 | 64 56 0 | 102 91 0 | 274 245 0 | 410 367 0 | 160 / 127 | 286 / 251 |
+| rifle | 650 / 13514 | 63 63 63 | 88 88 88 | 277 277 277 | 378 378 378 | 262 / 257 | 362 / 358 |
+| minigun | 1400 / 25100 | 135 86 45 | 135 86 45 | 642 425 235 | 593 393 216 | 408 / 341 | 377 / 315 |
+| rocket | 2000 / 34360 | 85 86 80 | 73 74 69 | 369 358 345 | 317 307 296 | 349 / 347 | 298 / 296 |
+| crowbar | 0 / 3464 | 63 | 86 | 214 | 291 | 193 / 187 | 268 / 261 |
+
+Wave 25, every weapon fully bought (the pistol a pair) at its own range: seconds to clear the
+army (10 walkers, 4 runners, 10 swarmers, 4 hounds, 2 brutes, a mauler) and the heavy mix (3
+brutes, 6 walkers), to kill one goliath, and to beat back the army charging in from 16 tiles:
+
+| | range | army before | after | heavy before | after | goliath before | after | charge before | after |
+|---|---|---|---|---|---|---|---|---|---|
+| pistols | 6 | 31.2 | 23.5 | 24.2 | 18.4 | 180 | 129 | 20.0 | 15.2 |
+| shotgun | 3 | 13.8 | 16.1 | 8.3 | 9.2 | 54 | 54 | 14.3 | 15.2 |
+| SMG | 6 | 36.5 | 21.8 | 27.0 | 16.4 | 270 | 137 | 24.1 | 15.1 |
+| rifle | 16 | 26.9 | 18.4 | 22.1 | 15.9 | 134 | 96 | 16.5 | 11.9 |
+| minigun | 8 | 14.6 | 16.0 | 11.3 | 12.5 | 101 | 109 | 10.7 | 9.7 |
+| rocket | 11 | 12.2 | 15.0 | 9.2 | 10.8 | 97 | 114 | 11.1 | 13.4 |
+| crowbar | 1.5 | - | - | - | - | 184 | 132 | 36.3 | 23.2 |
+
+The worst of them took 3 times as long as the best to clear the army and the heavy mix; now it
+is 1.6 and 2 times, and the tests hold it under 2.5. On wave 30 it is 1.6 and 1.8. Each is still
+best at something: the rocket at a loose pack (2 s), the shotgun at heavies and bosses up close,
+the rifle at one big creep at range, the minigun at a long fight, the SMG and the pistols at
+their price, and the crowbar is free. The rocket's charge costs its shooter about 140 health.
+
+Cost: the upgrade prices are unchanged (UpgradeCost, a quarter of the weapon's price plus 60,
+times 1.55 a level). A solo game has earned a maxed pistol or crowbar by wave 7, a shotgun by 10,
+an SMG by 11, a rifle by 13, a minigun by 16 and a launcher by 18, of about 105000 by wave 25, so
+late every weapon is affordable and the band above is what decides; damage per gold falls from
+the cheap guns to the dear ones (13 a second per 100 gold for a maxed shotgun up close, under 1
+for the launcher on one target), which is the price of range, splash and sustain.
+
 ## Ultimates and abilities
 
 - **An ultimate per weapon, on a meter.** The old signatures were on a cooldown, so they were
@@ -531,13 +618,15 @@ the long way round, or not at all. Map generation tries the spot again elsewhere
   It doesn't fill while one runs, and going down ends it.
 - **Each ultimate leans into its weapon.** Dead Eye makes the pistol, the weakest gun, the one
   that clears the screen: a 1.5 s mark at half speed, then a shot at everything in sight, lethal
-  to all but brutes and bosses (200 for them, so it can't erase a boss). Dragon's breath gives
+  to all but brutes and bosses (200 for them, so it can't erase a boss, growing with creep
+  health past wave 10 as the grenade does). Dragon's breath gives
   the shotgun its crowd control as fire and a shove. The SMG's Run and gun is about moving,
   the rifle's Railgun about lines, the minigun's Overdrive about holding a lane, the launcher's
   Cluster MIRV about one big crowd far off, and the crowbar's Berserk about standing in the
   middle of it. None spends ammo while it runs, so it isn't cut short by a reload.
 - **The shotgun hits harder from further.** 13 a pellet and range 10, with a tighter spread:
-  it was the gun nobody kept past the first armory visit.
+  it was the gun nobody kept past the first armory visit. It has since been given falloff (see
+  Weapons): the range is there for finishing a creep, not for fighting at it.
 - **The shotgun knocks creeps back, up close.** Each pellet pushes its creep a little, so a
   point-blank load shoves a walker about a quarter of a tile, and a tile and a half with the
   special track maxed (more pellets, each pushing harder). The push is full within 2 tiles and
@@ -553,7 +642,10 @@ the long way round, or not at all. Map generation tries the spot again elsewhere
   or dropped by a teammate, is just the other hand.
 - **The grenade grows with the game.** Five levels where it had three, from 120 damage to 400,
   wider and quicker each level, and from level 4 it leaves fire burning; a three-level grenade
-  stopped mattering by the mid game, when it was the one ability always at hand.
+  stopped mattering by the mid game, when it was the one ability always at hand. Past wave 10
+  its blast, its fire, the airstrike and Dead Eye's heavy shot grow as creep health has since
+  (lateScale): bought by level, they had stopped growing while the creeps had not, and a full
+  grenade was three walkers' health on wave 10 and less than one on wave 30.
 
 ## Downed and revive
 

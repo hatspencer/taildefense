@@ -52,6 +52,13 @@ Find a second pistol in the loot, or pick up one someone dropped, and it goes in
 dual pistols, each as upgraded as yours, fire twice as fast from twice the magazine. Dropping
 one leaves you the other.
 
+Each gun has its range. The shotgun is brutal within a few tiles and loses up to two thirds of
+its punch by the end of its reach; the rifle hits as hard at 28 tiles as at 1. The minigun
+starts at under a third of its rate and takes two seconds of firing to spin up, so bring it up
+before the crowd arrives, not after; the SMG fires full from the first round. A rocket bursting
+near you hurts you too, up to 15 health a rocket, so switch guns when creeps reach you. The
+crowbar hits up to four creeps a swing.
+
 ## Turrets
 
 Six turrets, from the build bar (B, then the number):
@@ -277,7 +284,8 @@ grenade: its range rings your hero and its blast follows the cursor (grey out of
 left-click throws it, and Esc, a right-click or Shift again puts it away. Dash and airstrike cast
 at the cursor the moment you press the key; point at the ground. The grenade goes to level 5, each
 level hitting harder (120 damage at the first, 400 at the fifth), throwing wider and coming back
-sooner; from level 4 it leaves a fire burning where it lands. Dash and airstrike go to level 3.
+sooner; from level 4 it leaves a fire burning where it lands. After wave 10 the grenade and the
+airstrike hit harder as the creeps get tougher. Dash and airstrike go to level 3.
 
 ## Waves
 
