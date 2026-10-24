@@ -5,7 +5,7 @@ import {
 } from '../protocol';
 import { K_CANNON, K_CORE, K_GUN, K_MISSILE, K_SNIPER, K_TESLA } from '../scene/structs';
 import type { Game } from '../state';
-import { type Loop, type Placed, Prio, Synth } from './synth';
+import { type Layers, type Loop, type Placed, Prio, Synth } from './synth';
 
 // What the game sounds like: reads each frame as it arrives (the shots, blasts and deaths of
 // that tick, and what changed since the last one) and plays it, placed round the point the
@@ -18,7 +18,7 @@ const MINIGUN = 4;
 const ULT: Record<number, string> = { 3: 'railgun' };
 const TURRET: Record<number, string> = { [K_GUN]: 'turretGun', [K_CANNON]: 'cannon', [K_TESLA]: 'tesla', [K_SNIPER]: 'sniper', [K_MISSILE]: 'pod' };
 // How loud each is at the listener, and how many of it one tick may play.
-export const LOUD: Record<string, number> = {
+const LOUD: Record<string, number> = {
   pistol: 0.9, shotgun: 0.87, smg: 0.6, rifle: 1.15, railgun: 1.15, minigun: 0.7, rocket: 0.8, missile: 0.65, crowbar: 0.7,
   turretGun: 0.5, cannon: 0.95, tesla: 0.45, sniper: 0.95, pod: 0.7, doorGun: 0.7,
   spit: 0.5, boneThrow: 0.5, boneLand: 0.45, dash: 0.6,
@@ -202,6 +202,12 @@ export class Sound {
     if (now - at < gap) return false;
     this.last.set(key, now);
     return true;
+  }
+
+  // audition plays name for the sound lab (#lab=sound): in the middle, at the level it is
+  // played at nearby, the recording, the recipe or both as layers says.
+  audition(name: string, layers: Layers): void {
+    this.synth.play(name, this.flat(LOUD[name] ?? 0.6), 0, 1, Prio.Own, layers);
   }
 
   // A cue from the radio or the game: the world steps back a little for it.

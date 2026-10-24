@@ -235,6 +235,8 @@ async function main(): Promise<void> {
       evac: P.has('evac'),
     };
     demoKit = await loadDemo();
+    // #lab=sound: the sound bench over the lab.
+    if (labMode && P.get('lab') === 'sound') new demoKit.SoundLab(sound, document.body);
     demoHost = new demoKit.DemoHost(handlers, opt);
     transport = demoHost;
     // #demo&shot: the report's picture is kept on the page, for a look at it.
