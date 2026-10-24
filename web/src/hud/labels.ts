@@ -6,9 +6,8 @@ import { cssHex, playerColor } from '../scene/util';
 export interface LabelFocus { hoverStruct: number; selStruct: number; hoverCreep: number; selCreep: number; showAllBars: boolean; hoverSite: number; siteHint: string; hoverGun?: number; gunHint?: string; dropHold?: number }
 
 // The HUD's palette and faces, for the canvas (see app.css).
-// Labels are small print, so they use the crisp face, not Pixelify (see --small).
-const FONT = '"IBM Plex Sans Condensed", "Arial Narrow", sans-serif';
-const CRT = '"VT323", "Lucida Console", monospace';
+// Labels use the HUD's one face (see --font).
+const FONT = '"Fira Code", Menlo, Consolas, monospace';
 const INK = '#07080a', AMBER = '#e0a63a', MOSS = '#86a24c', RUST = '#b5472f', BONE = '#d9d1b3', KHAKI = '#938a66', TAPE = '#bfab72';
 
 // 7x7 ping glyphs, by PingKind: here (a down arrow), danger (!), loot (a coin), defend (a shield).
@@ -235,7 +234,7 @@ export class Labels {
         c.fillStyle = blink ? RUST : '#7a2a1c'; c.fillRect(x - 3, y - 24, 6, 14); c.fillRect(x - 7, y - 20, 14, 2);
         this.text(p.name, x, y - (p.revived > 0 && !hide ? 37 : 30), col);
         if (hide) continue;
-        c.font = `${Math.round(fs * 1.5)}px ${CRT}`;
+        c.font = `${Math.round(fs * 1.5)}px ${FONT}`;
         this.text(`${p.respawn}s`, x, y + 14, '#e8846a');
       }
     }
@@ -268,7 +267,7 @@ export class Labels {
 
     // Airstrike countdowns.
     c.textAlign = 'center'; c.textBaseline = 'bottom';
-    c.font = `26px ${CRT}`;
+    c.font = `26px ${FONT}`;
     const since = (now - game.frameAt) / 1000;
     for (let i = 0; i < f.nEffects; i++) {
       if (f.eKind[i] !== EffectKind.AirTarget) continue;
