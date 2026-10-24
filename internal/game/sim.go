@@ -416,7 +416,7 @@ func (w *World) stepCreeps() {
 		}
 		if c.Slow > 0 {
 			c.Slow -= Dt
-			speed *= .45
+			speed *= c.slowed()
 		}
 		c.Cool -= Dt
 		c.rest()

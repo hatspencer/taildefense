@@ -113,7 +113,7 @@ func (w *World) Overload(p *Player) error {
 	w.turretFire = true
 	defer func() { w.turretFire = false }()
 	x, y, r := w.CoreX+.5, w.CoreY+.5, float32(OverloadReach)
-	dmg := float32(overloadBase + overloadWave*w.Wave)
+	dmg := w.overloadDamage()
 	w.grid.each(x, y, r, func(i int32) bool {
 		c := &w.Creeps[i]
 		if dx, dy := c.X-x, c.Y-y; dx*dx+dy*dy <= r*r {
@@ -125,6 +125,11 @@ func (w *World) Overload(p *Player) error {
 	w.Blasts = append(w.Blasts, Blast{x, y, r, BlastOverload})
 	w.note(1, "%s overloaded the generator", p.Name)
 	return nil
+}
+
+// overloadDamage is what the Overload deals each creep it reaches this wave.
+func (w *World) overloadDamage() float32 {
+	return float32(overloadBase + overloadWave*w.Wave)
 }
 
 // evoFx is what an evolution does past its numbers.

@@ -82,6 +82,9 @@ func (c *Creep) stun(mul float32) {
 	c.stunLeft, c.stunCool = t, t+stunGap
 }
 
+// slowed is the share of its pace a slowed creep keeps.
+func (c *Creep) slowed() float32 { return .45 }
+
 // stunned counts a stun down and reports whether the creep is stopped this tick.
 func (c *Creep) stunned() bool {
 	if c.stunCool > 0 {
