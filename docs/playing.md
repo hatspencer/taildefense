@@ -38,6 +38,28 @@ faces as you rotate it, and clicking it turns the view north up again. The minim
 up, and a downed teammate's call says where they fell, so "brute coming in from the NW" means
 the same thing to everyone.
 
+## Windows, and when the link goes
+
+A first game on a machine opens with four first steps: keep the generator standing, walk with
+WASD, build and shop between waves, E for what is beside you. The menu (F10 or Esc) has them
+again, beside the controls (F1), which are grouped by what you are doing.
+
+The menu, the controls, the first steps and the field report work without the mouse: the arrows
+or Tab move between the buttons, Enter presses one, Esc closes. A controller does the same with
+the d-pad or left stick, A to press, B to go back and Start for the menu; the game itself is
+played on the keyboard and mouse. Over the field report Enter is still the chat until you move
+into the report, so a last word does not restart the game.
+
+The field report says how it ended: the wave that broke through and what stood at the generator
+when it fell, or who the Huey left behind. Under the tally it names the MVP (most kills) and
+whoever revived, built, turret-killed, hunted bosses or searched the most. The picture td keeps of
+it says the same.
+
+If the page loses the td on this machine it says so and keeps trying, counting the seconds; after
+a few it says what to check (is td still running in its terminal?) and offers a reload. When the
+game ends for the tab it says why in words, the host gone, you left, the game opened in another
+tab or td stopped, and what to do next.
+
 ## Weapons and kit
 
 A weapon run dry reloads in the background: switch to another and keep shooting, and the empty

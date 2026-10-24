@@ -7,7 +7,8 @@
 
   td abc1234  ✔ updated abc1234 → def5678 · R restart now
   ● box  100.64.0.7  ada@example.com
-  ✘ could not join pal: this host runs game protocol 2 and you run 1; whoever i…
+  ✘ could not join pal: this host runs game protocol 2 and you run 1; whoever
+    is older: td update
 
   Settings  saved to <config>/prefs
 

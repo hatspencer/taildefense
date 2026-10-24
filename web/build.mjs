@@ -42,6 +42,7 @@ await esbuild.build({
 });
 copyFileSync('index.html', `${out}/index.html`);
 copyFileSync('app.css', `${out}/app.css`);
+copyFileSync('menus.css', `${out}/menus.css`);
 // The music, files of their own beside the page rather than inlined: a few megabytes the page
 // streams once it needs them, so nothing waits on them (src/sound/music.ts).
 mkdirSync(`${out}/music`, { recursive: true });

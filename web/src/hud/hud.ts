@@ -8,11 +8,15 @@ import { archetypeName } from '../scene/look';
 import { CELL, type Portraits } from '../scene/portraits';
 import { el, esc, fmtGold, patch, setClass, setText, show } from './dom';
 import { iconFor, weatherIcon } from './icons';
-import { scoreRows, verdict } from './score';
+import { awards, ending, scoreRows, verdict } from './score';
 import { drawReport } from './shot';
 import { Compass, where } from './compass';
 import { Minimap } from './minimap';
 import { wordmarkURL } from './splash';
+import { Cover } from './cover';
+import { FirstRun, firstRunSeen } from './firstrun';
+import { helpHTML } from './help';
+import { Pad, focusFirst, navKey, step } from './nav';
 
 const ORDER = ['idle', 'moving', 'attack-moving', 'attacking', 'holding', 'building', 'repairing', 'searching', 'reviving', 'walking'];
 
@@ -108,10 +112,9 @@ export class Hud {
   // it, and the field report waits until it is out of sight.
   leaving: () => boolean = () => false;
   private overBoard: HTMLElement | null = null;
-  private cover: HTMLElement;
+  // The connection cover: connecting, reconnecting, and the end of the game for this tab.
+  cover: Cover;
   private statsEl: HTMLElement;
-  private conn: ConnState = 'connecting';
-  private connDetail = '';
   private chatTimer = 0;
   private lastSec = -1;
   private lastBoard = 0;
@@ -311,10 +314,11 @@ export class Hud {
     this.menu = el('div', 'window panel menu hidden', root);
     this.buildMenu();
     this.over = el('div', 'over hidden', root);
+    this.firstRun = new FirstRun(root, () => this.toggleHelp());
     this.tip = el('div', 'tip panel hidden', root);
-    this.cover = el('div', 'cover', root);
+    this.cover = new Cover(el('div', 'cover', root), markURL);
     this.statsEl = el('div', 'stats panel hidden', root);
-    this.renderCover();
+    this.cover.set('connecting');
   }
 
   // --- windows and messages ---
@@ -448,7 +452,44 @@ export class Hud {
     show(this.score, on);
     if (on) this.renderScore();
   }
-  toggleHelp(): void { show(this.help, this.help.classList.contains('hidden')); }
+  toggleHelp(): void { this.toggle(this.help); }
+  // Opens or closes a window; one opened has its first button in focus, for the keyboard.
+  private toggle(w: HTMLElement): void {
+    const on = w.classList.contains('hidden');
+    show(w, on);
+    if (on) setTimeout(() => focusFirst(w), 0);
+    else if (w.contains(document.activeElement)) (document.activeElement as HTMLElement).blur();
+  }
+  firstRun: FirstRun;
+  // The first steps, on a first game on this machine (or always, with force).
+  showFirstRun(force = false): void { if (force || !firstRunSeen()) this.firstRun.open(); }
+
+  // The window the keyboard and a controller move through: the topmost one open.
+  private navRoot(): HTMLElement | null {
+    for (const w of [this.firstRun.root, this.menu, this.help]) if (!w.classList.contains('hidden')) return w;
+    return this.over.classList.contains('hidden') ? null : this.over;
+  }
+  // A key for the open window, before the game sees it; true when the window took it.
+  navKey(e: KeyboardEvent): boolean {
+    const r = this.navRoot();
+    if (!r) return false;
+    // Over the field report Enter is still the chat, for a last word, until the keyboard has
+    // moved into the report: a stray Enter must not restart the game for everyone.
+    if (r === this.over && !r.contains(document.activeElement) && e.key !== 'Tab' && !e.key.startsWith('Arrow')) return false;
+    return navKey(e, r);
+  }
+  private pad = new Pad();
+  private padPoll(now: number): void {
+    const p = this.pad.poll(now);
+    if (!p) return;
+    const r = this.navRoot();
+    if (p.menu && r !== this.over) { if (r && r !== this.menu) this.closeWindows(); this.toggleMenu(); return; }
+    if (!r) return;
+    if (p.up) step(r, -1);
+    if (p.down) step(r, 1);
+    if (p.ok) { const a = document.activeElement as HTMLElement | null; if (a && r.contains(a)) a.click(); else focusFirst(r); }
+    if (p.back) this.closeWindows();
+  }
   // onVolume hears the menu's volume slider; save is set once the player lets go of it.
   onVolume: (v: number, save: boolean) => void = () => {};
   private volEl!: HTMLInputElement;
@@ -466,13 +507,14 @@ export class Hud {
     this.musOut.textContent = v === 0 ? 'off' : String(v);
   }
 
-  toggleMenu(): void { show(this.menu, this.menu.classList.contains('hidden')); }
+  toggleMenu(): void { this.toggle(this.menu); }
   toggleStats(): void { show(this.statsEl, this.statsEl.classList.contains('hidden')); }
   statsVisible(): boolean { return !this.statsEl.classList.contains('hidden'); }
   setStats(s: string): void { setText(this.statsEl, s); }
 
   // Esc: closes the topmost window; false when none was open.
   closeWindows(): boolean {
+    if (this.firstRun.visible) { this.firstRun.close(); return true; }
     for (const w of [this.menu, this.help, this.score]) if (!w.classList.contains('hidden')) { show(w, false); return true; }
     if (this.ctl.armoryOpen) { this.ctl.openArmory(false); return true; }
     if (this.minimap.expanded) { this.minimap.toggle(false); return true; }
@@ -480,59 +522,12 @@ export class Hud {
   }
 
   // A click in the world closes help and menu.
-  closeTransient(): void { show(this.help, false); show(this.menu, false); }
+  closeTransient(): void { show(this.help, false); show(this.menu, false); if (this.firstRun.visible) this.firstRun.close(); }
 
-  setConn(state: ConnState, detail = ''): void {
-    this.conn = state; this.connDetail = detail;
-    this.renderCover();
-  }
-
-  private renderCover(): void {
-    const c = this.cover;
-    if (this.conn === 'open') { show(c, false); return; }
-    show(c, true);
-    if (this.conn === 'ended') {
-      c.innerHTML = `<img class="mark" src="${markURL()}" alt="taildefense"><div class="big">The game is over for this tab</div><div class="muted">${esc(this.connDetail)}</div><div class="muted">You can close this tab; <kbd>td</kbd> is back in the terminal.</div>`;
-    } else {
-      c.innerHTML = `<img class="mark" src="${markURL()}" alt="taildefense"><div class="spin"></div><div class="big">${this.conn === 'connecting' ? 'Connecting…' : 'Reconnecting…'}</div><div class="muted">to the td running on this machine</div>`;
-    }
-  }
+  setConn(state: ConnState, detail = ''): void { this.cover.set(state, detail); }
 
   private buildHelp(): void {
-    const rows: [string, string][] = [
-      ['<kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>', 'walk, the way the view faces; the camera follows while you walk. Your hero shoots the nearest creep on its own'],
-      ['<kbd>E</kbd>', 'use: a downed teammate, weapon on the ground, loot site or supply crate right beside you first, else what is under the cursor, else the nearest thing. A downed teammate: revive them (stay close until the bar fills) · a dropped weapon: pick it up, upgrades and all · a loot site: search it · a damaged structure: repair · the armory: shop · a creep: focus your fire on it'],
-      ['<kbd>Q</kbd>', "the weapon's ultimate, once its meter is full: fighting fills it (damage you deal yourself, and revives)"],
-      ['<kbd>Shift</kbd> <kbd>F</kbd> <kbd>V</kbd>', 'grenade, dash, airstrike, bought at the armory. Shift aims the grenade: left-click where to throw it, Esc or right-click cancels. F and V cast at the cursor the moment you press'],
-      ['Right-click', 'on a creep: focus fire on it'],
-      ['<kbd>Alt</kbd> + left-click, or <kbd>Z</kbd> then click', 'ping the spot for the whole team, in the world or on the map: on a creep it warns, on a loot site it marks loot, on a structure it calls to defend it'],
-      ['<kbd>H</kbd> twice', 'between waves: rebuild every structure the creeps destroyed (its outline stays) and repair everything damaged; the first press names the price'],
-      ['<kbd>J</kbd>', 'taunt: flip them off and shout, pulling every creep nearby onto you, then a cooldown'],
-      ['<kbd>G</kbd> (hold)', 'hold for a second to drop the weapon in hand for a teammate, upgrades and all; it lies there until someone picks it up with <kbd>E</kbd>'],
-      ['<kbd>1</kbd>', 'use a medkit: heals over a few seconds unless a hit cuts it short; buy more at the armory'],
-      ['<kbd>2</kbd>–<kbd>7</kbd>, <kbd>0</kbd>', 'equip an owned weapon: pistol, shotgun, SMG, rifle, minigun, launcher (0 is the crowbar, on brutal)'],
-      ['<kbd>R</kbd> or Reload', 'reload now (the button sits next to your ammo)'],
-      ['<kbd>B</kbd>', 'build bar: <kbd>1</kbd>–<kbd>8</kbd> pick wall, gate, gun, cannon, frost, tesla, sniper, missile, <kbd>9</kbd> <kbd>0</kbd> <kbd>-</kbd> <kbd>=</kbd> the traps and <kbd>[</kbd> the pylon; left-click places. Walls and gates stay picked for the next one; Shift keeps a turret picked; Esc or B stops'],
-      ['Left-click', 'select a structure, creep or hero'],
-      ['<kbd>U</kbd> / <kbd>Del</kbd> twice', 'upgrade / sell the selected structure; a turret upgrades one track at a time, from its card'],
-      ['<kbd>C</kbd>', 'armory window (opens by itself when you arrive)'],
-      ['<kbd>Y</kbd>', 'ready for the next wave'],
-      ['<kbd>T</kbd>', 'the next turret: selects it (upgrade / sell) and looks at it; again for the one after'],
-      ['<kbd>N</kbd>', 'hold: look at the generator · twice: walk back to it'],
-      ['Wheel', 'zoom · Alt+wheel or middle-drag: rotate'],
-      ['<kbd>Space</kbd>', 'hold: sprint, until your stamina (the blue bar under your health) runs out · tap: back to your hero · double tap: lock the camera to it'],
-      ['Arrows / screen edge', 'look around; walking brings the camera back'],
-      ['Minimap', 'left-click/drag: look there · right-click: move there'],
-      ['<kbd>P</kbd>', 'pause or resume the game, for everyone'],
-      ['<kbd>M</kbd>', 'big map, and back; click it to look, right-click to walk there'],
-      ['<kbd>Enter</kbd>', 'chat with the team · in the chat, <kbd>Tab</kbd> adds where you are'],
-      ['Compass', 'the strip at the top shows which way the view faces; click it to turn north up'],
-      ['<kbd>Tab</kbd>', 'scoreboard (hold)'],
-      ['<kbd>F3</kbd>', 'performance readout'],
-      ['<kbd>F4</kbd>', 'pixel view on or off'],
-      ['<kbd>F10</kbd> / <kbd>Esc</kbd>', 'menu (Esc first cancels the current mode or window)'],
-    ];
-    this.help.innerHTML = `<h2><span class="tape">Controls</span><button class="x">Close</button></h2><table>${rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</table>`;
+    this.help.innerHTML = helpHTML();
     (this.help.querySelector('.x') as HTMLButtonElement).onclick = () => show(this.help, false);
   }
 
@@ -543,6 +538,8 @@ export class Hud {
     resume.onclick = () => show(m, false);
     const help = el('button', '', m, 'Controls (F1)');
     help.onclick = () => { show(m, false); this.toggleHelp(); };
+    const steps = el('button', '', m, 'First steps');
+    steps.onclick = () => { show(m, false); this.firstRun.open(); };
     // The VOLUME setting: heard while dragging, saved to td's settings when let go.
     const vol = el('label', 'volume', m);
     el('span', '', vol, 'Volume');
@@ -561,7 +558,7 @@ export class Hud {
     this.musEl.onchange = () => this.onMusic(Number(this.musEl.value), true);
     const leave = el('button', 'danger', m, 'Leave game');
     leave.onclick = () => this.leave();
-    el('div', 'muted', m, '').id = 'menu-hint';
+    el('div', 'muted hint', m, '↑ ↓ to choose · Enter to press · Esc to close').id = 'menu-hint';
   }
 
   private leave(): void {
@@ -579,7 +576,7 @@ export class Hud {
       const st = r.aboard ? '<span class="st out">extracted</span>' : r.away ? '<span class="st muted">away</span>'
         : r.behind ? '<span class="st down">left behind</span>' : r.down ? `<span class="st down">down ${p.respawn}s</span>` : '';
       const you = r.you && p.name !== 'you' ? ' <span class="muted">(you)</span>' : '';
-      const nums = r.nums.map((n) => `<div class="n${n.bad ? ' bad' : ''}"><b>${fmtGold(n.v)}</b><span>${n.label}</span></div>`).join('');
+      const nums = r.nums.map((n) => `<div class="n${n.bad ? ' bad' : ''}${n.v ? '' : ' zero'}"><b>${fmtGold(n.v)}</b><span>${n.label}</span></div>`).join('');
       const kit = r.chips.map((c) => `<span class="pchip${c.held ? ' held' : ''}${c.ab ? ' ab' : ''}" title="${esc(c.title)}">${esc(c.text)}${c.lv ? `<b>${esc(c.lv)}</b>` : ''}</span>`).join('');
       return `<div class="pcard${r.away ? ' away' : ''}">
         <div class="who"><span class="dot" style="background:${r.color}"></span><span class="name">${esc(p.name)}</span>${you} <span class="muted">${esc(r.arch)}</span>${st}<span class="gold" title="gold to spend"><span class="lbl">gold</span>${fmtGold(p.gold)}g</span></div>
@@ -604,6 +601,7 @@ export class Hud {
     const ctl = this.ctl, g = ctl.game, wd = g.welcome, me = ctl.me();
     if (!wd) return;
     this.compass.update();
+    this.padPoll(now);
     this.updateTop(wd, now);
     this.updateTeam(wd);
     if (me) this.updateHero(me, wd, now);
@@ -797,8 +795,8 @@ export class Hud {
         if (p.id !== me!.id && p.flags & PF_CONNECTED && p.flags & PF_ALIVE) mates++;
       }
       const sub = mates > 0
-        ? `a teammate can revive you here · or respawn at base in<span class="n">${me!.respawn}s</span>`
-        : `no teammate is standing · respawn at base in<span class="n">${me!.respawn}s</span>`;
+        ? `a teammate can revive you here · or respawn at base in<span class="n">${me!.respawn}s</span><br><span class="look">look around meanwhile: arrows, the screen edge or the map</span>`
+        : `no teammate is standing · respawn at base in<span class="n">${me!.respawn}s</span><br><span class="look">look around meanwhile: arrows, the screen edge or the map</span>`;
       if (this.downed.sub.innerHTML !== sub) this.downed.sub.innerHTML = sub;
       show(this.downed.bar, me!.revived > 0);
       this.downed.fill.style.transform = `scaleX(${me!.revived.toFixed(3)})`;
@@ -816,19 +814,23 @@ export class Hud {
       this.over.dataset.shown = '1';
       show(this.score, false);
       const v = verdict(f), n = v.n;
-      this.over.innerHTML = `<div class="sheet panel${v.ok ? ' out' : ''}">
+      const cites = awards(scoreRows(wd, f)).map((a) => `<div class="award"><span class="t">${a.title}</span><span class="who" style="color:${a.row.color}">${esc(a.row.p.name)}${a.row.you && a.row.p.name !== 'you' ? ' (you)' : ''}</span><span class="why">${esc(a.why)}</span></div>`).join('');
+      this.over.innerHTML = `<div class="sheet panel${v.ok ? ' out' : ''}" role="dialog" aria-labelledby="over-head">
         <span class="tape ${v.ok ? 'green' : 'red'}">Field report</span>
         <div class="stamp">${v.stamp}</div>
-        <h1>${v.head}</h1>
+        <h1 id="over-head">${v.head}</h1>
+        <p class="story">${esc(ending(wd, f))}</p>
         <div class="meta">${esc(wd.difficulty.name)} · ${n} ${n === 1 ? 'survivor' : 'survivors'} · map ${esc(wd.seed)}</div>
         <div class="tally">
           <div class="crt"><b>${f.best}</b><span>${f.best === 1 ? 'wave' : 'waves'} held</span></div>
           <div class="crt"><b>${fmtGold(f.totalKills)}</b><span>creeps killed</span></div>${v.evac ? `
           <div class="crt"><b>${v.out}/${n}</b><span>extracted</span></div>` : ''}
         </div>
+        ${cites ? `<div class="awards">${cites}</div>` : ''}
+        <h3 class="sect">The team</h3>
         <div class="board"></div>
-        <div class="row"></div>
-        <div class="note">${wd.hosting ? 'Restart deals a new map to everyone in the game.' : 'Restart deals a new map to everyone in the game; leaving takes you back to the terminal.'}</div>
+        <div class="foot"><div class="row"></div>
+        <div class="note">${wd.hosting ? 'Restart deals a new map to everyone in the game.' : 'Restart deals a new map to everyone in the game; leaving takes you back to the terminal.'}</div></div>
       </div>`;
       this.overBoard = this.over.querySelector('.board') as HTMLElement;
       const row = this.over.querySelector('.row') as HTMLElement;

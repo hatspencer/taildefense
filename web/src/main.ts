@@ -141,6 +141,8 @@ async function main(): Promise<void> {
   const labels = new Labels(app);
   const hud = new Hud(app, ctl);
   hud.leaving = () => helis.leaving(game);
+  // Reloading from the cover is the player's choice: no leave prompt for it.
+  hud.cover.onReload = () => { if (kiosk) kiosk.armed = false; location.reload(); };
   const portraits = new Portraits(world.renderer, world.backend === 'WebGL2');
   hud.setPortraits(portraits);
   // Silent until the welcome says this machine's VOLUME; the demo takes #vol=N, else 70.
@@ -193,6 +195,9 @@ async function main(): Promise<void> {
       ctl.sel = null;
       ctl.setMode({ k: 'none' });
       hud.buildCard = false;
+      // A first game on this machine opens with the first steps; #firstrun shows them anyway.
+      if (P.has('firstrun')) hud.showFirstRun(true);
+      else if (!demo) hud.showFirstRun();
     },
     onTerrain(t) {
       game.setTerrain(t);
@@ -525,7 +530,8 @@ main().catch((e) => {
   console.error(e);
   const d = document.createElement('div');
   d.className = 'cover';
-  d.innerHTML = `<h1>taildefense</h1><div class="big">Could not start the 3D view</div><div class="muted"></div>`;
-  (d.lastChild as HTMLElement).textContent = String(e?.message ?? e);
+  d.innerHTML = `<h1>taildefense</h1><div class="big bad">Could not start the 3D view</div><div class="what"></div><div class="row"><button class="primary">Try again</button></div>`;
+  (d.querySelector('.what') as HTMLElement).textContent = String(e?.message ?? e);
+  (d.querySelector('button') as HTMLButtonElement).onclick = () => location.reload();
   document.body.appendChild(d);
 });
