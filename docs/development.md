@@ -11,7 +11,10 @@ checks the world's invariants (`game.World.Check`), rebuilds a client replica fr
 see it agrees, and fails a wave that won't end. A game is its seed and its command log, so it
 replays tick for tick. The golden game's world hash is kept in
 `internal/playtest/testdata/golden.txt`: any change to how the game plays fails it until it is
-rewritten with `./build.sh golden`, so the diff shows the change was intended. A soak failure
+rewritten with `./build.sh golden`, so the diff shows the change was intended. It holds on
+amd64 and arm64 alike because `./build.sh` compiles with `-gcflags=all=-d=fmahash=qn`: arm64
+would otherwise fuse `a*b+c` into one rounding and play a slightly different game; a bare
+`go test` on arm64 fails `TestProductsAreRoundedOnTheirOwn` to say so. A soak failure
 prints a `TD_SOAK_ONE=…` line that plays that game again.
 
 ## The client
