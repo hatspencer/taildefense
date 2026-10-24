@@ -325,7 +325,7 @@ var Structs = [NumStructKinds]StructDef{
 	STurretGun:     {Name: "Gun turret", Price: 120, HP: 220, W: 1, H: 1, Range: 9, Damage: 11, Rate: 4, Turret: true, Key: '3', Desc: "Fast single shots at the nearest creep.", Special: "+1 pierce"},
 	STurretCannon:  {Name: "Cannon", Price: 240, HP: 280, W: 1, H: 1, Range: 11, Damage: 60, Rate: .6, Blast: 2.2, Turret: true, Key: '4', Desc: "Slow shells that burst on a crowd.", Special: "+blast radius"},
 	STurretFrost:   {Name: "Frost tower", Price: 180, HP: 220, W: 1, H: 1, Range: 6, Damage: 3, Rate: 1, Slow: 1.6, Turret: true, Key: '5', Desc: "Pulses cold, slowing everything around it.", Special: "+deeper slow"},
-	STurretTesla:   {Name: "Tesla coil", Price: 320, HP: 220, W: 1, H: 1, Range: 8, Damage: 32, Rate: 1.2, Chains: 2, Turret: true, Key: '6', Desc: "Lightning that jumps from creep to creep.", Special: "+2 jumps, further"},
+	STurretTesla:   {Name: "Tesla coil", Price: 280, HP: 220, W: 1, H: 1, Range: 8, Damage: 36, Rate: 1.2, Chains: 2, Turret: true, Key: '6', Desc: "Lightning that jumps from creep to creep.", Special: "+2 jumps, further"},
 	STurretSniper:  {Name: "Sniper tower", Price: 380, HP: 200, W: 1, H: 1, Range: 22, Damage: 150, Rate: .35, Pierce: 1, Turret: true, Key: '7', Desc: "A slow, heavy round from far off at the toughest creep it can see.", Special: "+1 pierce"},
 	STurretMissile: {Name: "Missile battery", Price: 420, HP: 260, W: 1, H: 1, Range: 14, Damage: 45, Rate: .5, Blast: 2, Salvo: 3, Turret: true, Key: '8', Desc: "A salvo of small rockets, each at a different creep.", Special: "+1 missile"},
 	STrapSpikes:    {Name: "Spike strip", Price: 60, HP: 300, W: 1, H: 1, Damage: 22, Floor: true, Key: '9', Desc: "Cuts every creep that walks over it, wearing down as it does. Lay it in a maze's lanes."},
@@ -390,7 +390,7 @@ const (
 	frostChill     = .45 // the share of its pace a frost tower's cold takes at level 0
 	frostChillStep = .06 // and what each level of its special adds
 	maxChill       = .85
-	sniperShare    = .012 // of its mark's full health a sniper round adds, at level 0
+	sniperShare    = .016 // of its mark's full health a sniper round adds, at level 0
 	missileScatter = 1.6  // tiles round its mark a missile may come down
 )
 
