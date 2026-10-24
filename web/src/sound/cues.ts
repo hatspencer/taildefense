@@ -94,7 +94,7 @@ export class Cues {
       return;
     }
     if (wd.tiers && f.tier > tierWas) this.play('tierUp');
-    if (f.phase === Phase.Wave && !this.stood && lastStand(f)) { this.stood = true; this.play('lastStand'); }
+    if (f.phase === Phase.Wave && !this.stood && lastStand(f)) this.stood = this.play('lastStand');
   }
 
   private remember(f: Frame): void {
@@ -102,13 +102,14 @@ export class Cues {
     this.tier = f.tier;
   }
 
-  private play(name: Name): void {
+  // play starts a cue, true if it did.
+  private play(name: Name): boolean {
     const ctx = this.synth.ctx, buf = this.bufs.get(name), bus = this.bus;
-    if (!ctx || !buf || !bus) return;
+    if (!ctx || !buf || !bus) return false;
     const c = CUE[name], t = ctx.currentTime, at = t + c.delay;
     const old = this.now;
     if (old && old.end > t) {
-      if (old.prio > c.prio) return;
+      if (old.prio > c.prio) return true;
       old.g.gain.setTargetAtTime(0, Math.max(t, at - FADE), FADE / 3);
       try { old.src.stop(at + FADE); } catch { /* already stopped */ }
     }
@@ -123,6 +124,7 @@ export class Cues {
     // The world steps back a little under the music, as under the sirens.
     this.synth.duckWorld(2, c.delay + Math.min(2, buf.duration / 2));
     this.synth.plays.set('cue:' + name, (this.synth.plays.get('cue:' + name) ?? 0) + 1);
+    return true;
   }
 
   // decode starts every recording decoding, once.
