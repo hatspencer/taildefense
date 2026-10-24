@@ -52,7 +52,7 @@ it here along with the code.
   dark ahead. The minimap keeps the
   team's map, which is the one thing brutal leaves you to find your way back by.
 - **Brutal starts in melee.** Survivors begin with a crowbar and no gun: a short swing that
-  hits up to three creeps in front, never runs dry, and is quiet. Its ultimate, Berserk, doubles
+  hits up to four creeps in front, never runs dry, and is quiet. Its ultimate, Berserk, doubles
   the swings, heals by the hit and can't be slowed or stunned. Guns are bought or found as usual; the crowbar is
   never sold or found, so it is brutal's alone. Nor do they start with any gold: the first
   turret or gun is paid for with the first wave's bounties, swung for with the crowbar.
@@ -266,8 +266,9 @@ them under the guns is the team's plan, and keeping it honest is the game.
   affixes, so the team has something to argue about: the gun's Gatling (2.2× fire rate, 0.75×
   damage) against its Penetrator (ignores armour, 1.3× damage: the armoured wave's answer);
   the cannon's Mortar (1.8× range, lobs over walls) against Shrapnel (1.7× blast); the frost
-  tower's Cryo (every third pulse freezes for 0.8 s) against Blizzard (1.6× reach, longer slow);
-  the tesla's Storm conductor (up to 2× damage in rain, two more jumps) against the Arc web
+  tower's Cryo (every third pulse freezes for 0.8 s) against Blizzard (1.6× reach, longer and
+  10% deeper slow); the tesla's Storm conductor (1.2× damage, up to twice that in rain, two more
+  jumps) against the Arc web
   (four more jumps, two tiles further each); the sniper's Spotter (marks its target: +25% from
   everything for 5 s) against Anti-materiel (pierces 8 more, armour and all); the missile
   battery's Swarm (twice the missiles, 0.6× damage) against Napalm (sets what it bursts on
@@ -290,6 +291,95 @@ them under the guns is the team's plan, and keeping it honest is the game.
   damaged, after showing the total. Only between waves, so it is a decision of the break and
   not a way to refill walls under attack. Building over a ghost clears it.
 
+### Turret balance, by measurement
+
+The turrets, their evolutions, the traps and the Overload are set on the balance bench
+(`internal/game/balance_test.go`; `./build.sh go test ./internal/game -run TestBalanceTable -v
+-args -balance`, `-balance-only lane,support,...` for parts), and
+`internal/game/balance_bands_test.go` holds what came of it. The weapons have their own section.
+
+- **A blob is the wrong yardstick.** Time to clear a frozen blob of 30 creeps flatters splash
+  without limit (a level 5 cannon's 4-tile blast takes all 30 at once) and says nothing about
+  range or slows. The main measure is the lane: 60 creeps sampled from a real wave's plan walk
+  single file down a 50-tile road 3 tiles from the turret, and what counts is the share of their
+  health taken off and the hit points per 100 gold. Range is time with them, a slow is more of
+  it, splash is how bunched they come. Waves 4, 9, 19 and 29 (the normal mix), 20 (a swarm). A
+  turret that takes the whole lane says nothing about its gold, so comparisons are made where
+  nothing does.
+- **Frost is a pure slow, valued by what it adds.** Its 3 a pulse never kills anything big; its
+  worth is the hit points a partner (gun, cannon, tesla, sniper, missile at 3s) takes with it
+  beside them, against what the same gold in more of the partner would take. Tar and the
+  spotter's mark are measured the same way, the pylon among four turrets.
+- **Bosses by gold-seconds.** One creep of every kind, bosses and armoured ones too, killed by
+  one turret 6 tiles off at wave 20; a boss killer's figure is seconds times gold.
+- **The gold curve.** A solo game earns about 9 000 by wave 10, 54 000 by 20 and 190 000 by 30
+  while a wave's health grows from 70 000 to 2.6 million: gold outruns health, so late on
+  nothing is short of gold, only of value per gold and of room.
+
+What the bench found, and what changed:
+
+- **The sniper was not the boss killer.** A missile battery killed a wave 20 abomination for
+  about half the sniper's gold-seconds (198 against 408 at 3s) and a level 0 sniper never
+  killed one. Now each round also tears 1.6% of its mark's full health out of it (armour and
+  all, growing with the damage track), which means nothing to a walker and everything to a
+  boss: a level 0 sniper kills it in 128 s, at 3s in 46 s, and every sniper does it for less
+  than any other turret (117 against 150 for the next, the penetrator; 289 for missiles). It
+  is also the only turret that kills a wave 30 boss inside a minute.
+- **Missiles were accurate.** Each missile now goes for where its mark stands, up to 1.6 tiles
+  off, leading nothing, and bursts where it comes down rather than on the first creep it
+  passes; the blast is 2 tiles where it was 1.5. A crowd still eats the whole salvo; a lone or
+  a quick creep sees much of it land wide. The level 0 battery clears the wave 30 pack in 35 s
+  (never, before); its boss figure went from 198 to 289.
+- **Frost's upgrades bought nothing.** Inside its reach a creep was slowed for good whatever
+  the special said, since the next pulse came before the slow ran out, so a level 3 tower
+  added a quarter of what more gun would. The special now deepens the slow, 45% of a creep's
+  pace at level 0 to 75% at 5 (Blizzard another 10%); the deepest slow on a creep holds, so
+  frost and tar don't stack. Beside a level 3 gun at wave 29, frost 3 now adds 913 per 100 gold
+  (741 before) against the gun's own 672, Blizzard 1541 (919), Cryo 1285 (1076). A level 0
+  tower adds 2 000 to 4 000: the first slow on a lane is the best buy there is, and because a
+  second adds nothing it stays one per lane.
+- **The tesla trailed.** At level 3 it took the least per gold of the fighting turrets late
+  (629 against 794 to 1006 at wave 29). It now starts with two jumps rather than one, keeps 90%
+  of its damage at each jump (85%), costs 280 (320) and strikes for 36 (32): 899 now, and ahead
+  of the gun turret per gold on a bunched crowd. Its storm conductor, the arc web without its
+  jumps when dry, hits a fifth harder rain or not.
+- **The cannon at level 0 was the best buy of all**, 1 600 to 1 900 per 100 gold where the
+  other turrets get 700 to 1 400, so it fires every 1.7 s rather than 1.4 and its special adds
+  0.3 blast a level (0.35): 1 609 at wave 29, still the cheap crowd answer, and slow and heavy
+  as it should be. Cannon 5, missile 5 and swarm are the fastest on a blob, but in the lane per
+  gold they sit at or below the median (516, 472, 864), so they were left.
+- **Napalm and vents burned a flat 14 and 10 a second**, nothing at wave 29; they now burn by
+  their damage (35% of a missile's, a quarter of a vent's burst), and trap levels add half
+  their damage each, not a third.
+- **Mines didn't grow** and missed a wave 29 walker by half; a mine is laid again every wave,
+  so its damage now grows with the square root of the creeps' health (260 at wave 1, 900 at
+  29) and it reaches 3 tiles, not 2.4. Mines are a crowd's answer: in a sparse stream the first
+  quick creep sets each off alone.
+- **The Overload grows with the creeps' health** (above): 450 at wave 30 no longer killed a
+  walker.
+
+Wave 29 lane, hit points per 100 gold (before → after):
+
+| | level 0 | level 3 | evolutions |
+|---|---|---|---|
+| Gun | 1058 → 1058 | 794 → 794 | Gatling 1049 → 1049, Penetrator 929 → 929 |
+| Cannon | 1920 → 1609 | 975 → 872 | Mortar 945 → 765, Shrapnel 1074 → 955 |
+| Tesla | 687 → 1233 | 629 → 899 | Storm 579 → 935, Arc web 680 → 942 |
+| Sniper | 1131 → 1392 | 1006 → 1120 | Spotter 932 → 1032, Anti-materiel 1158 → 1189 |
+| Missile | 1203 → 1368 | 823 → 869 | Swarm 789 → 864, Napalm 758 → 941 |
+
+The evolutions went from a spread of 579 to 1185 (2×) to 765 to 1189 (1.55×). The tests hold
+the shape rather than the numbers: every fighting evolution within 0.65 to 1.45 of their median
+at wave 29, frost's two worth 0.8 of more gun beside one; every level 3 and evolution above half
+the median late; every fighting turret at level 0 taking a fifth of a wave 9 lane, and frost 0
+beside a gun adding more than more gun; the sniper killing a boss for less than 1/1.2 of anyone
+else's gold-seconds and by 1.5 at level 0; missiles landing spread and short of their true
+damage on a lone creep; the tesla ahead of the gun on a pack and per gold on a bunched crowd;
+the cannon the slowest crowd turret with the heaviest shell; frost hurting under a tenth of a
+gun, deepening with its special, and adding at least 0.65 of more partner beside each; spikes,
+vents and mines at least 0.6 of a gun turret's gold, tar beside a gun as good as more gun; and
+the Overload killing every small creep at waves 10 to 30 but no brute.
+
 ## A base that grows
 
 - **The generator's tiers are the team's shared project.** Gold is personal, so before this the
@@ -303,7 +393,9 @@ them under the guns is the team's plan, and keeping it honest is the game.
   the amplifier pylon, tier III turret evolutions and the Overload.
 - **The Overload is the team's last word.** Once a wave, anyone sets it off from the
   generator's card: everything within 18 tiles of the generator (the walls and a little past)
-  takes 150 + 10 per wave and is frozen for 1.5 s. It is turret fire, so it turns nobody on
+  takes 120 times the wave's health scale (360 at wave 10, 1500 at 30: every small creep dies,
+  a brute loses about 40%) and is frozen for 1.5 s. A flat 150 + 10 a wave fell behind the
+  creeps' health, which grows twelvefold by wave 30, and by then failed to kill a walker. It is turret fire, so it turns nobody on
   anyone. Once a wave makes it a decision when to use it, not a cooldown to press.
 - **Not done: forward relays.** A relay at a cleared outpost, adding a build ring there, would
   tie the raids out on the map to the base; it is left for when the middle game needs it.
@@ -517,6 +609,93 @@ the long way round, or not at all. Map generation tries the spot again elsewhere
   since Firefox opens them before the page hears the key. The demo, the lab and `#dev` leave the
   browser alone.
 
+## Weapons
+
+Weapons are balanced by measurement, on the bench in `internal/game/weapon_balance_test.go`
+(the turrets' half is `balance_test.go`): each weapon fired as the game fires it at creeps on
+open ground, at every upgrade level, close (1.5 tiles), mid (8) and far (15), against every
+creep kind and the armoured affix, with its uptime, the share of its fire that lands, the gold in
+it and the wave a solo game has earned that by; then fully bought against late waves at the
+range it is for. `./build.sh go test ./internal/game -run TestWeaponTable -v -args -balance`
+prints it. Tests beside it hold each weapon to its role, so a number tuned later can't quietly
+take one's place.
+
+- **Each weapon a way of fighting.** Shotgun: brutal up close and weak far out. Rifle: precise,
+  long, the one-target killer at range. SMG: instant, cheap crowd fire with frequent reloads.
+  Minigun: the heaviest stream, slow to start. Rocket launcher: the biggest splash, slow and
+  dangerous to its shooter. Pistol: the sidearm, carried by its upgrades and a second one.
+  Crowbar: a melee panic option that holds up.
+- **Shotgun falloff.** A pellet keeps its damage out to 3 tiles, then loses it evenly to 35% at
+  the end of its range (shotFall). Its spread already thinned it with distance, but a pellet
+  that landed at 9 tiles still hit as hard as at 1, so a maxed shotgun at mid range did as much
+  as a maxed SMG. It now does about a third of the rifle's there, and over twice the rifle's up
+  close. Dragon's breath burns as hot at the end of its reach, and its shove at range is a third
+  of what it was: the old shove pushed creeps out past the gun's range faster than they came
+  back, so the ultimate slowed the kill it was meant to speed.
+- **The minigun spins up.** From 30% of its rate to full over 2 s of firing, back down over
+  1.5 s of not firing, a reload included (spinIdle, spinUp, spinDown); Overdrive spins it at
+  once. Without it the minigun was a better SMG at every moment; now an SMG outshoots it for
+  the first two seconds (416 a second against 284, both maxed), and it leads by half again once
+  spun.
+- **Rockets burn their shooter.** A rocket bursting within its blast of the survivor who fired
+  it hits them for 15 at its heart, half at its edge, whatever its upgrades (rocketSelf): about
+  seven in a row at a creep in your face put down a survivor with no armour. Fire is automatic,
+  so the risk is in what you hold, not where you click: the launcher for what is still coming,
+  another gun for what has arrived. The cluster rocket goes to a point and spares its shooter.
+- **The crowbar hits four.** Four creeps a swing where it was three, 42 a hit at 2 swings a
+  second: in reach, fully bought, it does a pistol and a half, and beats back a wave 25 charge in
+  about the time the guns do.
+
+The numbers that moved, and why:
+
+| | before | after | why |
+|---|---|---|---|
+| pistol | 14 damage, +22% a level | 15, +30% a level | the free gun is upgraded first and longest; a maxed pair now matches a maxed SMG |
+| SMG | 8 at 11/s, magazine 40 | 11 at 12/s, magazine 50 | armour took most of an 8-damage round; maxed, it trailed a maxed pair of pistols |
+| rifle | 60 at 1.4/s | 80 at 1.5/s | it was out-killed on one big creep by the minigun and the rocket at its own range |
+| rocket | 140 | 120 | it was the best at crowds and at single targets; it keeps the crowds |
+| crowbar | 34 at 1.8/s, 3 a swing | 42 at 2/s, 4 a swing | maxed, it was half a pistol pair's damage in reach and let a whole charge in |
+
+Sustained damage a second on one walker (close, mid, far), and on an armoured brute and an
+abomination at mid (the crowbar in reach), at level 0 and fully bought; gold is what is in it:
+
+| | gold | before 0 | after 0 | before 5 | after 5 | before 5 brute+A / boss | after 5 brute+A / boss |
+|---|---|---|---|---|---|---|---|
+| pistol | 0 / 3464 | 36 36 0 | 38 38 0 | 140 140 0 | 178 178 0 | 106 / 97 | 145 / 135 |
+| shotgun | 250 / 7330 | 100 27 0 | 100 15 0 | 952 259 0 | 952 139 0 | 317 / 414 | 120 / 130 |
+| SMG | 400 / 9648 | 64 56 0 | 102 91 0 | 274 245 0 | 410 367 0 | 160 / 127 | 286 / 251 |
+| rifle | 650 / 13514 | 63 63 63 | 88 88 88 | 277 277 277 | 378 378 378 | 262 / 257 | 362 / 358 |
+| minigun | 1400 / 25100 | 135 86 45 | 135 86 45 | 642 425 235 | 593 393 216 | 408 / 341 | 377 / 315 |
+| rocket | 2000 / 34360 | 85 86 80 | 73 74 69 | 369 358 345 | 317 307 296 | 349 / 347 | 298 / 296 |
+| crowbar | 0 / 3464 | 63 | 86 | 214 | 291 | 193 / 187 | 268 / 261 |
+
+Wave 25, every weapon fully bought (the pistol a pair) at its own range: seconds to clear the
+army (10 walkers, 4 runners, 10 swarmers, 4 hounds, 2 brutes, a mauler) and the heavy mix (3
+brutes, 6 walkers), to kill one goliath, and to beat back the army charging in from 16 tiles:
+
+| | range | army before | after | heavy before | after | goliath before | after | charge before | after |
+|---|---|---|---|---|---|---|---|---|---|
+| pistols | 6 | 31.2 | 23.5 | 24.2 | 18.4 | 180 | 129 | 20.0 | 15.2 |
+| shotgun | 3 | 13.8 | 16.1 | 8.3 | 9.2 | 54 | 54 | 14.3 | 15.2 |
+| SMG | 6 | 36.5 | 21.8 | 27.0 | 16.4 | 270 | 137 | 24.1 | 15.1 |
+| rifle | 16 | 26.9 | 18.4 | 22.1 | 15.9 | 134 | 96 | 16.5 | 11.9 |
+| minigun | 8 | 14.6 | 16.0 | 11.3 | 12.5 | 101 | 109 | 10.7 | 9.7 |
+| rocket | 11 | 12.2 | 15.0 | 9.2 | 10.8 | 97 | 114 | 11.1 | 13.4 |
+| crowbar | 1.5 | - | - | - | - | 184 | 132 | 36.3 | 23.2 |
+
+The worst of them took 3 times as long as the best to clear the army and the heavy mix; now it
+is 1.6 and 2 times, and the tests hold it under 2.5. On wave 30 it is 1.6 and 1.8. Each is still
+best at something: the rocket at a loose pack (2 s), the shotgun at heavies and bosses up close,
+the rifle at one big creep at range, the minigun at a long fight, the SMG and the pistols at
+their price, and the crowbar is free. The rocket's charge costs its shooter about 140 health.
+
+Cost: the upgrade prices are unchanged (UpgradeCost, a quarter of the weapon's price plus 60,
+times 1.55 a level). A solo game has earned a maxed pistol or crowbar by wave 7, a shotgun by 10,
+an SMG by 11, a rifle by 13, a minigun by 16 and a launcher by 18, of about 105000 by wave 25, so
+late every weapon is affordable and the band above is what decides; damage per gold falls from
+the cheap guns to the dear ones (13 a second per 100 gold for a maxed shotgun up close, under 1
+for the launcher on one target), which is the price of range, splash and sustain.
+
 ## Ultimates and abilities
 
 - **An ultimate per weapon, on a meter.** The old signatures were on a cooldown, so they were
@@ -531,13 +710,15 @@ the long way round, or not at all. Map generation tries the spot again elsewhere
   It doesn't fill while one runs, and going down ends it.
 - **Each ultimate leans into its weapon.** Dead Eye makes the pistol, the weakest gun, the one
   that clears the screen: a 1.5 s mark at half speed, then a shot at everything in sight, lethal
-  to all but brutes and bosses (200 for them, so it can't erase a boss). Dragon's breath gives
+  to all but brutes and bosses (200 for them, so it can't erase a boss, growing with creep
+  health past wave 10 as the grenade does). Dragon's breath gives
   the shotgun its crowd control as fire and a shove. The SMG's Run and gun is about moving,
   the rifle's Railgun about lines, the minigun's Overdrive about holding a lane, the launcher's
   Cluster MIRV about one big crowd far off, and the crowbar's Berserk about standing in the
   middle of it. None spends ammo while it runs, so it isn't cut short by a reload.
 - **The shotgun hits harder from further.** 13 a pellet and range 10, with a tighter spread:
-  it was the gun nobody kept past the first armory visit.
+  it was the gun nobody kept past the first armory visit. It has since been given falloff (see
+  Weapons): the range is there for finishing a creep, not for fighting at it.
 - **The shotgun knocks creeps back, up close.** Each pellet pushes its creep a little, so a
   point-blank load shoves a walker about a quarter of a tile, and a tile and a half with the
   special track maxed (more pellets, each pushing harder). The push is full within 2 tiles and
@@ -553,7 +734,10 @@ the long way round, or not at all. Map generation tries the spot again elsewhere
   or dropped by a teammate, is just the other hand.
 - **The grenade grows with the game.** Five levels where it had three, from 120 damage to 400,
   wider and quicker each level, and from level 4 it leaves fire burning; a three-level grenade
-  stopped mattering by the mid game, when it was the one ability always at hand.
+  stopped mattering by the mid game, when it was the one ability always at hand. Past wave 10
+  its blast, its fire, the airstrike and Dead Eye's heavy shot grow as creep health has since
+  (lateScale): bought by level, they had stopped growing while the creeps had not, and a full
+  grenade was three walkers' health on wave 10 and less than one on wave 30.
 
 ## Downed and revive
 
@@ -673,6 +857,200 @@ choice, not a cheat guard.
   One who is down turns red with their respawn countdown and where they fell, and the bar
   fills as someone revives them. Clicking a frame looks at that teammate, or revives them if
   they are down.
+
+## Sound
+
+**The direction.** The sound is a survival story heard from just above: close, dry and
+physical where you are, wider and darker with distance, and quiet enough between waves that a
+groan out in the dark means something. Three rules order everything else:
+
+1. **What you do answers you first.** Your own gun, reload, kill and hurt are never the sound
+   that gets dropped, and each is clear of the rest of the mix.
+2. **Warnings over texture.** The siren, the klaxon, the radio and a big one winding up cut
+   through. A horde is heard as a horde from a few voices, not as every one of them.
+3. **One place, one air.** Every sound shares one outdoor reverb and the same distance rule,
+   and the weather's sound changes the whole world's, so the guns, the dead and the rain sound
+   like the same field.
+
+The mix's bands, measured as loudness close by (K-weighted, 400 ms): explosions and heavy guns
+-8 to -13 LUFS, the player's guns -11 to -20, the big ones' groans and deaths -11 to -15, cues
+-12 to -22, the small dead -18 to -24, your own reload and handling -22 to -28, the kill knock
+about -29, ambience -32 to -42, footsteps under -45.
+
+- **Synthesized, not recorded.** Every sound is rendered by code in the page
+  (`web/src/sound/bank.ts`): no audio files, no licences, nothing to download, and like the
+  art, it is all generated. The bank is made once sound starts, in a worker so no frame waits
+  on it (about 1.3 s of work, guns first; a sound not made yet is skipped), and the long, low
+  sounds (explosions, voices, sirens) at 24 kHz, which they lose nothing by and which halves
+  their memory. What is left of a sound after it has died 60 dB away is cut: about 35 MB in
+  all. Each sound has a few variants from different seeds, and every play is pitched and set up
+  to 15% apart (mostly much less), so fire never sounds like a loop and the ear doesn't tire of
+  a sound repeated exactly. A voice varies by 5%, or it stops being the same person, and a cue
+  not at all, since its pitch is what it says.
+- **Levels from measurement.** Every sound is rendered peak-normalized, then trimmed where its
+  measured loudness stood out of line with its kind. Measured, the player's shout was the
+  loudest thing in the game, the big ones' groans as loud as a shotgun, the tesla tower a hiss
+  with most of its energy above 8 kHz, and the reloads lost under the gun they reload. The
+  shout and the groans were brought down, the tesla remade in the mids, the reloads and the
+  radio brought up.
+- **Guns are built like real shots,** because they are most of what is heard. Six layers: a
+  crack of a millisecond, the muzzle blast overdriven into distortion with its top end dying
+  first, a resonant body in the mids where the bang is, a low boom falling in pitch, a tail
+  rolling away and echoes off the treeline. Then the action: the shotgun's pump, the rifle's
+  bolt, the pistol's brass bouncing. Each gun has its own numbers, so a pistol, an SMG and a
+  sniper tower are told apart by ear. The pistol is heavy, a desert eagle rather than a 9 mm,
+  because it is the gun most of a game is played with and a weak snap makes it feel weak. The
+  rifle is a full-power bolt action, a springfield or an AWP: the sharpest crack, the deepest
+  boom of the guns and the longest report, then the bolt. The shotgun is a 12 gauge: the widest, hardest
+  blast with more crack than thump, a punch deeper than anything hand-held but the rifle and a
+  report rolling off the treeline three times, a little under the rifle so the rifle stays the
+  biggest shot; then the pump racked, the spent hull landing with a plastic tock, and the
+  fore-end slammed home. The SMG is a 9 mm machine pistol: a
+  snappy crack and a tight punch with a short boom, so eleven rounds a second stay apart, and
+  the bolt clacking home under each one, the clatter that makes a burst sound like a machine. The crowbar is Half-Life's, a little deeper:
+  a swish and a struck pipe ringing out for most of a second, measured against the original
+  for the ring's length, but pitched down from its 1.1 kHz to about 820 Hz, with a thump as it
+  lands and the bar's low modes louder, so a blow has weight rather than only a ping. The towers: the gun turret a sentry, a dry round,
+  a feed clack and a servo slewing; the cannon field artillery, the deepest boom in the game, the
+  barrel ringing, the recoil and the case dropped; the sniper tower a .50 whose muzzle brake
+  throws a wider, harsher blast than the rifle's; the missile battery's tubes popping like a
+  blown bottle before each motor lights. The Huey's door gun is an M60 heard from the ground.
+  A creep's spit is a hack, a wet pop and bubbling slime; a hurler's bone is torn out with a
+  crunch and tumbles through the air, then cracks, splinters and clatters. A dash is a boot
+  driving off, the air ripping past and a skid; a grenade is the pin, the spoon spinning away
+  ringing, and the throw. The tesla is a zap, an arc's crackle of ragged sparks with a
+  snap and a falling tone, kept under 7 kHz; the frost tower, which pulses every second, is a
+  short cold gust with ice crackling and a glint of glass, with nothing sustained up high.
+  The minigun fires full rifle rounds, so each is a hard slam with a boom under it and a tail
+  long enough that 22 a second run together into one roar, over a motor, six barrels chopping
+  the air and the feed rattling. A shot under an ultimate sounds like the gun's own, except the
+  rifle's Railgun, which has no powder: a snap of discharge, an electric tone diving five
+  octaves, the air fizzing behind the slug, the rails ringing and the capacitors whining back
+  up to a click.
+- **Reloads are built of clacks.** A click and metal sliding on metal is the light half of
+  handling a gun; what makes a reload sound solid is the heavy parts going home, each a click
+  with the gun's body knocked low under it and a short ring of steel. Each gun reloads its own
+  way: the pistol's magazine clattering down and its slide let go, the SMG's magazine slapped
+  home and its handle let fly, the rifle's clip pressed in round by round, the minigun's box
+  dropped, its belt fed link by link and its barrels given a turn, the launcher's rocket latched
+  and armed with two beeps.
+- **The siren is a machine across town,** not a tone: two rotors a minor third apart chopping
+  air, a buzz with wind in it that grows louder as the motor winds up, swept towards you and
+  away as the head turns, and sent back late by the hills. The wave's siren winds up, holds and
+  is cut; a boss wave's, every tenth, is the attack signal instead, wailing up and down with a
+  deeper siren farther off wailing out of step with it, a little louder and the world held
+  down under it longer, so it is known before the boss is seen; the all clear holds one lower
+  steady tone; the end groans all the way down.
+- **Explosions throw things.** A shock front, the air slammed up and sucked back in a few
+  milliseconds; the fireball driven into distortion with its top end dying, a whump and a
+  falling boom under it, crackling as it burns off; then what was thrown up raining back down
+  for a second, clods thumping and stones ticking, metal ringing among them from the bigger
+  ones, all of it sent back off the treeline over a rumble. A rocket leaves its tube with a
+  crack and a backblast, its motor tearing and crackling as it flies off; a missile's motor
+  lights with a pop and fizzes away.
+- **The base and the pickups are tools and things handled.** Building is a nail hammered into
+  a plank, its ring rising and the last blow a dead thump; an upgrade an impact gun rattling a
+  bolt tight and the part seated with a clank; paying coins tipped onto a pile, the last one
+  spinning down. A supply crate lands hard, its planks booming in their straps, and its
+  parachute settles over it. A find knocks a latch up and creaks a hinge before its two
+  glockenspiel notes; a jackpot runs up a chord and rains coins. A medkit is velcro ripped, a
+  packet torn, antiseptic hissed and a bandage pulled tight; changing guns is webbing, a grip
+  slapped into the palm and a safety thumbed off. Footsteps: a boot's heel then its toe on
+  grit, a dead foot dragged then slapped down bare, a big one's weight crushing the dirt.
+  What plays often is kept from tiring: the coins, heard on every buy and sell and often
+  several in a row, ring briefly and below the harshest band, their spin a short rattle; a
+  dead foot's drag is short, since a horde's steps are the commonest sound and long ones ran
+  together into a hiss under everything.
+- **Thunder rips, then booms, then rolls.** A close bolt crackles along its length faster and
+  faster into the clap; the roll is that clap arriving again from each stretch of the bolt
+  further off, later and darker, for five seconds. One in four is further off, all roll.
+- **Heard round the camera, outdoors.** Distance makes a sound quieter, darker (low-passed)
+  and wetter, and the screen position pans it. One shared reverb is open ground with buildings
+  round it, not a hall.
+- **Priorities, not first come.** At most 40 sounds play at once and six of one (more for the
+  guns that fire in streams). A sound past those limits doesn't simply go unheard: every sound
+  has a priority (footsteps, texture such as blows and groans, ordinary, heavy, your own, cues),
+  and a new one takes the place of the least of those playing, a lower priority or the same one
+  and quieter by now, with a fade of a few milliseconds. Past six of one sound, the oldest of
+  them gives way once its first third (the part heard) is over, so a stream of fire stays
+  current instead of the newest shots going missing. In a 3000-creep demo wave this took the
+  sounds lost from 35% to under 7%, and none of them is yours or a cue.
+- **Cues over noise.** A tick's events are thinned to the nearest few of each sound and spread
+  across the tick. The more creeps are awake within earshot, the fewer of their groans, throws
+  and deaths are played: from 6 to 30 awake they thin to about half, since a horde reads as a
+  horde from a few voices. Blows landing were the commonest sound of a wave, eleven a second, a
+  drum roll that hid the rest: now the nearest blow of a tick plays at most every 0.12 s alone
+  and 0.28 s in a crowd. What needs attention gets its own sound that cuts through, and the
+  world steps back a few dB under it: the siren, the generator's klaxon, the radio for pings
+  and chat, a nest waking.
+- **The ear warns before the eye.** A brute, an abomination or a broodmother drawing up to
+  strike breathes in and growls, the nearest one that has just started, so at night a blow
+  coming out of the dark is heard first.
+- **Your own feedback.** A short, dry knock for each kill of your own shooting (at most 14 a
+  second, rising a little with each in quick succession), a charge-up when your ultimate is
+  full, your heart once your health is under a quarter, and the countdown's last beep higher
+  and longer than the two before it.
+- **Music only at the turns.** A few seconds of recorded music (`web/src/sound/cues/`, CC0,
+  credited in its `CREDITS.md`; the one exception to synthesized) mark when the night turns: a
+  wave starting, a boss wave, a wave cleared, a last stand (the generator under a quarter, or
+  one survivor standing of several), the evac called, the Huey away with survivors, the game
+  lost, the generator raised a tier. Each comes in after the siren it shares a moment with and
+  under it, since the siren is the warning and the music only the mood; one plays at a time,
+  the more telling cutting off the less. Dark orchestral cuts, most by one composer, brought to
+  one loudness, so they sound of a piece.
+- **Footsteps, barely there.** Survivors and creeps step once per step's length of ground
+  covered (a survivor's lengthening with speed, a creep's with its size), some 30 dB under a
+  pistol shot: enough to hear something coming in a quiet build phase, nothing in a fight.
+  Only the nearest two of the dead are heard stepping each tick (one in a crowd), the big
+  ones first, and steps are the first sounds dropped once 32 of the 40 voices are playing.
+- **The weather and the night are heard.** Rain, wind (stronger in snow and a storm), the
+  night's crickets, which fall quiet when the dead are about, and the generator's hum round the
+  base. Rain and wind are two loops each, apart in time and either side, so they are wide
+  rather than a point in the middle. The ambience is far under everything else and steps back
+  as a fight fills the mix. Rain also muffles the whole world a little, as it muffles gunfire
+  for the creeps, and a pause muffles it a lot.
+- **Music that follows the fight, never in its way.** Four CC0 loops (credits in
+  `web/src/sound/music/CREDITS.md`): an ambient piece for the build, a light and a pressing
+  fight for a wave, and a boss's on every tenth. A wave's intensity (the dead awake, those
+  near the generator, how hard it was just hit, how much of it is left) opens the track's
+  low-pass and lifts it first, so the music thickens with the wave before it changes; between
+  the light and the pressing fight there is a gap between thresholds and twelve seconds' hold,
+  so it never flaps. Crossfades take three seconds. The music sits after the limiter, so the
+  explosions do not pump it, and under the game at its own setting, so a player who wants the
+  warnings alone turns it off. It streams from files beside the page once wanted (the next
+  fight's loaded during the build), so nothing ever waits on it.
+- **The same mix at every volume.** Three buses (the world, the cues, the ambience) meet in a
+  gentle compressor and a clipper that is clean until the last 2 dB; the volume setting comes
+  after them. Each player's volume is a setting like any other, saved from the menu.
+- **Everything the game added is heard too** (`web/src/sound/coverage.ts`, `ambience.ts`). The
+  host sends no sound events, so these sounds come from changes between frames: a gate's
+  open bit, a turret's evolution, the tier and the gold paid in, a creep's flags and health,
+  a creep stepping onto a trap tile, the blast kinds. That way the protocol stays as it was.
+  The recipes use the same physical parts as the rest of the bank. Spikes are steel biting
+  and a chain rattling. Tar is a slow glop and suck. A vent is gas hissing before the whump.
+  A mine is its pressure plate clicking and then a soil geyser over the explosion's boom.
+  Each evolution sounds like what it became: the gatling lighter and faster, the penetrator
+  harder, the mortar a hollow thoomp, the anti-materiel rifle deeper than the .50. Napalm
+  burns as it flies and lands with a soft liquid whump, not a shock front. Rounds glance off
+  armoured creeps with a ring, a sapper's fuse sputters as a loop on the nearest one, and a
+  splitter tears open with two squeals. Hasty waves need nothing new, since footsteps already
+  follow ground covered. A rocket now sounds once as it leaves, not on every tick of its
+  flight. Mix rules hold for all of it. Everything common (spikes, tar, ricochets) is a
+  texture-priority sound, only the nearest one each tick plays, and it waits longer in a crowd.
+  The pylon only buzzes close by. The hound, the mauler and the goliath, which had no voice,
+  now groan and die like the other creeps.
+- **The horde before the blows.** A distant horde bed (dozens of blurred moans, shuffling, a
+  low swell) rises with the awake creeps of a wave, weighted by distance. Creeps still to
+  come and those hidden in the dark count as far ones. It comes from where they are, or from
+  the side the scouts reported, and it backs off when the nearby crowd and the mix fill up,
+  because then each creep is heard on its own. The siren is the base's alarm, and a war horn
+  from the wave's side answers it two seconds later; a boss wave gets two horns, lower. This
+  complements the siren rather than duplicating it. Bosses roar on sight and every fourteen
+  seconds or so after, never two within seven. Their tread thumps the ground and carries
+  further than other creeps' sounds. A failing generator sparks more often the worse it gets
+  and crackles below 30%. Its alarm is three rising whoops, unlike the klaxon of a hit, so a
+  failing generator can be told from a struck one. The alarm sounds when health passes 50%,
+  25% and 10%, then every 20 s while under 25%.
 
 ## Boot splash
 

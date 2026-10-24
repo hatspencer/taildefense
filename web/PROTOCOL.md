@@ -79,6 +79,8 @@ everything it knows, a terrain message follows).
     "wait": 90, "last": 30,    // on the pad at most wait, at most last once someone is aboard
     "depart": 10, "climb": 2.5 // lift-off to off the map; the first climb of it rising over the pad
   },
+  "volume": 70,                // this machine's VOLUME setting, 0 (no sound) to 100; not the host's
+  "music": 50,                 // this machine's MUSIC setting, 0 (no music) to 100 of the volume
   "core": {"x": 160, "y": 100},// generator centre, tiles
   "buildRadius": 40,           // building only within this distance of core
   "shopRadius": 4.5,           // shop only within this distance of the armory centre
@@ -405,7 +407,9 @@ u16  nEffects         lasting effects, the full current list every frame
                       all but the last 3 s); the crate lands at x,y when it ends, 5 a brute's or an
                       abomination's slam coming down on everything within r of x,y when it ends,
                       6 a broodmother's sac of bile: she rears back at x0,y0 for its first 0.7 s,
-                      then it arcs to x,y and bursts within r when it ends, 7 a pool of acid
+                      then it arcs to x,y and bursts within r when it ends, 7 a pool of acid,
+                      8 a spitter's glob flying from x0,y0 to where its mark stood, x,y; it
+                      splashes within r there when it ends
   u16  x0, y0, x, y q8
   u8   r              radius * 8
   u8   left           deciseconds left
@@ -476,4 +480,6 @@ integers. The host checks everything; a refusal comes back as a `toast` with lev
 {"op": "chat",    "text": "gg"}
 {"op": "ping",    "x": 150, "y": 98, "kind": 1}  // mark a spot for everyone; 3 back to back, then one a second
 {"op": "leave"}                              // back to the terminal; ends the game if hosting
+{"op": "volume",  "v": 40}                   // this td only, never relayed: save VOLUME (0..100)
+{"op": "music",   "v": 30}                   // this td only, never relayed: save MUSIC (0..100)
 ```

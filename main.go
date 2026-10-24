@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -33,7 +34,8 @@ usage:
                                  a dedicated game with no player of its own, until ctrl+c
   td ls [--json] [--port N]      the games on your tailnet
   td doctor                      check tailscale, the browser and what updates need
-  td config [KEY [VALUE]]        show, read or set name, port, difficulty, fog, waves, browser, autoupdate
+  td config [KEY [VALUE]]        show, read or set name, port, difficulty, fog, waves, volume,
+                                 browser, autoupdate
                                  (td config KEY --reset returns one to its default)
   td frame [--width W] [--height H] [--view menu|join|settings|changelog|doctor|help|splash] [--at S]
                                  render one launcher frame from demo data (--at: seconds
@@ -287,6 +289,16 @@ func play(p *ui.Printer, prefs *config.Prefs, o web.Options) (web.Result, error)
 	defer stop()
 	o.Name, o.Version = prefs.Name(), version.Current()
 	o.Browser = prefs.Browser()
+	o.Volume = prefs.Volume()
+	o.SaveVolume = func(v int) error {
+		_, err := config.Set(config.KeyVolume, strconv.Itoa(v))
+		return err
+	}
+	o.Music = prefs.Music()
+	o.SaveMusic = func(v int) error {
+		_, err := config.Set(config.KeyMusic, strconv.Itoa(v))
+		return err
+	}
 	if o.Browser == config.BrowserNone {
 		o.Browser = ""
 	}

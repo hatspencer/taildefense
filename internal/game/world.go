@@ -12,6 +12,7 @@ type Creep struct {
 	HP, MaxHP float32
 	Cool      float32 // seconds until the next attack
 	Slow      float32 // seconds of slow left
+	slowBy    float32 // the share of its pace the slow takes (chill)
 	Aff       Affix   // its wave's affixes it carries: armoured, hasty, a sapper's charge, a splitter
 	Mark      float32 // seconds left of a spotter's mark: everything hits it harder (evolve.go)
 	Burn      float32 // seconds of burning left
@@ -101,6 +102,7 @@ type WeaponState struct {
 	Ammo   int16
 	Reload float32 // seconds of reload left, 0 when ready
 	Cool   float32 // seconds until the next shot
+	Spin   float32 // the minigun only: how far its barrels are spun up, 0 to 1 (orders.go)
 }
 
 // AbilityState is one of a player's ability slots.
@@ -228,6 +230,7 @@ const (
 	EffSlam                            // a brute's or an abomination's slam coming: it lands on everything within R when Left runs out
 	EffBile                            // a broodmother's sac, from X0, Y0: rearing for lobWindup, then in the air; it bursts on X, Y within R when Left runs out
 	EffAcid                            // a pool of acid where a sac burst, eating at survivors and structures
+	EffSpit                            // a spitter's glob in flight from X0, Y0 to where its mark stood, X, Y; it splashes within R when Left runs out
 )
 
 // Effect is something that lasts more than a tick: a grenade in the air, a pool of napalm.

@@ -65,8 +65,9 @@ export function lootable(k: number): boolean { return k !== SiteKind.Pump && k !
 // Drop: a Huey flying in from (x0, y0); its crate lands on (x, y) when left runs out.
 // Slam: a warlord's fists coming down on everything within r of (x, y) when left runs out.
 // Bile: a broodmother's sac, rearing back from (x0, y0) for LOB_WINDUP seconds, then in the
-// air; it bursts within r of (x, y) when left runs out. Acid: the pool it leaves.
-export const enum EffectKind { Grenade = 1, Napalm = 2, AirTarget = 3, Drop = 4, Slam = 5, Bile = 6, Acid = 7 }
+// air; it bursts within r of (x, y) when left runs out. Acid: the pool it leaves. Spit: a
+// spitter's glob flying from (x0, y0) to where its mark stood, (x, y), splashing within r there.
+export const enum EffectKind { Grenade = 1, Napalm = 2, AirTarget = 3, Drop = 4, Slam = 5, Bile = 6, Acid = 7, Spit = 8 }
 export const LOB_WINDUP = 0.7;
 // Seconds a survivor a mauler or a goliath threw is in the air (internal/game/grab.go).
 export const THROW_FLIGHT = 0.7;
@@ -148,6 +149,10 @@ export interface Welcome {
   lastWave?: number;
   // The helipad and the evac Huey's timing, in seconds; absent in an endless game.
   evac?: EvacDef;
+  // This machine's VOLUME setting, 0..100; 0 is no sound. Absent from a td too old to say.
+  volume?: number;
+  // This machine's MUSIC setting, 0..100 of the volume; 0 is no music. Absent from an older td.
+  music?: number;
   // Per difficulty: how far past the straight way in a creep walks a maze before it frenzies.
   patience?: number[];
   // Working a gate: seconds at it, seconds before it swings again, how near to stand.
@@ -243,7 +248,11 @@ export type Command =
   // Walks to the landed evac Huey and gets aboard.
   | { op: 'board' }
   // Walks to gate s and opens or shuts it.
-  | { op: 'gate'; s: number };
+  | { op: 'gate'; s: number }
+  // To this machine's td only, never the host: save the VOLUME setting.
+  | { op: 'volume'; v: number }
+  // The same for the MUSIC setting.
+  | { op: 'music'; v: number };
 
 export class Player {
   id = 0; flags = 0; x = 0; y = 0; aim = 0; hp = 0; maxHp = 1; cur = 0; ammo = 0; mag = 0;
