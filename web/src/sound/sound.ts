@@ -1,12 +1,14 @@
 import * as THREE from 'three/webgpu';
 import {
   BlastKind, CF_ASLEEP, CF_WINDUP, MAX_CREEPS, CF_STRIKE, EffectKind, Phase, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_FIRING, PF_HURT,
-  PF_RELOADING, PingKind, TRACER_HELI, TRACER_SHARD, TRACER_ULT, type Player, TURRET_TRACKS, WET, Weather,
+  PF_RELOADING, PingKind, TRACER_ARC, TRACER_HELI, TRACER_NAPALM, TRACER_SHARD, TRACER_ULT, type Player, TURRET_TRACKS, WET, Weather,
 } from '../protocol';
 import { K_CANNON, K_CORE, K_GUN, K_MISSILE, K_SNIPER, K_TESLA } from '../scene/structs';
 import type { Game } from '../state';
-import { Music } from './music';
+import { Ambience } from './ambience';
+import { Coverage } from './coverage';
 import { Cues } from './cues';
+import { Music } from './music';
 import { type Layers, type Loop, type Placed, Prio, Synth } from './synth';
 
 // What the game sounds like: reads each frame as it arrives (the shots, blasts and deaths of
@@ -24,15 +26,18 @@ const LOUD: Record<string, number> = {
   pistol: 0.9, shotgun: 0.87, smg: 0.6, rifle: 1.15, railgun: 1.15, minigun: 0.7, rocket: 0.8, missile: 0.65, crowbar: 0.7,
   turretGun: 0.5, cannon: 0.95, tesla: 0.45, sniper: 0.95, pod: 0.7, doorGun: 0.7,
   spit: 0.5, boneThrow: 0.5, boneLand: 0.45, dash: 0.6,
+  gatling: 0.45, penetrator: 0.55, mortar: 0.9, antiMat: 1,
 };
-const CAP: Record<string, number> = { minigun: 6, smg: 5, turretGun: 5 };
+const CAP: Record<string, number> = { minigun: 6, smg: 5, turretGun: 5, gatling: 6 };
+// The shots that carry further than the rest.
+const CARRY = new Set(['cannon', 'sniper', 'rifle', 'railgun', 'mortar', 'antiMat']);
 // The creeps' own sounds, which thin out as more of them are awake within earshot.
 const CREEPY = new Set(['spit', 'boneThrow', 'boneLand']);
 // Awake creeps in earshot at which they start thinning, and at which they are thinnest.
 const CROWD0 = 6, CROWD1 = 30;
 // Creep kinds that throw rather than strike: their blows are tracers.
 const THROWS = new Set([4, 6]);
-const BIG = new Set([3, 5, 7]);
+const BIG = new Set([3, 5, 7, 9, 10]);
 // A tick, in seconds: the events of one frame are spread over it so fast fire is a stream,
 // not a burst twenty times a second.
 const TICK = 0.05;
@@ -91,6 +96,9 @@ export class Sound {
   private cWind = new Uint8Array(MAX_CREEPS);
   private pKills = new Uint32Array(256); private pUlt = new Float32Array(256);
   private killAt = 0; private streak = 0; private heartDue = 0;
+  // The later features' sounds, and the horde, the horn, the bosses and the failing generator.
+  private cover = new Coverage(this);
+  private amb2 = new Ambience(this);
 
   constructor(volume: number) {
     this.synth = new Synth(volume);
@@ -111,7 +119,11 @@ export class Sound {
     this.spins.clear();
     for (const l of this.amb.values()) l.stop();
     this.amb.clear();
+    this.cover.reset(); this.amb2.reset();
   }
+
+  // Where the ears are, on the map.
+  get ears(): { x: number; y: number } { return { x: this.lx, y: this.ly }; }
 
   // listen puts the ears where the camera looks; called every drawn frame, it also moves the
   // loops along with what makes them.
@@ -254,7 +266,7 @@ export class Sound {
     const groups = new Map<string, Shot[]>();
     const me = f.player(wd.you), alive = !!me && (me.flags & PF_ALIVE) !== 0;
     const add = (name: string, x: number, y: number, extra?: number, mine = false) => {
-      const p = this.place(x, y, LOUD[name] ?? 0.6, name === 'cannon' || name === 'sniper' || name === 'rifle' || name === 'railgun' ? 1.6 : 1.2);
+      const p = this.place(x, y, LOUD[name] ?? 0.6, CARRY.has(name) ? 1.6 : 1.2);
       if (!p) return;
       let g = groups.get(name);
       if (!g) groups.set(name, g = []);
@@ -265,12 +277,15 @@ export class Sound {
       if (k === TRACER_HELI) add('doorGun', x0, y0);
       else if (k === TRACER_SHARD) { add('boneThrow', x0, y0); add('boneLand', x1, y1, 0.2 + Math.hypot(x1 - x0, y1 - y0) * 0.01); }
       else if (k === 33) add('dash', x0, y0);
+      else if (k === TRACER_NAPALM || k === TRACER_ARC) continue; // coverage.ts
       else if (k >= 32) add('spit', x0, y0);
-      else if (k >= 16) { const n = TURRET[k - 16]; if (n) add(n, x0, y0); }
+      else if (k >= 16) { const n = this.cover.turret(game, k - 16, x0, y0) ?? TURRET[k - 16]; if (n) add(n, x0, y0); }
+      // A rocket's tracer is drawn every tick of its flight: only the first is its launch.
       else if (k === 5) {
+        if (!this.cover.fresh(x0, y0)) continue;
         const s = game.structAtTile(Math.floor(x0), Math.floor(y0));
         add(s >= 0 && f.sKind[s] === K_MISSILE ? 'missile' : 'rocket', x0, y0);
-      } else if (k === 5 + TRACER_ULT) add('rocket', x0, y0);
+      } else if (k === 5 + TRACER_ULT) { if (this.cover.fresh(x0, y0)) add('rocket', x0, y0); }
       else if (GUN[k % TRACER_ULT]) {
         const w = k % TRACER_ULT;
         add(k >= TRACER_ULT ? ULT[w] ?? GUN[w] : GUN[w], x0, y0, undefined, alive && Math.abs(x0 - me!.x) < 1.2 && Math.abs(y0 - me!.y) < 1.2);
@@ -346,6 +361,8 @@ export class Sound {
     this.playerSounds(game, loot);
     this.structSounds(game);
     this.gameSounds(game);
+    this.cover.onFrame(game, t0, crowd, hear);
+    this.amb2.onFrame(game, t0, crowd);
     this.remember(game);
   }
 
@@ -540,7 +557,7 @@ export class Sound {
       const was = i < this.nStructs && this.sAlive[i] && this.sKind[i] === f.sKind[i];
       if (f.sAlive[i] && !was) { const p = this.place(cx, cy, 0.6); if (p) this.synth.play('hammer', p); }
       else if (f.sAlive[i] && level(f.sLevel[i], f.sLv, i) > this.sLevel[i]) { const p = this.place(cx, cy, 0.55); if (p) this.synth.play('upgrade', p); }
-      else if (!f.sAlive[i] && i < this.nStructs && this.sAlive[i]) {
+      else if (!f.sAlive[i] && i < this.nStructs && this.sAlive[i] && !this.cover.owns(this.sKind[i])) {
         // Sold whole, or knocked down: one that went at a quarter of its health or more was sold.
         const p = this.place(cx, cy, this.sHpFrac[i] > 0.25 ? 0.5 : 0.85, 1.5);
         if (p) this.synth.play(this.sHpFrac[i] > 0.25 ? 'coins' : 'crumble', p);
@@ -580,6 +597,7 @@ export class Sound {
 
   private remember(game: Game): void {
     const f = game.cur;
+    this.cover.remember(game);
     this.phase = f.phase;
     for (let i = 0; i < f.nPlayers; i++) {
       const p = f.players[i], id = p.id;

@@ -838,6 +838,35 @@ about -29, ambience -32 to -42, footsteps under -45.
 - **The same mix at every volume.** Three buses (the world, the cues, the ambience) meet in a
   gentle compressor and a clipper that is clean until the last 2 dB; the volume setting comes
   after them. Each player's volume is a setting like any other, saved from the menu.
+- **Everything the game added is heard too** (`web/src/sound/coverage.ts`, `ambience.ts`). The
+  host sends no sound events, so these sounds come from changes between frames: a gate's
+  open bit, a turret's evolution, the tier and the gold paid in, a creep's flags and health,
+  a creep stepping onto a trap tile, the blast kinds. That way the protocol stays as it was.
+  The recipes use the same physical parts as the rest of the bank. Spikes are steel biting
+  and a chain rattling. Tar is a slow glop and suck. A vent is gas hissing before the whump.
+  A mine is its pressure plate clicking and then a soil geyser over the explosion's boom.
+  Each evolution sounds like what it became: the gatling lighter and faster, the penetrator
+  harder, the mortar a hollow thoomp, the anti-materiel rifle deeper than the .50. Napalm
+  burns as it flies and lands with a soft liquid whump, not a shock front. Rounds glance off
+  armoured creeps with a ring, a sapper's fuse sputters as a loop on the nearest one, and a
+  splitter tears open with two squeals. Hasty waves need nothing new, since footsteps already
+  follow ground covered. A rocket now sounds once as it leaves, not on every tick of its
+  flight. Mix rules hold for all of it. Everything common (spikes, tar, ricochets) is a
+  texture-priority sound, only the nearest one each tick plays, and it waits longer in a crowd.
+  The pylon only buzzes close by. The hound, the mauler and the goliath, which had no voice,
+  now groan and die like the other creeps.
+- **The horde before the blows.** A distant horde bed (dozens of blurred moans, shuffling, a
+  low swell) rises with the awake creeps of a wave, weighted by distance. Creeps still to
+  come and those hidden in the dark count as far ones. It comes from where they are, or from
+  the side the scouts reported, and it backs off when the nearby crowd and the mix fill up,
+  because then each creep is heard on its own. The siren is the base's alarm, and a war horn
+  from the wave's side answers it two seconds later; a boss wave gets two horns, lower. This
+  complements the siren rather than duplicating it. Bosses roar on sight and every fourteen
+  seconds or so after, never two within seven. Their tread thumps the ground and carries
+  further than other creeps' sounds. A failing generator sparks more often the worse it gets
+  and crackles below 30%. Its alarm is three rising whoops, unlike the klaxon of a hit, so a
+  failing generator can be told from a struck one. The alarm sounds when health passes 50%,
+  25% and 10%, then every 20 s while under 25%.
 
 ## Boot splash
 
