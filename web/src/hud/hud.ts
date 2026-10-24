@@ -1,3 +1,4 @@
+import { Vector3 } from 'three/webgpu';
 import type { ConnState } from '../net';
 import { CROWBAR, OWNED_DUAL, EvacStage, K_ARMORY, K_CORE, stickyKind, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, type Player, TTrack, TURRET_TRACKS, type Welcome, repairCost, sellValue, turretRange, WEAPON_SLOTS, K_GATE, COMPASS, CX_ARMOURED, CX_FRENZY, CX_HASTY, CX_SAPPER, CX_SPLITTER } from '../protocol';
 import { type Controller, KEYS } from '../controller';
@@ -18,6 +19,10 @@ const ORDER = ['idle', 'moving', 'attack-moving', 'attacking', 'holding', 'build
 // One digit after the point below ten seconds, whole seconds above.
 const secs = (s: number) => (s < 10 ? s.toFixed(1) : String(Math.ceil(s)));
 const ROMAN = ['', 'I', 'II', 'III', 'IV'];
+const HURT_V = new Vector3();
+// Every tenth wave brings a boss, as the host has it; the top bar says so before it arrives.
+const isBoss = (w: number) => w > 0 && w % 10 === 0;
+const BOSS_TAG = '<span class="bosstag" title="A boss wave: bosses lead it, every tenth wave">BOSS</span>';
 
 // A teammate's frame: their portrait, name, health and what they are doing.
 interface Mate { root: HTMLElement; face: CanvasRenderingContext2D; resp: HTMLElement; fill: HTMLElement; what: HTMLElement }
@@ -72,11 +77,13 @@ export class Hud {
   private paused!: { root: HTMLElement; sub: HTMLElement };
   private downed: { root: HTMLElement; sub: HTMLElement; bar: HTMLElement; fill: HTMLElement };
   private announceEl: HTMLElement;
+  // The screen's edge: bleeds while health is low, flashes on a hit from the side it came from.
+  private hurt: { root: HTMLElement; hp: number; until: number };
   private countEl!: { root: HTMLElement; wave: HTMLElement; n: HTMLElement };
   private toastsEl: HTMLElement;
   private chat: { root: HTMLElement; log: HTMLElement; input: HTMLInputElement };
   private hero: {
-    portrait: HTMLElement; resp: HTMLElement; name: HTMLElement; hp: HTMLElement; hpTxt: HTMLElement; gold: HTMLElement;
+    portrait: HTMLElement; resp: HTMLElement; name: HTMLElement; hp: HTMLElement; hpBar: HTMLElement; hpTxt: HTMLElement; gold: HTMLElement;
     stam: HTMLElement; weapon: HTMLElement; ammoNum: HTMLElement; reload: HTMLButtonElement; ammo: HTMLElement; ammoBar: HTMLElement; ammoTxt: HTMLElement;
     order: HTMLElement; buff: HTMLElement;
   };
@@ -140,6 +147,7 @@ export class Hud {
     this.tipOn(weather, () => this.weatherTip());
     el('div', 'spacer', top);
     const kills = el('div', 'kills', top);
+    kills.title = 'Creeps the team has killed this game';
     const readies = el('div', 'readies', top);
     // Between waves, while anything is destroyed or damaged: the base put back in one go.
     const fix = el('button', 'fix', top, 'Rebuild');
@@ -182,6 +190,9 @@ export class Hud {
     el('div', 'dh', pz, 'Paused');
     this.paused = { root: pz, sub: el('div', 'ds', pz) };
 
+    this.hurt = { root: el('div', 'hurt', root), hp: -1, until: 0 };
+    // Under everything else the HUD shows.
+    root.prepend(this.hurt.root);
     this.announceEl = el('div', 'announce', root);
     const cd = el('div', 'countdown hidden', root);
     this.countEl = { root: cd, wave: el('div', 'cw', cd), n: el('div', 'cn', cd) };
@@ -238,7 +249,9 @@ export class Hud {
     const weapon = el('div', 'wname', gun);
     const ammoNum = el('div', 'ammo crt', gun);
     const reload = el('button', 'reload', gun);
-    reload.innerHTML = 'Reload <kbd>R</kbd>';
+    // The word gives way first on a narrow screen, so the weapon's name keeps its room.
+    reload.innerHTML = '<span class="rl">Reload</span><kbd>R</kbd>';
+    reload.setAttribute('aria-label', 'Reload (R)');
     reload.onclick = () => ctl.send({ op: 'reload' });
     this.tipOn(reload, () => '<b>Reload</b><kbd>R</kbd><br>Swap in a fresh magazine now instead of when it runs dry.');
     const ammoBar = el('div', 'bar ammo', hero);
@@ -246,7 +259,7 @@ export class Hud {
     const ammoTxt = el('div', 'txt', ammoBar);
     const order = el('div', 'order', hero);
     const buff = el('div', 'buff', hero);
-    this.hero = { portrait, resp, name, hp, hpTxt, stam, gold, weapon, ammoNum, reload, ammo, ammoBar, ammoTxt, order, buff };
+    this.hero = { portrait, resp, name, hp, hpBar, hpTxt, stam, gold, weapon, ammoNum, reload, ammo, ammoBar, ammoTxt, order, buff };
 
     const actions = el('div', 'actions', con);
     const abil = el('div', 'abilities', actions);
@@ -658,8 +671,8 @@ export class Hud {
     let wave: string;
     if (f.phase === Phase.Build) {
       const left = Math.max(0, f.phaseLeft / 10 - (now - ctl.game.frameAt) / 1000);
-      wave = `<span class="lbl">wave ${f.wave + 1} in</span><span class="phase">${Math.ceil(left)}s</span>${forecast(wd, f.nextAffix, f.nextFrom)}`;
-    } else if (f.phase === Phase.Wave) wave = `<span class="lbl">wave</span>${f.wave}<span class="lbl">·</span><span class="phase">${fmtGold(f.left)}</span><span class="lbl">creeps left</span>${forecast(wd, f.affix, 0)}`;
+      wave = `<span class="lbl">wave ${f.wave + 1} in</span><span class="phase">${Math.ceil(left)}s</span>${isBoss(f.wave + 1) ? BOSS_TAG : ''}${forecast(wd, f.nextAffix, f.nextFrom)}`;
+    } else if (f.phase === Phase.Wave) wave = `<span class="lbl">wave</span>${f.wave}<span class="lbl">·</span><span class="phase">${fmtGold(f.left)}</span><span class="lbl">creeps left</span>${isBoss(f.wave) ? BOSS_TAG : ''}${forecast(wd, f.affix, 0)}`;
     else if (f.phase === Phase.Evac) {
       const left = Math.ceil(Math.max(0, f.evacLeft - (now - ctl.game.frameAt) / 1000));
       wave = f.evac === EvacStage.Inbound ? `<span class="lbl">evac · Huey lands in</span><span class="phase">${left}s</span><span class="lbl">· hold the helipad</span>`
@@ -668,6 +681,7 @@ export class Hud {
     } else if (f.evac === EvacStage.Gone) wave = `<span class="lbl">evac · held</span><span class="phase">${f.best}</span><span class="lbl">waves</span>`;
     else wave = `<span class="lbl">overrun · held</span><span class="phase">${f.best}</span><span class="lbl">waves</span>`;
     if (this.top.wave.innerHTML !== wave) this.top.wave.innerHTML = wave;
+    setClass(this.top.wave, 'boss', (f.phase === Phase.Wave && isBoss(f.wave)) || (f.phase === Phase.Build && isBoss(f.wave + 1)));
 
     this.updateBase(now);
 
@@ -681,7 +695,7 @@ export class Hud {
     if (this.top.weather.innerHTML !== wh) this.top.weather.innerHTML = wh;
     this.top.weather.style.opacity = (0.4 + 0.6 * amt).toFixed(2);
 
-    const kills = `<b>${fmtGold(f.totalKills)}</b> kills`;
+    const kills = `<b>${fmtGold(f.totalKills)}</b><span class="lbl">kills</span>`;
     if (this.top.kills.innerHTML !== kills) this.top.kills.innerHTML = kills;
     const build = f.phase === Phase.Build;
     const fc = build ? this.ctl.fixCost() : null;
@@ -733,7 +747,7 @@ export class Hud {
     const on = left > 0 && left <= (evac ? (this.ctl.me()?.aboard ? 999 : 10) : 5);
     show(this.countEl.root, on);
     if (!on) return;
-    setText(this.countEl.wave, !evac ? `wave ${f.wave + 1} incoming` : this.ctl.me()?.aboard ? 'aboard · lift-off in' : 'get to the choppa!');
+    setText(this.countEl.wave, !evac ? `${isBoss(f.wave + 1) ? 'boss ' : ''}wave ${f.wave + 1} incoming` : this.ctl.me()?.aboard ? 'aboard · lift-off in' : 'get to the choppa!');
     const n = String(Math.ceil(left));
     if (this.countEl.n.textContent !== n) {
       this.countEl.n.textContent = n;
@@ -848,7 +862,11 @@ export class Hud {
     const frac = me.hp / Math.max(1, me.maxHp);
     h.hp.style.transform = `scaleX(${frac})`;
     h.hp.style.background = frac > 0.5 ? '' : frac > 0.25 ? 'var(--amber)' : 'var(--rust)';
-    setText(h.hpTxt, `${me.hp} / ${me.maxHp}`);
+    // Low health is said in words and hatching as well as red, and the screen's edge bleeds.
+    const lowHp = alive && frac < 0.3;
+    setClass(h.hpBar, 'low', lowHp);
+    setText(h.hpTxt, lowHp ? `LOW ${me.hp} / ${me.maxHp}` : `${me.hp} / ${me.maxHp}`);
+    this.updateHurt(me, alive, lowHp, now);
     h.stam.style.transform = `scaleX(${me.stamina.toFixed(3)})`;
     setClass(h.stam, 'winded', me.winded);
     setClass(h.stam, 'full', me.stamina >= 0.999);
@@ -857,10 +875,13 @@ export class Hud {
     const reloading = (me.flags & PF_RELOADING) !== 0;
     setClass(h.ammoBar, 'reload', reloading);
     h.ammo.style.transform = `scaleX(${reloading ? 1 - me.reload : me.ammo / Math.max(1, me.mag)})`;
-    setText(h.ammoTxt, reloading ? 'reloading' : '');
+    // Low and empty magazines say so on the bar, with the key that fixes them.
+    const lowAmmo = alive && !reloading && me.mag > 0 && me.ammo <= Math.max(1, me.mag * 0.2);
+    setText(h.ammoTxt, reloading ? 'reloading' : !lowAmmo ? '' : me.ammo <= 0 ? 'EMPTY · R reload' : 'LOW AMMO · R');
+    setClass(h.ammoBar, 'low', lowAmmo);
     const an = `${me.ammo}<i>/${me.mag}</i>`;
     if (h.ammoNum.innerHTML !== an) h.ammoNum.innerHTML = an;
-    h.ammoNum.style.color = !reloading && me.ammo <= Math.max(1, me.mag * 0.2) ? 'var(--rust)' : '';
+    setClass(h.ammoNum, 'low', lowAmmo);
     const full = me.ammo >= me.mag;
     h.reload.disabled = !alive || full || reloading;
     setClass(h.reload, 'busy', reloading);
@@ -924,6 +945,35 @@ export class Hud {
     setText(this.med.children[1] as HTMLElement, me.heal > 0 ? `heal ${me.heal.toFixed(1)}` : `med ×${me.medkits}`);
   }
 
+  // A hit flashes the screen's edge for a moment, brightest on the side of the nearest creep,
+  // which is most likely what landed it; low health keeps the edge red.
+  private updateHurt(me: Player, alive: boolean, low: boolean, now: number): void {
+    const t = this.hurt;
+    if (alive && t.hp >= 0 && me.hp < t.hp) {
+      t.until = now + 380;
+      const g = this.ctl.game, f = g.cur;
+      let best = 14 * 14, bx = 0, by = 0;
+      for (let i = 0; i < f.nCreeps; i++) {
+        const dx = f.cX[i] - me.x, dy = f.cY[i] - me.y, d = dx * dx + dy * dy;
+        if (d < best) { best = d; bx = f.cX[i]; by = f.cY[i]; }
+      }
+      // Where on screen it is, from the player towards the creep, as a point on the edge.
+      let ax = 50, ay = 50;
+      if (best < 14 * 14) {
+        const cam = this.ctl.rig.cam;
+        const a = HURT_V.set(me.x, 0, me.y).project(cam), ox = a.x, oy = a.y;
+        const b = HURT_V.set(bx, 0, by).project(cam);
+        const dx = b.x - ox, dy = oy - b.y, m = Math.hypot(dx, dy);
+        if (m > 1e-4) { ax = 50 + (dx / m) * 50; ay = 50 + (dy / m) * 50; }
+      }
+      t.root.style.setProperty('--hx', `${ax.toFixed(0)}%`);
+      t.root.style.setProperty('--hy', `${ay.toFixed(0)}%`);
+    }
+    t.hp = alive ? me.hp : -1;
+    setClass(t.root, 'hit', now < t.until);
+    setClass(t.root, 'low', low);
+  }
+
   // The right-hand command card: the build grid, or whatever is selected.
   private updateCard(): void {
     const ctl = this.ctl, g = ctl.game, f = g.cur, me = ctl.me();
@@ -958,10 +1008,13 @@ export class Hud {
         const b = el('button', ctl.mode.k === 'build' && ctl.mode.kind === k ? 'sel' : '', grid);
         // Thirteen to a card, four to a row and tight to fit: the first word of the name, the whole of it on the title.
         const locked = (d.tier ?? 0) > f.tier;
-        b.innerHTML = `<span class="n">${esc(d.name.split(' ')[0])}</span><span class="p">${locked ? `tier ${ROMAN[d.tier!]}` : `${d.price}g`}</span><span class="k">${esc(d.key)}</span>`;
-        b.disabled = locked || gold < d.price;
-        b.title = `${d.name}: ${d.desc}`;
+        // The name has the button's whole width; the price and the keycap share the line under it.
+        const short = !locked && gold < d.price;
+        b.innerHTML = `<span class="n">${esc(d.name.split(' ')[0])}</span><span class="pk"><span class="p">${locked ? `tier ${ROMAN[d.tier!]}` : `${d.price}g`}</span><kbd>${esc(d.key)}</kbd></span>`;
+        b.disabled = locked || short;
+        b.title = `${d.name}: ${d.desc}${locked ? `\nNeeds the generator at tier ${ROMAN[d.tier!]}` : short ? `\nNeed ${fmtGold(Math.ceil(d.price - gold))}g more` : ''}`;
         if (locked) b.classList.add('locked');
+        if (short) b.classList.add('short');
         b.onclick = () => ctl.startBuild(k);
       }
       // How to place is said by the placement prompt; the card is full with thirteen to build.
@@ -986,10 +1039,14 @@ export class Hud {
           const l = lv(t), max = l >= wd.maxLevel, cost = d.upgrade[l] ?? 0;
           const cur = d.values?.[t]?.[l] ?? '', next = d.values?.[t]?.[l + 1] ?? '';
           const b = el('button', '', grid);
+          // The level a strip of pips along the foot of the button, so the price keeps its room.
           const pips = Array.from({ length: wd.maxLevel }, (_, i) => `<i class="${i < l ? 'on' : ''}"></i>`).join('');
-          b.innerHTML = `<span class="n">${esc(wd.turretTracks?.[t] ?? '')}<span class="pips">${pips}</span><span class="p">${max ? 'max' : `${fmtGold(cost)}g`}</span></span><span class="v">${esc(max ? cur : change(cur, next))}</span>`;
-          b.title = t === TTrack.Special && d.special ? `Each level: ${d.special}` : '';
-          b.disabled = max || gold < cost;
+          const short = !max && gold < cost;
+          b.innerHTML = `<span class="n">${esc(wd.turretTracks?.[t] ?? '')}<span class="p">${max ? 'max' : `${fmtGold(cost)}g`}</span></span><span class="v">${esc(max ? cur : change(cur, next))}</span><span class="pips" aria-label="level ${l} of ${wd.maxLevel}">${pips}</span>`;
+          b.title = [`level ${l}/${wd.maxLevel}`, t === TTrack.Special && d.special ? `Each level: ${d.special}` : '', short ? `Need ${fmtGold(Math.ceil(cost - gold))}g more` : ''].filter(Boolean).join('\n');
+          b.disabled = max || short;
+          if (short) b.classList.add('short');
+          if (max) b.classList.add('max');
           b.onclick = () => ctl.upgradeSel(t);
         }
         const tiers = wd.tiers;
@@ -1005,8 +1062,9 @@ export class Hud {
             d.evolve.forEach((e, k) => {
               const b = el('button', `evo${k + 1}`, eg);
               b.innerHTML = `<span class="n">${esc(e.name)}<span class="p">${fmtGold(d.price)}g</span></span><span class="v">${esc(e.desc)}</span>`;
-              b.title = `Evolve into a ${e.name}, for good`;
+              b.title = `Evolve into a ${e.name}, for good${gold < d.price ? `\nNeed ${fmtGold(Math.ceil(d.price - gold))}g more` : ''}`;
               b.disabled = gold < d.price;
+              if (gold < d.price) b.classList.add('short');
               b.onclick = () => ctl.send({ op: 'evolve', s: id, track: k + 1 });
             });
           }
@@ -1023,6 +1081,7 @@ export class Hud {
           const pi = el('button', 'primary', tb); pi.innerHTML = `Pay in <span class="gold">${amt}g</span>`;
           pi.title = 'The whole team pays into the generator; every tier makes it tougher';
           pi.disabled = gold < amt;
+          if (gold < amt) { pi.classList.add('short'); pi.title += `\nNeed ${fmtGold(Math.ceil(amt - gold))}g more`; }
           pi.onclick = () => ctl.send({ op: 'payIn' });
         }
         if (f.tier >= tiers.overload) {
@@ -1039,6 +1098,7 @@ export class Hud {
         const up = el('button', 'primary', btns);
         up.innerHTML = lvl >= wd.maxStructLevel ? 'Max level' : `Upgrade <span class="gold">${cost}g</span> <kbd>U</kbd>`;
         up.disabled = lvl >= wd.maxStructLevel || gold < cost;
+        if (lvl < wd.maxStructLevel && gold < cost) { up.classList.add('short'); up.title = `Need ${fmtGold(Math.ceil(cost - gold))}g more`; }
         up.onclick = () => ctl.upgradeSel();
       }
       if (f.sHp[id] < f.sMaxHp[id]) {
@@ -1103,7 +1163,7 @@ export class Hud {
     b4.innerHTML = `Rebuild all${fixing ? ` <span class="gold">${fmtGold(fc.gold)}g</span>` : ''} <kbd>H</kbd>`;
     b4.title = fixing ? `Rebuild ${fc.ghosts} destroyed and repair ${fc.damaged} damaged, for ${fmtGold(fc.gold)}g` : 'Nothing to rebuild or repair, or a wave is on';
     b4.onclick = () => ctl.fixAll();
-    el('div', 'hint', c, 'WASD to walk · E to use · Q: ultimate · Shift F V: abilities · F1 for all controls');
+    el('div', 'hint', c).innerHTML = '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk · <kbd>E</kbd> use · <kbd>Q</kbd> ultimate · <kbd>Shift</kbd> <kbd>F</kbd> <kbd>V</kbd> abilities · <kbd>F1</kbd> all controls';
   }
 
   private updateMode(): void {

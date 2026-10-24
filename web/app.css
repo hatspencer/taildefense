@@ -490,6 +490,63 @@ body.cine::before { transform-origin: top; } body.cine::after { transform-origin
 /* Pixel view: canvases and icons stay crisp. */
 canvas, .hud img, .hud svg { image-rendering: pixelated; }
 
+/* ---------- in-game legibility: states said by more than colour ---------- */
+
+/* The screen's edge: red while health is low, a flash from the side a hit came from. */
+.hud > .hurt { position: absolute; inset: 0; pointer-events: none; }
+.hurt::before, .hurt::after { content: ""; position: absolute; inset: 0; opacity: 0; transition: opacity 0.35s; }
+.hurt::before { box-shadow: inset 0 0 90px 18px rgba(170, 24, 10, 0.5), inset 0 0 0 3px rgba(181, 71, 47, 0.6); }
+.hurt::after { background: radial-gradient(circle at var(--hx, 50%) var(--hy, 50%), rgba(200, 32, 12, 0.6), transparent 38%);
+  box-shadow: inset 0 0 60px 8px rgba(170, 24, 10, 0.35); transition: opacity 0.5s; }
+.hurt.low::before { opacity: 1; animation: hurtlow 1.4s steps(4) infinite; }
+.hurt.hit::after { opacity: 1; transition: none; }
+@keyframes hurtlow { 50% { opacity: 0.55; } }
+
+/* Hatching: low health, low ammo, a failing generator or teammate, unaffordable buttons. */
+.bar.low .fill, .bar.ammo.low .fill, .top .chip.base.low .bbar i, .mate.low .mbar i {
+  background-image: repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.38) 0 3px, transparent 3px 6px) !important; }
+.bar.ammo.low .fill { background-color: var(--rust); }
+.hero .gun .ammo.low { color: #ff8a6a; text-shadow: 0 0 5px rgba(255, 110, 70, 0.55); animation: lowblink 1s steps(2) infinite; }
+@keyframes lowblink { 50% { color: #b5472f; } }
+.top .chip.base.low .num::before { content: "!"; margin-right: 3px; color: #ff8a6a; }
+.top .kills .lbl { margin-left: 5px; }
+.top .wave .bosstag { font: 700 14px/1 var(--font); color: #1a0c08; background: var(--rust); padding: 3px 6px 2px; letter-spacing: 0.06em; text-shadow: none; }
+.top .wave.boss { box-shadow: inset 0 0 0 1px #2b3322, 0 0 0 2px var(--rust); }
+
+/* Weapons not yet owned: a dashed outline as well as dimmer, so the state reads without colour. */
+.wslot:not(.owned) { color: #87836a; border-style: dashed; border-color: #5b5a48; }
+.wslot:not(.owned) .key { color: #7a7660; }
+
+/* The build grid: the name has the whole width, price and keycap share the line under it. */
+.card .grid.build button { padding: 3px 5px 4px; }
+.card .grid.build button .n { font-size: 15px; letter-spacing: -0.02em; }
+.card .grid.build button .pk { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.card .grid.build button .pk kbd { flex: none; font-size: 12px; line-height: 11px; min-width: 13px; padding: 1px 2px 1px; }
+.card .grid.build button .pk .p { font-size: 18px; }
+/* Short of gold or locked: hatched and still readable, the price says why. */
+.card button.short:disabled, .card .grid.build button.locked:disabled { opacity: 0.78; filter: none;
+  background-image: repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.28) 0 4px, transparent 4px 8px); }
+.card button.short .p, .card button.short .gold { color: #ff8a6a; }
+.card .grid.build button.locked .p { color: var(--khaki); }
+
+/* A turret track: its level a strip of pips along the foot, the price keeps its room. */
+.card .grid.tracks button { padding: 4px 8px 9px; }
+.card .grid.tracks .pips { position: absolute; left: 8px; right: 8px; bottom: 3px; display: flex; gap: 2px; }
+.card .grid.tracks .pips i { flex: 1; width: auto; height: 3px; box-shadow: none; background: #3c3f30; }
+.card .grid.tracks button.max .p { color: var(--moss); }
+
+.card .hint kbd { font-size: 12px; line-height: 11px; min-width: 13px; padding: 1px 2px; margin-right: 1px; }
+
+@media (max-width: 1600px) {
+  .hero .gun button.reload .rl { display: none; }
+}
+@media (max-width: 1440px) {
+  .top { gap: 7px; }
+  .top button { font-size: 14px; padding-left: 7px; padding-right: 7px; }
+  .top .chip.base .bbar { width: 72px; }
+  .top .kills .lbl { font-size: 13px; margin-left: 4px; }
+}
+
 /* ---------- smaller windows ---------- */
 
 @media (max-width: 1360px) {
@@ -523,4 +580,7 @@ canvas, .hud img, .hud svg { image-rendering: pixelated; }
 }
 @media (prefers-reduced-motion: reduce) {
   body.cine::before, body.cine::after, .over .stamp, .cover .spin, .top .chip.base.low, .wslot.reloading::after { animation: none; }
+  /* The in-game warnings hold still: the hatching, words and edge still say them. */
+  .hurt.low::before, .hero .gun .ammo.low, .portrait.low, .mate.dead, .slot.full, .slot.ready-flash, .bar .stam.winded, .countdown .cn.tick { animation: none; }
+  .hurt::before, .hurt::after, .top .chip.base .bbar i, .mate .mbar i, .chat .log div { transition: none; }
 }
