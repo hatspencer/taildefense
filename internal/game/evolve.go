@@ -27,14 +27,13 @@ const (
 	EvolveAt       = 12  // a turret's track levels that must add up to this to evolve
 	pylonAmp       = .15 // the fire rate a pylon in reach adds
 	OverloadReach  = 18  // tiles round the generator's centre: out over the walls
-	overloadBase   = 150 // the Overload's damage at wave 0
-	overloadWave   = 10  // and what each wave adds
+	overloadBase   = 120 // the Overload's damage at wave 1, growing with the creeps' health
 	overloadFreeze = 1.5 // seconds the Overload freezes what it hits
 	cryoEvery      = 3   // a cryo tower freezes on every third pulse
 	cryoFreeze     = .8  // seconds
 	markFor        = 5   // seconds a spotter's mark lasts
 	markBonus      = .25 // more damage a marked creep takes from everything
-	napalmBurn     = 14  // a napalm missile's burning, per second
+	napalmBurn     = .35 // a napalm missile's burning, per second, as a share of its damage
 )
 
 // tierBase is the gold that takes the generator from tier i+1 to i+2, for one player.
@@ -129,7 +128,7 @@ func (w *World) Overload(p *Player) error {
 
 // overloadDamage is what the Overload deals each creep it reaches this wave.
 func (w *World) overloadDamage() float32 {
-	return float32(overloadBase + overloadWave*w.Wave)
+	return overloadBase * HPScale(max(w.Wave, 1))
 }
 
 // evoFx is what an evolution does past its numbers.
@@ -150,7 +149,7 @@ const (
 type Evolution struct {
 	Name, Desc                 string
 	Damage, Rate, Range, Blast float32
-	Slow, Hop                  float32
+	Slow, Hop, Chill           float32
 	Pierce, Chains, Salvo      int
 	fx                         evoFx
 }
@@ -167,10 +166,10 @@ var Evolutions = [NumStructKinds][2]Evolution{
 	},
 	STurretFrost: {
 		{Name: "Cryo", Desc: "Every third pulse freezes everything in reach solid for a moment.", fx: fxCryo},
-		{Name: "Blizzard", Desc: "A far wider, longer cold.", Range: 1.6, Slow: .8},
+		{Name: "Blizzard", Desc: "A far wider, longer, deeper cold.", Range: 1.6, Slow: .8, Chill: .1},
 	},
 	STurretTesla: {
-		{Name: "Storm conductor", Desc: "Feeds on the weather: up to twice the damage in rain, and two more jumps.", Chains: 2, fx: fxStorm},
+		{Name: "Storm conductor", Desc: "Hits a fifth harder and feeds on the weather: up to twice that in rain, and two more jumps.", Damage: 1.2, Chains: 2, fx: fxStorm},
 		{Name: "Arc web", Desc: "Jumps much further, to many more creeps.", Chains: 4, Hop: 2},
 	},
 	STurretSniper: {
@@ -203,6 +202,7 @@ func (e *Evolution) apply(st *TurretStat) {
 	mul(&st.Range, e.Range)
 	mul(&st.Blast, e.Blast)
 	st.Slow += e.Slow
+	st.Chill = min(st.Chill+e.Chill, maxChill)
 	st.Hop += e.Hop
 	st.Pierce += e.Pierce
 	st.Chains += e.Chains

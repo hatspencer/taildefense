@@ -12,6 +12,7 @@ type Creep struct {
 	HP, MaxHP float32
 	Cool      float32 // seconds until the next attack
 	Slow      float32 // seconds of slow left
+	slowBy    float32 // the share of its pace the slow takes (chill)
 	Aff       Affix   // its wave's affixes it carries: armoured, hasty, a sapper's charge, a splitter
 	Mark      float32 // seconds left of a spotter's mark: everything hits it harder (evolve.go)
 	Burn      float32 // seconds of burning left

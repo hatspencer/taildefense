@@ -1214,6 +1214,13 @@ func (w *World) stepTurrets() {
 		}
 		switch s.Kind {
 		case STurretGun, STurretSniper:
+			if st.Share > 0 {
+				// A sniper's round tears a share of what its mark can take out of it, armour
+				// and all: the bigger the creep, the harder it hits.
+				w.noArmor = true
+				w.damage(t, st.Share*c.MaxHP, s.Owner)
+				w.noArmor = fx == fxPierce
+			}
 			ang := float32(math.Atan2(float64(c.Y-y), float64(c.X-x)))
 			w.hitscan(s.Owner, x, y, ang, rng, st.Damage, st.Pierce, 0, kind, plainShot)
 		case STurretCannon:
@@ -1226,7 +1233,7 @@ func (w *World) stepTurrets() {
 				o := &w.Creeps[i]
 				dx, dy := o.X-x, o.Y-y
 				if dx*dx+dy*dy <= rng*rng {
-					o.Slow = st.Slow
+					o.chill(st.Slow, st.Chill)
 					if freeze {
 						o.stunLeft = max(o.stunLeft, cryoFreeze)
 					}
@@ -1240,7 +1247,7 @@ func (w *World) stepTurrets() {
 		case STurretMissile:
 			var burn float32
 			if fx == fxNapalm {
-				burn = napalmBurn
+				burn = napalmBurn * st.Damage
 			}
 			w.salvo(s, t, rng, st, burn)
 		}
@@ -1305,7 +1312,14 @@ func (w *World) salvo(s *Structure, first int32, rng float32, st TurretStat, bur
 	})
 	for k := range st.Salvo {
 		c := &w.Creeps[marks[k%n].i]
-		dx, dy := c.X-x, c.Y-y
+		// A missile goes for where its mark stands now, give or take: it neither leads a
+		// creep on the move nor flies true, and bursts where it comes down.
+		ax, ay := c.X, c.Y
+		if st.Scatter > 0 {
+			a, r := w.rng.Float32()*2*math.Pi, st.Scatter*sqrt32(w.rng.Float32())
+			ax, ay = ax+r*cos32(a), ay+r*sin32(a)
+		}
+		dx, dy := ax-x, ay-y
 		d := max(sqrt32(dx*dx+dy*dy), .1)
 		w.Rockets = append(w.Rockets, Projectile{X: x, Y: y, VX: dx / d * missileSpeed, VY: dy / d * missileSpeed,
 			TTL: d / missileSpeed, Damage: st.Damage, Blast: st.Blast, Owner: s.Owner, Turret: true, Burn: burn})
@@ -1314,6 +1328,9 @@ func (w *World) salvo(s *Structure, first int32, rng float32, st TurretStat, bur
 		}
 	}
 }
+
+// teslaFalloff is the share of its damage a tesla's arc keeps at every jump.
+const teslaFalloff = .9
 
 // chain arcs from a tesla coil to its target and on to the nearest creep not yet struck,
 // losing some damage at every jump, each jump at most hop tiles. An arc web's jumps are drawn
@@ -1342,7 +1359,7 @@ func (w *World) chain(s *Structure, first int32, dmg float32, jumps int, hop flo
 		struck[n] = c.ID
 		n++
 		x, y = c.X, c.Y
-		dmg *= .85
+		dmg *= teslaFalloff
 		best, next := hop*hop, int32(-1)
 		w.grid.each(x, y, hop, func(i int32) bool {
 			o := &w.Creeps[i]
@@ -1372,12 +1389,15 @@ func (w *World) stepRockets() {
 		r.Y += r.VY * Dt
 		r.TTL -= Dt
 		boom := r.TTL <= 0 || w.blocksShot(int(r.X), int(r.Y))
-		// A cluster rocket flies over the crowd to its point.
+		// A cluster rocket flies over the crowd to its point, and a turret's missile to where
+		// it was sent.
 		if !boom && r.Cluster == 0 {
 			// A rocket flies on through what nobody can see.
-			if t := w.nearestCreep(r.X, r.Y, .9); t >= 0 && !w.hidden(&w.Creeps[t]) {
-				boom = true
-			} else if v := sqrt32(r.VX*r.VX + r.VY*r.VY); v > 0 {
+			if !r.Turret {
+				t := w.nearestCreep(r.X, r.Y, .9)
+				boom = t >= 0 && !w.hidden(&w.Creeps[t])
+			}
+			if v := sqrt32(r.VX*r.VX + r.VY*r.VY); !boom && v > 0 {
 				if p, _ := w.pumpOnRay(r.X-r.VX*Dt, r.Y-r.VY*Dt, r.VX/v, r.VY/v, v*Dt+tankRadius); p >= 0 {
 					boom = true
 				}

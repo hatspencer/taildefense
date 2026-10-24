@@ -487,8 +487,9 @@ var (
 )
 
 // benchKinds are the creeps of the per-kind table.
-// laneWaves are the waves the lane tables walk: the last before each swarm, a normal mix.
-var laneWaves = []int{4, 9, 19, 29}
+// laneWaves are the waves the lane tables walk: mostly the last before a swarm, a normal
+// mix, and one swarm.
+var laneWaves = []int{4, 9, 19, 20, 29}
 
 var benchKinds = []CreepKind{CWalker, CRunner, CSwarmer, CHound, CSpitter, CHurler, CBrute, CMauler, CBoss, CMother, CGoliath}
 
@@ -614,10 +615,11 @@ func TestBalanceTable(t *testing.T) {
 		}
 		for _, wave := range laneWaves {
 			kinds := laneWave(wave)
-			fmt.Fprintf(&b, "\nwave %d lane, traps on the road: share of hp, hp per 100 gold, leaked\n", wave)
+			fmt.Fprintf(&b, "\nwave %d lane, traps on the road: share of hp, hp per 100 gold, leaked; and the same with the creeps bunched up as a group comes\n", wave)
 			for _, r := range rows {
 				res := runLane(r.ps, kinds, wave, 0)
-				fmt.Fprintf(&b, "%-16s %6d | %5.0f%% %8.0f %6d\n", r.name, res.gold, res.share*100, res.killed/float32(res.gold)*100, res.leaked)
+				rd := runLaneGap(r.ps, kinds, wave, 0, supportGap)
+				fmt.Fprintf(&b, "%-16s %6d | %5.0f%% %8.0f %6d | %5.0f%% %8.0f %6d\n", r.name, res.gold, res.share*100, res.killed/float32(res.gold)*100, res.leaked, rd.share*100, rd.killed/float32(rd.gold)*100, rd.leaked)
 			}
 		}
 	}
