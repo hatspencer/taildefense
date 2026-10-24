@@ -211,6 +211,7 @@ type welcomeMsg struct {
 	Revive          reviveDef     `json:"revive"`
 	Medkit          medkitDef     `json:"medkit"`
 	Goggles         int32         `json:"goggles"`  // night vision goggles' price
+	Volume          int           `json:"volume"`   // this machine's VOLUME setting, 0 (off) to 100
 	Patience        []float32     `json:"patience"` // per difficulty: how far past the straight way in a creep walks a maze before it frenzies
 	Gate            gateDef       `json:"gate"`
 	Affixes         []string      `json:"affixes"` // a wave's affixes, bit by bit

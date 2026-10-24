@@ -148,6 +148,8 @@ export interface Welcome {
   lastWave?: number;
   // The helipad and the evac Huey's timing, in seconds; absent in an endless game.
   evac?: EvacDef;
+  // This machine's VOLUME setting, 0..100; 0 is no sound. Absent from a td too old to say.
+  volume?: number;
   // Per difficulty: how far past the straight way in a creep walks a maze before it frenzies.
   patience?: number[];
   // Working a gate: seconds at it, seconds before it swings again, how near to stand.
@@ -243,7 +245,9 @@ export type Command =
   // Walks to the landed evac Huey and gets aboard.
   | { op: 'board' }
   // Walks to gate s and opens or shuts it.
-  | { op: 'gate'; s: number };
+  | { op: 'gate'; s: number }
+  // To this machine's td only, never the host: save the VOLUME setting.
+  | { op: 'volume'; v: number };
 
 export class Player {
   id = 0; flags = 0; x = 0; y = 0; aim = 0; hp = 0; maxHp = 1; cur = 0; ammo = 0; mag = 0;

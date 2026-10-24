@@ -17,9 +17,9 @@
     difficulty  normal  (default)
     fog         off  (default)
     waves       40  (default)
+    volume      70  (default)
     browser     auto  (default)
     autoupdate  on  (default)
-
 
 
 

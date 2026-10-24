@@ -24,10 +24,11 @@ import { FogOfWar } from './scene/fow';
 import { Terrain } from './scene/terrain';
 import { Weather } from './scene/weather';
 import { playerColor } from './scene/util';
+import { Sound } from './sound/sound';
 import { World } from './scene/world';
 import { Game } from './state';
 
-// #demo&drop&fog&weather=3&down&corehp=0.3&creeps=5000&phase=build&cam=x,y,yawDeg,dist&build=5&armory&help&score&shot&f3&sel=struct:12&mouse=x,y&webgl
+// #demo&vol=40&drop&fog&weather=3&down&corehp=0.3&creeps=5000&phase=build&cam=x,y,yawDeg,dist&build=5&armory&help&score&shot&f3&sel=struct:12&mouse=x,y&webgl
 // A malformed escape is left as typed rather than failing the start.
 function unescape(v: string): string {
   try { return decodeURIComponent(v); } catch { return v; }
@@ -142,7 +143,13 @@ async function main(): Promise<void> {
   hud.leaving = () => helis.leaving(game);
   const portraits = new Portraits(world.renderer, world.backend === 'WebGL2');
   hud.setPortraits(portraits);
-  ctl.onToast = (t, l) => hud.toast(t, l);
+  // Silent until the welcome says this machine's VOLUME; the demo takes #vol=N, else 70.
+  const sound = new Sound(0);
+  // The demo and the lab leave the sound engine where a browser test can read it.
+  if (demo) (window as unknown as { tdSound: Sound }).tdSound = sound;
+  const toast = (t: string, l: number) => { hud.toast(t, l); if (l === 2) sound.ui('radio_error', 0.45, 0.3); };
+  ctl.onToast = toast;
+  hud.onVolume = (v, save) => { sound.synth.setVolume(v); if (save && !demo) send({ op: 'volume', v }); };
   const input = new Input(canvas, ctl, rig, hud);
   // A lost WebGPU device reloads once on WebGL2 (kept for this tab's session) instead of looping.
   world.onDeviceLost((msg) => {
@@ -168,6 +175,10 @@ async function main(): Promise<void> {
     onWelcome(w: Welcome) {
       splash?.progress(0.25);
       game.reset(w);
+      sound.reset();
+      const vol = w.volume ?? (P.has('vol') ? Number(P.get('vol')) : 70);
+      sound.synth.setVolume(vol);
+      hud.setVolume(sound.synth.volume);
       creeps.setup(w.creeps);
       structs.setup(w.structs);
       loot.setup(w.sites);
@@ -188,6 +199,7 @@ async function main(): Promise<void> {
     onFrame(buf) {
       if (!game.welcome) return;
       const f = game.applyFrame(buf, performance.now());
+      sound.onFrame(game);
       effects.onFrame(game, turretHeight, (x0, y0, x1, y1) => structs.onShot(game, x0, y0, x1, y1, performance.now()));
       for (const n of f.notes) hud.note(n.level, n.text);
       for (const g of f.pings) effects.teamPing(g.x, g.y, g.kind === PingKind.Danger ? 0xff5a3c : playerColor(g.player));
@@ -198,7 +210,7 @@ async function main(): Promise<void> {
       }
     },
     onText(m) {
-      if (m.t === 'toast') hud.toast(m.text, m.level);
+      if (m.t === 'toast') toast(m.text, m.level);
       else if (m.t === 'status') hud.status(m.text);
       else if (m.t === 'difficulty') game.setDifficulty(m.difficulty, m.dark, m.cone);
       else if (m.t === 'net') { game.rtt = m.rtt; game.rttAvg = Number.isNaN(game.rttAvg) ? m.rtt : game.rttAvg * 0.8 + m.rtt * 0.2; }
@@ -283,7 +295,7 @@ async function main(): Promise<void> {
       }
     }
   };
-  (window as unknown as { td: unknown }).td = { game, ctl, rig, hud, world, heroes, helis, get transport() { return transport; } };
+  (window as unknown as { td: unknown }).td = { game, ctl, rig, hud, world, heroes, helis, sound, get transport() { return transport; } };
 
   // The 8-bit view: #px=N or the saved choice sets the block size, 0 turns it off, F4 toggles.
   let pixelPref = 'auto';
@@ -339,6 +351,7 @@ async function main(): Promise<void> {
     }
     input.update(dt, W, H);
     rig.update(dt);
+    sound.listen(game, world.camera, rig.tx, rig.tz, rig.dist);
     world.followSun(rig.tx, rig.tz, rig.span());
     // Not while the shaders warm: every prop has to be drawn once for that.
     if (warm === 2) terrain.cull(world.camera);
@@ -420,6 +433,7 @@ async function main(): Promise<void> {
         `tris  ${(info.render.triangles / 1000).toFixed(0)}k`,
         `frame ${game.cur.tick}  ${game.interval.toFixed(0)} ms`,
         `ping  ${Number.isNaN(game.rtt) ? '-' : `${game.rtt.toFixed(0)} ms  avg ${game.rttAvg.toFixed(0)}`}`,
+        `sound ${sound.synth.readout()}`,
       ].join('\n'));
     }
   };

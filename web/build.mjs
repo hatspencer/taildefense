@@ -5,6 +5,18 @@ import { copyFileSync, mkdirSync } from 'node:fs';
 const out = '../internal/web/dist';
 const dev = process.argv.includes('--dev');
 mkdirSync(out, { recursive: true });
+// The sound renderer's worker, inlined into app.js as a string the page starts from a blob:
+// a separate file would not load as a worker from file://.
+const worker = await esbuild.build({
+  entryPoints: ['src/sound/worker.ts'],
+  bundle: true,
+  minify: true,
+  format: 'iife',
+  target: 'es2020',
+  write: false,
+  legalComments: 'none',
+  logLevel: 'warning',
+});
 await esbuild.build({
   entryPoints: { app: 'src/main.ts', demo: 'src/demo.ts' },
   bundle: true,
@@ -15,6 +27,7 @@ await esbuild.build({
   format: 'iife',
   target: 'es2020',
   outdir: out,
+  define: { __SOUND_WORKER__: JSON.stringify(worker.outputFiles[0].text) },
   legalComments: 'none',
   logLevel: 'warning',
 });

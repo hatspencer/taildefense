@@ -424,6 +424,9 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 17px/12p
 .help table td:first-child { white-space: nowrap; text-align: right; color: #c8bf9f; }
 .menu { width: 300px; display: flex; flex-direction: column; gap: 8px; }
 .menu button { padding: 8px; }
+.menu .volume { display: flex; align-items: center; gap: 10px; padding: 4px 2px; }
+.menu .volume input { flex: 1; accent-color: #e0b030; }
+.menu .volume b { width: 3ch; text-align: right; }
 
 /* ---------- game over: the field report ---------- */
 
