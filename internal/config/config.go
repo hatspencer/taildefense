@@ -44,10 +44,14 @@ const (
 	KeyFog        = "FOG"
 	KeyWaves      = "WAVES"
 	KeyVolume     = "VOLUME"
+	KeyMusic      = "MUSIC"
 )
 
 // DefaultVolume is VOLUME with nothing set: loud enough to hear, not so loud it startles.
 const DefaultVolume = 70
+
+// DefaultMusic is MUSIC with nothing set: under the game's own sound, not over it.
+const DefaultMusic = 50
 
 // DefaultPort is netplay.DefaultPort, repeated here so the prefs do not import the network
 // code. A test pins the two together.
@@ -102,6 +106,8 @@ var Keys = []Key{
 		Parse: parseWaves, Default: func() string { return FormatWaves(game.DefaultLastWave) }},
 	{Name: KeyVolume, Env: "TAILDEFENSE_VOLUME", Help: "sound in the game, 0 to 100; 0 turns it off",
 		Parse: parseVolume, Default: func() string { return strconv.Itoa(DefaultVolume) }},
+	{Name: KeyMusic, Env: "TAILDEFENSE_MUSIC", Help: "music in the game, 0 to 100 of the volume; 0 turns it off",
+		Parse: parseMusic, Default: func() string { return strconv.Itoa(DefaultMusic) }},
 	{Name: KeyBrowser, Env: "TAILDEFENSE_BROWSER", Help: "what opens the game: auto (best browser, full screen), default, chrome, firefox…, none or a command",
 		Parse: parseBrowser, Default: func() string { return BrowserAuto }},
 	{Name: KeyAutoUpdate, Env: "TAILDEFENSE_NO_AUTOUPDATE", Help: "update td in the background when main moves on",
@@ -298,6 +304,15 @@ func (p *Prefs) Volume() int {
 	n, err := strconv.Atoi(p.Get(KeyVolume).Value)
 	if err != nil {
 		return DefaultVolume
+	}
+	return n
+}
+
+// Music is the game's music, 0 (off) to 100, as a share of the volume.
+func (p *Prefs) Music() int {
+	n, err := strconv.Atoi(p.Get(KeyMusic).Value)
+	if err != nil {
+		return DefaultMusic
 	}
 	return n
 }
@@ -513,13 +528,18 @@ func parseBrowser(s string) (string, error) {
 }
 
 // parseVolume takes 0 to 100, with or without a %, and off and on for 0 and the default.
-func parseVolume(s string) (string, error) {
+func parseVolume(s string) (string, error) { return parseLevel(s, DefaultVolume) }
+
+// parseMusic is parseVolume with the music's default.
+func parseMusic(s string) (string, error) { return parseLevel(s, DefaultMusic) }
+
+func parseLevel(s string, def int) (string, error) {
 	v := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(s)), "%")
 	switch v {
 	case "off", "mute", "no":
 		return "0", nil
 	case "on", "yes":
-		return strconv.Itoa(DefaultVolume), nil
+		return strconv.Itoa(def), nil
 	}
 	n, err := strconv.Atoi(strings.TrimSpace(v))
 	if err != nil || n < 0 || n > 100 {

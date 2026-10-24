@@ -150,6 +150,8 @@ export interface Welcome {
   evac?: EvacDef;
   // This machine's VOLUME setting, 0..100; 0 is no sound. Absent from a td too old to say.
   volume?: number;
+  // This machine's MUSIC setting, 0..100 of the volume; 0 is no music. Absent from an older td.
+  music?: number;
   // Per difficulty: how far past the straight way in a creep walks a maze before it frenzies.
   patience?: number[];
   // Working a gate: seconds at it, seconds before it swings again, how near to stand.
@@ -247,7 +249,9 @@ export type Command =
   // Walks to gate s and opens or shuts it.
   | { op: 'gate'; s: number }
   // To this machine's td only, never the host: save the VOLUME setting.
-  | { op: 'volume'; v: number };
+  | { op: 'volume'; v: number }
+  // The same for the MUSIC setting.
+  | { op: 'music'; v: number };
 
 export class Player {
   id = 0; flags = 0; x = 0; y = 0; aim = 0; hp = 0; maxHp = 1; cur = 0; ammo = 0; mag = 0;

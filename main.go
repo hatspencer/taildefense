@@ -294,6 +294,11 @@ func play(p *ui.Printer, prefs *config.Prefs, o web.Options) (web.Result, error)
 		_, err := config.Set(config.KeyVolume, strconv.Itoa(v))
 		return err
 	}
+	o.Music = prefs.Music()
+	o.SaveMusic = func(v int) error {
+		_, err := config.Set(config.KeyMusic, strconv.Itoa(v))
+		return err
+	}
 	if o.Browser == config.BrowserNone {
 		o.Browser = ""
 	}

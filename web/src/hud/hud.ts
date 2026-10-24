@@ -444,6 +444,14 @@ export class Hud {
     this.volEl.value = String(v);
     this.volOut.textContent = v === 0 ? 'off' : String(v);
   }
+  // onMusic and setMusic are the same for the MUSIC setting's slider.
+  onMusic: (v: number, save: boolean) => void = () => {};
+  private musEl!: HTMLInputElement;
+  private musOut!: HTMLElement;
+  setMusic(v: number): void {
+    this.musEl.value = String(v);
+    this.musOut.textContent = v === 0 ? 'off' : String(v);
+  }
 
   toggleMenu(): void { show(this.menu, this.menu.classList.contains('hidden')); }
   toggleStats(): void { show(this.statsEl, this.statsEl.classList.contains('hidden')); }
@@ -530,6 +538,14 @@ export class Hud {
     this.volOut = el('b', '', vol, '');
     this.volEl.oninput = () => { const v = Number(this.volEl.value); this.setVolume(v); this.onVolume(v, false); };
     this.volEl.onchange = () => this.onVolume(Number(this.volEl.value), true);
+    // The MUSIC setting, a share of the volume, the same way.
+    const mus = el('label', 'volume', m);
+    el('span', '', mus, 'Music');
+    this.musEl = el('input', '', mus);
+    Object.assign(this.musEl, { type: 'range', min: '0', max: '100', step: '5' });
+    this.musOut = el('b', '', mus, '');
+    this.musEl.oninput = () => { const v = Number(this.musEl.value); this.setMusic(v); this.onMusic(v, false); };
+    this.musEl.onchange = () => this.onMusic(Number(this.musEl.value), true);
     const leave = el('button', 'danger', m, 'Leave game');
     leave.onclick = () => this.leave();
     el('div', 'muted', m, '').id = 'menu-hint';
