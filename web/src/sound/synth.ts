@@ -231,14 +231,15 @@ export class Synth {
     const r = rate * jitter(j);
     src.playbackRate.value = r;
     const vol = p.vol * jitter(j);
-    const { g, out } = this.chain(src, { ...p, vol }, cue ? 'cue' : 'world', cue ? 0.06 : -1);
+    const { g, out, send } = this.chain(src, { ...p, vol }, cue ? 'cue' : 'world', cue ? 0.06 : -1);
     src.start(at);
     const v: Voice = { name, src, g, prio, vol, start: at, end: at + buf.duration / r };
     this.voices.push(v);
     this.most = Math.max(this.most, this.voices.length);
     this.plays.set(name, (this.plays.get(name) ?? 0) + 1);
     this.playing.set(name, (this.playing.get(name) ?? 0) + 1);
-    src.onended = () => { this.release(v); out.disconnect(); };
+    // Both ways out, to the bus and to the reverb: one left joined keeps the whole chain alive.
+    src.onended = () => { this.release(v); out.disconnect(); send.disconnect(); };
   }
 
   private drop(name: string): void {
@@ -289,7 +290,7 @@ export class Synth {
   // chain is source -> distance low-pass -> gain -> pan -> bus, plus a reverb send that grows
   // with distance: far things are heard mostly as what the surroundings send back. wet, when
   // not -1, is the send whatever the distance.
-  private chain(src: AudioNode, p: Placed, bus: Bus, wet = -1): { g: GainNode; out: AudioNode } {
+  private chain(src: AudioNode, p: Placed, bus: Bus, wet = -1): { g: GainNode; out: AudioNode; send: AudioNode } {
     const ctx = this.ctx!;
     let node: AudioNode = src;
     const far = Math.min(1, Math.max(0, p.far));
@@ -310,7 +311,7 @@ export class Synth {
     const send = ctx.createGain();
     send.gain.value = wet >= 0 ? wet : 0.18 + 0.6 * far;
     g.connect(send).connect(this.reverb!);
-    return { g, out: pan };
+    return { g, out: pan, send };
   }
 
   // duckWorld lowers the world by db for hold seconds, under a cue that has to be heard.
@@ -385,7 +386,7 @@ export class Synth {
         const t = ctx.currentTime;
         g.gain.setTargetAtTime(0, t, bus === 'amb' ? 0.4 : 0.12);
         src.stop(t + (bus === 'amb' ? 2.5 : 0.8));
-        src.onended = () => pan.disconnect();
+        src.onended = () => { pan.disconnect(); send.disconnect(); };
       },
     };
   }
