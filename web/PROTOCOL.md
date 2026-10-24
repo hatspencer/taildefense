@@ -80,6 +80,7 @@ everything it knows, a terrain message follows).
     "depart": 10, "climb": 2.5 // lift-off to off the map; the first climb of it rising over the pad
   },
   "volume": 70,                // this machine's VOLUME setting, 0 (no sound) to 100; not the host's
+  "music": 50,                 // this machine's MUSIC setting, 0 (no music) to 100 of the volume
   "core": {"x": 160, "y": 100},// generator centre, tiles
   "buildRadius": 40,           // building only within this distance of core
   "shopRadius": 4.5,           // shop only within this distance of the armory centre
@@ -478,4 +479,5 @@ integers. The host checks everything; a refusal comes back as a `toast` with lev
 {"op": "ping",    "x": 150, "y": 98, "kind": 1}  // mark a spot for everyone; 3 back to back, then one a second
 {"op": "leave"}                              // back to the terminal; ends the game if hosting
 {"op": "volume",  "v": 40}                   // this td only, never relayed: save VOLUME (0..100)
+{"op": "music",   "v": 30}                   // this td only, never relayed: save MUSIC (0..100)
 ```

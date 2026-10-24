@@ -22,7 +22,10 @@ camera-controls, esbuild). `web/PROTOCOL.md` is the contract between `td` and th
 `internal/web/dist/index.html#demo` straight from disk for a self-running demo with a fake host;
 `#demo&webgl` forces the WebGL 2 path, `#demo&creeps=8000` stresses it, and `#demo&evac` plays
 the end: the evac Huey flying in to the helipad, boarding (E), lift-off and the field report.
-The demo plays sound at 70 after the first click; `#demo&vol=0` silences it, `#demo&vol=40` sets it.
+The demo plays sound at 70 after the first click; `#demo&vol=0` silences it, `#demo&vol=40` sets it,
+and `#demo&music=30` the music (50 by default). From disk the music plays outside Web Audio
+(a browser gives Web Audio only silence from file://), so it fades but is not filtered; served
+by td it is both. F3's `music` line shows the track wanted, the wave's intensity and each fade.
 The demo and the lab are a bundle of their own, `demo.js`, which the page fetches only for `#demo` and `#lab`.
 F3's `sound` line shows the voices playing and the most at once, the sounds dropped and taken
 over since the last frame, the output's peak in dBFS and the compressor's pull in dB. The demo

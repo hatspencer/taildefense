@@ -28,6 +28,10 @@ altogether. It is this machine's own: everyone in a game sets their own. The sli
 game's menu (F10) changes it as you drag and saves it when you let go, so the next game starts
 where you left it.
 
+`MUSIC` is the game's music, `0` to `100` of the volume, `50` by default; `0` (or `off`) turns
+the music off and leaves the sound. It is this machine's own too, with its own slider under
+the volume's in the menu.
+
 `BROWSER` is `auto` by default: td finds the browsers installed (Chrome, Chromium, Brave, Edge,
 Vivaldi, Firefox, and Safari on macOS) and starts the best one full screen, as an app window with
 a profile of its own that keeps the GPU busy even unfocused, and closes it when the game ends. It
