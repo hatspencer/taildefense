@@ -18,7 +18,7 @@ const MINIGUN = 4;
 const ULT: Record<number, string> = { 3: 'railgun' };
 const TURRET: Record<number, string> = { [K_GUN]: 'turretGun', [K_CANNON]: 'cannon', [K_TESLA]: 'tesla', [K_SNIPER]: 'sniper', [K_MISSILE]: 'pod' };
 // How loud each is at the listener, and how many of it one tick may play.
-const LOUD: Record<string, number> = {
+export const LOUD: Record<string, number> = {
   pistol: 0.9, shotgun: 0.87, smg: 0.6, rifle: 1.15, railgun: 1.15, minigun: 0.7, rocket: 0.8, missile: 0.65, crowbar: 0.7,
   turretGun: 0.5, cannon: 0.95, tesla: 0.45, sniper: 0.95, pod: 0.7, doorGun: 0.7,
   spit: 0.5, boneThrow: 0.5, boneLand: 0.45, dash: 0.6,
@@ -45,6 +45,8 @@ const STRIKE_GAP0 = 0.12, STRIKE_GAP1 = 0.28;
 const KILL_GAP = 0.07, KILL_RISE = 0.025, KILL_STREAK = 0.6;
 // Below this share of health, your heart is heard, at this many beats a second.
 const HEART = 0.25, HEART_GAP = 0.85;
+// The dry fire's lead on the reload that follows it, in seconds.
+const DRY = 0.14;
 // How loud the ambience is at most: the rain, the wind, the night and the generator.
 const RAIN = 0.16, WIND = 0.12, NIGHT = 0.05, HUM = 0.12;
 
@@ -483,7 +485,12 @@ export class Sound {
       const alive = (p.flags & PF_ALIVE) !== 0;
       if (alive && p.cur !== this.pCur[id]) this.synth.play('switch', this.flat(0.7), 0, 1, Prio.Own);
       else if (alive && p.cur < 6) {
-        if (p.flags & PF_RELOADING && !(was & PF_RELOADING)) this.synth.play('reload' + p.cur, this.flat(1), 0, 1, Prio.Own);
+        // Run dry, the trigger falls on an empty chamber before the hands go to the reload.
+        if (p.flags & PF_RELOADING && !(was & PF_RELOADING)) {
+          const dry = p.ammo === 0;
+          if (dry) this.synth.play('dry', this.flat(0.8), 0, 1, Prio.Own);
+          this.synth.play('reload' + p.cur, this.flat(1), dry ? this.synth.now + DRY : 0, 1, Prio.Own);
+        }
         if (!(p.flags & PF_RELOADING) && was & PF_RELOADING) this.synth.play('reloaded' + p.cur, this.flat(1), 0, 1, Prio.Own);
       }
       if (p.heal > 0 && this.pHeal[id] <= 0) this.synth.play('medkit', this.flat(0.55));
