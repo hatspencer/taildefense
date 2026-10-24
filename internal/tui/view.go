@@ -25,7 +25,13 @@ func (m *Model) View() string {
 		return splashView(w, h, elapsed.Seconds())
 	}
 
-	head := m.header(w, h)
+	// The help has the whole window to itself, under a one-line title.
+	var head []string
+	if m.help {
+		head = []string{gutter + ui.StyleBrand.Render("TAIL DEFENSE") + ui.StyleDim.Render("  launcher keys"), ""}
+	} else {
+		head = m.header(w, h)
+	}
 	var body []string
 	switch {
 	case m.help:
@@ -85,7 +91,16 @@ func (m *Model) header(w, h int) []string {
 	}
 	out = append(out, "", gutter+m.versionLine(), gutter+m.tailnetLine())
 	if m.o.Last != nil {
-		out = append(out, gutter+m.lastLine())
+		// An error is the one thing on the screen that must be read whole: wrapped, not cut.
+		for i, l := range strings.Split(ansi.Wordwrap(m.lastLine(), max(w-len(gutter)-2, 20), ""), "\n") {
+			if i == 3 {
+				break
+			}
+			if i > 0 {
+				l = "  " + l
+			}
+			out = append(out, gutter+l)
+		}
 		if m.updateOffered() {
 			out = append(out, gutter+ui.StyleYellow.Render("the host runs another td: press u to update now"))
 		}
@@ -188,7 +203,12 @@ func (m *Model) menuView(w int) []string {
 		}
 		desc := m.itemHint(it)
 		if i == m.cursor {
-			out = append(out, gutter+ui.StyleAccent.Render("▶ ")+ui.StyleBold.Render(label)+"  "+ui.StyleDim.Render(desc))
+			// The hint on its own line under the choice, so a narrow window keeps the end of
+			// it (the join command, on Host a game) rather than cutting it off.
+			out = append(out, gutter+ui.StyleAccent.Render("▶ ")+ui.StyleBold.Render(label))
+			if desc != "" {
+				out = append(out, gutter+"    "+ui.StyleDim.Render(desc))
+			}
 		} else {
 			out = append(out, gutter+"  "+label)
 		}
@@ -297,7 +317,8 @@ func (m *Model) joinView(elapsed time.Duration, room int) []string {
 	}
 	out = append(out, rows...)
 	if incompatible {
-		out = append(out, "", gutter+ui.StyleYellow.Render("✗ another td: host and players must run the same one; td update on both (u here)"))
+		out = append(out, "", gutter+ui.StyleYellow.Render("✗ another td: host and players must run the same one"),
+			gutter+ui.StyleYellow.Render("  td update on both (u here)"))
 	}
 	if m.notice != "" {
 		out = append(out, "", gutter+m.noticeText())
@@ -423,9 +444,15 @@ func (m *Model) settingsView() []string {
 
 func (m *Model) helpView() []string {
 	out := []string{gutter + ui.StyleBold.Render("Keys") + "  " + ui.StyleDim.Render("any key closes"), ""}
+	// The group named once, on its first row, so every binding fits on a line of its own.
 	rows := [][]string{}
+	last := ""
 	for _, k := range Keys {
-		rows = append(rows, []string{ui.StyleCyan.Render(k.Keys), k.Help, ui.StyleDim.Render(k.Group)})
+		g := ""
+		if k.Group != last {
+			g, last = k.Group, k.Group
+		}
+		rows = append(rows, []string{ui.StyleDim.Render(g), ui.StyleCyan.Render(k.Keys), k.Help})
 	}
 	for _, l := range strings.Split(strings.TrimRight(ui.Table(rows, gutter), "\n"), "\n") {
 		out = append(out, l)
