@@ -73,6 +73,7 @@ export class Synth {
   private muffle: BiquadFilterNode | null = null;
   private duck: GainNode | null = null;
   private out: GainNode | null = null;
+  private mix: GainNode | null = null;
   private reverb: GainNode | null = null;
   private bufs = new Map<string, AudioBuffer>();
   private voices: Voice[] = [];
@@ -158,7 +159,7 @@ export class Synth {
       const send = ctx.createGain();
       send.gain.value = 0.55;
       send.connect(verb).connect(world);
-      this.ctx = ctx; this.bus = { world, cue, amb }; this.muffle = muffle; this.duck = duck; this.out = out; this.reverb = send;
+      this.ctx = ctx; this.bus = { world, cue, amb }; this.muffle = muffle; this.duck = duck; this.out = out; this.mix = mix; this.reverb = send;
       this.meter = meter; this.comp = comp; this.meterBuf = new Float32Array(meter.fftSize);
       const names = [...FIRST, ...Object.keys(RECIPES).filter((k) => !FIRST.includes(k))];
       for (const n of names) for (let v = 0; v < RECIPES[n][0]; v++) this.warmQueue.push(n + '#' + v);
@@ -176,6 +177,10 @@ export class Synth {
     }
     if (this.ctx.state === 'suspended') void this.ctx.resume();
   }
+
+  // Where music goes in: the mix before the limiter and the volume setting, past the world's
+  // muffling and ducking. Null until the context starts.
+  get input(): AudioNode | null { return this.mix; }
 
   get ready(): boolean { return !!this.ctx && this.ctx.state === 'running' && this.vol > 0; }
   get now(): number { return this.ctx?.currentTime ?? 0; }

@@ -5,6 +5,7 @@ import {
 } from '../protocol';
 import { K_CANNON, K_CORE, K_GUN, K_MISSILE, K_SNIPER, K_TESLA } from '../scene/structs';
 import type { Game } from '../state';
+import { Cues } from './cues';
 import { type Loop, type Placed, Prio, Synth } from './synth';
 
 // What the game sounds like: reads each frame as it arrives (the shots, blasts and deaths of
@@ -52,6 +53,8 @@ interface Shot { x: number; y: number; vol: number; extra?: number; p?: Placed; 
 
 export class Sound {
   readonly synth: Synth;
+  // The musical cues (cues.ts), and the gain the music goes through: cues.musicBus.
+  readonly cues: Cues;
   private cam: THREE.Camera | null = null;
   private lx = 0; private ly = 0; private dist = 30;
   private v = new THREE.Vector3();
@@ -86,6 +89,7 @@ export class Sound {
 
   constructor(volume: number) {
     this.synth = new Synth(volume);
+    this.cues = new Cues(this.synth);
     const unlock = () => this.synth.gesture();
     window.addEventListener('pointerdown', unlock, true);
     window.addEventListener('keydown', unlock, true);
@@ -213,6 +217,7 @@ export class Sound {
     const wd = game.welcome;
     if (!wd) return;
     const f = game.cur;
+    this.cues.onFrame(game);
     if (!this.primed) { this.remember(game); this.primed = true; return; }
     if (!this.synth.ready) { this.remember(game); return; }
     const t0 = this.synth.now + AHEAD;

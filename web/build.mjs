@@ -1,6 +1,6 @@
 // Bundles the client into ../internal/web/dist, which the td binary embeds.
 import * as esbuild from 'esbuild';
-import { copyFileSync, mkdirSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 
 const out = '../internal/web/dist';
 const dev = process.argv.includes('--dev');
@@ -17,6 +17,12 @@ const worker = await esbuild.build({
   legalComments: 'none',
   logLevel: 'warning',
 });
+// The musical cues, src/sound/cues/<name>.mp3, inlined as base64 by name for the same reason:
+// the page fetches nothing beside itself. Decoded only once the sound has started.
+const cues = {};
+for (const f of readdirSync('src/sound/cues').filter((f) => f.endsWith('.mp3')).sort()) {
+  cues[f.slice(0, -4)] = readFileSync(`src/sound/cues/${f}`).toString('base64');
+}
 await esbuild.build({
   entryPoints: { app: 'src/main.ts', demo: 'src/demo.ts' },
   bundle: true,
@@ -27,7 +33,7 @@ await esbuild.build({
   format: 'iife',
   target: 'es2020',
   outdir: out,
-  define: { __SOUND_WORKER__: JSON.stringify(worker.outputFiles[0].text) },
+  define: { __SOUND_WORKER__: JSON.stringify(worker.outputFiles[0].text), __SOUND_CUES__: JSON.stringify(JSON.stringify(cues)) },
   legalComments: 'none',
   logLevel: 'warning',
 });
