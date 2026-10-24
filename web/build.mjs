@@ -33,3 +33,4 @@ await esbuild.build({
 });
 copyFileSync('index.html', `${out}/index.html`);
 copyFileSync('app.css', `${out}/app.css`);
+copyFileSync('menus.css', `${out}/menus.css`);
