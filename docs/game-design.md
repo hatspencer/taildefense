@@ -806,6 +806,14 @@ about -29, ambience -32 to -42, footsteps under -45.
   second, rising a little with each in quick succession), a charge-up when your ultimate is
   full, your heart once your health is under a quarter, and the countdown's last beep higher
   and longer than the two before it.
+- **Music only at the turns.** A few seconds of recorded music (`web/src/sound/cues/`, CC0,
+  credited in its `CREDITS.md`; the one exception to synthesized) mark when the night turns: a
+  wave starting, a boss wave, a wave cleared, a last stand (the generator under a quarter, or
+  one survivor standing of several), the evac called, the Huey away with survivors, the game
+  lost, the generator raised a tier. Each comes in after the siren it shares a moment with and
+  under it, since the siren is the warning and the music only the mood; one plays at a time,
+  the more telling cutting off the less. Dark orchestral cuts, most by one composer, brought to
+  one loudness, so they sound of a piece.
 - **Footsteps, barely there.** Survivors and creeps step once per step's length of ground
   covered (a survivor's lengthening with speed, a creep's with its size), some 30 dB under a
   pistol shot: enough to hear something coming in a quiet build phase, nothing in a fight.

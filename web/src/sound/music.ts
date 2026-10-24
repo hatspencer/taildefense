@@ -140,7 +140,9 @@ export class Music {
   // apply sets a voice's level: the gain and the low-pass over Web Audio, else the element's volume.
   private apply(v: Voice, t: Track, gain: number, paused = false): void {
     const ctx = this.synth.ctx;
-    const master = GAIN * (this.music / 100) ** 2;
+    // The music is a share of the volume: it goes in after the limiter, past the volume's own
+    // gain, so it is scaled by the volume here.
+    const master = GAIN * (this.music / 100) ** 2 * (this.synth.volume / 100) ** 2;
     if (v.g && v.lp && ctx && this.out) {
       const now = ctx.currentTime;
       this.out.gain.setTargetAtTime(master, now, 0.05);
