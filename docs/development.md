@@ -38,6 +38,11 @@ every sound by name, for a browser test to read; a musical cue counts as `cue:<n
 and dying, beside the survivors' poses; `#lab=0`…`#lab=10` looks at one creep row, `#lab=h` at the
 survivors (`#lab=h0`…`#lab=h9` at one of them), `#lab=fx` at the turret evolutions' shots (a
 napalm missile bursting, an arc web), and `&dist=11` brings the camera in.
+`#lab=sound` puts the sound bench over it: every recipe in the bank and every set of recordings,
+clicked (or Enter) to play as the game does, or the recipe, the recording or both alone (s, r, b),
+at the level the game plays it and the volume on its slider. Recordings come in through
+`web/src/sound/samples.ts`, whose head is the contract for adding a category; their sources and
+licences are in `web/src/sound/samples/CREDITS.md`.
 A real game cancels the browser's shortcuts, DevTools' among them, and asks before the page is
 left; add `&dev` after the token in its URL to keep them (td's own Firefox profile has DevTools
 off whatever the URL says).

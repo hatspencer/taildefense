@@ -7,7 +7,7 @@ import { K_CANNON, K_CORE, K_GUN, K_MISSILE, K_SNIPER, K_TESLA } from '../scene/
 import type { Game } from '../state';
 import { Music } from './music';
 import { Cues } from './cues';
-import { type Loop, type Placed, Prio, Synth } from './synth';
+import { type Layers, type Loop, type Placed, Prio, Synth } from './synth';
 
 // What the game sounds like: reads each frame as it arrives (the shots, blasts and deaths of
 // that tick, and what changed since the last one) and plays it, placed round the point the
@@ -47,6 +47,8 @@ const STRIKE_GAP0 = 0.12, STRIKE_GAP1 = 0.28;
 const KILL_GAP = 0.07, KILL_RISE = 0.025, KILL_STREAK = 0.6;
 // Below this share of health, your heart is heard, at this many beats a second.
 const HEART = 0.25, HEART_GAP = 0.85;
+// The dry fire's lead on the reload that follows it, in seconds.
+const DRY = 0.14;
 // How loud the ambience is at most: the rain, the wind, the night and the generator.
 const RAIN = 0.16, WIND = 0.12, NIGHT = 0.05, HUM = 0.12;
 
@@ -208,6 +210,12 @@ export class Sound {
     if (now - at < gap) return false;
     this.last.set(key, now);
     return true;
+  }
+
+  // audition plays name for the sound lab (#lab=sound): in the middle, at the level it is
+  // played at nearby, the recording, the recipe or both as layers says.
+  audition(name: string, layers: Layers): void {
+    this.synth.play(name, this.flat(LOUD[name] ?? 0.6), 0, 1, Prio.Own, layers);
   }
 
   // A cue from the radio or the game: the world steps back a little for it.
@@ -493,7 +501,12 @@ export class Sound {
       const alive = (p.flags & PF_ALIVE) !== 0;
       if (alive && p.cur !== this.pCur[id]) this.synth.play('switch', this.flat(0.7), 0, 1, Prio.Own);
       else if (alive && p.cur < 6) {
-        if (p.flags & PF_RELOADING && !(was & PF_RELOADING)) this.synth.play('reload' + p.cur, this.flat(1), 0, 1, Prio.Own);
+        // Run dry, the trigger falls on an empty chamber before the hands go to the reload.
+        if (p.flags & PF_RELOADING && !(was & PF_RELOADING)) {
+          const dry = p.ammo === 0;
+          if (dry) this.synth.play('dry', this.flat(0.8), 0, 1, Prio.Own);
+          this.synth.play('reload' + p.cur, this.flat(1), dry ? this.synth.now + DRY : 0, 1, Prio.Own);
+        }
         if (!(p.flags & PF_RELOADING) && was & PF_RELOADING) this.synth.play('reloaded' + p.cur, this.flat(1), 0, 1, Prio.Own);
       }
       if (p.heal > 0 && this.pHeal[id] <= 0) this.synth.play('medkit', this.flat(0.55));

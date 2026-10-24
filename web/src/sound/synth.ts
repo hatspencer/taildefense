@@ -1,4 +1,5 @@
 import { LOOPS, RECIPES, render } from './bank';
+import { decodeSamples, sampleSets, take } from './samples';
 
 // A sample buffer as the Web Audio calls take it.
 type F32 = ReturnType<AudioBuffer['getChannelData']>;
@@ -8,7 +9,8 @@ declare const __SOUND_WORKER__: string;
 
 // The sound engine: plays the bank's sounds through WebAudio. The whole bank is rendered once
 // the context starts, in a worker so no frame waits on it, guns first; a sound asked for
-// before it is ready is skipped. Every play is a buffer source through a distance filter, a
+// before it is ready is skipped. A sound with recordings (samples.ts) plays one of them once
+// decoded, alone or over a recipe, and its recipe until then or if none decodes. Every play is a buffer source through a distance filter, a
 // gain and a pan, with a send into one shared reverb: open ground with buildings and trees
 // round it, which is what makes a gunshot sound outdoors.
 //
@@ -64,8 +66,10 @@ export interface Loop {
 }
 
 export type Bus = 'world' | 'cue' | 'amb';
+// What of a sound to play: as the game does, the recording alone, the recipe alone, or both.
+export type Layers = 'auto' | 'sample' | 'synth' | 'both';
 
-interface Voice { name: string; src: AudioBufferSourceNode; g: GainNode; prio: Prio; vol: number; start: number; end: number }
+interface Voice { name: string; src: AudioBufferSourceNode[]; g: GainNode; prio: Prio; vol: number; start: number; end: number }
 
 export class Synth {
   ctx: AudioContext | null = null;
@@ -161,6 +165,7 @@ export class Synth {
       send.connect(verb).connect(world);
       this.ctx = ctx; this.bus = { world, cue, amb }; this.muffle = muffle; this.duck = duck; this.out = out; this.mix = mix; this.reverb = send;
       this.meter = meter; this.comp = comp; this.meterBuf = new Float32Array(meter.fftSize);
+      decodeSamples(ctx);
       const names = [...FIRST, ...Object.keys(RECIPES).filter((k) => !FIRST.includes(k))];
       for (const n of names) for (let v = 0; v < RECIPES[n][0]; v++) this.warmQueue.push(n + '#' + v);
       this.worker = startWorker((name, v, d, rate) => this.store(name, v, d, rate), () => {
@@ -217,34 +222,61 @@ export class Synth {
 
   // play starts one of name's variants at t (context time), placed p, at playback rate rate
   // (1 as rendered), both jittered. prio is how much it matters when voices run short, by
-  // default its sound's; a cue goes to the cue bus, everything else is in the world.
-  play(name: string, p: Placed, t = 0, rate = 1, prio = prioOf(name)): void {
+  // default its sound's; a cue goes to the cue bus, everything else is in the world. A sound
+  // with recordings ready plays one, over its recipe's tail when its set says so. layers, for
+  // the sound lab, picks the recording or the recipe alone.
+  play(name: string, p: Placed, t = 0, rate = 1, prio = prioOf(name), layers: Layers = 'auto'): void {
     const ctx = this.ctx;
     if (!ctx || !this.bus || !this.reverb || !this.ready || p.vol < 0.003) return;
     const rec = RECIPES[name];
     if (!rec) return;
-    const buf = this.buffer(name, Math.floor(Math.random() * rec[0]));
-    if (!buf) return;
+    const got = layers === 'synth' ? null : take(name);
+    if (!got && layers === 'sample') return;
+    // The recipe under a recording: the set's, else the gun's tail, else the whole recipe.
+    const set = got?.set, over = set && (set.mode === 'over' || layers === 'both');
+    const underName = over ? set.under ?? (RECIPES[name + 'Tail'] ? name + 'Tail' : name) : '';
+    const bufs: [AudioBuffer, number][] = [];
+    if (got) bufs.push([got.buf, 1]);
+    if (!got || over) {
+      const n = got ? underName : name, b = this.buffer(n, Math.floor(Math.random() * RECIPES[n][0]));
+      if (b) bufs.push([b, got ? set!.underGain : 1]);
+    }
+    if (!bufs.length) return;
     const now = ctx.currentTime;
     if ((this.playing.get(name) ?? 0) >= (SAME_OF[name] ?? SAME) && !this.giveWay(name, now)) return this.drop(name);
     if (this.voices.length >= MAX_VOICES && !this.makeRoom(prio, p.vol, now)) return this.drop(name);
     const cue = prio === Prio.Cue;
-    const j = cue ? 0 : VOICES.test(name) ? VOICE_JITTER : JITTER;
+    const j = set?.jitter ?? (cue ? 0 : VOICES.test(name) ? VOICE_JITTER : JITTER);
     const at = Math.max(now, t);
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
     const r = rate * jitter(j);
-    src.playbackRate.value = r;
     const vol = p.vol * jitter(j);
-    const { g, out, send } = this.chain(src, { ...p, vol }, cue ? 'cue' : 'world', cue ? 0.06 : -1);
-    src.start(at);
-    const v: Voice = { name, src, g, prio, vol, start: at, end: at + buf.duration / r };
+    const { g, out, send } = this.chain({ ...p, vol }, cue ? 'cue' : 'world', cue ? 0.06 : -1);
+    const srcs: AudioBufferSourceNode[] = [];
+    let len = 0;
+    for (const [buf, gain] of bufs) {
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.playbackRate.value = r;
+      if (gain !== 1) { const lg = ctx.createGain(); lg.gain.value = gain; src.connect(lg).connect(g); } else src.connect(g);
+      src.start(at);
+      srcs.push(src);
+      len = Math.max(len, buf.duration);
+    }
+    const v: Voice = { name, src: srcs, g, prio, vol, start: at, end: at + len / r };
     this.voices.push(v);
     this.most = Math.max(this.most, this.voices.length);
     this.plays.set(name, (this.plays.get(name) ?? 0) + 1);
     this.playing.set(name, (this.playing.get(name) ?? 0) + 1);
-    // Both ways out, to the bus and to the reverb: one left joined keeps the whole chain alive.
-    src.onended = () => { this.release(v); out.disconnect(); send.disconnect(); };
+    // The voice ends with its longest layer. Both ways out, to the bus and to the reverb: one
+    // left joined keeps the whole chain alive.
+    let left = srcs.length;
+    for (const src of srcs) src.onended = () => { if (--left === 0) { this.release(v); out.disconnect(); send.disconnect(); } };
+  }
+
+  // Every recipe name in the bank, and every set of recordings, for the sound lab.
+  recipes(): string[] { return Object.keys(RECIPES); }
+  samples(): { name: string; takes: number; mode: string; state: string }[] {
+    return sampleSets().map((s) => ({ name: s.name, takes: s.files.length, mode: s.mode, state: s.state }));
   }
 
   private drop(name: string): void {
@@ -265,7 +297,7 @@ export class Synth {
     this.stolen++;
     this.steals.set(v.name, (this.steals.get(v.name) ?? 0) + 1);
     v.g.gain.setTargetAtTime(0, now, 0.008);
-    try { v.src.stop(now + 0.05); } catch { /* already stopped */ }
+    for (const src of v.src) try { src.stop(now + 0.05); } catch { /* already stopped */ }
   }
 
   // giveWay ends the oldest of name's voices playing, once it is past its first third (the
@@ -292,13 +324,15 @@ export class Synth {
     return true;
   }
 
-  // chain is source -> distance low-pass -> gain -> pan -> bus, plus a reverb send that grows
-  // with distance: far things are heard mostly as what the surroundings send back. wet, when
-  // not -1, is the send whatever the distance.
-  private chain(src: AudioNode, p: Placed, bus: Bus, wet = -1): { g: GainNode; out: AudioNode; send: AudioNode } {
+  // chain is gain -> distance low-pass -> pan -> bus, plus a reverb send that grows with
+  // distance: far things are heard mostly as what the surroundings send back. wet, when not
+  // -1, is the send whatever the distance. The sources go into g.
+  private chain(p: Placed, bus: Bus, wet = -1): { g: GainNode; out: AudioNode; send: AudioNode } {
     const ctx = this.ctx!;
-    let node: AudioNode = src;
     const far = Math.min(1, Math.max(0, p.far));
+    const g = ctx.createGain();
+    g.gain.value = p.vol;
+    let node: AudioNode = g;
     if (far > 0.05) {
       const lp = ctx.createBiquadFilter();
       lp.type = 'lowpass';
@@ -307,15 +341,12 @@ export class Synth {
       node.connect(lp);
       node = lp;
     }
-    const g = ctx.createGain();
-    g.gain.value = p.vol;
-    node.connect(g);
     const pan = ctx.createStereoPanner();
     pan.pan.value = Math.max(-1, Math.min(1, p.pan));
-    g.connect(pan).connect(this.bus![bus]);
+    node.connect(pan).connect(this.bus![bus]);
     const send = ctx.createGain();
     send.gain.value = wet >= 0 ? wet : 0.18 + 0.6 * far;
-    g.connect(send).connect(this.reverb!);
+    node.connect(send).connect(this.reverb!);
     return { g, out: pan, send };
   }
 

@@ -27,8 +27,11 @@ interface Gun {
   echoes: [number, number][];
 }
 
-function gunshot(sr: number, r: R, g: Gun): Buf {
-  const b = new Buf(sr, g.len);
+// tail makes the shot without its crack, blast, body and boom: only the report and the echoes,
+// at the level they have in the whole shot. It goes under a recorded shot (samples.ts), which
+// is the shot itself.
+function gunshot(sr: number, r: R, g: Gun, tail = false): Buf {
+  const b = new Buf(sr, g.len), only = tail ? new Buf(sr, g.len) : null;
   const coreLen = Math.min(b.len, Math.ceil(sr * 0.3));
   const core = new Float32Array(coreLen);
   const cs = new SVF(sr), sv = new SVF(sr), bs = new SVF(sr), ts = new SVF(sr);
@@ -54,14 +57,25 @@ function gunshot(sr: number, r: R, g: Gun): Buf {
       core[i] = x;
     }
     // The report rolling away: a wide band round tailF, neither hiss nor rumble.
-    b.d[i] = x + ts.run(r() * 2 - 1, g.tailF, 0.6).band * tailComp * g.tail * ad(t, 0.005, g.tailTau);
+    const rep = ts.run(r() * 2 - 1, g.tailF, 0.6).band * tailComp * g.tail * ad(t, 0.005, g.tailTau);
+    b.d[i] = x + rep;
+    if (only) only.d[i] = rep;
   }
   for (const [delay, gain] of g.echoes) {
     const a = new LP1(sr), c = new LP1(sr);
     const o = Math.floor(jit(r, delay, 0.12) * sr);
-    for (let i = 0; i < coreLen && o + i < b.len; i++) b.d[o + i] += c.run(a.run(core[i], 1500), 1500) * gain;
+    for (let i = 0; i < coreLen && o + i < b.len; i++) {
+      const e = c.run(a.run(core[i], 1500), 1500) * gain;
+      b.d[o + i] += e;
+      if (only) only.d[o + i] += e;
+    }
   }
-  return b.normalize(0.95).fadeOut(0.05);
+  if (!only) return b.normalize(0.95).fadeOut(0.05);
+  let pk = 0;
+  for (const x of b.d) pk = Math.max(pk, Math.abs(x));
+  const k = 0.95 / Math.max(pk, 1e-9);
+  for (let i = 0; i < only.len; i++) only.d[i] *= k;
+  return only.fadeOut(0.05);
 }
 
 // A mechanical click: band-passed noise a few milliseconds long, with a metal ring under it.
@@ -890,6 +904,17 @@ function weaponSwitch(sr: number, r: R): Buf {
   return b.normalize(0.8).fadeOut();
 }
 
+// Pulling the trigger on an empty chamber: the trigger's travel, the hammer falling on nothing
+// with a hard, dry snap and the frame ringing a little, and no shot.
+function dryFire(sr: number, r: R): Buf {
+  const b = new Buf(sr, 0.25);
+  click(b, r, 0, 2400, 0.25, 0.002, 1500);
+  click(b, r, 0.035 + r() * 0.01, jit(r, 3600, 0.08), 1, 0.0015, 2600);
+  thud(b, r, 0.036, 420, 260, 0.008, 0.35, 0.5, 3000);
+  ping(b, 0.037, [jit(r, 2900, 0.05), 4700, 6900], 0.03, 0.12);
+  return b.normalize(0.8).fadeOut();
+}
+
 // Patching up: the pouch's velcro ripped open, a dressing's packet torn, a hiss of
 // antiseptic and the bandage pulled tight.
 function medkit(sr: number, r: R): Buf {
@@ -1413,10 +1438,15 @@ function hum(sr: number, r: R): Buf {
 // --- the table ----------------------------------------------------------------------------
 
 type Maker = (sr: number, r: R) => Buf;
-const gun = (g: Gun, extra?: (b: Buf, r: R) => void): Maker => (sr, r) => {
-  const b = gunshot(sr, r, g);
-  extra?.(b, r);
-  return b;
+// A gun's maker carries its tail's: the same gun and mechanism without the shot.
+type GunMaker = Maker & { tail: Maker };
+const gun = (g: Gun, extra?: (b: Buf, r: R) => void): GunMaker => {
+  const make = (tail: boolean): Maker => (sr, r) => {
+    const b = gunshot(sr, r, g, tail);
+    extra?.(b, r);
+    return b;
+  };
+  return Object.assign(make(false), { tail: make(true) });
 };
 
 // name: [variants, maker, rate]. A loop has one variant. rate caps the sample rate a sound is
@@ -1499,6 +1529,13 @@ export const RECIPES: Record<string, [number, Maker, number?]> = {
   heart: [1, heart, LOW],
   windup: [4, windup, LOW],
 };
+// Every gun's tail, <name>Tail: its report, echoes and mechanism without the shot, what a
+// recording of the shot is layered over (samples.ts).
+for (const [name, rec] of Object.entries(RECIPES)) {
+  const tail = (rec[1] as Partial<GunMaker>).tail;
+  if (tail) RECIPES[name + 'Tail'] = [rec[0], tail, rec[2]];
+}
+RECIPES.dry = [2, dryFire];
 // The sounds that loop: played with Synth.loop, made whole, never cut short.
 export const LOOPS = new Set(['rotor', 'fire', 'spin', 'rain', 'wind', 'crickets', 'hum']);
 
@@ -1510,7 +1547,7 @@ export const LOOPS = new Set(['rotor', 'fire', 'spin', 'rain', 'wind', 'crickets
 // hammer, whose sharp first click holds them under the rest.
 const TRIM: Record<string, number> = {
   shout_m: -6, shout_f: -6, groan5: -6, groan3: -5, groan7: -4, groan1: -3, retch: -5, ignite: -4.5, windup: -2.5,
-  reload4: -3.5, reload1: 2, reload5: 1.5, reloaded0: 1.5, spit: 3, boneThrow: 3, boneLand: 3, dash: 3, grenade: 2, switch: 4, hammer: 2,
+  reload4: -3.5, reload1: 2, dry: 2, reload5: 1.5, reloaded0: 1.5, spit: 3, boneThrow: 3, boneLand: 3, dash: 3, grenade: 2, switch: 4, hammer: 2,
   radio_chat: 5, radio_here: 4, radio_danger: 5, radio_loot: 4, radio_defend: 3, radio_good: 4, radio_bad: 4, radio_error: 4, beep: 3,
 };
 for (const k of ['chat', 'here', 'danger', 'loot', 'defend', 'good', 'bad', 'error']) RECIPES['radio_' + k] = [1, (sr, r) => radio(sr, r, k)];

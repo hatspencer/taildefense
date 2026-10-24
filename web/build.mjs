@@ -34,6 +34,9 @@ await esbuild.build({
   target: 'es2020',
   outdir: out,
   define: { __SOUND_WORKER__: JSON.stringify(worker.outputFiles[0].text), __SOUND_CUES__: JSON.stringify(JSON.stringify(cues)) },
+  // The recordings (src/sound/samples), inlined as base64 strings the sound engine decodes
+  // once it starts: the page fetches nothing beside itself.
+  loader: { '.mp3': 'base64' },
   legalComments: 'none',
   logLevel: 'warning',
 });
