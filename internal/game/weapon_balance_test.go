@@ -56,6 +56,12 @@ func maxed() []rig {
 
 // weaponDPS is dummyDPS with the creep's affixes, and the weapon's ultimate running if ult.
 func weaponDPS(r rig, k CreepKind, aff Affix, d float32, ult bool) float32 {
+	return weaponDPSFor(r, k, aff, d, ult, 20)
+}
+
+// weaponDPSFor is weaponDPS over the first secs seconds of firing, from cold: a minigun that
+// has to spin up, a magazine that may not run dry.
+func weaponDPSFor(r rig, k CreepKind, aff Affix, d float32, ult bool, secs int) float32 {
 	a := newArena(1)
 	a.arm(r)
 	if ult {
@@ -64,12 +70,11 @@ func weaponDPS(r rig, k CreepKind, aff Affix, d float32, ult bool) float32 {
 	a.w.SpawnCreep(k, a.ox+d, a.oy)
 	c := &a.w.Creeps[0]
 	c.HP, c.MaxHP, c.Aff = 1e6, 1e6, aff
-	const secs = 20
 	for range secs * TickRate {
 		a.tick(false)
 		a.w.Creeps[0].X, a.w.Creeps[0].Y = a.ox+d, a.oy // a shove is not a retreat
 	}
-	return (1e6 - a.w.Creeps[0].HP) / secs
+	return (1e6 - a.w.Creeps[0].HP) / float32(secs)
 }
 
 // ttk is the seconds r takes to kill one creep of kind k on wave, at dps.
@@ -82,6 +87,13 @@ func ttk(k CreepKind, wave int, dps float32) float32 {
 
 // clearMix is clearTime with the creeps' affixes, and r's ultimate running if ult.
 func clearMix(r rig, m mix, d float32, wave int, walk bool, aff Affix, ult bool) (secs float32, reached int) {
+	secs, reached, _ = clearHurt(r, m, d, wave, walk, aff, ult)
+	return secs, reached
+}
+
+// clearHurt is clearMix with the health the survivor lost to their own fire: the bench's creeps
+// never strike, so that is all of it.
+func clearHurt(r rig, m mix, d float32, wave int, walk bool, aff Affix, ult bool) (secs float32, reached int, self float32) {
 	a := newArena(wave)
 	a.arm(r)
 	if ult {
@@ -108,10 +120,10 @@ func clearMix(r rig, m mix, d float32, wave int, walk bool, aff Affix, ult bool)
 			}
 		}
 		if len(a.w.Creeps) == 0 {
-			return float32(i+1) / TickRate, len(at)
+			return float32(i+1) / TickRate, len(at), a.p.MaxHP - a.p.HP
 		}
 	}
-	return limit, len(at)
+	return limit, len(at), a.p.MaxHP - a.p.HP
 }
 
 // uptime is the rounds st's weapon gets off over a magazine and its reload, against firing
@@ -166,8 +178,8 @@ func TestWeaponTable(t *testing.T) {
 	var b strings.Builder
 
 	fmt.Fprintf(&b, "\nweapons by level: gold in it, the wave a solo game has earned that by; sustained dps on one walker close (%g) mid (%g) far (%g), "+
-		"an armoured brute (armour 7) and the abomination (9) mid; uptime is firing over firing and reloading; hit%% is dps over every pellet landing\n", benchClose, benchMid, benchFar)
-	fmt.Fprintf(&b, "%-8s %6s %4s | %6s %6s %6s | %7s %6s | %8s | %5s | %5s %5s %5s\n", "rig", "gold", "by", "close", "mid", "far", "brute+A", "boss", "dps/100g", "up%", "hit%c", "m", "f")
+		"an armoured brute (armour 7) and the abomination (9) mid; cold = dps on a walker mid over the first 2 s, from cold; uptime is firing over firing and reloading; hit%% is dps over every pellet landing\n", benchClose, benchMid, benchFar)
+	fmt.Fprintf(&b, "%-8s %6s %4s | %6s %6s %6s | %7s %6s | %5s | %8s | %5s | %5s %5s %5s\n", "rig", "gold", "by", "close", "mid", "far", "brute+A", "boss", "cold", "dps/100g", "up%", "hit%c", "m", "f")
 	for k := WeaponKind(0); k < NumWeapons; k++ {
 		for l := uint8(0); l <= MaxLevel; l++ {
 			r := weaponRig(k, l)
@@ -182,12 +194,16 @@ func TestWeaponTable(t *testing.T) {
 				bra = weaponDPS(r, CBrute, AffixArmoured, benchClose, false)
 				bo = weaponDPS(r, CBoss, 0, benchClose, false)
 			}
+			cold := weaponDPSFor(r, CWalker, 0, benchMid, false, 2)
+			if k == WCrowbar {
+				cold = weaponDPSFor(r, CWalker, 0, benchClose, false, 2)
+			}
 			g := r.cost()
 			best := max(d[0], d[1], d[2])
 			per := best / float32(max(g, 100)) * 100
 			id := ideal(k, st)
-			fmt.Fprintf(&b, "%-8s %6d %4d | %6.0f %6.0f %6.0f | %7.0f %6.0f | %8.1f | %5.0f | %5.0f %5.0f %5.0f\n", r.name, g, affordAt(by, g),
-				d[0], d[1], d[2], bra, bo, per, 100*uptime(k, st), 100*d[0]/id, 100*d[1]/id, 100*d[2]/id)
+			fmt.Fprintf(&b, "%-8s %6d %4d | %6.0f %6.0f %6.0f | %7.0f %6.0f | %5.0f | %8.1f | %5.0f | %5.0f %5.0f %5.0f\n", r.name, g, affordAt(by, g),
+				d[0], d[1], d[2], bra, bo, cold, per, 100*uptime(k, st), 100*d[0]/id, 100*d[1]/id, 100*d[2]/id)
 		}
 	}
 
@@ -220,8 +236,8 @@ func TestWeaponTable(t *testing.T) {
 
 	for _, wave := range []int{20, 25, 30} {
 		fmt.Fprintf(&b, "\nwave %d, maxed, each at its own range: seconds to clear (60 = not done); army = 10 walkers 4 runners 10 swarmers 4 hounds 2 brutes 1 mauler; "+
-			"charge = the army walking in from 16, hasty = a fifth faster, n = how many reached you; goliath = seconds to kill one, from its dps; ult = the charge and the goliath with its ultimate running throughout\n", wave)
-		fmt.Fprintf(&b, "%-8s %5s | %6s %6s %6s %6s %7s | %6s %3s %6s %3s | %6s %3s %7s\n", "rig", "range", "pack", "packA", "army", "heavy", "goliath", "charge", "n", "hasty", "n", "ult", "n", "goliath")
+			"charge = the army walking in from 16, self = the health you lost to your own fire on it, hasty = a fifth faster, n = how many reached you; goliath = seconds to kill one, from its dps; ult = the charge and the goliath with its ultimate running throughout\n", wave)
+		fmt.Fprintf(&b, "%-8s %5s | %6s %6s %6s %6s %7s | %6s %3s %4s %6s %3s | %6s %3s %7s\n", "rig", "range", "pack", "packA", "army", "heavy", "goliath", "charge", "n", "self", "hasty", "n", "ult", "n", "goliath")
 		for _, r := range maxed() {
 			rr := role[r.weapon]
 			p, _ := clearMix(r, mixPack, rr, wave, false, 0, false)
@@ -229,22 +245,22 @@ func TestWeaponTable(t *testing.T) {
 			ar, _ := clearMix(r, mixArmy, rr, wave, false, 0, false)
 			hv, _ := clearMix(r, mixHeavy, rr, wave, false, 0, false)
 			bg := ttk(CGoliath, wave, weaponDPS(r, CGoliath, 0, rr, false))
-			ch, n := clearMix(r, mixArmy, 16, wave, true, 0, false)
+			ch, n, self := clearHurt(r, mixArmy, 16, wave, true, 0, false)
 			hc, hn := clearMix(r, mixArmy, 16, wave, true, AffixHasty, false)
 			ul, un, ub := float32(0), 0, float32(0)
 			if Ultimates[r.weapon].Time > 0 && r.weapon != WPistol {
 				ul, un = clearMix(r, mixArmy, 16, wave, true, 0, true)
 				ub = ttk(CGoliath, wave, weaponDPS(r, CGoliath, 0, rr, true))
 			}
-			fmt.Fprintf(&b, "%-8s %5.1f | %6.1f %6.1f %6.1f %6.1f %7.1f | %6.1f %3d %6.1f %3d | %6.1f %3d %7.1f\n", r.name, rr, p, pa, ar, hv, bg, ch, n, hc, hn, ul, un, ub)
+			fmt.Fprintf(&b, "%-8s %5.1f | %6.1f %6.1f %6.1f %6.1f %7.1f | %6.1f %3d %4.0f %6.1f %3d | %6.1f %3d %7.1f\n", r.name, rr, p, pa, ar, hv, bg, ch, n, self, hc, hn, ul, un, ub)
 		}
 	}
 
-	fmt.Fprintf(&b, "\ngrenade by level: blast damage, and the share of a walker's, a brute's and an abomination's health it takes on waves 10, 20, 30\n")
+	fmt.Fprintf(&b, "\ngrenade by level: blast damage on wave 10, and the share of a walker's, a brute's and an abomination's health it takes on waves 10, 20, 30\n")
 	for l := 1; l <= len(Abilities[AbGrenade].Radius); l++ {
-		dmg := float32(grenadeBase + grenadeStep*l)
-		fmt.Fprintf(&b, "lv %d: %4.0f dmg r %.1f |", l, dmg, Abilities[AbGrenade].Radius[l-1])
+		fmt.Fprintf(&b, "lv %d: %4d dmg r %.1f |", l, grenadeBase+grenadeStep*l, Abilities[AbGrenade].Radius[l-1])
 		for _, wave := range []int{10, 20, 30} {
+			dmg := float32(grenadeBase+grenadeStep*l) * lateScale(wave)
 			fmt.Fprintf(&b, " w%d %3.0f%% %3.0f%% %3.0f%%", wave, 100*dmg/(Creeps[CWalker].HP*HPScale(wave)),
 				100*(dmg-Creeps[CBrute].Armor)/(Creeps[CBrute].HP*HPScale(wave)), 100*(dmg-Creeps[CBoss].Armor)/(Creeps[CBoss].HP*HPScale(wave)))
 		}

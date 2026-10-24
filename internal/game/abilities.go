@@ -97,6 +97,15 @@ func (w *World) ultFull() float32 {
 	return w.ult.full
 }
 
+// lateScale is what the grenade, the airstrike and Dead Eye's heavy shot are multiplied by on
+// wave: 1 up to lateFrom, then as much as the creeps' health has grown since. Their damage is
+// bought by level, and the levels run out by mid game, while the creeps keep growing; without
+// it a fully bought grenade's blast was three walkers' health on wave 10 and not one by wave 30,
+// a key nobody pressed. Scaled, it does late what it did on lateFrom.
+func lateScale(wave int) float32 { return max(1, HPScale(wave)/HPScale(lateFrom)) }
+
+const lateFrom = 10
+
 // Dead Eye's numbers: seconds marking, walking at deadEyeWalk of the speed; how far it sees,
 // as a share past the gun's range; what each shot does to a brute or a boss.
 const (
@@ -143,6 +152,9 @@ func (p *Player) charge(v float32) {
 func (w *World) playerStats(p *Player) Stats {
 	st := p.Weapons[p.Cur].Stats(p.Cur)
 	st.Range *= w.rangeMul()
+	if p.Cur == WMinigun {
+		st.Rate *= p.spinRate()
+	}
 	if p.ulting(p.Cur) {
 		switch p.Cur {
 		case WShotgun:
@@ -209,13 +221,13 @@ func (w *World) Cast(p *Player, slot int, x, y float32) error {
 	case AbGrenade:
 		const flight = .7
 		w.Effects = append(w.Effects, Effect{Kind: EffGrenade, X0: p.X, Y0: p.Y, X: x, Y: y, R: Abilities[AbGrenade].Radius[a.Lv-1],
-			Left: flight, Total: flight, Damage: grenadeBase + grenadeStep*lv, Owner: owner, Lv: a.Lv})
+			Left: flight, Total: flight, Damage: (grenadeBase + grenadeStep*lv) * lateScale(w.Wave), Owner: owner, Lv: a.Lv})
 	case AbDash:
 		w.dash(p, ang, sqrt32((x-p.X)*(x-p.X)+(y-p.Y)*(y-p.Y)))
 	case AbAirstrike:
 		const delay = 2
 		w.Effects = append(w.Effects, Effect{Kind: EffAirstrike, X0: x, Y0: y, X: x, Y: y, R: Abilities[AbAirstrike].Radius[a.Lv-1],
-			Left: delay, Total: delay, Damage: 100 + 250*lv, Owner: owner})
+			Left: delay, Total: delay, Damage: (100 + 250*lv) * lateScale(w.Wave), Owner: owner})
 	}
 	a.Cool = Abilities[slot].Cool[a.Lv-1]
 	p.Aim = ang
@@ -257,7 +269,7 @@ func (w *World) deadEye(p *Player) {
 		if c.HP <= 0 || dx*dx+dy*dy > reach*reach || w.hidden(c) || !w.clearShot(p.X, p.Y, c.X, c.Y) {
 			return true
 		}
-		dmg := float32(deadEyeHeavy)
+		dmg := deadEyeHeavy * lateScale(w.Wave)
 		if !c.Kind.Heavy() {
 			// Enough to kill outright, armour and all.
 			dmg = c.HP + c.armor() + 1
@@ -333,7 +345,7 @@ func (w *World) stepEffects() {
 				w.explode(e.X, e.Y, e.R, e.Damage, e.Owner, 0)
 				if e.Lv >= grenadeFireLv {
 					w.Effects = append(w.Effects, Effect{Kind: EffNapalm, X0: e.X, Y0: e.Y, X: e.X, Y: e.Y, R: e.R * .7,
-						Left: grenadeFire, Total: grenadeFire, Damage: grenadeFireDPS * float32(e.Lv), Owner: e.Owner})
+						Left: grenadeFire, Total: grenadeFire, Damage: grenadeFireDPS * float32(e.Lv) * lateScale(w.Wave), Owner: e.Owner})
 				}
 			}
 		case EffDrop:
