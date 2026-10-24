@@ -28,6 +28,8 @@ await esbuild.build({
   target: 'es2020',
   outdir: out,
   define: { __SOUND_WORKER__: JSON.stringify(worker.outputFiles[0].text) },
+  // Recorded sounds inlined as data URLs, for the same reason as the worker: file://.
+  loader: { '.mp3': 'dataurl' },
   legalComments: 'none',
   logLevel: 'warning',
 });
