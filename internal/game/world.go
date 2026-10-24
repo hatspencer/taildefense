@@ -101,6 +101,7 @@ type WeaponState struct {
 	Ammo   int16
 	Reload float32 // seconds of reload left, 0 when ready
 	Cool   float32 // seconds until the next shot
+	Spin   float32 // the minigun only: how far its barrels are spun up, 0 to 1 (orders.go)
 }
 
 // AbilityState is one of a player's ability slots.

@@ -44,7 +44,7 @@ func newArena(wave int) *arena {
 	p, _ := w.Join("bench", "bench@example")
 	a := &arena{w: w, p: p, ox: float32(w.W / 2), oy: float32(w.H / 2)}
 	p.X, p.Y = a.ox, a.oy
-	p.HP, p.MaxHP = 1e9, 1e9
+	p.HP, p.MaxHP = 1e6, 1e6
 	return a
 }
 
@@ -114,21 +114,10 @@ func (a *arena) tick(walk bool) {
 		}
 		ws.Cool -= Dt
 		t := w.nearestVisible(p.X, p.Y, st.Range)
+		p.spool(t >= 0 && ws.Reload <= 0)
 		if t >= 0 {
 			c := &w.Creeps[t]
-			ang := float32(math.Atan2(float64(c.Y-p.Y), float64(c.X-p.X)))
-			w.shooter = int8(p.ID)
-			for ws.Cool <= 0 && ws.Reload <= 0 && ws.Ammo > 0 {
-				w.shoot(p, st, ang)
-				ws.Cool += 1 / st.Rate
-				if Weapons[p.Cur].Fire == FireMelee || p.ulting(p.Cur) {
-					continue
-				}
-				if ws.Ammo--; ws.Ammo == 0 {
-					ws.Reload = st.Reload
-				}
-			}
-			w.shooter = -1
+			w.pull(p, st, float32(math.Atan2(float64(c.Y-p.Y), float64(c.X-p.X))), false)
 		}
 		ws.Cool = max(ws.Cool, 0)
 	}
@@ -150,6 +139,9 @@ func (a *arena) tick(walk bool) {
 			continue
 		}
 		sp := Creeps[c.Kind].Speed
+		if c.Aff&AffixHasty != 0 {
+			sp *= affixHaste
+		}
 		if c.Slow > 0 {
 			c.Slow -= Dt
 			sp *= .45

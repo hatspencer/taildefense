@@ -905,6 +905,10 @@ func (w *World) shoot(p *Player, st Stats, ang float32) {
 			TTL: st.Range / speed, Damage: st.Damage, Blast: st.Blast, Owner: owner})
 	default:
 		sh := shot{stun: st.Stun, shove: st.Shove}
+		// Dragon's breath burns as hot at the end of its reach as at the muzzle.
+		if p.Cur == WShotgun && !ult {
+			sh.fall = shotFall
+		}
 		if ult && p.Cur == WShotgun {
 			sh.shoveFar = shoveStep
 		}
@@ -920,6 +924,23 @@ type shot struct {
 	stun     float32 // how many times a hit's stun
 	shove    float32 // how far it pushes a creep back up close (shoveAt)
 	shoveFar float32 // and how far at any distance, under Dragon's breath
+	fall     float32 // the share of its damage it has lost by the end of its range (fallAt)
+}
+
+// A shotgun pellet hits full out to shotNear tiles, then loses its damage evenly until, at
+// the gun's range, it has lost shotFall of it: brutal across a room, a scatter of weak hits
+// across a field, where the spread has already lost most of the load.
+const (
+	shotNear = 3
+	shotFall = .65
+)
+
+// fallAt is the share of its damage a round of shot s keeps t tiles out of a range of rng.
+func (s shot) fallAt(t, rng float32) float32 {
+	if s.fall <= 0 || rng <= shotNear {
+		return 1
+	}
+	return 1 - s.fall*clampf((t-shotNear)/(rng-shotNear), 0, 1)
 }
 
 // plainShot stuns as any hit does and pushes nothing.
@@ -934,7 +955,7 @@ var plainShot = shot{stun: 1}
 const (
 	shotShove      = .05
 	shotShoveLevel = .015
-	shoveStep      = .3
+	shoveStep      = .1
 	shoveNear      = 2
 	shoveReach     = 5
 )
@@ -1009,7 +1030,7 @@ func (w *World) hitscan(owner int8, x, y, ang, rng, dmg float32, pierce int, bur
 	endT := maxT
 	n := min(len(cands), pierce+1)
 	for k := 0; k < n; k++ {
-		w.hit(cands[k].i, dmg, owner, sh.stun)
+		w.hit(cands[k].i, dmg*sh.fallAt(cands[k].t, rng), owner, sh.stun)
 		if burn > 0 {
 			w.ignite(cands[k].i, burn)
 		}
@@ -1069,7 +1090,7 @@ func (w *World) rayCells(x, y, dx, dy, length float32, fn func(i int32)) {
 }
 
 // meleeHits is how many creeps one swing of a melee weapon goes through.
-const meleeHits = 3
+const meleeHits = 4
 
 // melee is a swing: the nearest few creeps within reach and within half radians of the aim
 // are hit. One tracer, from the survivor along the swing, lets the client draw it.
@@ -1391,6 +1412,9 @@ func (w *World) stepRockets() {
 			}
 			w.turretFire = r.Turret
 			w.explode(r.X, r.Y, r.Blast, r.Damage, r.Owner, 0)
+			if !r.Turret && r.Cluster == 0 {
+				w.backblast(&r)
+			}
 			if r.Burn > 0 {
 				w.Blasts = append(w.Blasts, Blast{r.X, r.Y, r.Blast, BlastNapalm})
 				w.grid.each(r.X, r.Y, r.Blast, func(i int32) bool {
@@ -1417,6 +1441,26 @@ func (w *World) stepRockets() {
 		live = append(live, r)
 	}
 	w.Rockets = live
+}
+
+// A survivor's rocket bursting within its blast of them catches them too: rocketSelf hit
+// points at the heart of it, half at its edge, whatever the rocket's upgrades, so seven in a
+// row at a creep in your face put down a survivor in no armour. The launcher is for creeps
+// still coming; one at arm's length is a job for the gun in another slot. The cluster rocket
+// is sent to a point, out of harm's way, and spares its shooter.
+const rocketSelf = 15
+
+// backblast is rocket r's burst on its own shooter.
+func (w *World) backblast(r *Projectile) {
+	if r.Owner < 0 || int(r.Owner) >= len(w.Players) {
+		return
+	}
+	p := w.Players[r.Owner]
+	dx, dy := p.X-r.X, p.Y-r.Y
+	if !p.Alive || dx*dx+dy*dy > r.Blast*r.Blast {
+		return
+	}
+	w.hurtPlayer(p, rocketSelf*(1-.5*sqrt32(dx*dx+dy*dy)/r.Blast))
 }
 
 // ---- bookkeeping -----------------------------------------------------------------------

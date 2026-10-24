@@ -165,13 +165,13 @@ type WeaponDef struct {
 
 // Weapons is indexed by WeaponKind.
 var Weapons = [NumWeapons]WeaponDef{
-	WPistol:   {Name: "Pistol", Short: "PST", Price: 0, Damage: 14, Rate: 3, Range: 14, Mag: 12, Reload: 1.1, Pellets: 1, Spread: .03, Special: "+1 pierce"},
+	WPistol:   {Name: "Pistol", Short: "PST", Price: 0, Damage: 15, Rate: 3, Range: 14, Mag: 12, Reload: 1.1, Pellets: 1, Spread: .03, Special: "+1 pierce"},
 	WShotgun:  {Name: "Shotgun", Short: "SHG", Price: 250, Damage: 13, Rate: 1.3, Range: 10, Mag: 6, Reload: 1.8, Pellets: 7, Spread: .3, Pierce: 1, Special: "+2 pellets, +knockback"},
-	WSMG:      {Name: "SMG", Short: "SMG", Price: 400, Damage: 8, Rate: 11, Range: 12, Mag: 40, Reload: 1.6, Pellets: 1, Spread: .09, Special: "+1 pierce"},
-	WRifle:    {Name: "Rifle", Short: "RFL", Price: 650, Damage: 60, Rate: 1.4, Range: 28, Mag: 5, Reload: 2, Pellets: 1, Spread: .01, Pierce: 3, Special: "+2 pierce"},
+	WSMG:      {Name: "SMG", Short: "SMG", Price: 400, Damage: 11, Rate: 12, Range: 12, Mag: 50, Reload: 1.6, Pellets: 1, Spread: .09, Special: "+1 pierce"},
+	WRifle:    {Name: "Rifle", Short: "RFL", Price: 650, Damage: 80, Rate: 1.5, Range: 28, Mag: 5, Reload: 2, Pellets: 1, Spread: .01, Pierce: 3, Special: "+2 pierce"},
 	WMinigun:  {Name: "Minigun", Short: "MNG", Price: 1400, Damage: 9, Rate: 22, Range: 16, Mag: 150, Reload: 3.5, Pellets: 1, Spread: .12, Special: "+1 pierce, +burn"},
-	WLauncher: {Name: "Rocket launcher", Short: "RKT", Price: 2000, Damage: 140, Rate: .8, Range: 24, Mag: 4, Reload: 2.6, Pellets: 1, Spread: .02, Fire: FireRocket, Blast: 3, Special: "+blast radius"},
-	WCrowbar:  {Name: "Crowbar", Short: "BAR", Price: 0, Damage: 34, Rate: 1.8, Range: 1.9, Mag: 1, Reload: 0, Pellets: 1, Spread: .8, Fire: FireMelee, Special: "+wider swing"},
+	WLauncher: {Name: "Rocket launcher", Short: "RKT", Price: 2000, Damage: 120, Rate: .8, Range: 24, Mag: 4, Reload: 2.6, Pellets: 1, Spread: .02, Fire: FireRocket, Blast: 3, Special: "+blast radius"},
+	WCrowbar:  {Name: "Crowbar", Short: "BAR", Price: 0, Damage: 42, Rate: 2, Range: 1.9, Mag: 1, Reload: 0, Pellets: 1, Spread: .8, Fire: FireMelee, Special: "+wider swing"},
 }
 
 // DualBit marks, in a frame's byte of owned weapons, a survivor with a second pistol.
@@ -209,6 +209,11 @@ type Stats struct {
 	Pellets, Pierce                                  int
 }
 
+// pistolDamageLevel is what each level of the pistol's damage track adds to it, more than the
+// others' .22: the free gun is the one a survivor upgrades first and longest, and a pair of
+// them fully bought keeps up late.
+const pistolDamageLevel = .3
+
 // WeaponStats applies upgrade levels to a weapon's base stats.
 func WeaponStats(w WeaponKind, lv [NumTracks]uint8) Stats {
 	d := Weapons[w]
@@ -228,6 +233,7 @@ func WeaponStats(w WeaponKind, lv [NumTracks]uint8) Stats {
 	sp := int(lv[TrackSpecial])
 	switch w {
 	case WPistol:
+		s.Damage = d.Damage * (1 + pistolDamageLevel*float32(lv[TrackDamage]))
 		s.Pierce += sp
 	case WSMG:
 		s.Pierce += sp
