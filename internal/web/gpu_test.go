@@ -30,7 +30,23 @@ Device: 1
 
 func TestAPlayersOwnGPUChoiceStands(t *testing.T) {
 	env := []string{"PATH=/bin", "DRI_PRIME=0"}
-	if got := gpuEnv(env); !slices.Equal(got, env) {
-		t.Errorf("got %q", got)
+	if got, chose := gpuEnv(env); !slices.Equal(got, env) || chose {
+		t.Errorf("got %q, chose %v", got, chose)
+	}
+}
+
+func TestChromiumRunsUnderXWaylandForTheDiscreteGPU(t *testing.T) {
+	both := []string{"WAYLAND_DISPLAY=wayland-1", "DISPLAY=:0"}
+	if got := chromiumGPUArgs(both); !slices.Equal(got, []string{"--ozone-platform=x11"}) {
+		t.Errorf("Wayland with XWayland, got %q", got)
+	}
+	for _, env := range [][]string{
+		{"DISPLAY=:0"},                            // X11 already
+		{"WAYLAND_DISPLAY=wayland-1"},             // no XWayland to run under
+		{"WAYLAND_DISPLAY=wayland-1", "DISPLAY="}, // nor here
+	} {
+		if got := chromiumGPUArgs(env); got != nil {
+			t.Errorf("%q, got %q", env, got)
+		}
 	}
 }
