@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net"
 	"net/http"
 	"strings"
@@ -97,9 +98,12 @@ func TestTheBrowserPlaysThroughTheBridge(t *testing.T) {
 		err error
 	}
 	done := make(chan ended, 1)
+	saved, savedMusic := make(chan int, 1), make(chan int, 1)
 	go func() {
 		res, err := Run(context.Background(), Options{Addr: srv.Addrs()[0], Name: "ana", Version: "test", Host: "box",
-			Hosting: true, Ready: func(p Page) { urls <- p.URL }})
+			Hosting: true, Ready: func(p Page) { urls <- p.URL },
+			Volume: 55, SaveVolume: func(v int) error { saved <- v; return nil },
+			Music: 35, SaveMusic: func(v int) error { savedMusic <- v; return nil }})
 		done <- ended{res, err}
 	}()
 	var url string
@@ -132,6 +136,12 @@ func TestTheBrowserPlaysThroughTheBridge(t *testing.T) {
 	if err := json.Unmarshal(p, &wel); err != nil || wel.T != "welcome" || wel.W != 352 || !wel.Hosting {
 		t.Fatalf("welcome: %v %+v", err, wel)
 	}
+	if wel.Volume != 55 {
+		t.Errorf("welcome volume %d, want this machine's 55", wel.Volume)
+	}
+	if wel.Music != 35 {
+		t.Errorf("welcome music %d, want this machine's 35", wel.Music)
+	}
 	if len(wel.Weapons) != int(game.NumWeapons) || len(wel.Abilities) != game.NumAbilities || wel.Core.X == 0 {
 		t.Fatalf("welcome defs: %d weapons, %d abilities, core %+v", len(wel.Weapons), len(wel.Abilities), wel.Core)
 	}
@@ -162,6 +172,26 @@ func TestTheBrowserPlaysThroughTheBridge(t *testing.T) {
 	}
 	if !moved {
 		t.Fatal("the hero never walked")
+	}
+	// The menu's volume is this machine's setting, saved here, clamped to 0..100.
+	_ = ws.send(opText, []byte(`{"op":"volume","v":130}`))
+	select {
+	case v := <-saved:
+		if v != 100 {
+			t.Errorf("saved volume %d, want 100", v)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the volume was not saved")
+	}
+	// So is the music, the same way.
+	_ = ws.send(opText, []byte(`{"op":"music","v":-5}`))
+	select {
+	case v := <-savedMusic:
+		if v != 0 {
+			t.Errorf("saved music %d, want 0", v)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the music was not saved")
 	}
 	_ = ws.send(opText, []byte(`{"op":"leave"}`))
 	select {
@@ -235,4 +265,11 @@ func parseFrame(t *testing.T, p []byte) frameSummary {
 		t.Fatalf("frame has %d bytes left over", len(p)-i)
 	}
 	return f
+}
+
+// The music is served as audio whatever the machine's own table of types says.
+func TestMusicIsServedAsAudio(t *testing.T) {
+	if got := mime.TypeByExtension(".ogg"); got != "audio/ogg" {
+		t.Errorf(".ogg is %q, want audio/ogg", got)
+	}
 }
