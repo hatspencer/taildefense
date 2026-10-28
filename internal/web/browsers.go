@@ -140,9 +140,11 @@ func (b Browser) args(url string) ([]string, error) {
 		"--no-first-run",
 		"--no-default-browser-check",
 		"--disable-features=Translate,MediaRouter",
-		// The fast GPU where there are two, as the page asks too (macOS and Windows; Linux
-		// takes gpuEnv and chromiumGPUArgs). No blocklist overrides: forcing WebGPU past the browser's blocklist
-		// ran some GPUs out of memory, a black scene.
+		// The fast GPU where there are two, as the page asks too (macOS and Windows). Linux
+		// keeps the GPU that drives the screen: on a laptop whose discrete GPU has no outputs,
+		// every frame drawn there is copied to the integrated one, and at 5K that copy cost more
+		// than the faster GPU saved. No blocklist overrides: forcing WebGPU past the browser's
+		// blocklist ran some GPUs out of memory, a black scene.
 		"--force_high_performance_gpu",
 		// The game must keep up with the host even unfocused.
 		"--disable-background-timer-throttling",
@@ -181,12 +183,7 @@ func (l *launcher) launch(b Browser, url string) error {
 	if err != nil {
 		return err
 	}
-	env, discrete := gpuEnv(os.Environ())
-	if discrete && b.kind == "chromium" {
-		argv = append(argv, chromiumGPUArgs(env)...)
-	}
 	cmd := exec.Command(argv[0], argv[1:]...)
-	cmd.Env = env
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start %s: %w", b.Name, err)
 	}
