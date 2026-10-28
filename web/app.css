@@ -388,6 +388,10 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 17px/12p
 .scorecards .who .gold { margin-left: auto; align-self: center; display: flex; align-items: baseline; gap: 6px; padding: 2px 8px 1px; font: 28px/1 var(--crt); color: #f4c25c; background: var(--scan), var(--screen); border: 2px solid var(--black); }
 .scorecards .who .gold .lbl { font: 600 13px/1 var(--small); color: #9c7a34; text-transform: uppercase; letter-spacing: 0.06em; }
 .score h2 .gold { color: #f4c25c; }
+.scorecards .give { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+.scorecards .give .lbl { font: 600 13px/1 var(--small); color: #9c7a34; text-transform: uppercase; letter-spacing: 0.06em; margin-right: 2px; }
+.scorecards .give button { font-size: 14px; padding: 2px 9px 3px; }
+.scorecards .give button .gold { color: #f4c25c; }
 .scorecards .dot { display: inline-block; flex: none; width: 8px; height: 12px; border: 2px solid var(--black); align-self: center; }
 .scorecards .st { font-family: var(--small); font-size: 14px; }
 .scorecards .st.down { color: var(--rust); }

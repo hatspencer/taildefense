@@ -313,7 +313,7 @@ func (w *World) stepEffects() {
 	live := w.Effects[:0]
 	for _, e := range w.Effects[:n] {
 		e.Left -= Dt
-		w.shooter = e.Owner
+		w.shooter, w.trap = e.Owner, e.Trap
 		switch e.Kind {
 		case EffNapalm:
 			x, y, r, dps, owner := e.X, e.Y, e.R, e.Damage, e.Owner
@@ -362,7 +362,7 @@ func (w *World) stepEffects() {
 		}
 	}
 	w.Effects = append(live, w.Effects[n:]...)
-	w.shooter = -1
+	w.shooter, w.trap = -1, false
 }
 
 // BuyAbility raises a bought ability's level.

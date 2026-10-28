@@ -126,6 +126,10 @@ walks up and picks it up with E, which takes a fifth of a second. The rifle you 
 holds the back line, and come back when you want it. You always keep one weapon, and you can't
 pick up a kind you already carry.
 
+Gold can change hands too: hold Tab and click 50, 250 or half on a teammate's card to send them
+that much of yours, from anywhere. What your turrets kill, and what dies in a fuel pump or a plane
+engine you set off, pays the whole team, split evenly; what you kill yourself is yours.
+
 ## The dead
 
 The dead wander the wastes on their own, in small packs, shambling about away from the base.
