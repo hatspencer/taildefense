@@ -34,11 +34,9 @@ else is a command run with the URL. In any browser the page keeps the browser's 
 is closed. `--no-browser` does the same as `none` for one run, which is
 handy over SSH.
 
-On a Linux laptop with two GPUs td starts the browser on the discrete one, as the desktop's
-"Launch using Discrete Graphics" does, unless `DRI_PRIME` or NVIDIA's offload variables are set
-already. Under Wayland a Chromium browser draws on whatever GPU the compositor uses, so td starts it
-under XWayland (`--ozone-platform=x11`) when there is one; with a scaled display that window may
-look softer.
+On a Linux laptop with two GPUs the browser draws on the one that drives the screen, usually the
+integrated one. The discrete GPU of such a laptop often has no outputs of its own, and every frame
+drawn there has to be copied across, which at 5K made the game slower, not faster.
 
 ## Network
 
