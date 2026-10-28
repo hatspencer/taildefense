@@ -1555,6 +1555,14 @@ export class DemoHost implements Transport {
         p.order = Order.Pickup; p.gunId = g.id; p.channel = 0;
         break;
       }
+      case 'give': {
+        const o = this.players[cmd.p], g = Math.floor(cmd.gold);
+        if (!o || o === p) { this.toast('no one to give gold to'); break; }
+        if (!(g > 0) || p.gold < g) { this.toast(`not enough gold: have ${p.gold}`); break; }
+        p.gold -= g; o.gold += g;
+        this.notes.push({ level: 4, text: `${p.name} gave ${o.name} ${g} gold` });
+        break;
+      }
       case 'ready': p.ready = cmd.on; break;
       case 'taunt': this.taunt(p); break;
       case 'revive': {

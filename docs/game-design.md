@@ -199,6 +199,16 @@ each wave, but Normal is the reference for timing.
   base clears the small ones.
 - **Turret fire never provokes.** A creep a turret hits doesn't turn on the turret's builder,
   missiles included, the same as a turret's bullets: aggro comes from what survivors do.
+- **Gold is personal, but it can be given.** The Tab scoreboard has 50, 250 and half-of-yours
+  buttons on each teammate's card, usable anywhere at any time, so the one saving for a rocket
+  launcher can be topped up and the one who left with a fortune doesn't take it with them. The
+  log says who gave whom what, briefly, as it does upgrades, and the one given to gets a toast.
+- **Turrets and traps pay the team.** A creep finished by a turret, or by a fuel pump or a
+  plane's engine a survivor set off (the blast or its burning fuel), splits its bounty evenly
+  among everyone in the game, the part that does not divide carried to the next. A turret
+  guards everyone, and its builder is often off looting while it works; paying only the builder
+  made the base a few players' bank. The total is the same as before, only who gets it changed.
+  A kill by a survivor's own gun, grenade or ability still pays them alone.
 - **Anyone can sell anyone's building.** The base belongs to the team: a wall someone who has
   left put in the wrong place, or a turret worth more moved, shouldn't wait on its builder. The
   gold goes to the seller and the team hears who sold whose, so it is never done unseen.
@@ -306,8 +316,8 @@ each wave, but Normal is the reference for timing.
   standing by it unhurt, and it pays the whole team (gold, full medkits) plus a rare find for the
   opener. Up to three wait unopened. The surfboards on the Huey's side are for Kilgore.
 - **Weapons change hands.** A survivor can drop a weapon they carry and a teammate pick it up,
-  every upgrade track as it was, its magazine too. Gold is personal, so this is how a team pools
-  it: one player buys and upgrades a rifle, another uses it. Picking up takes 0.2 s, a token
+  every upgrade track as it was, its magazine too. Gold is personal, so this is one way a team
+  pools it: one player buys and upgrades a rifle, another uses it. Picking up takes 0.2 s, a token
   channel like a search's (a hit restarts it), so it is a deliberate act and not something you
   walk over by accident. Dropping is the reverse: G held for a second, so a stray tap mid-fight
   doesn't throw a gun away. A survivor keeps at least one weapon, a kind they already carry can't

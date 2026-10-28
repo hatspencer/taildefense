@@ -586,6 +586,10 @@ func Exec(w *game.World, pl *game.Player, c Cmd) (string, error) {
 		if g, err = w.Sell(pl, int(c.T)); err == nil {
 			msg = fmt.Sprintf("sold for %d gold", g)
 		}
+	case OpGive:
+		if err = w.Give(pl, int(c.A), int32(c.T)); err == nil {
+			msg = fmt.Sprintf("gave %s %d gold", w.Players[c.A].Name, c.T)
+		}
 	case OpChat:
 		if t := strings.TrimSpace(c.Text); t != "" {
 			w.Notes = append(w.Notes, game.Note{Text: pl.Name + ": " + t, Level: game.NoteChat})
@@ -700,6 +704,7 @@ const (
 	OpBuyGoggles
 	OpFixAll // rebuild every ghost and repair everything, between waves
 	OpBoard  // get aboard the evac Huey on the pad
+	OpGive   // A player id, T gold
 )
 
 // Cmd is a discrete request from a player. X and Y are tiles, sent to 1/8; T names a creep

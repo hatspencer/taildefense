@@ -215,7 +215,9 @@ export type Command =
   | { op: 'drop'; w: number }
   | { op: 'pickup'; id: number }
   // Walks to the landed evac Huey and gets aboard.
-  | { op: 'board' };
+  | { op: 'board' }
+  // Sends gold of yours to survivor p, from anywhere.
+  | { op: 'give'; p: number; gold: number };
 
 export class Player {
   id = 0; flags = 0; x = 0; y = 0; aim = 0; hp = 0; maxHp = 1; cur = 0; ammo = 0; mag = 0;
