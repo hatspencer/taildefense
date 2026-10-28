@@ -25,7 +25,14 @@ func (m *Model) View() string {
 		return splashView(w, h, elapsed.Seconds())
 	}
 
-	head := m.header(w, h)
+	// The help has the whole window to itself, under a one-line title.
+	var head []string
+	if m.help {
+		head = []string{gutter + ui.StyleBrand.Render("TAIL DEFENSE") + ui.StyleDim.Render("  launcher keys"), ""}
+	} else {
+		head = m.header(w, h)
+	}
+	foot := m.footer()
 	var body []string
 	switch {
 	case m.help:
@@ -33,7 +40,11 @@ func (m *Model) View() string {
 	case m.screen == screenJoin:
 		body = m.joinView(elapsed, h-len(head)-3)
 	case m.screen == screenSettings:
-		body = m.settingsView()
+		// Every setting in view first: a short header (the wordmark's line) before scrolling.
+		if len(head)+len(m.settingsView(h))+len(foot) > h {
+			head = m.header(w, 0)
+		}
+		body = m.settingsView(h - len(head) - len(foot))
 	case m.screen == screenChangelog:
 		body = m.changelogView(elapsed, h-len(head)-1)
 	case m.screen == screenDoctor:
@@ -41,7 +52,6 @@ func (m *Model) View() string {
 	default:
 		body = m.menuView(w)
 	}
-	foot := m.footer()
 
 	room := h - len(head) - len(foot)
 	if len(body) > room {
@@ -85,7 +95,16 @@ func (m *Model) header(w, h int) []string {
 	}
 	out = append(out, "", gutter+m.versionLine(), gutter+m.tailnetLine())
 	if m.o.Last != nil {
-		out = append(out, gutter+m.lastLine())
+		// An error is the one thing on the screen that must be read whole: wrapped, not cut.
+		for i, l := range strings.Split(ansi.Wordwrap(m.lastLine(), max(w-len(gutter)-2, 20), ""), "\n") {
+			if i == 3 {
+				break
+			}
+			if i > 0 {
+				l = "  " + l
+			}
+			out = append(out, gutter+l)
+		}
 		if m.updateOffered() {
 			out = append(out, gutter+ui.StyleYellow.Render("the host runs another td: press u to update now"))
 		}
@@ -188,7 +207,12 @@ func (m *Model) menuView(w int) []string {
 		}
 		desc := m.itemHint(it)
 		if i == m.cursor {
-			out = append(out, gutter+ui.StyleAccent.Render("▶ ")+ui.StyleBold.Render(label)+"  "+ui.StyleDim.Render(desc))
+			// The hint on its own line under the choice, so a narrow window keeps the end of
+			// it (the join command, on Host a game) rather than cutting it off.
+			out = append(out, gutter+ui.StyleAccent.Render("▶ ")+ui.StyleBold.Render(label))
+			if desc != "" {
+				out = append(out, gutter+"    "+ui.StyleDim.Render(desc))
+			}
 		} else {
 			out = append(out, gutter+"  "+label)
 		}
@@ -297,7 +321,8 @@ func (m *Model) joinView(elapsed time.Duration, room int) []string {
 	}
 	out = append(out, rows...)
 	if incompatible {
-		out = append(out, "", gutter+ui.StyleYellow.Render("✗ another td: host and players must run the same one; td update on both (u here)"))
+		out = append(out, "", gutter+ui.StyleYellow.Render("✗ another td: host and players must run the same one"),
+			gutter+ui.StyleYellow.Render("  td update on both (u here)"))
 	}
 	if m.notice != "" {
 		out = append(out, "", gutter+m.noticeText())
@@ -393,13 +418,19 @@ func (m *Model) doctorView(elapsed time.Duration, room int) []string {
 	return out
 }
 
-func (m *Model) settingsView() []string {
+// settingsView is the settings, as many as room rows hold: past that the list scrolls to keep
+// the one picked out, and its help, in view, so a short window or a long error over it never
+// hides a setting for good.
+func (m *Model) settingsView(room int) []string {
 	out := []string{gutter + ui.StyleBold.Render("Settings") + "  " + ui.StyleDim.Render("saved to "+prefsPath()), ""}
+	var rows []string
+	at := 0 // the picked-out setting's row
 	for i, k := range config.Keys {
 		v := m.prefs.Get(k.Name)
 		mark := "  "
 		if i == m.scursor {
 			mark = ui.StyleAccent.Render("▶ ")
+			at = len(rows)
 		}
 		value := ui.StyleCyan.Render(v.Value)
 		if i == m.scursor && m.editing {
@@ -409,23 +440,42 @@ func (m *Model) settingsView() []string {
 		if v.Source == config.SourceEnv {
 			src = k.Env + " overrides"
 		}
-		out = append(out, fmt.Sprintf("%s%s%s %s  %s", gutter, mark, ui.StyleBold.Render(pad(strings.ToLower(k.Name), 11)),
+		rows = append(rows, fmt.Sprintf("%s%s%s %s  %s", gutter, mark, ui.StyleBold.Render(pad(strings.ToLower(k.Name), 11)),
 			value, ui.StyleDim.Render("("+src+")")))
 		if i == m.scursor {
-			out = append(out, gutter+"    "+ui.StyleDim.Render(k.Help))
+			rows = append(rows, gutter+"    "+ui.StyleDim.Render(k.Help))
 		}
 	}
+	var tail []string
 	if m.notice != "" {
-		out = append(out, "", gutter+m.noticeText())
+		tail = []string{"", gutter + m.noticeText()}
 	}
-	return out
+	if fit, total := room-len(out)-len(tail), len(rows); fit >= 4 && total > fit {
+		// A row each way says there is more; the picked-out setting and its help stay between.
+		start := min(max(at-(fit-2)/2, 0), len(rows)-fit)
+		rows = rows[start : start+fit]
+		if start > 0 {
+			rows[0] = gutter + ui.StyleDim.Render("  ↑ more")
+		}
+		if start+fit < total {
+			rows[len(rows)-1] = gutter + ui.StyleDim.Render("  ↓ more")
+		}
+	}
+	out = append(out, rows...)
+	return append(out, tail...)
 }
 
 func (m *Model) helpView() []string {
 	out := []string{gutter + ui.StyleBold.Render("Keys") + "  " + ui.StyleDim.Render("any key closes"), ""}
+	// The group named once, on its first row, so every binding fits on a line of its own.
 	rows := [][]string{}
+	last := ""
 	for _, k := range Keys {
-		rows = append(rows, []string{ui.StyleCyan.Render(k.Keys), k.Help, ui.StyleDim.Render(k.Group)})
+		g := ""
+		if k.Group != last {
+			g, last = k.Group, k.Group
+		}
+		rows = append(rows, []string{ui.StyleDim.Render(g), ui.StyleCyan.Render(k.Keys), k.Help})
 	}
 	for _, l := range strings.Split(strings.TrimRight(ui.Table(rows, gutter), "\n"), "\n") {
 		out = append(out, l)

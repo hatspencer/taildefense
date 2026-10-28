@@ -46,14 +46,14 @@ WebGL 2 where WebGPU isn't available. Any current Chrome, Edge, Firefox or Safar
 | `td bench [--wave N] [--players P] [--seconds S] [--seed S]` | time a busy wave offline: simulation, encoding, relay |
 | `td frame [--width W] [--height H] [--view menu\|join\|settings\|changelog\|doctor\|help\|splash] [--at S]` | render one launcher frame from demo data, 160×48 unless told otherwise; `--at` is seconds into the splash |
 | `td doctor` | check tailscale, the browser, container engine, install |
-| `td config [KEY [VALUE]]` | show or change settings: NAME, PORT, DIFFICULTY, FOG, WAVES, BROWSER, AUTOUPDATE; `td config KEY --reset` returns one to its default |
+| `td config [KEY [VALUE]]` | show or change settings: NAME, PORT, DIFFICULTY, FOG, WAVES, VOLUME, BROWSER, AUTOUPDATE; `td config KEY --reset` returns one to its default |
 | `td update [-f] [-b BRANCH]` | rebuild from the repo's main (or a branch) and reinstall |
 | `td install [-f]` | install this build |
 | `td version [--offline] [--json]` | this build and whether a newer one exists |
 
 Every setting can also come from the environment (`TAILDEFENSE_NAME`, `TAILDEFENSE_PORT`,
-`TAILDEFENSE_DIFFICULTY`, `TAILDEFENSE_FOG`, `TAILDEFENSE_WAVES`, `TAILDEFENSE_BROWSER`, and `TAILDEFENSE_NO_AUTOUPDATE`
-to turn autoupdate off), and `td config` says where
+`TAILDEFENSE_DIFFICULTY`, `TAILDEFENSE_FOG`, `TAILDEFENSE_WAVES`, `TAILDEFENSE_VOLUME`, `TAILDEFENSE_BROWSER`,
+and `TAILDEFENSE_NO_AUTOUPDATE` to turn autoupdate off), and `td config` says where
 each value in force came from. `--theme NAME` (or `TAILDEFENSE_THEME`) picks the colour theme of the
 launcher and td's output, and `--no-color` turns colour off.
 

@@ -18,8 +18,9 @@ package game
 const (
 	spikeWear = 3   // a spike strip's hit points a creep-second on it costs
 	tarLinger = .4  // seconds of slow a creep keeps after wading out of tar
-	ventBurn  = 10  // a flame vent's burning, per second, for 2.5 s
-	trapLevel = .35 // each level past the first adds this share of a trap's damage
+	tarChill  = .55 // the share of its pace tar takes
+	ventBurn  = .25 // a flame vent's burning, per second for 2.5 s, as a share of its burst
+	trapLevel = .5  // each level past the first adds this share of a trap's damage
 )
 
 // FloorAt is the trap on tile x, y, or -1.
@@ -30,9 +31,14 @@ func (w *World) FloorAt(x, y int) int {
 	return int(w.floorAt[y*w.W+x])
 }
 
-// trapDamage is trap s's damage at its level.
-func trapDamage(s *Structure) float32 {
-	return Structs[s.Kind].Damage * (1 + trapLevel*float32(s.Level-1))
+// trapDamage is trap s's damage at its level, and a mine's at the wave: laid again every
+// wave, it grows with the creeps, if slower than their health.
+func (w *World) trapDamage(s *Structure) float32 {
+	d := Structs[s.Kind].Damage * (1 + trapLevel*float32(s.Level-1))
+	if s.Kind == STrapMine {
+		d *= sqrt32(HPScale(max(w.Wave, 1)))
+	}
+	return d
 }
 
 // stepTraps springs every trap a creep stands on, once a tick.
@@ -61,18 +67,18 @@ func (w *World) stepTraps() {
 		d := &Structs[s.Kind]
 		switch s.Kind {
 		case STrapSpikes:
-			w.damage(int32(i), trapDamage(s)*Dt, s.Owner)
+			w.damage(int32(i), w.trapDamage(s)*Dt, s.Owner)
 			s.HP -= spikeWear * Dt
 		case STrapTar:
-			c.Slow = max(c.Slow, tarLinger+Dt)
+			c.chill(tarLinger+Dt, tarChill)
 		case STrapVent:
 			if s.Cool > 0 {
 				continue
 			}
 			s.Cool = 1 / d.Rate
-			w.flame(s.CX(), s.CY(), d.Range, trapDamage(s), s.Owner)
+			w.flame(s.CX(), s.CY(), d.Range, w.trapDamage(s), s.Owner)
 		case STrapMine:
-			w.explode(s.CX(), s.CY(), d.Range, trapDamage(s), s.Owner, 0)
+			w.explode(s.CX(), s.CY(), d.Range, w.trapDamage(s), s.Owner, 0)
 			s.HP = 0
 		}
 	}
@@ -84,7 +90,7 @@ func (w *World) flame(x, y, r, dmg float32, owner int8) {
 		c := &w.Creeps[i]
 		if dx, dy := c.X-x, c.Y-y; dx*dx+dy*dy <= r*r {
 			w.damage(i, dmg, owner)
-			w.ignite(i, ventBurn)
+			w.ignite(i, ventBurn*dmg)
 		}
 		return true
 	})

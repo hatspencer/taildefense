@@ -174,6 +174,9 @@ sweep_containers() {
 
 # run executes a command in the golang image as the calling user. HOME is a mounted
 # directory, not /tmp, so tests that shorten $HOME to ~ see a realistic home.
+# -d=fmahash=qn quietly keeps the compiler from fusing a*b+c into one rounding on arm64,
+# which amd64 never does, so the game plays the same tick for tick on every machine and the
+# golden game recorded on one passes on the other.
 run() {
   mkdir -p "$GOCACHE_DIR/build" "$GOCACHE_DIR/home"
   need_engine
@@ -188,7 +191,7 @@ run() {
     $(engine_id_flags) \
     -e HOME=/gohome \
     -e CGO_ENABLED=0 \
-    -e GOFLAGS=-mod=readonly \
+    -e "GOFLAGS=-mod=readonly -gcflags=all=-d=fmahash=qn" \
     -e GOCACHE=/gobuild \
     -e GOMODCACHE=/gomodcache \
     -e TD_SOAK -e TD_SOAK_ONE -e TD_GOLDEN \

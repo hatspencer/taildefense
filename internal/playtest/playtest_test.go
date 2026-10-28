@@ -78,7 +78,9 @@ func TestSoak(t *testing.T) {
 			t.Parallel()
 			res := play(t, g)
 			t.Logf("%d waves in %ds, %d kills", res.Waves, res.Ticks/game.TickRate, res.Kills)
-			if res.Waves < g.waves {
+			if res.Waves < g.waves && res.Over && res.Out == 0 {
+				t.Errorf("the generator fell in wave %d of %d: the bots lost, every check held, so look at the balance\n  replay: TD_SOAK_ONE=%d,%d,%d,%d go test ./internal/playtest -run Soak -v", res.Waves+1, g.waves, g.seed, g.diff, g.players, g.waves)
+			} else if res.Waves < g.waves {
 				t.Errorf("only %d of %d waves were played through in time", res.Waves, g.waves)
 			}
 		})

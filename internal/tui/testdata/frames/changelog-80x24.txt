@@ -7,7 +7,8 @@
 
   td abc1234  ✔ updated abc1234 → def5678 · R restart now
   ● box  100.64.0.7  ada@example.com
-  ✘ could not join pal: this host runs game protocol 2 and you run 1; whoever i…
+  ✘ could not join pal: this host runs game protocol 2 and you run 1; whoever
+    is older: td update
 
   Changelog  latest 24 commits on main
 
@@ -19,6 +20,5 @@
   ▶ abc1234  2026-10-25  The 21-th change, said in one line  ◀ this td
     abc6243  2026-10-24  The 20-th change, said in one line
     abc7246  2026-10-23  The 19-th change, said in one line
-    abc8249  2026-10-22  The 18-th change, said in one line
-    1–7 of 24
+    1–6 of 24
   ↑↓ scroll · r read again · esc back · ? help

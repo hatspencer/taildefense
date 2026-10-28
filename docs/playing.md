@@ -3,6 +3,25 @@
 The player's guide: what is out there, what comes for you and how a game runs. The keys are in
 the README; `docs/game-design.md` says why things work the way they do.
 
+## Sound
+
+The fight is heard round where the camera looks: closer is louder, off to the side is to that
+side, and far away is quieter, darker and more echo. Some sounds are there to warn you:
+
+- **A siren winds up** when a wave starts and a lower one sounds the all-clear; three beeps count
+  down the last seconds before a wave.
+- **A klaxon** means the generator is taking hits.
+- **The radio** chirps for a chat line, a ping (three quick beeps for danger) and the game's news.
+- **A shriek and a crowd of groans** is a nest waking; a single growl is a site's guards.
+- **A ringing in your ears** is a slam that knocked you flat.
+
+Sound starts with your first click or key press (browsers insist). `VOLUME` in
+`docs/settings.md` sets it, and so does the slider in the menu (F10); 0 is off.
+
+The music follows the fight: a quiet track while you build, a fight that grows as more of the
+dead wake and close on the generator and as it takes hits, and a boss's music on every tenth
+wave. `MUSIC` (and its slider) sets it apart from the rest of the sound.
+
 ## The screen
 
 The top bar always shows the base's health, the generator's, next to the wave. Click it to look at
@@ -18,6 +37,28 @@ North is the top of the map. The compass strip at the top of the view shows whic
 faces as you rotate it, and clicking it turns the view north up again. The minimap is always north
 up, and a downed teammate's call says where they fell, so "brute coming in from the NW" means
 the same thing to everyone.
+
+## Windows, and when the link goes
+
+A first game on a machine opens with four first steps: keep the generator standing, walk with
+WASD, build and shop between waves, E for what is beside you. The menu (F10 or Esc) has them
+again, beside the controls (F1), which are grouped by what you are doing.
+
+The menu, the controls, the first steps and the field report work without the mouse: the arrows
+or Tab move between the buttons, Enter presses one, Esc closes. A controller does the same with
+the d-pad or left stick, A to press, B to go back and Start for the menu; the game itself is
+played on the keyboard and mouse. Over the field report Enter is still the chat until you move
+into the report, so a last word does not restart the game.
+
+The field report says how it ended: the wave that broke through and what stood at the generator
+when it fell, or who the Huey left behind. Under the tally it names the MVP (most kills) and
+whoever revived, built, turret-killed, hunted bosses or searched the most. The picture td keeps of
+it says the same.
+
+If the page loses the td on this machine it says so and keeps trying, counting the seconds; after
+a few it says what to check (is td still running in its terminal?) and offers a reload. When the
+game ends for the tab it says why in words, the host gone, you left, the game opened in another
+tab or td stopped, and what to do next.
 
 ## Weapons and kit
 
@@ -37,6 +78,13 @@ Find a second pistol in the loot, or pick up one someone dropped, and it goes in
 dual pistols, each as upgraded as yours, fire twice as fast from twice the magazine. Dropping
 one leaves you the other.
 
+Each gun has its range. The shotgun is brutal within a few tiles and loses up to two thirds of
+its punch by the end of its reach; the rifle hits as hard at 28 tiles as at 1. The minigun
+starts at under a third of its rate and takes two seconds of firing to spin up, so bring it up
+before the crowd arrives, not after; the SMG fires full from the first round. A rocket bursting
+near you hurts you too, up to 15 health a rocket, so switch guns when creeps reach you. The
+crowbar hits up to four creeps a swing.
+
 ## Turrets
 
 Six turrets, from the build bar (B, then the number):
@@ -44,16 +92,16 @@ Six turrets, from the build bar (B, then the number):
 | | | |
 |---|---|---|
 | Gun turret (3) | 120 | fast single shots at the nearest creep |
-| Cannon (4) | 240 | slow shells that burst on a crowd |
-| Frost tower (5) | 180 | pulses cold round itself, slowing everything in reach |
-| Tesla coil (6) | 320 | lightning that jumps from creep to creep |
-| Sniper tower (7) | 380 | a heavy round every few seconds from far off, at the toughest creep it can see; the answer to brutes and bosses, whose armour shrugs off a gun turret |
-| Missile battery (8) | 420 | a salvo of small rockets, each at a different creep |
+| Cannon (4) | 240 | slow, heavy shells that burst on a crowd |
+| Frost tower (5) | 180 | pulses cold round itself, slowing everything in reach by nearly half; it barely hurts, but whatever else covers its reach gets twice as long at them |
+| Tesla coil (6) | 280 | lightning that jumps from creep to creep, three at a time to start; the more of them bunched together, the better |
+| Sniper tower (7) | 380 | a heavy round every few seconds from far off, at the toughest creep it can see, tearing out a share of its health besides, armour and all: the bigger the creep the harder it hits, so it is the boss killer |
+| Missile battery (8) | 420 | a salvo of rockets, each at a different creep, with a wide blast; they come down where the creep stood, give or take a tile or so, so they wreck a crowd and waste themselves on a lone or a quick one |
 
 A turret goes up the way a weapon does: four tracks, damage, fire rate, range and a special,
 each to level 5, bought one at a time from the buttons on its card (select it, or T to step
 through your turrets). The special is the turret's own: pierce for the gun and the sniper, blast
-radius for the cannon, longer slow for frost, two more jumps and a longer reach for the tesla
+radius for the cannon, a deeper slow for frost (up to three quarters of a creep's pace), two more jumps and a longer reach for the tesla
 coil, one more missile for the battery. Each button shows what the next level changes and costs;
 the coloured pips on the turret's side show its levels, a column per track. Every upgrade also
 gives the turret a little more health. Selling returns half of everything that went into it, less for a damaged one, to whoever
@@ -73,19 +121,20 @@ the way in.
 | Spike strip (9) | 60 | cuts every creep standing on it, and wears down as it does |
 | Tar pit (0) | 50 | slows every creep wading through it, so they spend longer under the guns |
 | Flame vent (-) | 150 | bursts into flame when a creep steps on it, setting everything round it alight; again every few seconds |
-| Mine (=) | 40 | blows up under the first creep to step on it, and is gone |
+| Mine (=) | 40 | blows up under the first creep to step on it, everything within 3 tiles, harder every wave, and is gone |
 
 A spike strip worn out or a mine gone off leaves a ghost, which H lays again between waves.
-Spike strips and flame vents go up levels: tougher, and each level adds about a third to their
-damage.
+Spike strips and flame vents go up levels: tougher, and each level adds half to their damage.
+Tar and a frost tower don't add up on the same creep: the deeper slow holds.
 
 ### Evolutions and the pylon
 
 Once the generator is at tier III, a turret whose tracks add up to 12 can evolve, once, for its
 price again: its card shows the two branches when it can. Each turret has two, and each answers
 a different wave: the gun's Gatling (fast) or Penetrator (ignores armour), the cannon's Mortar
-(far, over walls) or Shrapnel (wide), the frost tower's Cryo (freezes) or Blizzard (wide), the
-tesla's Storm conductor (stronger in rain) or Arc web (jumps further), the sniper's Spotter
+(far, over walls) or Shrapnel (wide), the frost tower's Cryo (freezes) or Blizzard (wider and
+deeper), the tesla's Storm conductor (harder, and stronger still in rain) or Arc web (jumps
+further), the sniper's Spotter
 (marks its target to take more from everything) or Anti-materiel (through everything), and the
 missile battery's Swarm (twice the missiles) or Napalm (fire). An evolved turret wears a brass
 collar and a lamp, amber or violet by branch.
@@ -100,7 +149,8 @@ Pay in puts 100 of your gold into its next tier; everyone's pay-ins add up. Tier
 with more players) makes it tougher and unlocks the amplifier pylon; tier III (1600) makes it
 tougher again and unlocks evolutions and the Overload. Once a wave, anyone can set off the
 Overload from its card: everything within 18 tiles of the generator is shocked and frozen for a
-moment. The base chip glows violet while it is ready.
+moment; the shock grows with the waves, enough to kill the small ones at any wave and to dent a
+brute. The base chip glows violet while it is ready.
 
 ### Gates and mazes
 
@@ -266,7 +316,8 @@ grenade: its range rings your hero and its blast follows the cursor (grey out of
 left-click throws it, and Esc, a right-click or Shift again puts it away. Dash and airstrike cast
 at the cursor the moment you press the key; point at the ground. The grenade goes to level 5, each
 level hitting harder (120 damage at the first, 400 at the fifth), throwing wider and coming back
-sooner; from level 4 it leaves a fire burning where it lands. Dash and airstrike go to level 3.
+sooner; from level 4 it leaves a fire burning where it lands. After wave 10 the grenade and the
+airstrike hit harder as the creeps get tougher. Dash and airstrike go to level 3.
 
 ## Waves
 

@@ -117,7 +117,7 @@ func (d *dec) need(n int) bool {
 	if d.err != nil {
 		return false
 	}
-	if d.i+n > len(d.b) {
+	if n < 0 || n > len(d.b)-d.i {
 		d.err = errShort
 		return false
 	}

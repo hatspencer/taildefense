@@ -6,9 +6,8 @@ import { cssHex, playerColor } from '../scene/util';
 export interface LabelFocus { hoverStruct: number; selStruct: number; hoverCreep: number; selCreep: number; showAllBars: boolean; hoverSite: number; siteHint: string; hoverGun?: number; gunHint?: string; dropHold?: number }
 
 // The HUD's palette and faces, for the canvas (see app.css).
-// Labels are small print, so they use the crisp face, not Pixelify (see --small).
-const FONT = '"IBM Plex Sans Condensed", "Arial Narrow", sans-serif';
-const CRT = '"VT323", "Lucida Console", monospace';
+// Labels use the HUD's one face (see --font).
+const FONT = '"Fira Code", Menlo, Consolas, monospace';
 const INK = '#07080a', AMBER = '#e0a63a', MOSS = '#86a24c', RUST = '#b5472f', BONE = '#d9d1b3', KHAKI = '#938a66', TAPE = '#bfab72';
 
 // 7x7 ping glyphs, by PingKind: here (a down arrow), danger (!), loot (a coin), defend (a shield).
@@ -235,7 +234,7 @@ export class Labels {
         c.fillStyle = blink ? RUST : '#7a2a1c'; c.fillRect(x - 3, y - 24, 6, 14); c.fillRect(x - 7, y - 20, 14, 2);
         this.text(p.name, x, y - (p.revived > 0 && !hide ? 37 : 30), col);
         if (hide) continue;
-        c.font = `${Math.round(fs * 1.5)}px ${CRT}`;
+        c.font = `${Math.round(fs * 1.5)}px ${FONT}`;
         this.text(`${p.respawn}s`, x, y + 14, '#e8846a');
       }
     }
@@ -268,7 +267,7 @@ export class Labels {
 
     // Airstrike countdowns.
     c.textAlign = 'center'; c.textBaseline = 'bottom';
-    c.font = `26px ${CRT}`;
+    c.font = `26px ${FONT}`;
     const since = (now - game.frameAt) / 1000;
     for (let i = 0; i < f.nEffects; i++) {
       if (f.eKind[i] !== EffectKind.AirTarget) continue;
@@ -311,7 +310,7 @@ export class Labels {
       } else {
         // The edge arrow: on the line from the screen centre towards the spot.
         // It keeps inside the play area, clear of the top bar and the console.
-        const x0 = 28, x1 = this.w - 28, y0 = 84, y1 = this.h - 210;
+        const x0 = 28, x1 = this.w - 28, y0 = 84, y1 = this.h - consoleH() - 14;
         const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
         const dx = (nx + 1) / 2 * this.w - cx, dy = (1 - ny) / 2 * this.h - cy;
         const k = 1 / Math.max(Math.abs(dx) / ((x1 - x0) / 2), Math.abs(dy) / ((y1 - y0) / 2), 1e-6);
@@ -341,4 +340,15 @@ export class Labels {
     c.fillStyle = flash ? col : '#ffffff';
     for (let yy = 0; yy < n; yy++) for (let xx = 0; xx < n; xx++) if (g[yy][xx] === '#') c.fillRect(bx + 3 + xx * px, top + 3 + yy * px, px, px);
   }
+}
+
+// The bottom console's height, which the stylesheet sets by the size of the screen.
+let consoleAt = 0, consoleVal = 196;
+function consoleH(): number {
+  const now = performance.now();
+  if (now - consoleAt > 1000) {
+    consoleAt = now;
+    consoleVal = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--bottom-h')) || 196;
+  }
+  return consoleVal;
 }

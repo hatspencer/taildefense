@@ -1,0 +1,68 @@
+/* The windows outside the fight: the connection cover, the field report, the first steps,
+   the controls and the menu. The HUD itself is app.css; this only adds to it. */
+
+/* ---------- focus: one ring, everything the keyboard or a controller can land on ---------- */
+
+.window :focus-visible, .over :focus-visible, .cover :focus-visible, .firstrun :focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.menu input[type="range"]:focus-visible { outline-offset: 4px; }
+button kbd { margin-left: 6px; vertical-align: 1px; }
+button.primary kbd { background: rgba(255, 255, 255, 0.25); border-color: #4a3510; }
+
+/* ---------- connection cover ---------- */
+
+.cover .what { max-width: min(56ch, calc(100vw - 48px)); color: var(--bone); line-height: 1.45; }
+.cover .muted { max-width: min(64ch, calc(100vw - 48px)); }
+.cover .big { font-weight: 600; }
+.cover .big.bad { color: #f09276; }
+.cover .row { margin-top: 6px; }
+
+/* ---------- field report ---------- */
+
+.over .story { margin: 10px 0 4px; max-width: 52ch; font-size: 17px; line-height: 1.4; color: var(--bone); }
+.over .meta { font-size: 14px; }
+.over .awards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: -4px 0 16px; }
+.over .award { display: flex; flex-direction: column; gap: 2px; padding: 7px 10px 8px; background: rgba(7, 8, 10, 0.35); border: 2px solid var(--line); box-shadow: inset 0 2px 0 rgba(236, 228, 190, 0.05); }
+.over .award .t { font: 700 13px/1 var(--font); color: var(--tape); text-transform: uppercase; letter-spacing: 0.08em; }
+.over .award .who { font: 700 17px/1.2 var(--font); text-shadow: var(--hard); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.over .award .why { font-size: 14px; color: var(--khaki); }
+.over .award:first-child { border-color: var(--tape-dk); background: rgba(191, 171, 114, 0.08); }
+.over .sect { margin: 0 0 8px; font: 700 13px/1 var(--font); color: var(--khaki); text-transform: uppercase; letter-spacing: 0.08em; }
+.over .sheet { padding-bottom: 0; }
+/* The way on stays in sight however long the team: Restart and Leave ride the sheet's foot. */
+.over .foot { position: sticky; bottom: 0; z-index: 1; margin: 14px -26px 0; padding: 12px 26px 14px;
+  background: var(--grain), var(--soot); border-top: 2px solid var(--line); box-shadow: 0 -6px 10px rgba(7, 8, 10, 0.5); }
+.over .foot .row { margin-top: 0; }
+.scorecards .n.zero b { color: #5d5a46; }
+.scorecards .n.zero span { color: #5d5a46; }
+
+/* ---------- first steps ---------- */
+
+.firstrun { width: min(520px, calc(100% - 32px)); }
+.firstrun ol { margin: 0 0 14px; padding: 0; list-style: none; counter-reset: s; display: flex; flex-direction: column; gap: 10px; }
+.firstrun li { counter-increment: s; display: grid; grid-template-columns: 28px 1fr; gap: 0 10px; line-height: 1.4; }
+.firstrun li::before { content: counter(s); grid-row: span 2; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
+  font: 700 15px/1 var(--font); color: #1f1c12; background: var(--tape); box-shadow: var(--hard); }
+.firstrun li b { color: #f4dc9c; font-weight: 600; }
+.firstrun li span { color: var(--khaki); font-size: 15px; }
+.firstrun .row { display: flex; gap: 10px; flex-wrap: wrap; }
+.firstrun .row button { padding: 7px 14px 8px; }
+
+/* ---------- controls: grouped, in columns ---------- */
+
+.help { width: min(1240px, calc(100% - 32px)); }
+.help .groups { columns: 3 340px; column-gap: 26px; }
+.help section { break-inside: avoid; margin: 0 0 14px; }
+.help h3 { margin: 0 0 4px; font: 700 13px/1 var(--font); color: var(--tape); text-transform: uppercase; letter-spacing: 0.08em; }
+.help dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; }
+.help dt { text-align: right; white-space: nowrap; color: #c8bf9f; }
+.help dd { margin: 0; color: var(--bone); font-size: 14px; line-height: 1.35; }
+.help dt { font-size: 14px; }
+.help .foot { margin-top: 4px; font-size: 14px; }
+
+/* ---------- menu ---------- */
+
+.menu .hint { font-size: 13px; text-align: center; }
+
+/* ---------- down ---------- */
+
+.downed .ds .look { font-size: 14px; color: #b89a88; }

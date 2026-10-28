@@ -45,7 +45,8 @@ func TestASniperShootsTheToughest(t *testing.T) {
 func TestAMissileSalvoSpreadsOut(t *testing.T) {
 	w, s := loneTurret(t, STurretMissile)
 	var cs []*Creep
-	for _, at := range [][2]float32{{4, 0}, {0, 5}, {6, 6}} {
+	// Out from the generator, so no missile thrown off its mark comes down on it.
+	for _, at := range [][2]float32{{-4, 0}, {0, -5}, {-6, -6}} {
 		cs = append(cs, spawnAt(t, w, CWalker, s.CX()+at[0], s.CY()+at[1]))
 	}
 	w.grid.build(w.Creeps)

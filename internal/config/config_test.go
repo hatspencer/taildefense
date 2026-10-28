@@ -139,7 +139,7 @@ func TestSetWritesAndKeepsOtherKeys(t *testing.T) {
 	if _, err := Set("browser", "a\nb"); err == nil {
 		t.Error("a two-line browser accepted")
 	}
-	if _, err := Set("colour", "red"); err == nil || !strings.Contains(err.Error(), "name, port, difficulty, fog, waves, browser, autoupdate") {
+	if _, err := Set("colour", "red"); err == nil || !strings.Contains(err.Error(), "name, port, difficulty, fog, waves, volume, music, browser, autoupdate") {
 		t.Errorf("unknown key: %v", err)
 	}
 	if v, err := Set("difficulty", "HARD"); err != nil || v != "hard" {
@@ -147,6 +147,24 @@ func TestSetWritesAndKeepsOtherKeys(t *testing.T) {
 	}
 	if _, err := Set("difficulty", "nightmare"); err == nil {
 		t.Error("a nonsense difficulty accepted")
+	}
+	for in, want := range map[string]string{"40": "40", " 100% ": "100", "0": "0", "off": "0", "on": "70"} {
+		if v, err := Set("volume", in); err != nil || v != want {
+			t.Errorf("volume %q: %q %v, want %q", in, v, err, want)
+		}
+	}
+	for _, in := range []string{"101", "-1", "loud"} {
+		if _, err := Set("volume", in); err == nil {
+			t.Errorf("volume %q accepted", in)
+		}
+		if _, err := Set("music", in); err == nil {
+			t.Errorf("music %q accepted", in)
+		}
+	}
+	for in, want := range map[string]string{"35": "35", "0": "0", "off": "0", "on": "50"} {
+		if v, err := Set("music", in); err != nil || v != want {
+			t.Errorf("music %q: %q %v, want %q", in, v, err, want)
+		}
 	}
 	if _, err := Set("name", "  Grace   Hopper "); err != nil {
 		t.Fatal(err)

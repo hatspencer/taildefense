@@ -336,36 +336,70 @@ func (w *World) stepPlayers() {
 		// Marking for Dead Eye, the survivor holds fire.
 		fire := target >= 0 && !p.marking()
 		p.Firing = fire && ws.Reload <= 0
+		p.spool(p.Firing)
 		if fire {
 			c := &w.Creeps[target]
 			ang := float32(math.Atan2(float64(c.Y-p.Y), float64(c.X-p.X)))
 			p.Aim = ang
-			w.shooter = int8(p.ID)
-			for ws.Cool <= 0 && ws.Reload <= 0 && ws.Ammo > 0 {
-				if p.noise <= 0 {
-					p.noise = noiseEvery
-					w.noise(p)
-				}
-				w.shoot(p, st, ang)
-				if Weapons[p.Cur].Fire == FireMelee {
-					ws.Cool += 1 / st.Rate
-					continue
-				}
-				// No reloading while an ultimate runs.
-				if !p.ulting(p.Cur) {
-					ws.Ammo--
-				}
-				ws.Cool += 1 / st.Rate
-				if ws.Ammo == 0 {
-					ws.Reload = st.Reload
-				}
-			}
-			w.shooter = -1
+			w.pull(p, st, ang, true)
 		}
 		if ws.Cool < 0 {
 			ws.Cool = 0
 		}
 	}
+}
+
+// pull is the trigger held at ang for a tick: every round the weapon in hand's rate lets go,
+// until its magazine runs dry and starts its reload. Melee never runs dry, nor does a gun
+// under its ultimate. loud makes the noise that draws creeps.
+func (w *World) pull(p *Player, st Stats, ang float32, loud bool) {
+	ws := &p.Weapons[p.Cur]
+	w.shooter = int8(p.ID)
+	for ws.Cool <= 0 && ws.Reload <= 0 && ws.Ammo > 0 {
+		if loud && p.noise <= 0 {
+			p.noise = noiseEvery
+			w.noise(p)
+		}
+		w.shoot(p, st, ang)
+		ws.Cool += 1 / st.Rate
+		if Weapons[p.Cur].Fire == FireMelee || p.ulting(p.Cur) {
+			continue
+		}
+		if ws.Ammo--; ws.Ammo == 0 {
+			ws.Reload = st.Reload
+		}
+	}
+	w.shooter = -1
+}
+
+// The minigun's barrels spin up as it fires: spinIdle of the full rate from cold, full after
+// spinUp seconds of firing, and back to cold over spinDown seconds of not firing, a reload
+// included. It is the price of the heaviest stream of fire in the game: a minigun brought up
+// on a creep already in your face fires at under a third of its rate, and is outshot by an SMG
+// for its first two seconds. Overdrive spins
+// it up at once.
+const (
+	spinIdle = .3
+	spinUp   = 2
+	spinDown = 1.5
+)
+
+// spool spins p's minigun up a tick while it fires and down while it does not.
+func (p *Player) spool(firing bool) {
+	ws := &p.Weapons[WMinigun]
+	switch {
+	case p.ulting(WMinigun):
+		ws.Spin = 1
+	case firing && p.Cur == WMinigun:
+		ws.Spin = min(ws.Spin+Dt/spinUp, 1)
+	default:
+		ws.Spin = max(ws.Spin-Dt/spinDown, 0)
+	}
+}
+
+// spinRate is the share of its full rate p's minigun fires at, spun as it is.
+func (p *Player) spinRate() float32 {
+	return spinIdle + (1-spinIdle)*p.Weapons[WMinigun].Spin
 }
 
 // coreHeal is the HP a second a survivor gets back standing right by the generator, and

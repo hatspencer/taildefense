@@ -182,6 +182,7 @@ export class Input {
     const ctl = this.ctl, hud = this.hud;
     ctl.shift = e.shiftKey;
     if (hud.chatOpen()) return; // the chat input handles its own keys
+    if (hud.navKey(e)) return; // an open window's arrows, Tab and Enter
     const k = e.key;
     const up = letter(e);
     if (k === 'Tab') { e.preventDefault(); hud.showScore(true); return; }

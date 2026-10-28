@@ -165,13 +165,13 @@ type WeaponDef struct {
 
 // Weapons is indexed by WeaponKind.
 var Weapons = [NumWeapons]WeaponDef{
-	WPistol:   {Name: "Pistol", Short: "PST", Price: 0, Damage: 14, Rate: 3, Range: 14, Mag: 12, Reload: 1.1, Pellets: 1, Spread: .03, Special: "+1 pierce"},
+	WPistol:   {Name: "Pistol", Short: "PST", Price: 0, Damage: 15, Rate: 3, Range: 14, Mag: 12, Reload: 1.1, Pellets: 1, Spread: .03, Special: "+1 pierce"},
 	WShotgun:  {Name: "Shotgun", Short: "SHG", Price: 250, Damage: 13, Rate: 1.3, Range: 10, Mag: 6, Reload: 1.8, Pellets: 7, Spread: .3, Pierce: 1, Special: "+2 pellets, +knockback"},
-	WSMG:      {Name: "SMG", Short: "SMG", Price: 400, Damage: 8, Rate: 11, Range: 12, Mag: 40, Reload: 1.6, Pellets: 1, Spread: .09, Special: "+1 pierce"},
-	WRifle:    {Name: "Rifle", Short: "RFL", Price: 650, Damage: 60, Rate: 1.4, Range: 28, Mag: 5, Reload: 2, Pellets: 1, Spread: .01, Pierce: 3, Special: "+2 pierce"},
+	WSMG:      {Name: "SMG", Short: "SMG", Price: 400, Damage: 11, Rate: 12, Range: 12, Mag: 50, Reload: 1.6, Pellets: 1, Spread: .09, Special: "+1 pierce"},
+	WRifle:    {Name: "Rifle", Short: "RFL", Price: 650, Damage: 80, Rate: 1.5, Range: 28, Mag: 5, Reload: 2, Pellets: 1, Spread: .01, Pierce: 3, Special: "+2 pierce"},
 	WMinigun:  {Name: "Minigun", Short: "MNG", Price: 1400, Damage: 9, Rate: 22, Range: 16, Mag: 150, Reload: 3.5, Pellets: 1, Spread: .12, Special: "+1 pierce, +burn"},
-	WLauncher: {Name: "Rocket launcher", Short: "RKT", Price: 2000, Damage: 140, Rate: .8, Range: 24, Mag: 4, Reload: 2.6, Pellets: 1, Spread: .02, Fire: FireRocket, Blast: 3, Special: "+blast radius"},
-	WCrowbar:  {Name: "Crowbar", Short: "BAR", Price: 0, Damage: 34, Rate: 1.8, Range: 1.9, Mag: 1, Reload: 0, Pellets: 1, Spread: .8, Fire: FireMelee, Special: "+wider swing"},
+	WLauncher: {Name: "Rocket launcher", Short: "RKT", Price: 2000, Damage: 120, Rate: .8, Range: 24, Mag: 4, Reload: 2.6, Pellets: 1, Spread: .02, Fire: FireRocket, Blast: 3, Special: "+blast radius"},
+	WCrowbar:  {Name: "Crowbar", Short: "BAR", Price: 0, Damage: 42, Rate: 2, Range: 1.9, Mag: 1, Reload: 0, Pellets: 1, Spread: .8, Fire: FireMelee, Special: "+wider swing"},
 }
 
 // DualBit marks, in a frame's byte of owned weapons, a survivor with a second pistol.
@@ -209,6 +209,11 @@ type Stats struct {
 	Pellets, Pierce                                  int
 }
 
+// pistolDamageLevel is what each level of the pistol's damage track adds to it, more than the
+// others' .22: the free gun is the one a survivor upgrades first and longest, and a pair of
+// them fully bought keeps up late.
+const pistolDamageLevel = .3
+
 // WeaponStats applies upgrade levels to a weapon's base stats.
 func WeaponStats(w WeaponKind, lv [NumTracks]uint8) Stats {
 	d := Weapons[w]
@@ -228,6 +233,7 @@ func WeaponStats(w WeaponKind, lv [NumTracks]uint8) Stats {
 	sp := int(lv[TrackSpecial])
 	switch w {
 	case WPistol:
+		s.Damage = d.Damage * (1 + pistolDamageLevel*float32(lv[TrackDamage]))
 		s.Pierce += sp
 	case WSMG:
 		s.Pierce += sp
@@ -323,15 +329,15 @@ var Structs = [NumStructKinds]StructDef{
 	SWall:          {Name: "Wall", Price: 20, HP: 320, W: 1, H: 1, Key: '1', Desc: "Blocks creeps: they walk round a maze of them however long, and break in only where the base is sealed."},
 	SGate:          {Name: "Gate", Price: 45, HP: 320, W: 1, H: 1, Key: '2', Desc: "Survivors walk through it. Shut, it is a wall to the dead; open (E), they walk through rather than break in."},
 	STurretGun:     {Name: "Gun turret", Price: 120, HP: 220, W: 1, H: 1, Range: 9, Damage: 11, Rate: 4, Turret: true, Key: '3', Desc: "Fast single shots at the nearest creep.", Special: "+1 pierce"},
-	STurretCannon:  {Name: "Cannon", Price: 240, HP: 280, W: 1, H: 1, Range: 11, Damage: 60, Rate: .7, Blast: 2.2, Turret: true, Key: '4', Desc: "Slow shells that burst on a crowd.", Special: "+blast radius"},
-	STurretFrost:   {Name: "Frost tower", Price: 180, HP: 220, W: 1, H: 1, Range: 6, Damage: 3, Rate: 1, Slow: 1.6, Turret: true, Key: '5', Desc: "Pulses cold, slowing everything around it.", Special: "+slow time"},
-	STurretTesla:   {Name: "Tesla coil", Price: 320, HP: 220, W: 1, H: 1, Range: 8, Damage: 32, Rate: 1.2, Chains: 1, Turret: true, Key: '6', Desc: "Lightning that jumps from creep to creep.", Special: "+2 jumps, further"},
-	STurretSniper:  {Name: "Sniper tower", Price: 380, HP: 200, W: 1, H: 1, Range: 22, Damage: 150, Rate: .35, Pierce: 1, Turret: true, Key: '7', Desc: "A slow, heavy round from far off at the toughest creep it can see.", Special: "+1 pierce"},
-	STurretMissile: {Name: "Missile battery", Price: 420, HP: 260, W: 1, H: 1, Range: 14, Damage: 45, Rate: .5, Blast: 1.5, Salvo: 3, Turret: true, Key: '8', Desc: "A salvo of small rockets, each at a different creep.", Special: "+1 missile"},
+	STurretCannon:  {Name: "Cannon", Price: 240, HP: 280, W: 1, H: 1, Range: 11, Damage: 60, Rate: .6, Blast: 2.2, Turret: true, Key: '4', Desc: "Slow, heavy shells that burst on a crowd.", Special: "+blast radius"},
+	STurretFrost:   {Name: "Frost tower", Price: 180, HP: 220, W: 1, H: 1, Range: 6, Damage: 3, Rate: 1, Slow: 1.6, Turret: true, Key: '5', Desc: "Pulses cold, slowing everything around it.", Special: "+deeper slow"},
+	STurretTesla:   {Name: "Tesla coil", Price: 280, HP: 220, W: 1, H: 1, Range: 8, Damage: 36, Rate: 1.2, Chains: 2, Turret: true, Key: '6', Desc: "Lightning that jumps from creep to creep.", Special: "+2 jumps, further"},
+	STurretSniper:  {Name: "Sniper tower", Price: 380, HP: 200, W: 1, H: 1, Range: 22, Damage: 150, Rate: .35, Pierce: 1, Turret: true, Key: '7', Desc: "A slow, heavy round from far off at the toughest creep it can see, tearing out a share of its health: the boss killer.", Special: "+1 pierce"},
+	STurretMissile: {Name: "Missile battery", Price: 420, HP: 260, W: 1, H: 1, Range: 14, Damage: 45, Rate: .5, Blast: 2, Salvo: 3, Turret: true, Key: '8', Desc: "A salvo of rockets with a wide blast, each at a different creep, coming down only near it.", Special: "+1 missile"},
 	STrapSpikes:    {Name: "Spike strip", Price: 60, HP: 300, W: 1, H: 1, Damage: 22, Floor: true, Key: '9', Desc: "Cuts every creep that walks over it, wearing down as it does. Lay it in a maze's lanes."},
 	STrapTar:       {Name: "Tar pit", Price: 50, HP: 300, W: 1, H: 1, Slow: .6, Floor: true, Key: '0', Desc: "Slows every creep that wades through it, so they spend longer under the guns."},
 	STrapVent:      {Name: "Flame vent", Price: 150, HP: 300, W: 1, H: 1, Range: 1.7, Damage: 40, Rate: .35, Floor: true, Key: '-', Desc: "Bursts into flame when a creep steps on it, setting everything round it alight."},
-	STrapMine:      {Name: "Mine", Price: 40, HP: 100, W: 1, H: 1, Range: 2.4, Damage: 260, Floor: true, Key: '=', Desc: "Blows up under the first creep to step on it. Rebuild all (H) lays it again."},
+	STrapMine:      {Name: "Mine", Price: 40, HP: 100, W: 1, H: 1, Range: 3, Damage: 260, Floor: true, Key: '=', Desc: "Blows up under the first creep to step on it, harder every wave. Rebuild all (H) lays it again."},
 	SPylon:         {Name: "Pylon", Price: 200, HP: 260, W: 1, H: 1, Range: 3, Tier: PylonTier, Key: '[', Desc: "An amplifier: every turret within 3 tiles fires 15% faster; two in reach of one turret don't add up. Needs the generator at tier II."},
 }
 
@@ -380,7 +386,19 @@ type TurretStat struct {
 	Blast, Slow, Hop    float32
 	Pierce, Chains      int
 	Salvo               int
+	Chill               float32 // a frost tower: the share of its pace a slowed creep loses
+	Share               float32 // a sniper: the share of its mark's full health a round adds
+	Scatter             float32 // a missile battery: how far off its mark a missile may land
 }
+
+// Turrets' numbers past StructDef's.
+const (
+	frostChill     = .45 // the share of its pace a frost tower's cold takes at level 0
+	frostChillStep = .06 // and what each level of its special adds
+	maxChill       = .85
+	sniperShare    = .016 // of its mark's full health a sniper round adds, at level 0
+	missileScatter = 1.6  // tiles round its mark a missile may come down
+)
 
 // TurretStats applies a turret's track levels to its base numbers.
 func TurretStats(k StructKind, lv [NumTracks]uint8) TurretStat {
@@ -394,17 +412,21 @@ func TurretStats(k StructKind, lv [NumTracks]uint8) TurretStat {
 		Pierce: d.Pierce, Chains: d.Chains, Salvo: d.Salvo,
 	}
 	switch k {
-	case STurretGun, STurretSniper:
+	case STurretSniper:
+		s.Share = sniperShare * (1 + .3*float32(lv[TrackDamage]))
+		fallthrough
+	case STurretGun:
 		s.Pierce += int(sp)
 	case STurretCannon:
-		s.Blast += .35 * float32(sp)
+		s.Blast += .3 * float32(sp)
 	case STurretFrost:
-		s.Slow += .4 * float32(sp)
+		s.Chill = frostChill + frostChillStep*float32(sp)
 	case STurretTesla:
 		s.Chains += 2 * int(sp)
 		s.Hop += .5 * float32(sp)
 	case STurretMissile:
 		s.Salvo += int(sp)
+		s.Scatter = missileScatter
 	}
 	return s
 }
@@ -429,7 +451,7 @@ func TurretTrackValue(k StructKind, t Track, level uint8) string {
 	case STurretCannon:
 		return fmt.Sprintf("%.1f blast", st.Blast)
 	case STurretFrost:
-		return fmt.Sprintf("%.1fs slow", st.Slow)
+		return fmt.Sprintf("%.0f%% slow", st.Chill*100)
 	case STurretTesla:
 		return fmt.Sprintf("%d creeps, %.1f jump", st.Chains+1, st.Hop)
 	case STurretMissile:

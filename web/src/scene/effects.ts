@@ -685,6 +685,19 @@ export class Effects {
           writeMatrix(sa, ns++ * 16, x, y, z, t * 4, 1 + 0.12 * Math.sin(t * 17));
           if (spawnFire) this.glow.add(t, x, y - 0.3, z, 0, -1.5, 0, 0.45, 0x9ad030, 0.18, 0.08, 6, 1, 0.8);
         }
+      } else if (k === EffectKind.Spit) {
+        // A spitter's glob: low and quick, a small sac dripping as it goes, to where its mark
+        // stood when it was spat, so it can be seen coming and stepped out of.
+        const p = 1 - left / total;
+        const d = Math.hypot(f.eX[i] - f.eX0[i], f.eY[i] - f.eY0[i]);
+        const x = f.eX0[i] + (f.eX[i] - f.eX0[i]) * p, z = f.eY0[i] + (f.eY[i] - f.eY0[i]) * p;
+        const y = 1.1 + 4 * p * (1 - p) * Math.max(0.6, d * 0.12) - p * 0.8;
+        writeMatrix(sa, ns++ * 16, x, y, z, t * 9, 0.32);
+        if (spawnFire) this.glow.add(t, x, y, z, 0, -0.6, 0, 0.3, 0x9ad030, 0.12, 0.06, 3, 1, 0.8);
+        if (left < 0.06) for (let j = 0; j < 5; j++) {
+          const a = Math.random() * 6.28;
+          this.glow.add(t, f.eX[i], 0.2, f.eY[i], Math.cos(a) * 2, 1.5 + Math.random(), Math.sin(a) * 2, 0.35, 0xa8e040, 0.14, 0.1, 6, 1, 0.8);
+        }
       } else if (k === EffectKind.Acid) {
         // The pool a sac leaves: seething green, bubbles bursting on it and a sour haze off it.
         const s = r * Math.min(1, (total - left) * 5) * (left < 0.8 ? left / 0.8 : 1);

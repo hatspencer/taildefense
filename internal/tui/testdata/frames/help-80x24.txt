@@ -1,24 +1,24 @@
-
-  ▄▄▄▄▄▄  ▄▄▄▄  ▄▄ ▄▄     ▄▄▄▄▄  ▄▄▄▄▄▄ ▄▄▄▄▄▄ ▄▄▄▄▄▄ ▄▄  ▄▄  ▄▄▄▄▄ ▄▄▄▄▄▄
-  ▀▀▀▀▀▀ ▀█  ▀▀ ▀▀ ▀▀     ▀▀  ▀▀ ▀▀     ▀▀     ▀▀     ▀▀▀▄▀▀ ▀▀     ▀▀
-    ▀▀   ▀▀▀▀▀▀ ▀▀ ▀▀     ▀▀  ▀▀ ▀▀▀▀▀  ▀▀▀▀▀  ▀▀▀▀▀  ▀▀ ▀▀▀  ▀▀▀▀▄ ▀▀▀▀▀
-    ▀▀   ▀▀  ▀▀ ▀▀ ▀▀▀▀▀▀ ▀▀▄▄▀▀ ▀▀▄▄▄▄ ▀▀     ▀▀▄▄▄▄ ▀▀  ▀▀ ▄▄▄▄▀▀ ▀▀▄▄▄▄
-  co-op wave defense over your tailnet
-
-  td abc1234  ✔ updated abc1234 → def5678 · R restart now
-  ● box  100.64.0.7  ada@example.com
-  ✘ could not join pal: this host runs game protocol 2 and you run 1; whoever i…
+  TAIL DEFENSE  launcher keys
 
   Keys  any key closes
 
-  ↑↓ k j        move                                                           …
-  enter         choose                                                         …
-  esc q         back; quit from the menu                                       …
-  ?             this help                                                      …
-  u             run td update now, when one is waiting or a host asked for it  …
-  R             restart into the new td after an update                        …
-  r             look for games again now (it also does every 5 s)              …
-  a             type an address: host, host:port or a tailnet IP               …
-  ↑↓ pgup pgdn  scroll                                                         …
-  r             read the changelog again                                       …
+  everywhere  ↑↓ k j tab    move
+              enter         choose
+              esc q         back; quit from the menu
+              ?             this help
+              u             td update now, when one waits or a host asks
+              R             restart into the new td after an update
+              ctrl+c        quit
+  host        ← →           the difficulty to host at
+              w             how long: 20, 30 or 40 waves, or endless
+              f             fog of war on or off
+              y             copy the command friends join with
+  join        r             look again now (it does every 5 s)
+              a             type an address: host, host:port or IP
+  changelog   ↑↓ pgup pgdn  scroll
+              r             read the changelog again
+  doctor      r             run the checks again
+  settings    enter         edit a setting, or flip an on/off one
+              esc           cancel an edit
+
   any key closes
