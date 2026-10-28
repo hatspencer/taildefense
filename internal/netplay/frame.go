@@ -38,6 +38,11 @@ const (
 	flagStrike  = 1 << 7
 )
 
+// More creep flags, in a second byte.
+const (
+	fxFrenzy = 1 << 0 // lost its patience with the maze: faster, tearing through walls
+)
+
 // Player flags on the wire.
 const (
 	pConnected = 1 << iota
@@ -59,6 +64,7 @@ type Encoder struct {
 	alive    bitset
 	x, y     [game.MaxCreeps]uint16
 	hp, fl   [game.MaxCreeps]uint8
+	fx       [game.MaxCreeps]uint8 // more flags (fxFrenzy)
 	tg       [game.MaxCreeps]uint8 // the chased player's id, 255 none
 	kind     [game.MaxCreeps]uint8
 	curAlive bitset
@@ -83,12 +89,13 @@ type structRec struct {
 	level               uint8
 	lv                  [game.NumTracks]uint8
 	owner               int8
+	open                bool
 	hpDirty, shapeDirty bool
 }
 
 func structOf(s *game.Structure) structRec {
 	return structRec{alive: s.Alive, ghost: s.Ghost, kind: s.Kind, x: uint16(s.X), y: uint16(s.Y), w: s.W, h: s.H,
-		hp: uint16(max(math.Ceil(float64(s.HP)), 0)), max: uint16(s.MaxHP), level: s.Level, lv: s.Lv, owner: s.Owner}
+		hp: uint16(max(math.Ceil(float64(s.HP)), 0)), max: uint16(s.MaxHP), level: s.Level, lv: s.Lv, owner: s.Owner, open: s.Open}
 }
 
 func hp8(hp, maxHP float32) uint8 {
@@ -123,6 +130,14 @@ func creepFlags(c *game.Creep) uint8 {
 		f |= flagWindup
 	case game.SwingStrike:
 		f |= flagStrike
+	}
+	return f
+}
+
+func creepFx(c *game.Creep) uint8 {
+	var f uint8
+	if c.Frenzy {
+		f |= fxFrenzy
 	}
 	return f
 }
@@ -189,9 +204,9 @@ func (e *Encoder) Delta(w *game.World, atArmory func(*game.Player) bool) []byte 
 		b.i8(int8(dy))
 		e.x[id] = uint16(int(e.x[id]) + dx)
 		e.y[id] = uint16(int(e.y[id]) + dy)
-		h, f, tg := hp8(c.HP, c.MaxHP), creepFlags(c), creepTarget(c)
-		if h != e.hp[id] || f != e.fl[id] || tg != e.tg[id] {
-			e.hp[id], e.fl[id], e.tg[id] = h, f, tg
+		h, f, fx, tg := hp8(c.HP, c.MaxHP), creepFlags(c), creepFx(c), creepTarget(c)
+		if h != e.hp[id] || f != e.fl[id] || fx != e.fx[id] || tg != e.tg[id] {
+			e.hp[id], e.fl[id], e.fx[id], e.tg[id] = h, f, fx, tg
 			changed = append(changed, id)
 		}
 	})
@@ -201,7 +216,7 @@ func (e *Encoder) Delta(w *game.World, atArmory func(*game.Player) bool) []byte 
 		c := &w.Creeps[e.cur[id]]
 		e.alive.set(id)
 		e.x[id], e.y[id] = qpos(c.X), qpos(c.Y)
-		e.hp[id], e.fl[id], e.kind[id], e.tg[id] = hp8(c.HP, c.MaxHP), creepFlags(c), uint8(c.Kind), creepTarget(c)
+		e.hp[id], e.fl[id], e.fx[id], e.kind[id], e.tg[id] = hp8(c.HP, c.MaxHP), creepFlags(c), creepFx(c), uint8(c.Kind), creepTarget(c)
 		b.uv(uint64(int(id) - prev))
 		prev = int(id)
 		e.creepRec(b, id)
@@ -213,6 +228,7 @@ func (e *Encoder) Delta(w *game.World, atArmory func(*game.Player) bool) []byte 
 		prev = int(id)
 		b.u8(e.hp[id])
 		b.u8(e.fl[id])
+		b.u8(e.fx[id])
 		b.u8(e.tg[id])
 	}
 	e.removed, e.added, e.changed = removed, added, changed
@@ -229,7 +245,7 @@ func (e *Encoder) Delta(w *game.World, atArmory func(*game.Player) bool) []byte 
 			r = structOf(&w.Structs[i])
 		}
 		o := &e.structs[i]
-		o.shapeDirty = r.alive != o.alive || r.ghost != o.ghost || r.kind != o.kind || r.level != o.level || r.lv != o.lv || r.max != o.max || r.x != o.x || r.y != o.y
+		o.shapeDirty = r.alive != o.alive || r.ghost != o.ghost || r.kind != o.kind || r.level != o.level || r.lv != o.lv || r.max != o.max || r.x != o.x || r.y != o.y || r.open != o.open
 		o.hpDirty = !o.shapeDirty && r.hp != o.hp
 		if o.shapeDirty {
 			nShape++
@@ -308,6 +324,7 @@ func (e *Encoder) creepRec(b *enc, id uint16) {
 	b.u16(e.y[id])
 	b.u8(e.hp[id])
 	b.u8(e.fl[id])
+	b.u8(e.fx[id])
 	b.u8(e.tg[id])
 }
 
@@ -330,6 +347,11 @@ func structRecord(b *enc, r *structRec) {
 	b.u8(r.level)
 	b.b = append(b.b, r.lv[:]...)
 	b.i8(r.owner)
+	var state uint8
+	if r.open {
+		state |= 1
+	}
+	b.u8(state)
 }
 
 func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool) {

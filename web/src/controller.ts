@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import type { CameraRig } from './camera';
-import { canTake, EvacStage, K_ARMORY, lootable, stickyKind, repairCost, walled, type Command, Order, PF_ALIVE, PF_ARMORY, PF_CONNECTED, OWNED_DUAL, PF_READY, Phase, PingKind, SiteKind, siteX, siteY, Tile } from './protocol';
+import { canTake, EvacStage, K_ARMORY, lootable, stickyKind, repairCost, walled, type Command, Order, PF_ALIVE, PF_ARMORY, PF_CONNECTED, OWNED_DUAL, PF_READY, Phase, PingKind, SiteKind, siteX, siteY, Tile, K_GATE } from './protocol';
 import type { Effects } from './scene/effects';
 import type { Game } from './state';
 
@@ -333,7 +333,7 @@ export class Controller {
       if (!f.sAlive[s]) continue;
       const cx = f.sX[s] + f.sW[s] / 2, cy = f.sY[s] + f.sH[s] / 2, slack = Math.max(f.sW[s], f.sH[s]) / 2;
       const mine = f.sOwner[s] === me.id || f.sOwner[s] === -1;
-      if (f.sKind[s] === K_ARMORY || (mine && f.sHp[s] < f.sMaxHp[s])) take({ t: 'struct', id: s }, cx, cy, slack);
+      if (f.sKind[s] === K_ARMORY || f.sKind[s] === K_GATE || (mine && f.sHp[s] < f.sMaxHp[s])) take({ t: 'struct', id: s }, cx, cy, slack);
     }
     return best;
   }
@@ -363,6 +363,7 @@ export class Controller {
         if (me.flags & PF_ARMORY) this.openArmory(!this.armoryOpen); else this.walkToArmory();
         return true;
       }
+      if (kind === K_GATE) { this.swingGate(s); return true; }
       const mine = f.sOwner[s] === me.id || f.sOwner[s] === -1;
       if (!mine || f.sHp[s] >= f.sMaxHp[s]) return false;
       this.send({ op: 'repair', s });
@@ -504,6 +505,9 @@ export class Controller {
 
   // --- building ---
 
+  // The maze readout under the build prompt: how far the dead walk in, or that they can't.
+  routeNote = '';
+
   startBuild(kind: number): void {
     const wd = this.game.welcome;
     if (!wd || !wd.buildable.includes(kind)) return;
@@ -556,6 +560,15 @@ export class Controller {
   sellSel(): void {
     const s = this.selectedStruct();
     if (s >= 0) { this.send({ op: 'sell', s }); this.sel = null; }
+  }
+
+  // Walks to gate s and opens or shuts it: shut, a gate is a wall to the dead; open, they walk
+  // through it.
+  swingGate(s: number): void {
+    const f = this.game.cur;
+    this.toArmory = false;
+    this.send({ op: 'gate', s });
+    this.fx.ping(f.sX[s] + 0.5, f.sY[s] + 0.5, f.sOpen[s] ? 0xff9040 : 0x50ff80);
   }
 
   repairSel(): void {

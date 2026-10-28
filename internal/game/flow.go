@@ -3,9 +3,11 @@ package game
 import "math"
 
 // flowField is the shortest way to the generator from every tile, computed once whenever a
-// structure appears or disappears and then read by every creep. A structure tile is
-// passable at a price that grows with its hit points, so creeps go round walls when a gap is
-// near and break through when it is not, which is how a besieged base should feel.
+// structure appears or disappears and then read by every creep. There are three (maze.go):
+// the maze field, where a structure is a wall a creep walks round however far that takes; the
+// same for the big creeps, which need ground two tiles wide; and the breach field, where a
+// structure tile is passable at a price that grows with its hit points, for a creep with no
+// way round, which breaks through where it is cheapest, as a besieged base should feel.
 type flowField struct {
 	w, h int
 	dist []int32
@@ -32,7 +34,8 @@ func structCost(s *Structure) int32 {
 	return 40 + int32(s.HP/5)
 }
 
-// updateFlow recomputes the field if a structure changed since the last time.
+// updateFlow recomputes the fields if a structure changed since the last time. The wide
+// field waits until a big creep asks for it (wideField).
 func (w *World) updateFlow() {
 	if !w.flowDirt {
 		return
@@ -53,11 +56,29 @@ func (w *World) updateFlow() {
 			}
 		}
 	}
-	w.fillFlow(&w.flow, w.goals)
+	w.fillField(&w.flow, w.goals, fieldBreach)
+	w.fillField(&w.maze, w.goals, fieldMaze)
+	w.wideGoals = append(w.wideGoals[:0], w.goals...)
+	w.wideDirt = true
 }
 
-// fillFlow makes f the shortest way from every tile to the nearest of goals.
-func (w *World) fillFlow(f *flowField, goals []int32) {
+// fieldKind is how a field treats structures.
+type fieldKind uint8
+
+const (
+	fieldBreach fieldKind = iota // a structure costs its hit points to cross
+	fieldMaze                    // a structure is a wall; the way round is the only way
+	fieldWide                    // as fieldMaze, on ground two tiles wide for the big creeps
+)
+
+// fillFlow makes f the breach field to the nearest of goals.
+func (w *World) fillFlow(f *flowField, goals []int32) { w.fillField(f, goals, fieldBreach) }
+
+// fillField makes f the shortest way from every tile to the nearest of goals.
+func (w *World) fillField(f *flowField, goals []int32, kind fieldKind) {
+	if kind == fieldWide {
+		w.markWide()
+	}
 	for i := range f.dist {
 		f.dist[i] = unreachable
 		f.next[i] = -1
@@ -82,13 +103,20 @@ func (w *World) fillFlow(f *flowField, goals []int32) {
 			if w.Terrain[ni].Solid() {
 				continue
 			}
-			if si := w.structAt[ni]; si >= 0 && w.Structs[si].Kind == SArmory {
+			wall := w.creepWall(ni)
+			if wall >= 0 && w.Structs[wall].Kind == SArmory {
 				continue // the armory is not a target; creeps go round it
+			}
+			if kind != fieldBreach && wall >= 0 {
+				continue
+			}
+			if kind == fieldWide && !w.wide[ni] {
+				continue
 			}
 			if dv[0] != 0 && dv[1] != 0 {
 				// No cutting corners past solid ground or between two buildings.
 				if w.Terrain[y*w.W+nx].Solid() || w.Terrain[ny*w.W+x].Solid() ||
-					w.structAt[y*w.W+nx] >= 0 || w.structAt[ny*w.W+x] >= 0 {
+					w.creepWall(y*w.W+nx) >= 0 || w.creepWall(ny*w.W+x) >= 0 {
 					continue
 				}
 			}
@@ -96,7 +124,7 @@ func (w *World) fillFlow(f *flowField, goals []int32) {
 			// ni steps to i. Breaking into a structure therefore costs the creep that stands
 			// outside it.
 			c := int32(dv[2])
-			if si := w.structAt[i]; si >= 0 && w.structAt[ni] != si {
+			if si := w.creepWall(int(i)); si >= 0 && wall != si {
 				c += structCost(&w.Structs[si])
 			}
 			nd := d + c

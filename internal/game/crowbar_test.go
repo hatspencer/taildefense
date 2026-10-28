@@ -28,7 +28,7 @@ func TestBrutalStartsWithOnlyACrowbar(t *testing.T) {
 	// It hits what is in reach, never what is not, and never runs dry.
 	p.HP, p.MaxHP = 1e6, 1e6
 	p.X, p.Y = w.CoreX+40, w.CoreY // clear of the base's turrets
-	for !w.openWalk(p.X, p.Y, p.X+6, p.Y) || !CanStand(w, p.X, p.Y) {
+	for !w.openWalk(p.X, p.Y, p.X+6, p.Y, -1) || !CanStand(w, p.X, p.Y) {
 		p.Y++
 	}
 	w.SpawnCreep(CWalker, p.X+5, p.Y)

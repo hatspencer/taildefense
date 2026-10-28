@@ -224,6 +224,11 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 		e.u8(s.Level)
 		e.b = append(e.b, s.Lv[:]...)
 		e.u8(uint8(s.Owner))
+		var state uint8
+		if s.Open {
+			state |= 1
+		}
+		e.u8(state)
 	}
 
 	e.u16(uint16(r.Count))
@@ -235,6 +240,7 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 		e.u8(r.HP[id])
 		e.u8(r.Flags[id])
 		e.u8(r.Target[id])
+		e.u8(r.FX[id])
 	})
 
 	tr, bl, de, notes, pings := r.Drain()

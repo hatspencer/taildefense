@@ -2,7 +2,9 @@ import * as THREE from 'three/webgpu';
 import { float, mix, sin, time, uniform, vertexColor } from 'three/tsl';
 import type { Frame } from '../protocol';
 import type { Structs } from './structs';
-import { setEmissive } from './util';
+import { setEmissive, writeMatrix } from './util';
+
+const ROUTE_DOTS = 4096;
 
 type RingName = 'range' | 'area' | 'build' | 'sel' | 'hover' | 'turret' | 'shop';
 
@@ -23,6 +25,8 @@ export class Overlays {
   // The outlines of structures the creeps destroyed, by structure index, and what they were.
   private ruinMat: THREE.MeshLambertNodeMaterial;
   private ruinsAt = new Map<number, { kind: number; x: number; y: number; g: THREE.Group }>();
+  // The creeps' way in through the maze: a dot on each tile of it.
+  private dots: THREE.InstancedMesh;
 
   constructor(scene: THREE.Scene, private structs: Structs) {
     scene.add(this.group);
@@ -50,6 +54,31 @@ export class Overlays {
     this.ruinMat = new THREE.MeshLambertNodeMaterial({ transparent: true, depthWrite: false });
     this.ruinMat.colorNode = mix(vertexColor().rgb, uniform(new THREE.Color(0x8fb4d8)), 0.7);
     this.ruinMat.opacityNode = sin(time.mul(2)).mul(0.05).add(0.22);
+    const dg = new THREE.PlaneGeometry(0.26, 0.26); dg.rotateX(-Math.PI / 2); dg.rotateY(Math.PI / 4);
+    const dm = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, color: 0xff6a3a });
+    dm.opacityNode = sin(time.mul(4)).mul(0.1).add(0.75);
+    this.dots = new THREE.InstancedMesh(dg, dm, ROUTE_DOTS);
+    this.dots.count = 0;
+    this.dots.renderOrder = 5;
+    this.dots.frustumCulled = false;
+    this.group.add(this.dots);
+  }
+
+  // Draws the ways in, each a list of tile indices that at(i) turns into tile x, y; none hides them.
+  route(paths: Int32Array[] | null, at?: (i: number) => [number, number], hex = 0xff6a3a): void {
+    const m = this.dots, a = m.instanceMatrix.array as Float32Array;
+    let n = 0;
+    // Tiles shared by two ways in are drawn once.
+    const done = new Set<number>();
+    if (paths && at) for (const p of paths) for (let j = 0; j < p.length - 1 && n < ROUTE_DOTS; j++) {
+      if (done.has(p[j])) continue;
+      done.add(p[j]);
+      const [x, y] = at(p[j]);
+      writeMatrix(a, n++ * 16, x + 0.5, 0.07, y + 0.5, 0, 1);
+    }
+    m.count = n;
+    m.instanceMatrix.needsUpdate = true;
+    (m.material as THREE.MeshBasicNodeMaterial).color.setHex(hex);
   }
 
   // A pale outline where each ghost stands, until it is rebuilt or built over.

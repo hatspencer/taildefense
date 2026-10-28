@@ -298,6 +298,15 @@ interface Obj {
 
 // Walls and gates: an instanced post per tile and an instanced arm towards each connected
 // neighbour, so lines of walls read as one wall.
+// outward is the unit step from tile x, y away from the generator, along the axis it is
+// further out on: where an open gate's leaves swing to.
+function outward(game: Game, x: number, y: number): [number, number] {
+  const w = game.welcome;
+  if (!w) return [0, -1];
+  const dx = x + 0.5 - w.core.x, dy = y + 0.5 - w.core.y;
+  return Math.abs(dx) > Math.abs(dy) ? [Math.sign(dx) || 1, 0] : [0, Math.sign(dy) || 1];
+}
+
 class WallSet {
   posts: THREE.InstancedMesh; arms: THREE.InstancedMesh; gposts: THREE.InstancedMesh; garms: THREE.InstancedMesh;
   constructor(private group: THREE.Group, private mat: THREE.Material, cap: number) {
@@ -503,9 +512,12 @@ export class Structs {
       const gate = k === K_GATE;
       // Each level makes the post a little stouter.
       writeMatrix(gate ? gpa : pa, (gate ? gp++ : np++) * 16, cx, 0, cz, 0, 1 + 0.07 * (f.sLevel[i] - 1));
+      // An open gate's leaves stand swung back off the gateway, out towards the wastes.
+      const out = gate && f.sOpen[i] ? outward(game, x, y) : null;
       for (const [dx, dy, a] of dirs) {
         if (!isWall(x + dx, y + dy)) continue;
-        writeMatrix(gate ? gaa : aa, (gate ? ga++ : na++) * 16, cx, 0, cz, a, 1);
+        const r = out ? Math.atan2(dy * 0.2 + out[1], dx * 0.2 + out[0]) : a;
+        writeMatrix(gate ? gaa : aa, (gate ? ga++ : na++) * 16, cx, 0, cz, r, 1);
       }
     }
     const set = (m: THREE.InstancedMesh, c: number) => { m.count = c; m.instanceMatrix.needsUpdate = true; };

@@ -171,7 +171,7 @@ func (w *World) think(c *Creep, d *CreepDef) {
 	r := w.rng.Float32()
 	switch {
 	case r < siegeChance[c.Kind]:
-		if si := w.nearbyStruct(c.X, c.Y); si >= 0 {
+		if si := w.nearbyStruct(c); si >= 0 {
 			c.Siege, c.SiegeLeft = int16(si), 10
 		}
 	case r < siegeChance[c.Kind]+huntChance[c.Kind]:
@@ -182,8 +182,11 @@ func (w *World) think(c *Creep, d *CreepDef) {
 	}
 }
 
-// nearbyStruct is the closest turret, wall or gate within siegeLook of x, y, or -1.
-func (w *World) nearbyStruct(x, y float32) int {
+// nearbyStruct is the closest turret within siegeLook of creep c that it can walk straight up
+// to, or -1; a frenzied creep goes for walls and gates as well, and through what is in the way.
+// The calm ones leave walls be, so a maze is not torn open by creeps walking its lanes.
+func (w *World) nearbyStruct(c *Creep) int {
+	x, y := c.X, c.Y
 	best, bi := float32(siegeLook*siegeLook), -1
 	x0, y0 := int(x)-siegeLook, int(y)-siegeLook
 	for ty := y0; ty <= y0+2*siegeLook; ty++ {
@@ -193,11 +196,11 @@ func (w *World) nearbyStruct(x, y float32) int {
 				continue
 			}
 			s := &w.Structs[si]
-			if !s.Alive || s.Kind == SArmory || s.Kind == SCore {
+			if !s.Alive || s.Kind == SArmory || s.Kind == SCore || !c.Frenzy && !Structs[s.Kind].Turret {
 				continue
 			}
 			dx, dy := float32(tx)+.5-x, float32(ty)+.5-y
-			if dd := dx*dx + dy*dy; dd < best {
+			if dd := dx*dx + dy*dy; dd < best && (c.Frenzy || w.openWalk(x, y, s.CX(), s.CY(), int16(si))) {
 				best, bi = dd, si
 			}
 		}
@@ -288,7 +291,7 @@ func (w *World) goHome(c *Creep, d *CreepDef, speed float32) {
 		c.think, c.SiegeLeft = 2, dist // a guard never sieges, so the field keeps the last distance
 	}
 	dl := sqrt32(dd)
-	w.moveCreep(c, d, c.X+dx/dl*speed*Dt, c.Y+dy/dl*speed*Dt)
+	w.moveCreep(c, d, c.X+dx/dl*speed*Dt, c.Y+dy/dl*speed*Dt, true)
 }
 
 // guardSize is how many guards each guard level puts on a site, before difficulty.

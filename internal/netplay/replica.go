@@ -97,6 +97,7 @@ type StructView struct {
 	Level     uint8
 	Lv        [game.NumTracks]uint8 // a turret's track levels
 	Owner     int8
+	Open      bool // a gate swung open, which creeps walk through
 }
 
 // Tracer, Blast and Death are frame events in tiles.
@@ -149,6 +150,7 @@ type Replica struct {
 	Kind   [game.MaxCreeps]uint8
 	HP     [game.MaxCreeps]uint8
 	Flags  [game.MaxCreeps]uint8
+	FX     [game.MaxCreeps]uint8 // more flags: 1 frenzied
 	Target [game.MaxCreeps]uint8 // the chased player's id, 128+ an attack's angle, 255 none
 	Flash  [game.MaxCreeps]uint8 // frames since the creep was last hurt, saturating
 	qx, qy [game.MaxCreeps]uint16
@@ -265,12 +267,12 @@ func (r *Replica) Apply(p []byte) error {
 		id = 0
 		for i := 0; i < n && d.err == nil; i++ {
 			id += int(d.uv())
-			h, f, tg := d.u8(), d.u8(), d.u8()
+			h, f, fx, tg := d.u8(), d.u8(), d.u8(), d.u8()
 			if id < game.MaxCreeps {
 				if h < r.HP[id] {
 					r.Flash[id] = 0
 				}
-				r.HP[id], r.Flags[id], r.Target[id] = h, f, tg
+				r.HP[id], r.Flags[id], r.FX[id], r.Target[id] = h, f, fx, tg
 			}
 		}
 	}
@@ -305,6 +307,7 @@ func (r *Replica) Apply(p []byte) error {
 			s.Lv[t] = d.u8()
 		}
 		s.Owner = d.i8()
+		s.Open = d.u8()&1 != 0
 		r.Structs[idx] = s
 	}
 	if !key {
@@ -398,12 +401,12 @@ func (r *Replica) Apply(p []byte) error {
 }
 
 func (r *Replica) creepRec(d *dec, id int) {
-	k, x, y, h, f, tg := d.u8(), d.u16(), d.u16(), d.u8(), d.u8(), d.u8()
+	k, x, y, h, f, fx, tg := d.u8(), d.u16(), d.u16(), d.u8(), d.u8(), d.u8(), d.u8()
 	if id >= game.MaxCreeps || d.err != nil {
 		return
 	}
 	r.Alive.set(uint16(id))
-	r.Kind[id], r.HP[id], r.Flags[id], r.Target[id] = k, h, f, tg
+	r.Kind[id], r.HP[id], r.Flags[id], r.FX[id], r.Target[id] = k, h, f, fx, tg
 	r.qx[id], r.qy[id] = x, y
 	r.CX[id], r.CY[id] = unq(x), unq(y)
 	r.PX[id], r.PY[id] = r.CX[id], r.CY[id]

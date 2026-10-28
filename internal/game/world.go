@@ -62,6 +62,11 @@ type Creep struct {
 	grip         uint8
 	hold, gripHP float32
 	grab         float32
+	// Patience with a maze (maze.go): the ground walked inside the build ring, how much it will
+	// walk before it frenzies (0 until it first comes in), and whether it has.
+	trek, trekMax float32
+	Frenzy        bool
+	ox, oy        float32 // where it stood a tick ago
 }
 
 // Structure is a building. Index in World.Structs is its ID; dead slots are reused.
@@ -76,6 +81,7 @@ type Structure struct {
 	Cool      float32
 	Alive     bool
 	Ghost     bool // destroyed, not sold: its outline stays to be rebuilt (see FixAll)
+	Open      bool // a gate swung open: open ground to creeps as well as survivors (maze.go)
 }
 
 // CX and CY are the structure's centre.
@@ -374,13 +380,22 @@ type World struct {
 	shooter     int8 // the player whose shot is being resolved, -1 for turrets and the sky
 
 	structAt []int16 // per tile, structure index or -1
-	flow     flowField
-	flowDirt bool
-	goals    []int32
-	bell     bell // the church bell (church.go)
-	chase    [MaxPlayers]chaseField
-	grid     spatial
-	freeIDs  []uint16
+	// The fields to the generator (flow.go, maze.go): the breach field, the maze field, and
+	// the maze field for the big creeps with the tiles they fit on, worked out only when one
+	// asks for it.
+	flow      flowField
+	maze      flowField
+	mazeWide  flowField
+	wide      []bool
+	wideGoals []int32
+	wideDirt  bool
+	flowDirt  bool
+	frenzied  bool // a creep of this wave has frenzied, and the team has been told
+	goals     []int32
+	bell      bell // the church bell (church.go)
+	chase     [MaxPlayers]chaseField
+	grid      spatial
+	freeIDs   []uint16
 	// Ids of creeps gone this tick, free from the next. A client diffs one tick against the
 	// last, so an id dying and spawning again within a tick would look like the old creep
 	// moving: it would keep its kind and slide across the map to the new one.
@@ -424,6 +439,8 @@ func NewGame(seed uint64, diff Difficulty) *World {
 	wd.paths.init(w, h)
 	wd.grid.init(w, h)
 	wd.flow.init(w, h)
+	wd.maze.init(w, h)
+	wd.mazeWide.init(w, h)
 	wd.buildBase()
 	wd.SpawnPts = spawnPoints(wd.Terrain, w, h)
 	wd.Phase = PhaseBuild
