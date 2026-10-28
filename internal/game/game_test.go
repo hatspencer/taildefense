@@ -138,7 +138,7 @@ func TestShopAndBuild(t *testing.T) {
 	if n := w.Notes[len(w.Notes)-1]; n.Level != NoteBrief || n.Text != p.Name+" upgraded a "+Structs[STurretTesla].Name+"'s fire rate to 1" {
 		t.Errorf("upgrade note %+v", n)
 	}
-	if st := TurretStats(STurretTesla, s.Lv); st.Chains != 11 || st.Rate <= Structs[STurretTesla].Rate {
+	if st := TurretStats(STurretTesla, s.Lv); st.Chains != Structs[STurretTesla].Chains+2*MaxLevel || st.Rate <= Structs[STurretTesla].Rate {
 		t.Errorf("tesla at %v: %+v", s.Lv, st)
 	}
 	spent := Structs[STurretTesla].Price + TurretUpgradeCost(STurretTesla, 0)

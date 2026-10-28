@@ -35,7 +35,7 @@ export class Lab {
     if (at === 'fx') return [this.fx() + 4.5, this.y0 + 2.5];
     if (/^h\d$/.test(at)) { const i = Number(at[1]); return [this.x0 + COLS.length * DX + 2.5 + (i % 2) * 3.4, this.y0 + Math.floor(i / 2) * DY]; }
     if (at === 'h') return [this.x0 + COLS.length * DX + 4.2, this.y0 + 1.5 * DY];
-    if (at !== '') return [this.x0 + 3 * DX, this.y0 + Number(at) * DY];
+    if (at !== '' && !Number.isNaN(Number(at))) return [this.x0 + 3 * DX, this.y0 + Number(at) * DY];
     return [this.x0 + 3 * DX + 3, this.y0 + 2.5 * DY];
   }
 
