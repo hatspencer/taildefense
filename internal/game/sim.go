@@ -1079,7 +1079,7 @@ func (w *World) hit(i int32, dmg float32, owner int8, stun float32) {
 		c.stun(stun)
 	}
 	if owner >= 0 {
-		c.LastHit = owner
+		c.LastHit, c.Shared = owner, w.turretFire || w.trap
 		if int(owner) < len(w.Players) {
 			p := w.Players[owner]
 			p.Damage += float64(d)
@@ -1311,7 +1311,30 @@ func (w *World) stepRockets() {
 
 // ---- bookkeeping -----------------------------------------------------------------------
 
-// reap removes dead creeps, pays their bounties, and tears down destroyed structures.
+// share splits a bounty a turret or a trap earned evenly among the survivors in the game, what
+// does not divide kept for the next, so the team's gold is the same as had one taken it all.
+func (w *World) share(g int32) {
+	var n int32
+	for _, p := range w.Players {
+		if p.Connected {
+			n++
+		}
+	}
+	w.pot += g
+	if n == 0 {
+		return
+	}
+	each := w.pot / n
+	w.pot -= each * n
+	for _, p := range w.Players {
+		if p.Connected {
+			p.Gold += each
+		}
+	}
+}
+
+// reap removes dead creeps, pays their bounties, and tears down destroyed structures. A kill by
+// a survivor's own hand pays them; one by their turret or a trap they set off pays the team.
 func (w *World) reap() {
 	mult := (1 + .04*float32(w.Wave)) * w.diff().Gold
 	for i := 0; i < len(w.Creeps); {
@@ -1325,7 +1348,11 @@ func (w *World) reap() {
 		}
 		if c.LastHit >= 0 && int(c.LastHit) < len(w.Players) {
 			p := w.Players[c.LastHit]
-			p.Gold += int32(float32(Creeps[c.Kind].Bounty) * mult)
+			if g := int32(float32(Creeps[c.Kind].Bounty) * mult); c.Shared {
+				w.share(g)
+			} else {
+				p.Gold += g
+			}
 			p.Kills++
 			if c.Kind.Boss() {
 				p.Tally.Bosses++

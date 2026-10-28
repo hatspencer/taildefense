@@ -342,6 +342,7 @@ type cmd struct {
 	W     int     `json:"w"`
 	Track int     `json:"track"`
 	G     int     `json:"g"`
+	Gold  int     `json:"gold"`
 	On    bool    `json:"on"`
 	Text  string  `json:"text"`
 }
@@ -432,6 +433,8 @@ func (s *session) command(p []byte) bool {
 		nc = netplay.Cmd{Op: netplay.OpPickup, T: u16(c.ID)}
 	case "board":
 		nc = netplay.Cmd{Op: netplay.OpBoard}
+	case "give":
+		nc = netplay.Cmd{Op: netplay.OpGive, A: u8(c.P), T: u16(c.Gold)}
 	case "ready":
 		nc = netplay.Cmd{Op: netplay.OpReady}
 		if c.On {

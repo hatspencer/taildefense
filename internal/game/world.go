@@ -17,6 +17,7 @@ type Creep struct {
 	ID        uint16
 	Kind      CreepKind
 	LastHit   int8 // player who last damaged it, -1 none, for the bounty
+	Shared    bool // that hit was their turret's or a trap's, so the whole team shares the bounty
 	Hit       uint8
 
 	// Aggro: a creep hunts a survivor it was pulled, taunted or provoked by, or goes for a
@@ -222,6 +223,7 @@ type Effect struct {
 	Damage       float32 // on landing, or per second for a pool
 	Owner        int8
 	Lv           uint8 // a grenade's level; a slam's creep kind
+	Trap         bool  // burning fuel from a pump or an engine: what it kills pays the team
 }
 
 // Toast is a message for one player only, such as why a build was refused.
@@ -323,6 +325,8 @@ type World struct {
 	pumpsFor   int     // len(Sites) when pumpIdx was built
 	turretFire bool    // while turrets fire, so their damage is counted as theirs
 	burning    bool    // while burning ground does its damage, which stuns nothing
+	trap       bool    // while a fuel pump or an engine blows up or burns, so its kills pay the team
+	pot        int32   // shared bounties that did not divide evenly, carried to the next
 	ult        struct {
 		full float32 // ultFull for wave on difficulty diff
 		wave int

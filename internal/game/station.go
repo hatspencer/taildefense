@@ -317,9 +317,9 @@ func (w *World) blowPump(i int) {
 	}
 	s.Searched, s.fuse = true, 0
 	x, y, by := s.SX, s.SY, s.by
-	w.shooter = by
+	w.shooter, w.trap = by, true
 	w.explode(x, y, pumpBlast, pumpDamage, by, 0)
-	w.shooter = -1
+	w.shooter, w.trap = -1, false
 	for _, p := range w.Players {
 		if !p.Alive {
 			continue
@@ -330,7 +330,7 @@ func (w *World) blowPump(i int) {
 			p.slow(blastSlow)
 		}
 	}
-	w.Effects = append(w.Effects, Effect{Kind: EffNapalm, X0: x, Y0: y, X: x, Y: y, R: pumpFireR, Left: pumpFire, Total: pumpFire, Damage: pumpFireDP, Owner: by})
+	w.Effects = append(w.Effects, Effect{Kind: EffNapalm, X0: x, Y0: y, X: x, Y: y, R: pumpFireR, Left: pumpFire, Total: pumpFire, Damage: pumpFireDP, Owner: by, Trap: true})
 	w.grid.each(x, y, 12, func(k int32) bool {
 		if c := &w.Creeps[k]; c.Home > 0 && c.Asleep {
 			w.wakeSite(c)

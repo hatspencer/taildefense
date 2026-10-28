@@ -540,6 +540,30 @@ func (w *World) Sell(p *Player, si int) (int32, error) {
 	return refund, nil
 }
 
+// Give sends g of p's gold to the survivor with id to, anywhere and at any time: gold is
+// personal, and this is how a team puts it where it is needed. The team sees it in the log,
+// the one given to as a toast.
+func (w *World) Give(p *Player, to int, g int32) error {
+	if to < 0 || to >= len(w.Players) || to == int(p.ID) {
+		return errors.New("no one to give gold to")
+	}
+	o := w.Players[to]
+	if !o.Connected {
+		return fmt.Errorf("%s is away", o.Name)
+	}
+	if g <= 0 {
+		return errors.New("give how much?")
+	}
+	if p.Gold < g {
+		return fmt.Errorf("%w: have %d", errBroke, p.Gold)
+	}
+	p.Gold -= g
+	o.Gold += g
+	w.note(NoteBrief, "%s gave %s %d gold", p.Name, o.Name, g)
+	w.toast(o, 1, "%s gave you %d gold", p.Name, g)
+	return nil
+}
+
 // Restart begins a new game on a new map with the same players, everything reset.
 func (w *World) Restart(seed uint64) *World {
 	nw := NewGame(seed, w.Diff)

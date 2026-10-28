@@ -276,6 +276,14 @@ export class Hud {
 
     this.armory = new Armory(root, ctl);
     this.score = el('div', 'window panel score hidden', root);
+    // The give buttons, on pointerdown: the window is redrawn twice a second, which could take
+    // the button away between the press and a click.
+    this.score.addEventListener('pointerdown', (e) => {
+      const b = (e.target as HTMLElement).closest('button[data-give]') as HTMLButtonElement | null;
+      if (!b || b.disabled || e.button !== 0) return;
+      e.preventDefault();
+      ctl.send({ op: 'give', p: Number(b.dataset.give), gold: Number(b.dataset.gold) });
+    });
     this.help = el('div', 'window panel help hidden', root);
     this.buildHelp();
     this.menu = el('div', 'window panel menu hidden', root);
@@ -480,7 +488,7 @@ export class Hud {
       ['<kbd>M</kbd>', 'big map, and back; click it to look, right-click to walk there'],
       ['<kbd>Enter</kbd>', 'chat with the team · in the chat, <kbd>Tab</kbd> adds where you are'],
       ['Compass', 'the strip at the top shows which way the view faces; click it to turn north up'],
-      ['<kbd>Tab</kbd>', 'scoreboard (hold)'],
+      ['<kbd>Tab</kbd>', 'scoreboard (hold); click to give a teammate gold'],
       ['<kbd>F3</kbd>', 'performance readout'],
       ['<kbd>F4</kbd>', 'pixel view on or off'],
       ['<kbd>F10</kbd> / <kbd>Esc</kbd>', 'menu (Esc first cancels the current mode or window)'],
@@ -507,10 +515,14 @@ export class Hud {
     this.ctl.send({ op: 'leave' });
   }
 
-  // One card per survivor: who they are, what they carry, and the game they have had.
-  private scoreTable(): string {
+  // One card per survivor: who they are, what they carry, and the game they have had; in the Tab
+  // window (give), a teammate's also has buttons to send them gold.
+  private scoreTable(give = false): string {
     const g = this.ctl.game, wd = g.welcome;
     if (!wd) return '';
+    const mine = this.ctl.me()?.gold ?? 0;
+    const giveRow = (id: number) => `<div class="give"><span class="lbl">give</span>${[50, 250, Math.floor(mine / 2)].map((n, i) =>
+      `<button data-give="${id}" data-gold="${n}"${n < 1 || n > mine ? ' disabled' : ''}>${i === 2 ? `half · ` : ''}<span class="gold">${fmtGold(n)}g</span></button>`).join('')}</div>`;
     const cards = scoreRows(wd, g.cur).map((r) => {
       const p = r.p;
       const st = r.aboard ? '<span class="st out">extracted</span>' : r.away ? '<span class="st muted">away</span>'
@@ -521,7 +533,7 @@ export class Hud {
       return `<div class="pcard${r.away ? ' away' : ''}">
         <div class="who"><span class="dot" style="background:${r.color}"></span><span class="name">${esc(p.name)}</span>${you} <span class="muted">${esc(r.arch)}</span>${st}<span class="gold" title="gold to spend"><span class="lbl">gold</span>${fmtGold(p.gold)}g</span></div>
         <div class="nums">${nums}</div>
-        <div class="kit">${kit}</div>
+        <div class="kit">${kit}</div>${give && !r.you && !r.away ? giveRow(p.id) : ''}
       </div>`;
     });
     return `<div class="scorecards">${cards.join('')}</div>`;
@@ -532,7 +544,7 @@ export class Hud {
     // The team's gold, what everyone still in the game has to spend between them.
     let gold = 0;
     for (let i = 0; i < f.nPlayers; i++) if (f.players[i].flags & PF_CONNECTED) gold += f.players[i].gold;
-    this.score.innerHTML = `<h2><span class="tape">Scoreboard</span><span class="muted">wave ${f.wave} · ${fmtGold(f.totalKills)} kills · team gold <span class="gold">${fmtGold(gold)}g</span></span></h2>${this.scoreTable()}`;
+    this.score.innerHTML = `<h2><span class="tape">Scoreboard</span><span class="muted">wave ${f.wave} · ${fmtGold(f.totalKills)} kills · team gold <span class="gold">${fmtGold(gold)}g</span></span></h2>${this.scoreTable(true)}`;
   }
 
   // --- per frame ---

@@ -38,7 +38,7 @@ everything it knows, a terrain message follows).
 ```jsonc
 {
   "t": "welcome",
-  "proto": 19,
+  "proto": 20,
   "version": "a1b2c3d",
   "you": 0,                    // your player id
   "w": 352, "h": 220,          // map size in tiles
@@ -435,6 +435,7 @@ integers. The host checks everything; a refusal comes back as a `toast` with lev
                                              // (refused for the last weapon carried)
 {"op": "pickup",  "id": 17}                  // walk to weapon 17 on the ground and pick it up
 {"op": "board"}                              // once the evac Huey is down: walk to it and get aboard
+{"op": "give",    "p": 2, "gold": 250}       // anywhere: send 250 of your gold to player 2 (up to 65535)
 {"op": "ready",   "on": true}                // ready for the next wave (all ready: starts in 3 s)
 {"op": "restart"}                            // a new map, only once the game is over
 {"op": "difficulty", "kind": 2}              // the host only: change the difficulty from here on
