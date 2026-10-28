@@ -18,7 +18,8 @@ import { Portraits } from './scene/portraits';
 import { Guns } from './scene/guns';
 import { Loot } from './scene/loot';
 import { Overlays } from './scene/overlays';
-import { K_CANNON, K_FROST, K_GUN, K_MISSILE, K_SNIPER, K_TESLA, Structs } from './scene/structs';
+import { Routes } from './route';
+import { K_CANNON, K_FROST, K_GATE, K_GUN, K_MISSILE, K_SNIPER, K_TESLA, Structs } from './scene/structs';
 import { FogOfWar } from './scene/fow';
 import { Terrain } from './scene/terrain';
 import { Weather } from './scene/weather';
@@ -131,6 +132,7 @@ async function main(): Promise<void> {
   const weather = new Weather(world.scene);
   world.look = weather.look;
   const overlays = new Overlays(world.scene, structs);
+  const routes = new Routes();
   const rig = new CameraRig(world.camera, canvas);
   let transport: Transport | null = null;
   const send: Controller['send'] = (c) => transport?.send(c);
@@ -427,10 +429,23 @@ async function main(): Promise<void> {
     const m = ctl.mode;
     const hx = me ? game.prx[me.id] : 0, hy = me ? game.pry[me.id] : 0;
     // Build mode: radius and ghost.
+    // The creeps' way in through the maze, while building or with a gate picked out: with
+    // the ghost standing, and how much longer or shorter it makes their walk.
+    let ghost: { tx: number; ty: number; w: number; h: number } | undefined;
     if (m.k === 'build' && ctl.groundOk) {
-      const t = ctl.buildTile(m.kind);
-      overlays.buildGhost(m.kind, t.tx, t.ty, t.w, t.h, ctl.canPlace(m.kind, t.tx, t.ty) === '');
+      const t = ctl.buildTile(m.kind), ok = ctl.canPlace(m.kind, t.tx, t.ty) === '';
+      overlays.buildGhost(m.kind, t.tx, t.ty, t.w, t.h, ok);
+      if (ok) ghost = t;
     } else overlays.buildGhost(-1);
+    const gatePick = (ctl.sel?.t === 'struct' && f.sKind[ctl.sel.id] === K_GATE) || (ctl.hover?.t === 'struct' && f.sKind[ctl.hover.id] === K_GATE);
+    if (m.k === 'build' || gatePick) {
+      const { now, then } = routes.get(game, ghost);
+      const r = then ?? now;
+      overlays.route(r.paths, (i) => [routes.tileX(i), routes.tileY(i)], r.walk < 0 ? 0xff3020 : 0xff8a3a);
+      const d = then && now.walk >= 0 && then.walk >= 0 ? Math.round(then.walk - now.walk) : 0;
+      ctl.routeNote = r.walk < 0 ? (then && now.walk >= 0 ? 'this seals the base: the dead will break in through the walls' : 'the base is sealed: the dead break in through the walls')
+        : `the dead walk ~${Math.round(r.walk)} tiles in${d ? ` (${d > 0 ? '+' : ''}${d})` : ''}`;
+    } else { overlays.route(null); ctl.routeNote = ''; }
     overlays.ring('build', m.k === 'build', wd.core.x, wd.core.y, wd.buildRadius, 0xffd860, 0.7);
     // Aiming the grenade: its range around the hero and the blast at the cursor.
     if (m.k === 'ability' && me) {

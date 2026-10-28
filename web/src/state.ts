@@ -193,7 +193,7 @@ export class Game {
       if (!v.sees(f.cX[i], f.cY[i])) { this.hiddenAt[f.cId[i]] = serial; continue; }
       if (n !== i) {
         f.cId[n] = f.cId[i]; f.cX[n] = f.cX[i]; f.cY[n] = f.cY[i]; f.cKind[n] = f.cKind[i];
-        f.cHp[n] = f.cHp[i]; f.cFlags[n] = f.cFlags[i]; f.cTarget[n] = f.cTarget[i];
+        f.cHp[n] = f.cHp[i]; f.cFlags[n] = f.cFlags[i]; f.cTarget[n] = f.cTarget[i]; f.cFx[n] = f.cFx[i];
       }
       n++;
     }
@@ -213,7 +213,7 @@ export class Game {
     let sig = '' + f.nStructs;
     let hsh = 0;
     for (let i = 0; i < f.nStructs; i++) {
-      hsh = (Math.imul(hsh, 31) + (f.sAlive[i] ? f.sKind[i] * 7919 + f.sX[i] * 131 + f.sY[i] : 1) + f.sLevel[i] * 17 + (f.sOwner[i] + 1) * 3) | 0;
+      hsh = (Math.imul(hsh, 31) + (f.sAlive[i] ? f.sKind[i] * 7919 + f.sX[i] * 131 + f.sY[i] : 1) + f.sLevel[i] * 17 + (f.sOwner[i] + 1) * 3 + f.sOpen[i] * 5) | 0;
     }
     sig += ':' + hsh;
     if (sig === this.structSig || this.structAt.length === 0) return;

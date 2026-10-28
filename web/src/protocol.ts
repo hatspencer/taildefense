@@ -27,8 +27,10 @@ export const enum EvacStage { None = 0, Inbound, Landed, Departing, Gone }
 export const PF_CONNECTED = 1, PF_ALIVE = 2, PF_FIRING = 4, PF_READY = 8, PF_RELOADING = 16,
   PF_HURT = 32, PF_ARMORY = 64, PF_MOVING = 128;
 export const CF_BURNING = 1, CF_SLOWED = 2, CF_GUARD = 4, CF_HUNTING = 8, CF_SIEGE = 16, CF_ASLEEP = 32, CF_WINDUP = 64, CF_STRIKE = 128;
+// A creep's second flags byte, cFx.
+export const CX_FRENZY = 1;
 
-export const enum Order { Idle = 0, Move, AMove, Attack, Hold, Build, Repair, Loot, Revive, Steer, Pickup, Board }
+export const enum Order { Idle = 0, Move, AMove, Attack, Hold, Build, Repair, Loot, Revive, Steer, Pickup, Board, Gate }
 export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake, Bell, Bile, Landed }
 export const enum Weather { Clear = 0, Fog, Rain, Storm, Snow, Drizzle, Thunder, HeavySnow }
 // How much each weather counts as rain (internal/game/weather.go wetness).
@@ -135,6 +137,10 @@ export interface Welcome {
   lastWave?: number;
   // The helipad and the evac Huey's timing, in seconds; absent in an endless game.
   evac?: EvacDef;
+  // Per difficulty: how far past the straight way in a creep walks a maze before it frenzies.
+  patience?: number[];
+  // Working a gate: seconds at it, seconds before it swings again, how near to stand.
+  gate?: { time: number; cool: number; reach: number };
 }
 // pad: the helipad's middle, half its size; reach: how near the Huey a survivor boards, taking
 // board seconds. inbound: from the call to touchdown, the last flight of it in the air and the
@@ -217,7 +223,9 @@ export type Command =
   // Walks to the landed evac Huey and gets aboard.
   | { op: 'board' }
   // Sends gold of yours to survivor p, from anywhere.
-  | { op: 'give'; p: number; gold: number };
+  | { op: 'give'; p: number; gold: number }
+  // Walks to gate s and opens or shuts it.
+  | { op: 'gate'; s: number };
 
 export class Player {
   id = 0; flags = 0; x = 0; y = 0; aim = 0; hp = 0; maxHp = 1; cur = 0; ammo = 0; mag = 0;
@@ -296,12 +304,16 @@ export class Frame {
   sW = new Uint8Array(256); sH = new Uint8Array(256);
   sHp = new Uint16Array(256); sMaxHp = new Uint16Array(256);
   sLevel = new Uint8Array(256); sOwner = new Int8Array(256);
+  // A gate swung open, which creeps walk through.
+  sOpen = new Uint8Array(256);
   // A turret's track levels, TURRET_TRACKS to a structure.
   sLv = new Uint8Array(256 * TURRET_TRACKS);
 
   nCreeps = 0;
   cId = new Uint16Array(MAX_CREEPS); cX = new Float32Array(MAX_CREEPS); cY = new Float32Array(MAX_CREEPS);
   cKind = new Uint8Array(MAX_CREEPS); cHp = new Uint8Array(MAX_CREEPS); cFlags = new Uint8Array(MAX_CREEPS);
+  // More flags: CX_FRENZY.
+  cFx = new Uint8Array(MAX_CREEPS);
   // The hunted player's id for CF_HUNTING, else 255.
   cTarget = new Uint8Array(MAX_CREEPS);
 
@@ -420,7 +432,7 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
   if (f.sAlive.length < ns) {
     f.sAlive = grow(f.sAlive, ns); f.sGhost = grow(f.sGhost, ns); f.sKind = grow(f.sKind, ns); f.sX = grow(f.sX, ns); f.sY = grow(f.sY, ns);
     f.sW = grow(f.sW, ns); f.sH = grow(f.sH, ns); f.sHp = grow(f.sHp, ns); f.sMaxHp = grow(f.sMaxHp, ns);
-    f.sLevel = grow(f.sLevel, ns); f.sOwner = grow(f.sOwner, ns);
+    f.sLevel = grow(f.sLevel, ns); f.sOwner = grow(f.sOwner, ns); f.sOpen = grow(f.sOpen, ns);
   }
   if (f.sLv.length < ns * TURRET_TRACKS) f.sLv = grow(f.sLv, ns * TURRET_TRACKS);
   f.nStructs = ns;
@@ -433,19 +445,20 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
     f.sLevel[i] = d.getUint8(o + 12);
     for (let t = 0; t < TURRET_TRACKS; t++) f.sLv[i * TURRET_TRACKS + t] = d.getUint8(o + 13 + t);
     f.sOwner[i] = d.getInt8(o + 13 + TURRET_TRACKS);
-    o += 14 + TURRET_TRACKS;
+    f.sOpen[i] = d.getUint8(o + 14 + TURRET_TRACKS) & 1;
+    o += 15 + TURRET_TRACKS;
   }
 
   const nc = d.getUint16(o, true); o += 2;
   if (nc > MAX_CREEPS) throw new Error('frame has too many creeps');
   f.nCreeps = nc;
-  const cId = f.cId, cX = f.cX, cY = f.cY, cKind = f.cKind, cHp = f.cHp, cFlags = f.cFlags, cTarget = f.cTarget;
+  const cId = f.cId, cX = f.cX, cY = f.cY, cKind = f.cKind, cHp = f.cHp, cFlags = f.cFlags, cTarget = f.cTarget, cFx = f.cFx;
   for (let i = 0; i < nc; i++) {
     cId[i] = d.getUint16(o, true);
     cX[i] = d.getUint16(o + 2, true) * Q;
     cY[i] = d.getUint16(o + 4, true) * Q;
-    cKind[i] = bytes[o + 6]; cHp[i] = bytes[o + 7]; cFlags[i] = bytes[o + 8]; cTarget[i] = bytes[o + 9];
-    o += 10;
+    cKind[i] = bytes[o + 6]; cHp[i] = bytes[o + 7]; cFlags[i] = bytes[o + 8]; cTarget[i] = bytes[o + 9]; cFx[i] = bytes[o + 10];
+    o += 11;
   }
 
   const nt = d.getUint16(o, true); o += 2;
