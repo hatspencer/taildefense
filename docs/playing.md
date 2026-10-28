@@ -63,6 +63,22 @@ says what it will fetch), or use Sell on its card. Repairing costs gold by the h
 than half of what went into the structure for a full mend, so it is always cheaper than selling
 and building again.
 
+### Gates and mazes
+
+A gate is a wall to the dead and a doorway to survivors. E on a gate (or Open gate on its card)
+walks you to it and swings it open: open, the dead walk through it too, rather than break the
+walls. It takes a moment to work and can't swing again for 4 s, and it won't shut on a creep
+standing in it. While you place a building, or with a gate picked out, orange dots show the way
+the dead walk in and the prompt says how far that is, and how much the building being placed adds;
+red dots mean the base is sealed and they will break in.
+
+Three things keep a maze honest. Brutes and bosses need lanes two tiles wide: where the only way
+round is one tile wide, they smash through. A creep that can't reach a survivor behind a wall
+doesn't claw at the wall, but wanting them wears its patience. And patience runs out: a creep
+inside the build ring that has walked about three times as far as the straight way in (more on
+easy, less on brutal) frenzies, turns red, runs faster, hits harder and breaks through anything
+in its way. A maze should be long, but not endless.
+
 Walls (1) and gates (2) keep placing after each one goes down, so a line goes down click after
 click; Esc stops. A turret places once, unless you hold Shift.
 
@@ -215,8 +231,10 @@ sooner; from level 4 it leaves a fire burning where it lands. Dash and airstrike
 
 ## Waves
 
-Creeps follow a flow field toward the generator and chew through whatever is in the way. Walls
-and gates slow them down, but don't seal the base. The waves grow every time, faster the longer
+Creeps walk to the generator round every wall, however long the way round, as long as there is
+one: open a gate and build a maze outside it, and they walk the maze under your turrets' guns.
+Only a base sealed tight gets broken into, where the walls are weakest. The base starts sealed,
+its gates shut. The waves grow every time, faster the longer
 the game goes, and with every player who is actually playing (anyone idle for 90 s doesn't
 count). Each wave comes in from one side of the map, or from two or three later on, and seldom
 from the side the last one did; the wave's notice says where ("incoming from the north and

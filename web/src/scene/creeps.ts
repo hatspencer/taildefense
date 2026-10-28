@@ -4,7 +4,7 @@ import {
   positionGeometry, select, sin, smoothstep, step, time, uniform, uniformArray, vec3, vertexColor,
 } from 'three/tsl';
 import {
-  CF_ASLEEP, CF_BURNING, CF_HUNTING, CF_SIEGE, CF_SLOWED, CF_STRIKE, CF_WINDUP, type CreepDef, MAX_CREEPS, PF_ALIVE,
+  CF_ASLEEP, CF_BURNING, CX_FRENZY, CF_HUNTING, CF_SIEGE, CF_SLOWED, CF_STRIKE, CF_WINDUP, type CreepDef, MAX_CREEPS, PF_ALIVE,
 } from '../protocol';
 import type { Game } from '../state';
 import { type CreepRig, creepRig } from './creepModels';
@@ -346,7 +346,8 @@ export class Creeps {
       fx[o + 6] = hash(id, 5);
       fx[o + 7] = hash(id, 6);
       fx[o + 8] = asleep ? 1 : 0;
-      fx[o + 9] = me ? 1 : 0;
+      // A frenzied creep, done walking the maze, burns a duller red than one hunting you.
+      fx[o + 9] = me ? 1 : f.cFx[i] & CX_FRENZY ? 0.6 : 0;
       fx[o + 10] = fl & CF_SIEGE && !(fl & CF_HUNTING) ? 1 : 0;
       fx[o + 11] = this.lead[id];
       fx[o + 12] = this.wind[id] * (1 - strike);
