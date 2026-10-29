@@ -26,6 +26,7 @@ type GunView struct {
 	Kind game.WeaponKind
 	X, Y float32
 	Lv   [game.NumTracks]uint8
+	Evo  uint8 // a legendary's evolution
 	By   uint8 // who dropped it
 }
 
@@ -46,7 +47,11 @@ type PlayerView struct {
 	Stamina                                    float32 // 0..1
 	Medkits                                    uint8
 	Heal                                       float32 // seconds of a medkit's healing left
-	ReloadMask                                 uint8   // a bit per weapon reloading, in hand or not
+	ReloadMask                                 uint16  // a bit per weapon reloading, in hand or not
+	Swings                                     uint8   // a legendary's swings so far
+	Art                                        uint8   // the weapon art running (game.ArtNone ...)
+	ArtFrac                                    float32 // how far through it, 0..1
+	ArtCool                                    float32 // seconds until the art is ready
 	Look                                       uint32  // see game.dealLook
 	Sprinting, Winded, Goggles, Shielded       bool
 	Aboard                                     bool // got aboard the evac Huey
@@ -58,7 +63,9 @@ type PlayerView struct {
 	Gold, Kills, Damage                        uint64
 	Stats                                      StatsView
 	Owned                                      [game.NumWeapons]bool
-	Dual                                       bool // a second pistol, in the other hand
+	Dual                                       bool                   // a second pistol, in the other hand
+	DualKatana                                 bool                   // a second katana
+	Evo                                        [game.NumWeapons]uint8 // a legendary's evolution
 	Lv                                         [game.NumWeapons][game.NumTracks]uint8
 	Gear                                       [game.NumGear]uint8
 	Buff                                       uint8   // 0 none, else the weapon kind + 1
@@ -471,6 +478,7 @@ func (r *Replica) header(d *dec) {
 		for t := range g.Lv {
 			g.Lv[t] = d.u8()
 		}
+		g.Evo = d.u8()
 		g.By = d.u8()
 		r.Guns = append(r.Guns, g)
 	}
@@ -517,8 +525,9 @@ func (r *Replica) header(d *dec) {
 		p.ReloadFrac = float32(d.u8()) / 255
 		p.Respawn = d.u8()
 		p.Gold, p.Kills, p.Damage = d.uv(), d.uv(), d.uv()
-		owned := d.u8()
+		owned := d.u16()
 		p.Dual = owned&game.DualBit != 0
+		p.DualKatana = owned&game.DualKatanaBit != 0
 		for k := 0; k < int(game.NumWeapons); k++ {
 			if owned&(1<<k) != 0 {
 				p.Owned[k] = true
@@ -527,6 +536,8 @@ func (r *Replica) header(d *dec) {
 				}
 			}
 		}
+		evo := d.u8()
+		p.Evo[game.WKatana], p.Evo[game.WGreat] = evo&3, evo>>2&3
 		for g := range p.Gear {
 			p.Gear[g] = d.u8()
 		}
@@ -539,7 +550,11 @@ func (r *Replica) header(d *dec) {
 		}
 		p.Medkits = d.u8()
 		p.Heal = float32(d.u8()) / 10
-		p.ReloadMask = d.u8()
+		p.ReloadMask = d.u16()
+		p.Swings = d.u8()
+		art := d.u8()
+		p.Art, p.ArtFrac = art>>6, float32(art&63)/63
+		p.ArtCool = float32(d.u16()) / 10
 		s := &p.Stats
 		s.Downs, s.Revives, s.Built, s.Searched, s.Bosses = d.uv(), d.uv(), d.uv(), d.uv(), d.uv()
 		s.Taken, s.Turret = d.uv(), d.uv()

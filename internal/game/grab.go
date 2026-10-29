@@ -64,7 +64,7 @@ func (w *World) creepGrab(c *Creep, d *CreepDef, tp *Player) bool {
 		c.grab -= Dt
 		return false
 	}
-	if tp == nil || tp.held || tp.fly > 0 || tp.Shield > 0 || tp.ulting(WCrowbar) {
+	if tp == nil || tp.held || tp.fly > 0 || tp.Shield > 0 || tp.unstoppable() {
 		return false
 	}
 	// Not in the middle of a slam.

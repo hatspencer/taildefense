@@ -512,6 +512,58 @@ function crowbar(sr: number, r: R): Buf {
   return b.normalize(0.85).fadeOut(0.06);
 }
 
+// A katana's cut: a thin, fast whistle of air, the edge parting what it meets with a hiss, and
+// a high, clean ring of steel left in the air after. The moonlit edge rings longer and higher.
+function katana(sr: number, r: R, moon: boolean): Buf {
+  const b = new Buf(sr, moon ? 1.1 : 0.6);
+  whoosh(b, r, 0, 0.11, 1400, 5200, 0.9, 2.2);
+  whoosh(b, r, 0.02, 0.08, 3000, 8000, 0.35, 3);
+  roar(b, r, 0.07, 0.05, 6000, 2500, 0.002, 0.015, 0.3);
+  const f = jit(r, moon ? 3100 : 2500, 0.04);
+  ping(b, 0.075, [f, f * 1.53, f * 2.37], moon ? 0.32 : 0.14, moon ? 0.22 : 0.16);
+  return b.normalize(0.8).fadeOut(0.05);
+}
+
+// The greatsword: a long, low rush of air as the slab comes round, then the blow landing with a
+// thump that has the ground in it and a dull clang of thick iron. The follow-through is heavier:
+// the earth breaks under it and stones skitter.
+function greatsword(sr: number, r: R, follow: boolean): Buf {
+  const b = new Buf(sr, follow ? 1.3 : 0.8);
+  whoosh(b, r, 0, 0.26, 220, 1100, 1.1, 0.8);
+  const at = 0.2;
+  thud(b, r, at, 120, 45, follow ? 0.12 : 0.07, 0.9, 0.6, 700);
+  const f = jit(r, 330, 0.05);
+  ping(b, at, [f, f * 1.41, f * 2.2, f * 3.1], 0.12, 0.25);
+  click(b, r, at, 1300, 0.25, 0.004);
+  if (follow) {
+    roar(b, r, at, 0.6, 1800, 200, 0.004, 0.18, 0.8, 1.5);
+    debris(b, r, at + 0.05, 0.5, 14, 1200, 4000, 0.2);
+  }
+  return b.normalize(0.85).fadeOut(0.08);
+}
+
+// Flash Draw: the blade drawn and across in one breath, a tearing hiss the length of the line,
+// a beat of silence, and the cut ringing out long and clear as the line comes apart.
+function flashDraw(sr: number, r: R): Buf {
+  const b = new Buf(sr, 1.6);
+  click(b, r, 0, 2600, 0.4, 0.002);
+  whoosh(b, r, 0.005, 0.16, 2000, 9000, 1.2, 1.6);
+  roar(b, r, 0.02, 0.18, 7000, 3000, 0.002, 0.06, 0.4);
+  const f = jit(r, 2900, 0.03);
+  ping(b, 0.3, [f, f * 1.003 + 4, f * 1.51, f * 2.33], 0.45, 0.35);
+  whoosh(b, r, 0.3, 0.12, 4000, 1500, 0.4, 2.5);
+  return b.normalize(0.85).fadeOut(0.15);
+}
+
+// Blood loss bursting: a wet, heavy spatter and a gush.
+function bleed(sr: number, r: R): Buf {
+  const b = new Buf(sr, 0.5);
+  roar(b, r, 0, 0.3, 2400, 400, 0.002, 0.06, 0.9, 1.5);
+  thud(b, r, 0, 160, 70, 0.03, 0.5, 0.9, 900);
+  debris(b, r, 0.03, 0.25, 10, 600, 2200, 0.15);
+  return b.normalize(0.75).fadeOut(0.05);
+}
+
 // --- explosions and the weather -------------------------------------------------------------
 
 // An explosion near enough to feel. The shock front: the air slammed up and sucked back (an
@@ -2046,6 +2098,12 @@ export const RECIPES: Record<string, [number, Maker, number?]> = {
   rocket: [3, (sr, r) => rocketLaunch(sr, r, false)],
   missile: [3, (sr, r) => rocketLaunch(sr, r, true)],
   crowbar: [3, crowbar],
+  katana: [4, (sr, r) => katana(sr, r, false)],
+  moonCut: [3, (sr, r) => katana(sr, r, true)],
+  greatsword: [3, (sr, r) => greatsword(sr, r, false)],
+  followThrough: [2, (sr, r) => greatsword(sr, r, true), LOW],
+  flashDraw: [2, flashDraw],
+  bleed: [3, bleed],
   turretGun: [4, gun(TURRET_GUN, (b, r) => { clack(b, r, 0.035 + r() * 0.005, 2100, 0.12, 380); ping(b, 0.04, [1450, 2310], 0.02, 0.05); servo(b, r, 0.07, 0.14, 0.035); })],
   cannon: [3, gun(CANNON, (b, r) => {
     ping(b, 0.004, [610, 1530, 2470], 0.25, 0.05 + r() * 0.01);

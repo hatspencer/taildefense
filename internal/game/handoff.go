@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 )
 
 // Handing weapons over: a survivor drops a weapon they carry, upgrades and all, and it lies
@@ -26,6 +27,7 @@ type Gun struct {
 	ID   uint16 // names it in a pickup order; never reused within a game
 	Kind WeaponKind
 	Lv   [NumTracks]uint8
+	Evo  uint8 // a legendary's evolution
 	Ammo int16 // rounds left in the magazine
 	X, Y float32
 	By   uint8 // who dropped it
@@ -55,7 +57,7 @@ func (w *World) DropWeapon(p *Player, k WeaponKind) error {
 		return errors.New("too many weapons lying about already; pick some up first")
 	}
 	ws := p.Weapons[k]
-	dual := k == WPistol && ws.Dual
+	dual := (k == WPistol || k == WKatana) && ws.Dual
 	other := NumWeapons
 	if dual {
 		other = k
@@ -77,13 +79,18 @@ func (w *World) DropWeapon(p *Player, k WeaponKind) error {
 	if dual {
 		// One of the pair: the half of the rounds in it go with it, the other stays in hand.
 		half := max(ws.Ammo, 0) / 2
-		w.Guns = append(w.Guns, Gun{ID: w.gunSerial, Kind: k, Lv: ws.Lv, Ammo: half, X: x, Y: y, By: p.ID})
+		if k == WKatana {
+			half = ws.Ammo
+		}
+		w.Guns = append(w.Guns, Gun{ID: w.gunSerial, Kind: k, Lv: ws.Lv, Evo: ws.Evo, Ammo: half, X: x, Y: y, By: p.ID})
 		p.Weapons[k].Dual = false
-		p.Weapons[k].Ammo = max(ws.Ammo, 0) - half
-		w.note(0, "%s dropped one of their pistols%s", p.Name, levelsNote(ws.Lv))
+		if k == WPistol {
+			p.Weapons[k].Ammo = max(ws.Ammo, 0) - half
+		}
+		w.note(0, "%s dropped one of their %ss%s", p.Name, strings.ToLower(Weapons[k].Name), levelsNote(ws.Lv))
 		return nil
 	}
-	w.Guns = append(w.Guns, Gun{ID: w.gunSerial, Kind: k, Lv: ws.Lv, Ammo: max(ws.Ammo, 0), X: x, Y: y, By: p.ID})
+	w.Guns = append(w.Guns, Gun{ID: w.gunSerial, Kind: k, Lv: ws.Lv, Evo: ws.Evo, Ammo: max(ws.Ammo, 0), X: x, Y: y, By: p.ID})
 	p.Weapons[k] = WeaponState{}
 	if p.Cur == k {
 		p.Cur = other
@@ -159,10 +166,10 @@ func (w *World) actPickup(p *Player, o *Order, walk func() bool) bool {
 }
 
 // canTake reports whether p has a hand free for a weapon of kind k: one they do not carry,
-// or a pistol to pair with theirs.
+// or a pistol or a katana to pair with theirs.
 func (w *World) canTake(p *Player, k WeaponKind) bool {
 	ws := &p.Weapons[k]
-	return !ws.Owned || k == WPistol && !ws.Dual
+	return !ws.Owned || (k == WPistol || k == WKatana) && !ws.Dual
 }
 
 // pickUp hands weapon gi on the ground to p, upgrades and all, and puts it in their hands. A
@@ -170,12 +177,18 @@ func (w *World) canTake(p *Player, k WeaponKind) bool {
 func (w *World) pickUp(p *Player, gi int) {
 	g := w.Guns[gi]
 	w.Guns = append(w.Guns[:gi], w.Guns[gi+1:]...)
+	if p.Weapons[g.Kind].Owned && g.Kind == WKatana {
+		p.Weapons[WKatana].Dual = true
+		p.Cur = WKatana
+		w.note(0, "%s picked up a second katana: a pair, one in each hand", p.Name)
+		return
+	}
 	if p.Weapons[g.Kind].Owned {
 		w.dualPistols(p)
 		w.note(0, "%s picked up a second pistol: dual pistols", p.Name)
 		return
 	}
-	ws := WeaponState{Owned: true, Lv: g.Lv, Ammo: g.Ammo}
+	ws := WeaponState{Owned: true, Lv: g.Lv, Evo: g.Evo, Ammo: g.Ammo}
 	if ws.Ammo <= 0 {
 		ws.Reload = WeaponStats(g.Kind, g.Lv).Reload
 	}

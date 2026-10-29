@@ -13,7 +13,7 @@ function hash(i: number, s: number): number {
 // Car paint, faded: tints over a light grey body.
 const PAINT = [0x7d8c99, 0x8f5a48, 0x6d7a58, 0xb2a88c, 0x9a9890, 0x5e6a78];
 const CAR_BODY = 0xc8c8c8;
-const GLINT_Y = [1.65, 1.35, 1.05, 1.35, 1.45, 1.8, 1.85, 1.85, 1.75, 0, 1.75, 1.55, 1.85, 0.9, 3.4, 0, 12];
+const GLINT_Y = [1.65, 1.35, 1.05, 1.35, 1.45, 1.8, 1.85, 1.85, 1.75, 0, 1.75, 1.55, 1.85, 0.9, 3.4, 0, 12, 2.6];
 
 // Props face +x and stand on y = 0. Each kind comes closed (still worth a search) and opened.
 function houseProp(open: boolean): Part[] {
@@ -665,8 +665,48 @@ function churchProp(open: boolean): Part[] {
   return p;
 }
 
+// A shrine, from the spot before its altar, +x towards its gate (the altar's stones and the
+// pillars are its walls, terrain.ts). On the altar a blade stands driven point down into the
+// stone, a guard of candles round it and offerings at its foot; stone lanterns flank the
+// court and the gate's fallen lintel lies outside it. Taken (open), there is only the slot it
+// stood in, and the candles are cold.
+function shrineProp(open: boolean): Part[] {
+  const stone = 0x8a8e7e, gold = 0xb08a38, wax = 0xe4dac0;
+  const p: Part[] = [];
+  const top = 0.82;
+  if (!open) p.push(
+    part(box(0.07, 1.15, 0.2), 0xc0c6d0, -1, top + 0.5, 0),
+    part(box(0.075, 0.9, 0.04), 0xe8eef8, -1, top + 0.55, 0.0),
+    part(box(0.1, 0.08, 0.5), 0x5a4e3a, -1, top + 1.12, 0),
+    part(box(0.08, 0.3, 0.08), 0x3a2418, -1, top + 1.3, 0),
+    part(box(0.12, 0.1, 0.12), gold, -1, top + 1.48, 0),
+  );
+  else p.push(part(box(0.08, 0.02, 0.24), 0x1a1612, -1, top + 0.01, 0));
+  // Candles along the altar, lit while the blade is there.
+  for (const z of [-1.2, -0.75, 0.75, 1.2]) {
+    const h = 0.12 + Math.abs(z) * 0.06;
+    p.push(part(box(0.07, h, 0.07), wax, -1.05, top + h / 2, z));
+    if (!open) p.push(part(box(0.04, 0.07, 0.04), 0xffc040, -1.05, top + h + 0.04, z));
+  }
+  // Offerings at the altar's foot: a bowl, a scatter of coins.
+  p.push(part(cyl(0.12, 0.08, 0.08, 8), 0x6a5a40, -0.35, 0.04, 0.5), part(box(0.18, 0.02, 0.12), gold, -0.4, 0.01, -0.45, 0, 0.5, 0));
+  // Stone lanterns either side of the court: a foot, a post, the light box, a roof.
+  for (const z of [-4.5, 4.5]) p.push(
+    part(box(0.5, 0.15, 0.5), 0x6a6e60, 5, 0.08, z),
+    part(box(0.18, 0.7, 0.18), stone, 5, 0.5, z),
+    part(box(0.42, 0.34, 0.42), 0x92968a, 5, 1.02, z),
+    part(box(0.2, 0.18, 0.44), open ? 0x2a2a26 : 0xffb850, 5, 1.02, z),
+    part(cyl(0.05, 0.42, 0.22, 4), 0x6a6e60, 5, 1.3, z, 0, Math.PI / 4, 0),
+  );
+  // The gate's lintel, fallen across outside it, and a block knocked off with it.
+  p.push(part(box(0.42, 0.34, 7.6), 0x7a7e6e, 10.4, 0.17, 0.3, 0, 0.12, 0.05), part(box(0.6, 0.4, 0.6), stone, 11.1, 0.2, -2.6, 0, 0.6, 0.2));
+  // Broken flagstones heaved up in the court.
+  p.push(part(box(0.7, 0.08, 0.6), 0x7a7a6c, 2.2, 0.06, 1.6, 0.1, 0.4, 0.06), part(box(0.6, 0.08, 0.7), 0x828274, 6.4, 0.06, -1.4, -0.08, 0.2, 0.1));
+  return p;
+}
+
 // Indexed by propKind.
-const PROPS = [houseProp, carProp, crateProp, pickupProp, policeProp, ambulanceProp, busProp, armyProp, counterProp, pumpProp, fireProp, armoredProp, camperProp, motoProp, planeProp, engineProp, churchProp];
+const PROPS = [houseProp, carProp, crateProp, pickupProp, policeProp, ambulanceProp, busProp, armyProp, counterProp, pumpProp, fireProp, armoredProp, camperProp, motoProp, planeProp, engineProp, churchProp, shrineProp];
 // Wrecks that take a coat of faded paint.
 const PAINTED = new Set<number>([SiteKind.Car, SiteKind.Pickup, SiteKind.Moto]);
 
@@ -733,6 +773,10 @@ export class Loot {
         const y = s.yaw ?? 0;
         this.px[i] = s.x + s.w / 2 + Math.cos(y) * TOWER_OFF; this.pz[i] = s.y + s.h / 2 + Math.sin(y) * TOWER_OFF;
         this.yaw[i] = y;
+        return;
+      }
+      if (s.kind === SiteKind.Shrine) {
+        this.px[i] = s.sx; this.pz[i] = s.sy; this.yaw[i] = Math.round((s.yaw ?? 0) / (Math.PI / 2)) * Math.PI / 2;
         return;
       }
       if (!walled(s.kind)) {

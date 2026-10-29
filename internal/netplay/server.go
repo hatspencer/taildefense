@@ -575,6 +575,8 @@ func Exec(w *game.World, pl *game.Player, c Cmd) (string, error) {
 		err = w.Evolve(pl, int(c.T), c.A)
 	case OpOverload:
 		err = w.Overload(pl)
+	case OpEvolveWeapon:
+		err = w.EvolveWeapon(pl, game.WeaponKind(c.A), c.B)
 	case OpDropWeapon:
 		err = w.DropWeapon(pl, game.WeaponKind(c.A))
 	case OpPickup:
@@ -719,6 +721,7 @@ const (
 	OpPayIn  // put 100 gold into the generator's next tier
 	OpEvolve // T structure index, A branch 1 or 2
 	OpOverload
+	OpEvolveWeapon // A a legendary's weapon kind, B branch 1 or 2
 )
 
 // Cmd is a discrete request from a player. X and Y are tiles, sent to 1/8; T names a creep

@@ -41,6 +41,18 @@ type weaponDef struct {
 	Costs   [][]int32  `json:"costs"`
 	Values  [][]string `json:"values"`
 	Ult     ultDef     `json:"ult"`
+	Legend  bool       `json:"legend,omitempty"` // a legendary blade: found, never sold
+	Art     *artDef    `json:"art,omitempty"`    // a legendary's weapon art, on F
+	Evolve  []evoDef   `json:"evolve,omitempty"` // a legendary's two evolutions
+	EvoCost int32      `json:"evoCost,omitempty"`
+}
+
+// artDef is a legendary's weapon art.
+type artDef struct {
+	Name  string  `json:"name"`
+	Desc  string  `json:"desc"`
+	Range float32 `json:"range"`
+	Cool  float32 `json:"cool"`
 }
 
 type gearDef struct {
@@ -263,6 +275,13 @@ func welcome(wel netplay.Welcome, core point, host, hint string, hosting bool) w
 			target = "point"
 		}
 		wd.Ult = ultDef{u.Name, u.Desc, u.Time, u.Range, u.Radius, target}
+		if d.Legend {
+			a := game.Arts[k]
+			wd.Legend, wd.Art, wd.EvoCost = true, &artDef{a.Name, a.Desc, a.Range, a.Cool}, game.LegendEvoCost
+			for _, e := range game.LegendEvos[k] {
+				wd.Evolve = append(wd.Evolve, evoDef{Name: e.Name, Desc: e.Desc, Range: 1})
+			}
+		}
 		m.Weapons = append(m.Weapons, wd)
 	}
 	for g := game.Gear(0); g < game.NumGear; g++ {

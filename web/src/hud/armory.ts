@@ -1,5 +1,5 @@
 import type { Controller } from '../controller';
-import { CROWBAR, PF_ARMORY, Phase } from '../protocol';
+import { CROWBAR, PF_ARMORY, Phase, weaponKey, type Player, type WeaponDef } from '../protocol';
 import { el, esc, fmtGold, show } from './dom';
 
 type Tab = 'weapons' | 'gear' | 'abilities';
@@ -37,7 +37,7 @@ export class Armory {
     show(this.root, open);
     if (!open || !me || !wd) return;
     const at = (me.flags & PF_ARMORY) !== 0;
-    const key = [this.tab, at, Math.floor(me.gold), me.owned, me.cur, me.levels.join(','), me.gear.join(','), me.abLevel.join(','), me.medkits].join('|');
+    const key = [this.tab, at, Math.floor(me.gold), me.owned, me.cur, me.levels.join(','), me.evo.join(','), me.gear.join(','), me.abLevel.join(','), me.medkits].join('|');
     if (key === this.key) return;
     this.key = key;
     for (const [t, b] of this.tabs) b.classList.toggle('on', t === this.tab);
@@ -66,10 +66,12 @@ export class Armory {
       t.innerHTML = `<tr><th>Weapon</th><th></th>${wd.tracks.map((n) => `<th>${esc(n)}</th>`).join('')}</tr>`;
       wd.weapons.forEach((w, wi) => {
         const owned = (me.owned & (1 << wi)) !== 0;
-        if (wi === CROWBAR && !owned) return; // never sold
-        const tr = el('tr', '', t);
+        if ((wi === CROWBAR || w.legend) && !owned) return; // never sold
+        const tr = el('tr', w.legend ? 'legend' : '', t);
         const n = el('td', '', tr);
-        n.innerHTML = `<span class="wname">${esc(w.name)}</span> <kbd>${wi === CROWBAR ? 0 : wi + 2}</kbd><br><span class="muted small">${esc(w.fire)} · range ${w.range} · Q: ${esc(w.ult.name)}</span>`;
+        n.innerHTML = w.legend
+          ? `<span class="wname">${esc(w.name)}</span> <kbd>${weaponKey(wi)}</kbd><br><span class="muted small">legendary · reach ${w.range} · F: ${esc(w.art?.name ?? '')} · Q: ${esc(w.ult.name)}</span>`
+          : `<span class="wname">${esc(w.name)}</span> <kbd>${weaponKey(wi)}</kbd><br><span class="muted small">${esc(w.fire)} · range ${w.range} · Q: ${esc(w.ult.name)}</span>`;
         const act = el('td', '', tr);
         if (!owned) btn(act, `Buy <span class="gold">${fmtGold(w.price)}g</span>`, w.price, true, () => ctl.send({ op: 'buyWeapon', w: wi }), 'primary');
         else if (me.cur === wi) el('span', 'muted', act, 'equipped');
@@ -86,6 +88,7 @@ export class Armory {
             : `<span class="v">${esc(cur)} → ${esc(next)}</span><span class="c">${fmtGold(cost)}g</span> ${pips(lvl, wd.maxLevel)}`;
           btn(td, html, cost, owned && !max, () => ctl.send({ op: 'upgrade', w: wi, track }), 'up');
         }
+        if (w.legend && w.evolve) this.legendEvo(t, w, wi, me, btn);
       });
     } else if (this.tab === 'gear') {
       const t = el('table', '', b);
@@ -133,5 +136,29 @@ export class Armory {
         btn(el('td', '', tr), max ? 'max' : `${lvl ? 'Upgrade' : 'Learn'} <span class="gold">${fmtGold(cost)}g</span>`, cost, !max, () => ctl.send({ op: 'buyAbility', slot: si }), 'primary');
       });
     }
+  }
+
+  // A legendary's evolution row: its two branches once its tracks add up to evolveAt, or the one
+  // it took.
+  private legendEvo(t: HTMLElement, w: WeaponDef, wi: number, me: Player,
+    btn: (parent: HTMLElement, html: string, cost: number, ok: boolean, onclick: () => void, cls?: string) => HTMLButtonElement): void {
+    const at = this.ctl.game.welcome?.tiers?.evolveAt ?? 12, evo = me.evo[wi];
+    const tr = el('tr', 'legend evo', t);
+    el('td', 'muted small', tr, evo ? 'evolved' : 'evolve');
+    const td = el('td', '', tr);
+    td.colSpan = 1 + (this.ctl.game.welcome?.tracks.length ?? 4);
+    if (evo) {
+      const e = w.evolve![evo - 1];
+      td.innerHTML = `<b class="legend">${esc(e.name)}</b> <span class="muted small">${esc(e.desc)}</span>`;
+      return;
+    }
+    let sum = 0;
+    for (let k = 0; k < 4; k++) sum += me.levels[wi * 4 + k];
+    const cost = w.evoCost ?? 0;
+    w.evolve!.forEach((e, k) => {
+      btn(td, `<b>${esc(e.name)}</b> <span class="c">${fmtGold(cost)}g</span><br><span class="muted small">${esc(e.desc)}</span>`, cost, sum >= at,
+        () => this.ctl.send({ op: 'evolveWeapon', w: wi, branch: k + 1 }), 'up evolve');
+    });
+    if (sum < at) el('div', 'muted small', td, `Evolves once its tracks add up to ${at} (${sum} now).`);
   }
 }

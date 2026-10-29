@@ -217,13 +217,19 @@ func (w *World) stationPost(s *Site, j int) (float32, float32) {
 func (w *World) searchStation(p *Player, s *Site) {
 	var guns []WeaponKind
 	for k := WeaponKind(0); k < NumWeapons; k++ {
-		if !p.Weapons[k].Owned && k != WCrowbar {
+		if !p.Weapons[k].Owned && k.Sold() {
 			guns = append(guns, k)
 		}
 	}
 	slices.SortFunc(guns, func(a, b WeaponKind) int { return int(Weapons[b].Price - Weapons[a].Price) })
 	var got []string
-	if len(guns) > 0 {
+	tag := ""
+	// Now and then what is behind the counter is no gun at all, but a blade wrapped in oilcloth.
+	if w.legendFor(p) != NumWeapons && w.rng.Float32() < legendChance {
+		g, _ := w.giveLegend(p)
+		got = append(got, g)
+		tag = "  ·  legendary"
+	} else if len(guns) > 0 {
 		g, _ := w.giveWeapon(p, guns[w.rng.IntN((len(guns)+1)/2)], 1+uint8(w.rng.IntN(2)))
 		got = append(got, g)
 	} else if g, ok := w.giveUpgrade(p, p.Cur, 3); ok {
@@ -233,7 +239,7 @@ func (w *World) searchStation(p *Player, s *Site) {
 	got = append(got, w.grant(p, r, FavorNone))
 	p.Dry = 0
 	w.Blasts = append(w.Blasts, Blast{s.SX, s.SY, 1.5, 5})
-	w.note(1, "%s cleaned out the gas station: %s", p.Name, strings.Join(got, " and "))
+	w.note(1, "%s cleaned out the gas station: %s%s", p.Name, strings.Join(got, " and "), tag)
 }
 
 // pumps lists the site indices of everything that goes up when shot: the fuel pumps and the

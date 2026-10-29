@@ -85,6 +85,39 @@ before the crowd arrives, not after; the SMG fires full from the first round. A 
 near you hurts you too, up to 15 health a rocket, so switch guns when creeps reach you. The
 crowbar hits up to four creeps a swing.
 
+### Legendary blades
+
+Two blades are never sold: the katana (8) and the greatsword (9). They are found, and only where
+the map is most dangerous: now and then on the gas station's counter or in the plane's hold, and
+always on the altar of a shrine (see below). A second katana goes in your other hand, and the pair
+cuts 1.7 times as fast; once you carry everything there is, an altar sharpens the blade in your
+hand instead. Each levels at the armory like any weapon, and each has more to it than a swing:
+
+- **Katana:** quick cuts through up to five creeps that build up blood loss. When a creep's fills,
+  it bursts for a sixth of its health (less on a boss). Its special track builds bleed faster.
+- **Greatsword:** slow, wide, heavy blows through up to eight that stagger and shove what they
+  hit. Every third swing in a row is a follow-through that hits harder still and shakes the
+  ground round where it lands.
+
+With a legendary in hand, **F is its weapon art** in place of the dash (with any other weapon F is
+still the dash):
+
+- **Flash Draw** (katana): a breath with the blade sheathed, then one drawn cut that carries you
+  up to 7 tiles to the cursor, through every creep on the way: triple damage and heavy bleed.
+  6 s to come back.
+- **Skyfall** (greatsword): leap to the cursor, untouchable in the air, and come down on
+  everything within 3 tiles, stunning and throwing it back. 9 s to come back.
+
+Once a legendary's four tracks add up to 12 levels, the armory offers it two evolutions, as a
+turret has; you pick one, for 1500 gold:
+
+| blade | evolution | what it does |
+|---|---|---|
+| Katana | Crimson Fang | bleed builds 60% faster; each burst heals you and spatters bleed onto the creeps round it |
+| Katana | Moonlit Edge | every swing looses a crescent 5.5 tiles out through six creeps; Flash Draw reaches 3 tiles further |
+| Greatsword | Ashen Colossus | every hit sets its creep burning, follow-throughs leave the ground on fire, Skyfall lands in a ring of flame |
+| Greatsword | Stormbreaker | every swing throws lightning on to three more creeps; Skyfall calls a thunderbolt down, wider and stunning longer |
+
 ## Turrets
 
 Six turrets, from the build bar (B, then the number):
@@ -211,7 +244,14 @@ start searching.
 Out in the wilds lies a crashed cargo plane: the hull with its hold, the tail torn off behind it,
 a wing in pieces and a long burnt scar. A garrison sleeps in the wreckage, more come out when you
 walk in, and its leaking engines go up like the gas station's pumps when shot. The hold gives a
-field manual, a piece of kit and something rare or better.
+field manual, a piece of kit and something rare or better. Now and then the gas station's counter
+and the plane's hold have a legendary blade in them instead.
+
+Far out in the wilds stand two shrines: overgrown courts of broken stone, pillars down their
+length and a pair of gate posts at the mouth, older than the church. A blade stands in the altar
+at the far end, between guttering candles. The dead keep them: a lair's guards sleep round a
+champion, and more rise from the court when you walk in and again when you kneel at the altar.
+The altar always gives a legendary blade you can take.
 
 On the outskirts, far from the base, stands an old church. Press E at the bell rope inside, under
 the tower, and the bell rings out over the whole map: for a minute every creep there is, the wave
@@ -306,6 +346,8 @@ running, and going down ends it.
 | Minigun | Overdrive: 10 s faster, tighter and piercing, in red tracers, with no reloads |
 | Rocket launcher | Cluster MIRV: a rocket to the cursor that splits into ten bomblets |
 | Crowbar (brutal) | Berserk: 8 s of double swings that heal you and can't be slowed or stunned |
+| Katana | Crimson Tempest: 8 s of cutting half again as fast, every swing a sweep of blood 4.5 tiles out through up to eight creeps, bleed building twice as fast |
+| Greatsword | Titan's Wrath: 8 s of every swing a follow-through, reaching further and coming faster; nothing slows, stuns or grabs you |
 
 No ultimate spends ammo while it runs.
 
@@ -317,7 +359,8 @@ left-click throws it, and Esc, a right-click or Shift again puts it away. Dash a
 at the cursor the moment you press the key; point at the ground. The grenade goes to level 5, each
 level hitting harder (120 damage at the first, 400 at the fifth), throwing wider and coming back
 sooner; from level 4 it leaves a fire burning where it lands. After wave 10 the grenade and the
-airstrike hit harder as the creeps get tougher. Dash and airstrike go to level 3.
+airstrike hit harder as the creeps get tougher. Dash and airstrike go to level 3. With a
+legendary blade in hand, F is its weapon art instead of the dash, and needs no buying.
 
 ## Waves
 

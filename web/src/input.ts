@@ -1,7 +1,7 @@
 import type { CameraRig } from './camera';
 import { type Controller, KEYS } from './controller';
 import type { Hud } from './hud/hud';
-import { CROWBAR, K_ARMORY, PF_ALIVE, sellValue } from './protocol';
+import { CROWBAR, GREAT, KATANA, K_ARMORY, PF_ALIVE, sellValue } from './protocol';
 
 // Edge-pan band in CSS pixels; wide enough for fractional display scaling, where the last
 // device pixel can land a pixel or more inside the reported edge.
@@ -226,8 +226,8 @@ export class Input {
     const slot = KEYS.indexOf(up);
     if (slot >= 0) { ctl.cast(slot); return; }
     if (k === '1') { ctl.medkit(); return; }
-    // 2 to 7 the pistol to the launcher, 0 the crowbar.
-    if (k === '0' || (k >= '2' && k <= '7')) { const w = k === '0' ? CROWBAR : Number(k) - 2; const me = ctl.me(); if (me && me.owned & (1 << w)) ctl.send({ op: 'select', w }); return; }
+    // 2 to 7 the pistol to the launcher, 0 the crowbar, 8 and 9 the legendaries.
+    if (k >= '0' && k <= '9' && k !== '1') { const w = k === '0' ? CROWBAR : k === '8' ? KATANA : k === '9' ? GREAT : Number(k) - 2; const me = ctl.me(); if (me && me.owned & (1 << w)) ctl.send({ op: 'select', w }); return; }
     switch (up) {
       case 'Z': ctl.setMode({ k: ctl.mode.k === 'ping' ? 'none' : 'ping' }); return;
       case 'H': this.fixAll(); return;

@@ -551,6 +551,16 @@ A survivor walks round a wreck, not through it, so none is placed where it would
 a car across a one-tile track or a gap between rocks would leave the other side reachable only
 the long way round, or not at all. Map generation tries the spot again elsewhere.
 
+### Shrines
+
+Two shrines on every map, far out (40 tiles or more from the generator, 60 apart): a walled
+court of broken stone with pillars down its length, gate posts at its mouth facing the base, and
+an altar at the far end with a blade standing in it. It is a lair with a champion, and the dead
+rise from the court when someone walks in and again at the altar, as at the gas station. The
+altar always gives a legendary, which is the point: a shrine is a known, hard objective for a
+team that wants melee, where the gas station and the plane are only a chance. Pillars are walls
+to creeps and shots, so the court is a place to fight in, not just to cross.
+
 ## Noise and aggro
 
 - Gunfire wakes guards nearby and pulls wave creeps in earshot. Rain and storms muffle it.
@@ -705,6 +715,42 @@ an SMG by 11, a rifle by 13, a minigun by 16 and a launcher by 18, of about 1050
 late every weapon is affordable and the band above is what decides; damage per gold falls from
 the cheap guns to the dear ones (13 a second per 100 gold for a maxed shotgun up close, under 1
 for the launcher on one target), which is the price of range, splash and sustain.
+
+### Legendary blades
+
+Melee was a panic option: the crowbar holds up, but nobody chooses it. The legendaries make
+melee a way to play, and give the far sites something only they hold (`internal/game/legend.go`).
+
+- **Found, never sold.** The katana and the greatsword are not in the armory's list until
+  carried. The gas station's counter and the plane's hold have one 30% of the time, and the
+  shrines (below) always do. Gold can buy everything else; these are the reason to walk to the
+  edge of the map. A survivor who carries both, and a pair of katanas, gets whetstones (levels on
+  the blade in hand) from an altar instead, so a shrine is never wasted.
+- **Better than the crowbar level for level, and each its own rule.** The bench holds both at 1.4
+  times a crowbar's damage a second on a brute at levels 0, 2 and max. The katana is fast and
+  narrow and builds blood loss, which bursts for 16% of a creep's health (5% of a boss's) plus 30:
+  the answer to big creeps, which melee otherwise can't get through before they hit back. The
+  greatsword is slow and wide, staggers (three times a hit's stun) and shoves, and every third
+  swing in a row is a follow-through that hits 1.6 times as hard and shakes the ground round it:
+  the answer to a crowd. A pair of katanas cuts 1.7 times as fast, as dual pistols fire twice.
+- **F is the weapon art, only with one in hand.** A melee fighter's problem is closing the gap and
+  getting out; the dash did that, and a weapon art does it with a cut. Flash Draw (0.3 s drawn
+  stance, then a run of 7 tiles that cuts everything within 1.3 tiles of its line for triple
+  damage and heavy bleed, 6 s) is a line through a crowd; Skyfall (0.6 s in the air, untouchable,
+  landing for 2.4 times the damage within 3 tiles with six times the stun, 9 s) is a way into
+  one. Tying the art to the blade in hand rather than a slot keeps the dash for everyone else,
+  costs no armory gold, and makes switching to the blade a decision. Q stays each weapon's
+  ultimate: Crimson Tempest and Titan's Wrath.
+- **Two evolutions, as a turret's.** Once the four tracks add up to 12 levels, 1500 gold picks one
+  of two for good: Crimson Fang (bleed that chains and heals) or Moonlit Edge (reach); Ashen
+  Colossus (fire) or Stormbreaker (lightning). The same rule as the turrets', so it reads at once.
+- **The animations sell the weight.** A swing snaps into its pose in three frames, holds, then
+  eases back to a chambered windup: the 8-bit way to show speed and weight, after the stances of
+  a souls-like. The katana cuts a three-step combo and flicks the blood off (chiburi) when the
+  fight stops; Flash Draw is a sheathed crouch, a streak with afterimages and the cuts landing a
+  beat later; the greatsword's third swing is an overhead into the ground; Skyfall is a lift, a
+  somersault and a slam. The scene keys them off the frame's swing counter, so every client sees
+  the same swing.
 
 ## Ultimates and abilities
 

@@ -115,6 +115,8 @@ const (
 	WMinigun
 	WLauncher
 	WCrowbar // brutal's starting weapon, and only there: never sold or found
+	WKatana  // legendary (legend.go): found at the remote sites, never sold; a second one is a pair
+	WGreat   // legendary: the greatsword, found the same way
 	NumWeapons
 )
 
@@ -161,6 +163,8 @@ type WeaponDef struct {
 	Blast   float32 // rocket blast radius
 	Burn    float32 // burn damage per second applied on hit
 	Special string  // what the special track does
+	Legend  bool    // a legendary blade (legend.go): only ever found, with a weapon art on F and two evolutions
+	Hits    int     // melee: creeps one swing goes through, meleeHits when 0
 }
 
 // Weapons is indexed by WeaponKind.
@@ -172,10 +176,23 @@ var Weapons = [NumWeapons]WeaponDef{
 	WMinigun:  {Name: "Minigun", Short: "MNG", Price: 1400, Damage: 9, Rate: 22, Range: 16, Mag: 150, Reload: 3.5, Pellets: 1, Spread: .12, Special: "+1 pierce, +burn"},
 	WLauncher: {Name: "Rocket launcher", Short: "RKT", Price: 2000, Damage: 120, Rate: .8, Range: 24, Mag: 4, Reload: 2.6, Pellets: 1, Spread: .02, Fire: FireRocket, Blast: 3, Special: "+blast radius"},
 	WCrowbar:  {Name: "Crowbar", Short: "BAR", Price: 0, Damage: 42, Rate: 2, Range: 1.9, Mag: 1, Reload: 0, Pellets: 1, Spread: .8, Fire: FireMelee, Special: "+wider swing"},
+	// The legendaries carry a price only to scale their upgrades; nobody sells them.
+	WKatana: {Name: "Katana", Short: "KTN", Price: 1800, Damage: 34, Rate: 2.6, Range: 2.2, Mag: 1, Pellets: 1, Spread: .75, Fire: FireMelee, Legend: true, Hits: 5, Special: "+bleed"},
+	WGreat:  {Name: "Greatsword", Short: "GSW", Price: 1800, Damage: 100, Rate: .85, Range: 2.8, Mag: 1, Pellets: 1, Spread: 1.15, Fire: FireMelee, Legend: true, Hits: 8, Special: "+wider, +stagger"},
 }
 
-// DualBit marks, in a frame's byte of owned weapons, a survivor with a second pistol.
-const DualBit = 1 << 7
+// Legendary reports whether k is one of the legendary blades.
+func (k WeaponKind) Legendary() bool { return k < NumWeapons && Weapons[k].Legend }
+
+// Sold reports whether the armory sells k: never the crowbar or a legendary.
+func (k WeaponKind) Sold() bool { return k < NumWeapons && k != WCrowbar && !Weapons[k].Legend }
+
+// DualBit marks, in a frame's word of owned weapons, a survivor with a second pistol, and
+// DualKatanaBit one with a second katana.
+const (
+	DualBit       = 1 << 15
+	DualKatanaBit = 1 << 14
+)
 
 // Dual is the stats of a pair of pistols: each as the survivor upgraded it, both firing, so
 // twice the rounds a second and twice the magazine.
@@ -191,6 +208,9 @@ func (ws *WeaponState) Stats(k WeaponKind) Stats {
 	if ws.Dual && k == WPistol {
 		s = s.Dual()
 	}
+	if ws.Dual && k == WKatana {
+		s.Rate *= dualKatana
+	}
 	return s
 }
 
@@ -205,8 +225,10 @@ type Stats struct {
 	Damage, Rate, Range, Reload, Spread, Burn, Blast float32
 	Stun                                             float32 // times a hit's stun
 	Shove                                            float32 // how far each pellet pushes, before the creep's size
+	Bleed                                            float32 // a katana: the blood loss each cut builds (legend.go)
 	Mag                                              int16
 	Pellets, Pierce                                  int
+	Hits                                             int // melee: creeps one swing goes through
 }
 
 // pistolDamageLevel is what each level of the pistol's damage track adds to it, more than the
@@ -229,6 +251,10 @@ func WeaponStats(w WeaponKind, lv [NumTracks]uint8) Stats {
 		Burn:    d.Burn,
 		Blast:   d.Blast,
 		Stun:    1,
+		Hits:    d.Hits,
+	}
+	if s.Hits == 0 {
+		s.Hits = meleeHits
 	}
 	sp := int(lv[TrackSpecial])
 	switch w {
@@ -250,6 +276,12 @@ func WeaponStats(w WeaponKind, lv [NumTracks]uint8) Stats {
 		s.Blast += .6 * float32(sp)
 	case WCrowbar:
 		s.Spread += .15 * float32(sp)
+	case WKatana:
+		s.Bleed = katanaBleed + katanaBleedLevel*float32(sp)
+	case WGreat:
+		s.Spread += .1 * float32(sp)
+		s.Stun = greatStagger + greatStaggerLevel*float32(sp)
+		s.Shove = greatShove
 	}
 	return s
 }
@@ -518,7 +550,7 @@ func TrackValue(w WeaponKind, t Track, level uint8) string {
 	case TrackRate:
 		return fmt.Sprintf("%.1f/s", st.Rate)
 	case TrackHandling:
-		if w == WCrowbar {
+		if Weapons[w].Fire == FireMelee {
 			return "no ammo"
 		}
 		return fmt.Sprintf("%d rounds, %.1fs reload", st.Mag, st.Reload)
@@ -532,6 +564,10 @@ func TrackValue(w WeaponKind, t Track, level uint8) string {
 		return fmt.Sprintf("%.1f blast", st.Blast)
 	case WCrowbar:
 		return fmt.Sprintf("%.0f° swing", st.Spread*2*180/math.Pi)
+	case WKatana:
+		return fmt.Sprintf("%.0f bleed a cut", st.Bleed)
+	case WGreat:
+		return fmt.Sprintf("%.0f° swing, %.1f× stagger", st.Spread*2*180/math.Pi, st.Stun)
 	}
 	return fmt.Sprintf("%d pierce", st.Pierce)
 }
