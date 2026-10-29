@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import type { CameraRig } from './camera';
-import { canTake, EvacStage, K_ARMORY, lootable, stickyKind, repairCost, walled, type Command, Order, PF_ALIVE, PF_ARMORY, PF_CONNECTED, OWNED_DUAL, PF_READY, Phase, PingKind, SiteKind, siteX, siteY, Tile, K_GATE } from './protocol';
+import { canTake, dualIn, KATANA, OWNED_DUAL_KATANA, EvacStage, K_ARMORY, lootable, stickyKind, repairCost, walled, type Command, Order, PF_ALIVE, PF_ARMORY, PF_CONNECTED, OWNED_DUAL, PF_READY, Phase, PingKind, SiteKind, siteX, siteY, Tile, K_GATE } from './protocol';
 import type { Effects } from './scene/effects';
 import type { Game } from './state';
 
@@ -19,6 +19,8 @@ export const KEYS = ['Q', 'Shift', 'F', 'V'];
 // The grenade aims first: Shift shows where it can land, a left-click throws, Esc or a
 // right-click puts it away.
 const AIMED = 1;
+// F: the dash, or the weapon art of a legendary in hand.
+const ART = 2;
 
 // Structures that stay picked after one is placed, so a line of them goes down click by click
 // until Esc; anything else is placed once (Shift keeps it).
@@ -219,18 +221,19 @@ export class Controller {
   gunHint(id: number): string {
     const g = this.game.cur.guns.find((k) => k.id === id), wd = this.game.welcome, me = this.me();
     if (!g || !wd) return '';
-    const name = wd.weapons[g.kind]?.name ?? 'Weapon';
+    const w = wd.weapons[g.kind];
+    const name = `${w?.legend ? 'Legendary ' : ''}${w?.name ?? 'Weapon'}${g.evo && w?.evolve ? ` (${w.evolve[g.evo - 1]?.name})` : ''}`;
     const lv = g.lv.some((l) => l > 0) ? ' ' + g.lv.join('/') : '';
     const by = this.game.cur.player(g.by)?.name;
     const take = !me || canTake(me.owned, g.kind);
-    return `${name}${lv}${by ? ` · ${by}'s` : ''} · ${!take ? 'you carry one' : me && me.owned & (1 << g.kind) ? 'pick up: dual pistols' : 'pick up'}`;
+    return `${name}${lv}${by ? ` · ${by}'s` : ''} · ${!take ? 'you carry one' : me && me.owned & (1 << g.kind) ? `pick up: dual ${g.kind === KATANA ? 'katanas' : 'pistols'}` : 'pick up'}`;
   }
 
   // Why G can't drop the weapon in hand, said before the hold starts rather than after it
   // fills; '' when it can. The host checks again.
   dropRefusal(): string {
     const me = this.me();
-    if (me && !(me.owned & ~(1 << me.cur) & ~OWNED_DUAL) && !(me.cur === 0 && me.owned & OWNED_DUAL)) return `the ${this.game.welcome?.weapons[me.cur]?.name ?? 'weapon'} is the only weapon you have`;
+    if (me && !(me.owned & ~(1 << me.cur) & ~OWNED_DUAL & ~OWNED_DUAL_KATANA) && !dualIn(me.owned, me.cur)) return `the ${this.game.welcome?.weapons[me.cur]?.name ?? 'weapon'} is the only weapon you have`;
     return '';
   }
 
@@ -473,6 +476,14 @@ export class Controller {
       if (!u) return null;
       return { name: u.name, desc: u.desc, key: a.key || KEYS[slot], range: u.range, radius: u.radius, cool: 0, target: u.target,
         level: Math.max(1, me.abLevel[0]), maxLevel: 1, left: 0, nextCost: 0, charge: me.ult, running: me.buff > 0 ? me.buffLeft : 0 };
+    }
+    const art = slot === ART ? wd.weapons[me.cur]?.art : undefined;
+    if (art) {
+      // A legendary in hand: F is its weapon art, always there, on its own cooldown. Moonlit
+      // Edge draws 3 tiles further.
+      const range = art.range + (me.cur === KATANA && me.evo[KATANA] === 2 ? 3 : 0);
+      return { name: art.name, desc: art.desc, key: a.key || KEYS[slot], range, radius: me.cur === KATANA ? 0 : 3, cool: art.cool, target: 'point',
+        level: 1, maxLevel: 1, left: me.artCool, nextCost: 0, charge: 0, running: 0 };
     }
     const lvl = me.abLevel[slot];
     return { name: a.name, desc: a.desc, key: a.key || KEYS[slot], range: a.range, radius: a.radius?.[Math.max(0, lvl - 1)] ?? 0,

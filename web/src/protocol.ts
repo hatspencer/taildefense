@@ -1,8 +1,12 @@
 // Wire types and the binary frame decoder for web/PROTOCOL.md. Frames are decoded into
 // preallocated typed arrays: nothing per creep is allocated while the game runs.
 
-// Weapon kinds there are, and the crowbar's: brutal's starting weapon, on the 0 key.
-export const WEAPON_SLOTS = 7, RIFLE = 3, CROWBAR = 6;
+// Weapon kinds there are, and the crowbar's: brutal's starting weapon, on the 0 key. The
+// legendary blades, found and never sold, come after it: the katana on 8, the greatsword on 9.
+export const WEAPON_SLOTS = 9, RIFLE = 3, CROWBAR = 6, KATANA = 7, GREAT = 8;
+export const legendary = (k: number): boolean => k === KATANA || k === GREAT;
+// The key that takes weapon k in hand.
+export const weaponKey = (k: number): string => k === CROWBAR ? '0' : k === KATANA ? '8' : k === GREAT ? '9' : String(k + 2);
 // How much further a survivor with a rifle in hand sees: the host's rifleSight.
 export const RIFLE_SIGHT = 2;
 // How far a survivor sees by day, and at night in night vision goggles: discover.go's daySight.
@@ -35,7 +39,7 @@ export const AX_ARMOURED = 1, AX_HASTY = 2, AX_SAPPERS = 4, AX_SPLITTERS = 8;
 export const COMPASS = ['east', 'southeast', 'south', 'southwest', 'west', 'northwest', 'north', 'northeast'];
 
 export const enum Order { Idle = 0, Move, AMove, Attack, Hold, Build, Repair, Loot, Revive, Steer, Pickup, Board, Gate }
-export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake, Bell, Bile, Landed, Flame, Overload, Napalm }
+export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake, Bell, Bile, Landed, Flame, Overload, Napalm, Bleed, Skyfall }
 export const enum Weather { Clear = 0, Fog, Rain, Storm, Snow, Drizzle, Thunder, HeavySnow }
 // How much each weather counts as rain (internal/game/weather.go wetness).
 export const WET = [0, 0, 1, 1, 0, 0.3, 0.5, 0];
@@ -49,11 +53,12 @@ export const enum PingKind { Here = 0, Danger, Loot, Defend }
 // Station: the gas station's shop. Pump: one of its fuel pumps, not loot; searched means blown up.
 // Plane: the crashed plane, searched from beside its hull. Tank: one of its engines, like a pump.
 // Church: rung, not searched, from inside at the foot of its tower; searched means the bell still swings.
-export const enum SiteKind { House = 0, Car, Crate, Outpost, Pickup, Police, Ambulance, Bus, Army, Station, Pump, Fire, Armored, Camper, Moto, Plane, Tank, Church }
+// Shrine: an older faith's ruined court far out in the wilds, a legendary blade on its altar.
+export const enum SiteKind { House = 0, Car, Crate, Outpost, Pickup, Police, Ambulance, Bus, Army, Station, Pump, Fire, Armored, Camper, Moto, Plane, Tank, Church, Shrine }
 // A building searched from inside, rather than a thing in the open.
-export function walled(k: number): boolean { return k === SiteKind.House || k === SiteKind.Outpost || k === SiteKind.Station || k === SiteKind.Church; }
+export function walled(k: number): boolean { return k === SiteKind.House || k === SiteKind.Outpost || k === SiteKind.Station || k === SiteKind.Church || k === SiteKind.Shrine; }
 // Which prop a site shows (scene/loot.ts): an outpost's stash looks like a house's.
-const PROP = [0, 1, 2, 0, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+const PROP = [0, 1, 2, 0, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
 export function propKind(k: number): number { return PROP[k] ?? -1; }
 // A vehicle on the road: a car, pickup, cruiser, ambulance, bus, army truck, fire engine, cash
 // van, camper or motorbike.
@@ -71,17 +76,30 @@ export const enum EffectKind { Grenade = 1, Napalm = 2, AirTarget = 3, Drop = 4,
 export const LOB_WINDUP = 0.7;
 // Seconds a survivor a mauler or a goliath threw is in the air (internal/game/grab.go).
 export const THROW_FLIGHT = 0.7;
-// The bit of a survivor's owned weapons that is a second pistol, found, in the other hand
-// (DualBit in internal/game/defs.go).
-export const OWNED_DUAL = 128;
+// The bits of a survivor's owned weapons that are a second pistol, found, in the other hand,
+// and a second katana (DualBit and DualKatanaBit in internal/game/defs.go).
+export const OWNED_DUAL = 1 << 15, OWNED_DUAL_KATANA = 1 << 14;
 // Whether a survivor who owns these weapons has a hand free for one of kind k: one they do not
-// carry, or a pistol to pair with theirs.
+// carry, or a pistol or a katana to pair with theirs.
 export function canTake(owned: number, k: number): boolean {
-  return !(owned & (1 << k)) || (k === 0 && !(owned & OWNED_DUAL));
+  return !(owned & (1 << k)) || (k === 0 && !(owned & OWNED_DUAL)) || (k === KATANA && !(owned & OWNED_DUAL_KATANA));
+}
+// Whether the weapon of kind k a survivor holds is a pair.
+export function dualIn(owned: number, k: number): boolean {
+  return (k === 0 && (owned & OWNED_DUAL) !== 0) || (k === KATANA && (owned & OWNED_DUAL_KATANA) !== 0);
 }
 // The door gunner's shots, from the Huey in the air; a hurler's bone; a napalm missile in
 // flight; an arc web's jump from creep to creep.
 export const TRACER_HELI = 34, TRACER_SHARD = 35, TRACER_NAPALM = 36, TRACER_ARC = 37;
+// The legendaries' cuts (internal/game/legend.go): a katana's swing and a greatsword's, each
+// again under its ultimate; Flash Draw's line; Moonlit Edge's crescent; a greatsword's
+// follow-through landing.
+export const TRACER_KATANA = 38, TRACER_GREAT = 39, TRACER_KATANA_ULT = 40, TRACER_GREAT_ULT = 41,
+  TRACER_FLASH = 42, TRACER_MOON = 43, TRACER_FOLLOW = 44;
+// A survivor's weapon art under way (Player.art): Flash Draw held sheathed, Skyfall in the air.
+export const enum Art { None = 0, Flash, Skyfall }
+// Seconds each art takes from the key to the cut: legend.go's flashDraw and skyfallFlight.
+export const ART_TIME = [0, 0.3, 0.6];
 // Added to a weapon's tracer kind for a shot fired under its ultimate.
 export const TRACER_ULT = 8;
 
@@ -92,6 +110,9 @@ export interface UltDef { name: string; desc: string; time: number; range: numbe
 export interface WeaponDef {
   name: string; short: string; price: number; range: number; fire: string; special: string;
   costs: number[][]; values: string[][]; ult: UltDef;
+  // A legendary blade: found, never sold; its weapon art on F, and two evolutions for evoCost.
+  legend?: boolean; art?: { name: string; desc: string; range: number; cool: number };
+  evolve?: { name: string; desc: string }[]; evoCost?: number;
 }
 export interface GearDef { name: string; info: string; costs: number[] }
 export interface AbilityDef {
@@ -234,6 +255,7 @@ export type Command =
   | { op: 'loot'; site: number }
   | { op: 'buyWeapon' | 'select'; w: number }
   | { op: 'upgrade'; w: number; track: number }
+  | { op: 'evolveWeapon'; w: number; branch: number }
   | { op: 'gear'; g: number }
   | { op: 'buyAbility'; slot: number }
   | { op: 'ready'; on: boolean }
@@ -270,6 +292,12 @@ export class Player {
   medkits = 0; heal = 0;
   // A bit per weapon with a reload running, the one in hand or not.
   reloading = 0;
+  // A legendary's evolution, 0 none or 1..2, by weapon kind (the katana's and the greatsword's).
+  evo = new Uint8Array(WEAPON_SLOTS);
+  // swings: a counter of the legendary's swings, bumped on each, wrapping at 256 (the scene
+  // starts a swing's animation when it moves). art: the weapon art under way, artFrac how far
+  // along, 0..1; artCool: seconds until it can be used again.
+  swings = 0; art = 0; artFrac = 0; artCool = 0;
   // The game so far: times down, teammates revived, structures built, sites searched, bosses
   // finished, damage taken, damage their turrets dealt (part of damage).
   downs = 0; revives = 0; built = 0; searched = 0; bosses = 0; taken = 0; turret = 0;
@@ -294,6 +322,7 @@ export class Player {
     this.order = o.order; this.channel = o.channel; this.revived = o.revived; this.emote = o.emote;
     this.emoteLeft = o.emoteLeft; this.tauntCool = o.tauntCool; this.stamina = o.stamina; this.sprinting = o.sprinting; this.winded = o.winded; this.stunned = o.stunned; this.held = o.held; this.airborne = o.airborne; this.goggles = o.goggles; this.shielded = o.shielded; this.aboard = o.aboard; this.look = o.look; this.buff = o.buff; this.buffLeft = o.buffLeft; this.ult = o.ult;
     this.abLevel.set(o.abLevel); this.abCool.set(o.abCool); this.medkits = o.medkits; this.heal = o.heal; this.reloading = o.reloading; this.name = o.name;
+    this.evo.set(o.evo); this.swings = o.swings; this.art = o.art; this.artFrac = o.artFrac; this.artCool = o.artCool;
     this.downs = o.downs; this.revives = o.revives; this.built = o.built; this.searched = o.searched; this.bosses = o.bosses; this.taken = o.taken; this.turret = o.turret;
   }
 }
@@ -310,7 +339,7 @@ function grow<T extends Uint8Array | Uint16Array | Int8Array | Float32Array>(a: 
 }
 
 // A weapon on the ground, upgrades and all; id names it in a pickup.
-export interface Gun { id: number; kind: number; x: number; y: number; lv: number[]; by: number }
+export interface Gun { id: number; kind: number; x: number; y: number; lv: number[]; evo: number; by: number }
 
 export class Frame {
   tick = 0; phase = 0; wave = 0; phaseLeft = 0; left = 0; totalKills = 0; best = 0;
@@ -427,9 +456,11 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
     p.ammo = d.getUint16(o + 13, true); p.mag = d.getUint16(o + 15, true);
     p.reload = d.getUint8(o + 17) / 255; p.respawn = d.getUint8(o + 18);
     p.gold = d.getUint32(o + 19, true); p.kills = d.getUint32(o + 23, true); p.damage = d.getUint32(o + 27, true);
-    p.owned = d.getUint8(o + 31);
-    o += 32;
+    p.owned = d.getUint16(o + 31, true);
+    o += 33;
     p.levels.set(bytes.subarray(o, o + WEAPON_SLOTS * 4)); o += WEAPON_SLOTS * 4;
+    const ev = bytes[o]; o += 1;
+    p.evo[KATANA] = ev & 3; p.evo[GREAT] = (ev >> 2) & 3;
     p.gear.set(bytes.subarray(o, o + 4)); o += 4;
     p.order = d.getUint8(o); p.channel = d.getUint8(o + 1) / 255; p.revived = d.getUint8(o + 2) / 255;
     p.emote = d.getUint8(o + 3); p.emoteLeft = d.getUint8(o + 4) / 10; p.tauntCool = d.getUint16(o + 5, true) / 10;
@@ -439,7 +470,8 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
     for (let a = 0; a < 4; a++) {
       p.abLevel[a] = d.getUint8(o); p.abCool[a] = d.getUint16(o + 1, true) / 10; o += 3;
     }
-    p.medkits = d.getUint8(o); p.heal = d.getUint8(o + 1) / 10; p.reloading = d.getUint8(o + 2); o += 3;
+    p.medkits = d.getUint8(o); p.heal = d.getUint8(o + 1) / 10; p.reloading = d.getUint16(o + 2, true);
+    p.swings = bytes[o + 4]; const art = bytes[o + 5]; p.art = art >> 6; p.artFrac = (art & 63) / 63; p.artCool = d.getUint16(o + 6, true) / 10; o += 8;
     p.downs = d.getUint16(o, true); p.revives = d.getUint16(o + 2, true); p.built = d.getUint16(o + 4, true);
     p.searched = d.getUint16(o + 6, true); p.bosses = d.getUint16(o + 8, true);
     p.taken = d.getUint32(o + 10, true); p.turret = d.getUint32(o + 14, true); o += 18;
@@ -456,9 +488,9 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
   for (let i = 0; i < ncr; i++, o += 5) f.crates.push({ x: d.getUint16(o, true) * Q, y: d.getUint16(o + 2, true) * Q, open: bytes[o + 4] / 255 });
   const ngun = bytes[o]; o += 1;
   f.guns.length = 0;
-  for (let i = 0; i < ngun; i++, o += 12) {
+  for (let i = 0; i < ngun; i++, o += 13) {
     f.guns.push({ id: d.getUint16(o, true), kind: bytes[o + 2], x: d.getUint16(o + 3, true) * Q, y: d.getUint16(o + 5, true) * Q,
-      lv: [bytes[o + 7], bytes[o + 8], bytes[o + 9], bytes[o + 10]], by: bytes[o + 11] });
+      lv: [bytes[o + 7], bytes[o + 8], bytes[o + 9], bytes[o + 10]], evo: bytes[o + 11], by: bytes[o + 12] });
   }
   f.evac = bytes[o]; o += 1;
   if (f.evac !== EvacStage.None) {

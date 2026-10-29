@@ -30,6 +30,7 @@ const (
 	SitePlane                     // the crashed cargo plane out in the wilds, held hard
 	SiteTank                      // one of the plane's engines, leaking fuel: not loot, it blows up when shot
 	SiteChurch                    // the church on the outskirts: not loot, its bell draws every creep to it
+	SiteShrine                    // a shrine far out in the wilds: a legendary blade on its altar (legend.go)
 	NumSiteKinds
 )
 
@@ -76,6 +77,7 @@ var SiteDefs = [NumSiteKinds]SiteDef{
 	SitePlane:     {Name: "Crashed plane", Search: 6, Luck: 1.5, Favor: FavorGear, Guard: 4},
 	SiteTank:      {Name: "Engine"},
 	SiteChurch:    {Name: "Church", Search: 2.5},
+	SiteShrine:    {Name: "Shrine", Search: 6, Luck: 2, Guard: 3},
 }
 
 // Wreck reports whether a site is a vehicle on a road.
@@ -104,7 +106,7 @@ var wreckOdds = [3][]struct {
 // Walled reports whether a site is a building searched from inside, rather than a thing in
 // the open.
 func (k SiteKind) Walled() bool {
-	return k == SiteHouse || k == SiteOutpost || k == SiteStation || k == SiteChurch
+	return k == SiteHouse || k == SiteOutpost || k == SiteStation || k == SiteChurch || k == SiteShrine
 }
 
 // outpostFinds is how many finds searching an outpost turns up; the first is rare or better,
@@ -229,6 +231,9 @@ func (w *World) search(p *Player, si int) {
 		return
 	case SitePlane:
 		w.searchPlane(p, s)
+		return
+	case SiteShrine:
+		w.searchShrine(p, s)
 		return
 	}
 	r := Junk
@@ -438,7 +443,7 @@ func (w *World) grant(p *Player, r Rarity, f Favor) string {
 func (w *World) unowned(p *Player, most int32) WeaponKind {
 	var c []WeaponKind
 	for k := WeaponKind(0); k < NumWeapons; k++ {
-		if (!p.Weapons[k].Owned || k == WPistol && !p.Weapons[k].Dual) && k != WCrowbar && Weapons[k].Price <= most {
+		if (!p.Weapons[k].Owned || k == WPistol && !p.Weapons[k].Dual) && k.Sold() && Weapons[k].Price <= most {
 			c = append(c, k)
 		}
 	}
@@ -654,6 +659,15 @@ func (w *World) placeSites(ruins []ruin) []Site {
 			}
 			continue
 		}
+		if h.shrine {
+			// A shrine is searched kneeling before its altar.
+			sx, sy = float32(h.cx)+.5, float32(h.cy)+.5
+			if reach(sx, sy) {
+				add(SiteShrine, x, y, hw, hh, sx, sy)
+				sites[len(sites)-1].Yaw = h.yaw
+			}
+			continue
+		}
 		if h.outpost {
 			sx, sy = float32(h.cx)+.5, float32(h.cy)+.5
 			if !inside(int(sx), int(sy), 0) && reach(sx, sy) {
@@ -725,13 +739,18 @@ func (w *World) ambushOnEntry(p *Player) {
 	if si := w.plane(); si >= 0 && w.Sites[si].Sprung == 0 && !w.Sites[si].Searched && w.atCrash(si, p) {
 		w.springAmbush(si, p)
 	}
+	for _, si := range w.shrineIdx() {
+		if s := &w.Sites[si]; s.Sprung == 0 && !s.Searched && w.inShrine(si, p) {
+			w.springAmbush(si, p)
+		}
+	}
 }
 
 // ambushOnSearch is a search of site si starting.
 func (w *World) ambushOnSearch(si int, p *Player) {
 	s := &w.Sites[si]
 	switch {
-	case (s.Kind == SiteOutpost || s.Kind == SiteStation || s.Kind == SitePlane) && s.Sprung < 2:
+	case (s.Kind == SiteOutpost || s.Kind == SiteStation || s.Kind == SitePlane || s.Kind == SiteShrine) && s.Sprung < 2:
 		w.springAmbush(si, p)
 	case s.Guard == 3 && s.Sprung == 0 && w.rng.Float32() < .6:
 		w.springAmbush(si, p)
@@ -753,7 +772,7 @@ func (w *World) springAmbush(si int, p *Player) {
 			k = CWalker
 		case r < 5 && w.Wave >= 4:
 			k = CSpitter
-		case r == 5 && (s.Kind == SiteOutpost || s.Kind == SiteStation || s.Kind == SitePlane) && w.Wave >= 6:
+		case r == 5 && (s.Kind == SiteOutpost || s.Kind == SiteStation || s.Kind == SitePlane || s.Kind == SiteShrine) && w.Wave >= 6:
 			k = CBrute
 		case r == 6 && w.Wave >= 5:
 			k = CHound
@@ -781,7 +800,7 @@ func (w *World) springAmbush(si int, p *Player) {
 			break
 		}
 	}
-	if s.Kind == SiteStation || s.Kind == SitePlane {
+	if s.Kind == SiteStation || s.Kind == SitePlane || s.Kind == SiteShrine {
 		w.rouse(si, p)
 	}
 	if got == 0 {

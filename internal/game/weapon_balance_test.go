@@ -34,16 +34,22 @@ var role = [NumWeapons]float32{
 	WMinigun:  8,
 	WLauncher: 11,
 	WCrowbar:  1.5,
+	WKatana:   2,
+	WGreat:    2.5,
 }
 
 func weaponRig(k WeaponKind, level uint8) rig {
 	return rig{name: fmt.Sprintf("%s %d", Weapons[k].Short, level), weapon: k, lv: lv(level, level, level, level)}
 }
 
-// maxed is every weapon fully upgraded, the pistol a pair, as a late wave sees them.
+// maxed is every weapon the armory sells fully upgraded, the pistol a pair, as a late wave
+// sees them. A legendary is found, not bought, and is held to its own tests (legend_test.go).
 func maxed() []rig {
 	var rs []rig
 	for k := WeaponKind(0); k < NumWeapons; k++ {
+		if k.Legendary() {
+			continue
+		}
 		r := weaponRig(k, MaxLevel)
 		if k == WPistol {
 			r.name, r.dual = "PSTx2 5", true
@@ -68,7 +74,8 @@ func weaponDPSFor(r rig, k CreepKind, aff Affix, d float32, ult bool, secs int) 
 	}
 	a.w.SpawnCreep(k, a.ox+d, a.oy)
 	c := &a.w.Creeps[0]
-	c.HP, c.MaxHP, c.Aff = 1e6, 1e6, aff
+	// Only the hp is the dummy's: blood loss takes its share of the creep's real hp.
+	c.HP, c.Aff = 1e6, aff
 	for range secs * TickRate {
 		a.tick(still)
 		a.w.Creeps[0].X, a.w.Creeps[0].Y = a.ox+d, a.oy // a shove is not a retreat

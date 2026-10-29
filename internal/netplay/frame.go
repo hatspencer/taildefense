@@ -402,6 +402,7 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 		b.u16(qpos(g.X))
 		b.u16(qpos(g.Y))
 		b.b = append(b.b, g.Lv[:]...)
+		b.u8(g.Evo)
 		b.u8(g.By)
 	}
 	// The evac Huey, once it is called.
@@ -509,7 +510,7 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 		b.uv(uint64(max(p.Gold, 0)))
 		b.uv(uint64(p.Kills))
 		b.uv(uint64(p.Damage))
-		var owned uint8
+		var owned uint16
 		for k := range p.Weapons {
 			if p.Weapons[k].Owned {
 				owned |= 1 << k
@@ -518,7 +519,10 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 		if p.Weapons[game.WPistol].Dual {
 			owned |= game.DualBit
 		}
-		b.u8(owned)
+		if p.Weapons[game.WKatana].Dual {
+			owned |= game.DualKatanaBit
+		}
+		b.u16(owned)
 		for k := range p.Weapons {
 			if p.Weapons[k].Owned {
 				for _, l := range p.Weapons[k].Lv {
@@ -526,6 +530,8 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 				}
 			}
 		}
+		// The legendaries' evolutions, two bits each in the order of their kinds.
+		b.u8(p.Weapons[game.WKatana].Evo | p.Weapons[game.WGreat].Evo<<2)
 		for _, g := range p.Gear {
 			b.u8(g)
 		}
@@ -542,13 +548,22 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 		}
 		b.u8(p.Medkits)
 		b.u8(deci(p.Heal))
-		var reloading uint8
+		var reloading uint16
 		for k := range p.Weapons {
 			if p.Weapons[k].Reload > 0 {
 				reloading |= 1 << k
 			}
 		}
-		b.u8(reloading)
+		b.u16(reloading)
+		// A legendary's swings so far, its weapon art (the art in the top two bits, how far
+		// through it below) and the seconds until the art is ready.
+		b.u8(p.Swings)
+		art := p.Art << 6
+		if p.Art != game.ArtNone && p.ArtTotal > 0 {
+			art |= uint8(min(max(1-p.ArtLeft/p.ArtTotal, 0), 1) * 63)
+		}
+		b.u8(art)
+		b.u16(uint16(min(math.Ceil(float64(p.ArtCool*10)), 65535)))
 		t := &p.Tally
 		for _, v := range [...]uint32{t.Downs, t.Revives, t.Built, t.Searched, t.Bosses} {
 			b.uv(uint64(v))

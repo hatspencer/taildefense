@@ -33,6 +33,11 @@ export const WEAPON_BASE: W0[] = [
     ult: { name: 'Cluster MIRV', desc: 'One rocket to a point that splits over it into ten bomblets, each hitting like a rocket.', time: 0, range: 24, radius: 4.5, target: 'point' } },
   { name: 'Crowbar', short: 'BAR', price: 0, range: 1.9, fire: 'melee', special: '+wider swing', dmg: 34, rate: 1.8, mag: 1, reload: 0,
     ult: { name: 'Berserk', desc: '8 seconds of swinging twice as fast, every hit healing you, shrugging off slows and stuns.', time: 8, range: 0, radius: 0, target: 'self' } },
+  // The legendaries: never sold, and the demo's survivors never find one.
+  { name: 'Katana', short: 'KTN', price: 1800, range: 2.2, fire: 'melee', special: '+bleed', dmg: 34, rate: 2.6, mag: 1, reload: 0,
+    ult: { name: 'Crimson Tempest', desc: '8 seconds of wide, fast cuts that reach further and bleed twice as hard.', time: 8, range: 0, radius: 0, target: 'self' } },
+  { name: 'Greatsword', short: 'GSW', price: 1800, range: 2.8, fire: 'melee', special: '+wider, +stagger', dmg: 100, rate: 0.85, mag: 1, reload: 0,
+    ult: { name: 'Titan\'s Wrath', desc: '8 seconds of every swing a follow-through that shakes the ground, and nothing stops you.', time: 8, range: 0, radius: 0, target: 'self' } },
 ];
 
 function upgradeCost(price: number, level: number): number {

@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { color, dot, floor, fract, mix, normalWorld, positionWorld, sin, smoothstep, time, vec2, vec3, vertexColor, float } from 'three/tsl';
 import { Ruin, SiteKind, Tile, type SiteDef } from '../protocol';
+import { SHRINE_PLAN, shrineTile } from './shrine';
 import { box, cone, cyl, dodeca, merge, part, setEmissive, writeMatrix } from './util';
 import { uSnow, uWet } from './weather';
 
@@ -277,13 +278,14 @@ export class Terrain {
   private buildRocks(tiles: Uint8Array, w: number, h: number, sites: SiteDef[]): void {
     const isRock = (x: number, y: number) => x >= 0 && y >= 0 && x < w && y < h && tiles[y * w + x] === Tile.Rock;
     const walls: number[] = [], boulders: number[] = [];
+    const style = wallStyles(tiles, w, h, sites);
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       if (!isRock(x, y)) continue;
-      // Rock tiles in a line are ruined walls; lone ones are boulders.
-      const line = isRock(x - 1, y) || isRock(x + 1, y) || isRock(x, y - 1) || isRock(x, y + 1);
+      // Rock tiles in a line are ruined walls; lone ones are boulders, but for a shrine's
+      // pillars and gate posts.
+      const line = isRock(x - 1, y) || isRock(x + 1, y) || isRock(x, y - 1) || isRock(x, y + 1) || style[y * w + x] === Wall.Pillar;
       (line ? walls : boulders).push(x, y);
     }
-    const style = wallStyles(tiles, w, h, sites);
     // Lone rocks are junk: a rubble heap with a dumped crate.
     const boulderGeo = merge([
       part(dodeca(0.5), 0x6c665a, 0, 0.2, 0, 0, 0, 0, 1, 0.6, 1),
@@ -355,7 +357,7 @@ export class Terrain {
 
 // Ruined walls come in styles, each block of one built along +x, a tile long. lo..hi is how
 // tall a block of it stands, before the break.
-const enum Wall { Siding = 0, Brick, Stone, Cinder, Timber, Fort, Shop, Chapel }
+const enum Wall { Siding = 0, Brick, Stone, Cinder, Timber, Fort, Shop, Chapel, Shrine, Pillar, Altar }
 const WALLS: { lo: number; hi: number; geo: () => THREE.BufferGeometry }[] = [
   // Siding: a brick footing, faded clapboard, a broken top.
   { lo: 0.8, hi: 1.6, geo: () => merge([
@@ -431,6 +433,37 @@ const WALLS: { lo: number; hi: number; geo: () => THREE.BufferGeometry }[] = [
     part(box(1.03, 0.07, 0.86), 0xa49d8a, 0, 0.98, 0),
     part(box(0.4, 0.16, 0.8), 0xb0a996, -0.24, 1.06, 0),
   ]) },
+  // A shrine's wall: old grey-green ashlar, older than the church, worn round, moss along the
+  // broken top and ivy down its faces.
+  { lo: 0.7, hi: 1.9, geo: () => merge([
+    part(box(1, 1, 0.78), 0x868a7a, 0, 0.5, 0),
+    part(box(1.02, 0.18, 0.82), 0x5e6256, 0, 0.09, 0),
+    part(box(0.48, 0.42, 0.8), 0x7a7e6e, -0.25, 0.4, 0),
+    part(box(0.5, 0.3, 0.8), 0x929684, 0.24, 0.72, 0),
+    part(box(1.01, 0.025, 0.79), 0x6a6e60, 0, 0.6, 0),
+    part(box(1.0, 0.07, 0.8), 0x4a6a2e, 0, 1.0, 0),
+    part(dodeca(0.16), 0x55783a, 0.3, 1.02, 0.12, 0, 0, 0, 1.4, 0.5, 1.2),
+    part(box(0.07, 0.55, 0.03), 0x3e5a26, -0.3, 0.72, 0.4),
+    part(box(0.06, 0.35, 0.03), 0x3e5a26, 0.12, 0.82, -0.4),
+  ]) },
+  // A shrine's pillar: a drum column on a plinth, the drums a little off true, a heavy
+  // capital, moss on top.
+  { lo: 2.3, hi: 3.3, geo: () => merge([
+    part(box(0.9, 0.12, 0.9), 0x6a6e60, 0, 0.06, 0),
+    part(cyl(0.28, 0.3, 0.3, 8), 0x8a8e7e, 0, 0.27, 0),
+    part(cyl(0.27, 0.28, 0.3, 8), 0x92968a, 0.02, 0.57, 0, 0, 0.2, 0),
+    part(cyl(0.27, 0.27, 0.28, 8), 0x868a7a, -0.02, 0.86, 0.01, 0, 0.4, 0),
+    part(box(0.72, 0.08, 0.72), 0x7a7e6e, 0, 0.96, 0),
+    part(box(0.6, 0.05, 0.6), 0x4a6a2e, 0, 1.0, 0),
+    part(box(0.05, 0.4, 0.04), 0x3e5a26, 0.26, 0.62, 0.1),
+  ]) },
+  // The altar: a long block on two steps, a band of gold leaf worn through round it.
+  { lo: 0.8, hi: 0.85, geo: () => merge([
+    part(box(1, 0.2, 1), 0x6e7264, 0, 0.1, 0),
+    part(box(1, 0.8, 0.8), 0x9a9c8c, 0, 0.5, 0),
+    part(box(1.01, 0.06, 0.82), 0x9a7a30, 0, 0.74, 0),
+    part(box(1.02, 0.08, 0.86), 0xa8aa98, 0, 0.98, 0),
+  ]) },
 ];
 
 // Which style each wall tile is built in: an outpost's and the gas station's their own, a
@@ -445,6 +478,14 @@ function wallStyles(tiles: Uint8Array, w: number, h: number, sites: SiteDef[]): 
   // Outposts and the station first: a house that overlaps one keeps to its own ground.
   for (const s of sites) if (s.kind === SiteKind.Outpost) paint(s.x, s.y, s.w, s.h, Wall.Fort);
   for (const s of sites) if (s.kind === SiteKind.Station) paint(s.x, s.y, s.w, s.h, Wall.Shop);
+  // A shrine's walls, pillars and altar by its plan.
+  for (const s of sites) {
+    if (s.kind !== SiteKind.Shrine) continue;
+    SHRINE_PLAN.forEach((row, ly) => [...row].forEach((c, lx) => {
+      const st = c === '#' ? Wall.Shrine : c === 'o' ? Wall.Pillar : c === 'A' ? Wall.Altar : -1;
+      if (st >= 0) { const [x, y] = shrineTile(s, lx, ly); paint(x, y, 1, 1, st); }
+    }));
+  }
   // The church's nave and the foot of its tower, which stands on past the nave towards yaw.
   for (const s of sites) {
     if (s.kind !== SiteKind.Church) continue;

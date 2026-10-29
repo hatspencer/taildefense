@@ -40,19 +40,19 @@ export class Guns {
     this.meshes.clear();
   }
 
-  private geo(kind: number, by: number): THREE.BufferGeometry {
-    const key = `${kind}:${by}`;
+  private geo(kind: number, by: number, evo: number): THREE.BufferGeometry {
+    const key = `${kind}:${by}:${evo}`;
     let g = this.geos.get(key);
     if (!g) {
-      const p = gunParts(kind, playerColor(by));
-      g = merge([...p.body, ...p.spin]);
+      const p = gunParts(kind, playerColor(by), evo);
+      g = merge([...p.body, ...p.spin, ...p.glow]);
       this.geos.set(key, g);
     }
     return g;
   }
 
   private make(g: Gun): THREE.Mesh {
-    const m = new THREE.Mesh(this.geo(g.kind, g.by), this.mat);
+    const m = new THREE.Mesh(this.geo(g.kind, g.by, g.evo), this.mat);
     m.castShadow = true;
     // On its side, the muzzle off at an angle of its own.
     const yaw = ((g.id * 2654435761) >>> 0) / 4294967296 * Math.PI * 2;

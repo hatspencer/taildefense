@@ -32,7 +32,7 @@ const (
 
 // slow slows survivor p for t seconds, unless they were slowed too lately.
 func (p *Player) slow(t float32) {
-	if !p.Alive || p.Shield > 0 || p.slowLeft > 0 || p.slowCool > 0 || p.ulting(WCrowbar) {
+	if !p.Alive || p.Shield > 0 || p.slowLeft > 0 || p.slowCool > 0 || p.unstoppable() {
 		return
 	}
 	p.slowLeft, p.slowCool = t, t+playerSlowGap
@@ -43,7 +43,7 @@ func (p *Player) slow(t float32) {
 
 // stun stops survivor p for t seconds, unless they are stopped for longer already.
 func (p *Player) stun(t float32) {
-	if p.Alive && p.Shield <= 0 && !p.ulting(WCrowbar) {
+	if p.Alive && p.Shield <= 0 && !p.unstoppable() {
 		p.stunLeft = max(p.stunLeft, t)
 	}
 }

@@ -38,8 +38,10 @@ leaves the sound engine at `window.tdSound`, whose `synth.plays`, `drops` and `s
 every sound by name, for a browser test to read; a musical cue counts as `cue:<name>`.
 `#lab` is the animation bench: every creep kind walking, idle, attacking, hit, burning, asleep
 and dying, beside the survivors' poses; `#lab=0`…`#lab=10` looks at one creep row, `#lab=h` at the
-survivors (`#lab=h0`…`#lab=h9` at one of them), `#lab=fx` at the turret evolutions' shots (a
-napalm missile bursting, an arc web), and `&dist=11` brings the camera in.
+survivors (`#lab=h0`…`#lab=h15` at one of them), `#lab=legend` at the legendary blades (the
+katana's combo, a pair of katanas, Flash Draw, the greatsword's combo with its follow-through,
+Skyfall, and the evolved blades), `#lab=fx` at the turret evolutions' shots (a napalm missile
+bursting, an arc web), and `&dist=11` brings the camera in.
 `#lab=sound` puts the sound bench over it: every recipe in the bank and every set of recordings,
 clicked (or Enter) to play as the game does, or the recipe, the recording or both alone (s, r, b),
 at the level the game plays it and the volume on its slider. Recordings come in through

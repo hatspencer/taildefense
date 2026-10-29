@@ -1,6 +1,6 @@
 import { Vector3 } from 'three/webgpu';
 import type { ConnState } from '../net';
-import { CROWBAR, OWNED_DUAL, EvacStage, K_ARMORY, K_CORE, stickyKind, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, type Player, TTrack, TURRET_TRACKS, type Welcome, repairCost, sellValue, turretRange, WEAPON_SLOTS, K_GATE, COMPASS, CX_ARMOURED, CX_FRENZY, CX_HASTY, CX_SAPPER, CX_SPLITTER } from '../protocol';
+import { CROWBAR, OWNED_DUAL, KATANA, dualIn, legendary, weaponKey, EvacStage, K_ARMORY, K_CORE, stickyKind, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, type Player, TTrack, TURRET_TRACKS, type Welcome, repairCost, sellValue, turretRange, WEAPON_SLOTS, K_GATE, COMPASS, CX_ARMOURED, CX_FRENZY, CX_HASTY, CX_SAPPER, CX_SPLITTER } from '../protocol';
 import { type Controller, KEYS } from '../controller';
 import { cssHex, playerColor } from '../scene/util';
 import { Armory } from './armory';
@@ -299,7 +299,8 @@ export class Hud {
     this.med = med;
     for (let i = 0; i < WEAPON_SLOTS; i++) {
       const w = el('div', 'wslot', ws);
-      el('span', 'key', w, i === CROWBAR ? '0' : String(i + 2));
+      el('span', 'key', w, weaponKey(i));
+      if (legendary(i)) w.classList.add('legend');
       el('span', 'nm', w);
       w.onclick = () => { const me = ctl.me(); if (me && me.owned & (1 << i)) ctl.send({ op: 'select', w: i }); else ctl.openArmory(true); };
       this.tipOn(w, () => this.weaponTip(i));
@@ -377,7 +378,11 @@ export class Hud {
     const owned = (me.owned & (1 << i)) !== 0;
     const reloading = (me.reloading & (1 << i)) !== 0;
     const lv = [0, 1, 2, 3].map((t) => `${wd!.tracks[t]} ${me.levels[i * 4 + t]}`).join(' · ');
-    return `<b>${esc(w.name)}</b><kbd>${i === CROWBAR ? 0 : i + 2}</kbd><br><span class="muted">${w.fire} · range ${w.range} · special ${esc(w.special)}</span><br>${i === 0 && me.owned & OWNED_DUAL ? 'dual pistols: twice the rounds a second and the magazine<br>' : ''}${owned ? lv : `not owned · <span class="c">${w.price}g</span> at the armory`}<br><span class="muted">ultimate: ${esc(w.ult.name)}${reloading ? ' · reloading' : ''}</span>`;
+    if (w.legend) {
+      const evo = me.evo[i] ? w.evolve?.[me.evo[i] - 1] : undefined;
+      return `<b class="legend">${esc(w.name)}</b><kbd>${weaponKey(i)}</kbd> <span class="muted">legendary</span><br><span class="muted">melee · reach ${w.range} · special ${esc(w.special)}</span><br>${i === KATANA && dualIn(me.owned, i) ? 'a pair: one in each hand, cutting 70% faster<br>' : ''}${evo ? `<b>${esc(evo.name)}</b>: ${esc(evo.desc)}<br>` : ''}${lv}<br>F: <b>${esc(w.art?.name ?? '')}</b> · ${esc(w.art?.desc ?? '')}<br><span class="muted">ultimate: ${esc(w.ult.name)}</span>`;
+    }
+    return `<b>${esc(w.name)}</b><kbd>${weaponKey(i)}</kbd><br><span class="muted">${w.fire} · range ${w.range} · special ${esc(w.special)}</span><br>${i === 0 && me.owned & OWNED_DUAL ? 'dual pistols: twice the rounds a second and the magazine<br>' : ''}${owned ? lv : `not owned · <span class="c">${w.price}g</span> at the armory`}<br><span class="muted">ultimate: ${esc(w.ult.name)}${reloading ? ' · reloading' : ''}</span>`;
   }
 
   private diffTip(): string {
@@ -963,12 +968,13 @@ export class Hud {
     for (let i = 0; i < WEAPON_SLOTS; i++) {
       const e = this.wslots[i], w2 = wd.weapons[i];
       // The crowbar is brutal's alone: its slot only shows for whoever carries it.
-      show(e, !!w2 && (i !== CROWBAR || (me.owned & (1 << i)) !== 0));
+      // So are the legendaries, found and never sold.
+      show(e, !!w2 && ((i !== CROWBAR && !legendary(i)) || (me.owned & (1 << i)) !== 0));
       if (!w2) continue;
       setClass(e, 'owned', (me.owned & (1 << i)) !== 0);
       setClass(e, 'cur', me.cur === i);
       setClass(e, 'reloading', (me.reloading & (1 << i)) !== 0);
-      setText(e.children[1] as HTMLElement, i === 0 && me.owned & OWNED_DUAL ? `${w2.short}×2` : w2.short);
+      setText(e.children[1] as HTMLElement, dualIn(me.owned, i) ? `${w2.short}×2` : me.evo[i] ? `${w2.short}✦` : w2.short);
     }
     setClass(this.med, 'owned', me.medkits > 0);
     setClass(this.med, 'cur', me.heal > 0);

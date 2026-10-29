@@ -317,6 +317,10 @@ func (w *World) spawnGuards(si int) {
 			k = CMauler
 		case lv == 4 && j <= 2:
 			k = CBrute
+		case s.Kind == SiteShrine && j == 0 && w.Wave >= 12:
+			k = CMauler // the shrine's champion
+		case s.Kind == SiteShrine && j <= 1:
+			k = CBrute
 		case lv == 3 && j == 0:
 			k = CBrute
 		case lv == 3 && j == 1 && w.Wave >= 12:

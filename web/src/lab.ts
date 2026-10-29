@@ -1,5 +1,6 @@
 import {
-  BlastKind, K_TESLA, OWNED_DUAL, THROW_FLIGHT, TRACER_ARC, TRACER_NAPALM, CF_ASLEEP, CF_BURNING, CF_GUARD, CF_STRIKE, CF_WINDUP, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_FIRING, PF_HURT, PF_MOVING, PF_RELOADING, Player,
+  Art, ART_TIME, BlastKind, GREAT, K_TESLA, KATANA, OWNED_DUAL, OWNED_DUAL_KATANA, TRACER_FLASH, TRACER_FOLLOW, TRACER_GREAT,
+  TRACER_KATANA, TRACER_MOON, THROW_FLIGHT, TRACER_ARC, TRACER_NAPALM, CF_ASLEEP, CF_BURNING, CF_GUARD, CF_STRIKE, CF_WINDUP, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_FIRING, PF_HURT, PF_MOVING, PF_RELOADING, Player,
 } from './protocol';
 import type { Game } from './state';
 
@@ -8,7 +9,8 @@ import type { Game } from './state';
 // showing a pose: walking a circle while aiming one way (so strafing and backpedalling show),
 // sprinting, kneeling to search and to revive, reloading, taunting and down, firing dual
 // pistols, and caught and thrown by a mauler, each at its own health so the HUD's portraits
-// show every state. Past them, the turret evolutions' shots ('fx'): a napalm missile flying
+// show every state; then the legendaries: the katana's combo, a pair of katanas, Flash Draw,
+// the greatsword's combo, Skyfall, and the evolved blades (Moonlit Edge, Titan's Wrath). Past them, the turret evolutions' shots ('fx'): a napalm missile flying
 // and bursting, and an arc web striking a knot of points. It takes the demo's world over after
 // its first frame and stops it, then poses everything itself.
 
@@ -21,7 +23,10 @@ export class Lab {
   private tick = 0;
   private last = 0;
   // Player poses, by player slot.
-  private poses = ['circle', 'sprint', 'loot', 'revive', 'reload', 'taunt', 'down', 'shoot', 'dual', 'thrown'];
+  private poses = ['circle', 'sprint', 'loot', 'revive', 'reload', 'taunt', 'down', 'shoot', 'dual', 'thrown',
+    'katana', 'katanas', 'flash', 'great', 'skyfall', 'evolved'];
+  // The swing counter each legendary pose last showed, to cut a tracer when it moves.
+  private swung: number[] = [];
 
   // gun, when 0 or more, puts that weapon in every survivor's hands (#lab=h&gun=6).
   constructor(private game: Game, cx: number, cy: number, private gun = -1) {
@@ -30,11 +35,12 @@ export class Lab {
   }
 
   // Where to look: the whole bench, or one creep row (0..10), or the survivors ('h'), or one
-  // of them ('h0'..'h9'), or the turret shots ('fx').
+  // of them ('h0'..'h15'), or the turret shots ('fx').
   center(at = ''): [number, number] {
     if (at === 'fx') return [this.fx() + 4.5, this.y0 + 2.5];
-    if (/^h\d$/.test(at)) { const i = Number(at[1]); return [this.x0 + COLS.length * DX + 2.5 + (i % 2) * 3.4, this.y0 + Math.floor(i / 2) * DY]; }
+    if (/^h\d+$/.test(at)) { const i = Number(at.slice(1)); return [this.x0 + COLS.length * DX + 2.5 + (i % 2) * 3.4, this.y0 + Math.floor(i / 2) * DY]; }
     if (at === 'h') return [this.x0 + COLS.length * DX + 4.2, this.y0 + 1.5 * DY];
+    if (at === 'legend') return [this.x0 + COLS.length * DX + 4.2, this.y0 + 6 * DY];
     if (at !== '' && !Number.isNaN(Number(at))) return [this.x0 + 3 * DX, this.y0 + Number(at) * DY];
     return [this.x0 + 3 * DX + 3, this.y0 + 2.5 * DY];
   }
@@ -95,10 +101,11 @@ export class Lab {
     for (let i = 0; i < this.poses.length; i++) {
       const p = f.players[i], pose = this.poses[i];
       // Health varies so the portraits show their wounds; the sprinter has a medkit working.
-      p.id = i; p.look = (i * 2654435761) >>> 0; p.cur = this.gun >= 0 ? this.gun : i % 6; p.hp = [80, 50, 55, 80, 22, 80, 0, 45, 70, 35][i]; p.maxHp = 100;
+      p.id = i; p.look = (i * 2654435761) >>> 0; p.cur = this.gun >= 0 ? this.gun : i % 6; p.hp = [80, 50, 55, 80, 22, 80, 0, 45, 70, 35, 90, 75, 60, 85, 65, 95][i]; p.maxHp = 100;
       p.heal = pose === 'sprint' ? 5 : 0;
       p.flags = PF_CONNECTED | PF_ALIVE; p.order = Order.Idle; p.channel = 0; p.emote = Emote.None; p.emoteLeft = 0; p.sprinting = false;
       p.held = false; p.airborne = false; p.stunned = false; p.owned = 0;
+      p.evo.fill(0); p.art = Art.None; p.artFrac = 0; p.artCool = 0;
       let x = hx + (i % 2) * 3.4, y = this.y0 + Math.floor(i / 2) * DY, aim = Math.PI / 2;
       switch (pose) {
         case 'circle': {
@@ -130,12 +137,54 @@ export class Lab {
           else x -= 3;
           break;
         }
+        default: [x, y, aim] = this.legend(p, pose, t, x, y, i, fresh); break;
       }
       g.prx[i] = x; g.pry[i] = y; g.paim[i] = aim;
       p.x = x; p.y = y; p.aim = aim;
     }
     if (fresh) this.shots();
     return fresh;
+  }
+
+  // A legendary pose: swinging in a combo, a cut every period seconds, or the weapon art every
+  // three seconds. Tracers and blasts go out with fresh frames, as the game's would, for the
+  // effects and sounds.
+  private legend(p: Player, pose: string, t: number, x: number, y: number, i: number, fresh: boolean): [number, number, number] {
+    const f = this.game.cur, aim = 0;
+    const great = pose === 'great' || pose === 'skyfall';
+    p.cur = great ? GREAT : KATANA;
+    p.owned = (1 << p.cur) | (pose === 'katanas' ? OWNED_DUAL_KATANA : 0);
+    if (pose === 'evolved') { p.cur = Math.floor(t / 6) % 2 ? GREAT : KATANA; p.evo[KATANA] = 2; p.evo[GREAT] = 2; }
+    const tracer = (x0: number, y0: number, x1: number, y1: number, k: number) => {
+      const j = f.nTracers++;
+      f.tX0[j] = x0; f.tY0[j] = y0; f.tX1[j] = x1; f.tY1[j] = y1; f.tKind[j] = k;
+    };
+    if (pose === 'flash' || pose === 'skyfall') {
+      // The art over its time, then a breath standing where it ended, then back.
+      const u = t % 3, d = ART_TIME[pose === 'flash' ? Art.Flash : Art.Skyfall], reach = pose === 'flash' ? 4 : 3;
+      const go = u - 1, was = this.swung[i] ?? 0, now = Math.floor(t / 3);
+      if (go >= 0 && go < d) { p.art = pose === 'flash' ? Art.Flash : Art.Skyfall; p.artFrac = go / d; }
+      const along = go < 0 ? 0 : Math.min(1, go / d);
+      if (fresh && go >= d && was !== now) {
+        this.swung[i] = now;
+        if (pose === 'flash') tracer(x, y, x + reach, y, TRACER_FLASH);
+        else { const j = f.nBlasts++; f.bX[j] = x + reach; f.bY[j] = y; f.bR[j] = 3; f.bKind[j] = BlastKind.Skyfall; }
+      }
+      p.flags |= PF_MOVING;
+      return [x + along * reach, y, aim];
+    }
+    const period = great ? 0.9 : pose === 'katanas' ? 0.32 : 0.45;
+    const n = Math.floor(t / period);
+    p.swings = n & 255;
+    p.flags |= PF_FIRING;
+    if (fresh && (this.swung[i] ?? -1) !== n) {
+      this.swung[i] = n;
+      const k = p.cur === GREAT ? (p.evo[GREAT] && n % 3 === 2 ? TRACER_FOLLOW : TRACER_GREAT) : TRACER_KATANA;
+      tracer(x, y, x + (great || p.cur === GREAT ? 2 : 1.6), y, k);
+      if (p.cur === KATANA && p.evo[KATANA]) tracer(x, y, x + 4, y, TRACER_MOON);
+      if (p.cur === KATANA && n % 4 === 3) { const j = f.nBlasts++; f.bX[j] = x + 1.3; f.bY[j] = y; f.bR[j] = 1; f.bKind[j] = BlastKind.Bleed; }
+    }
+    return [x, y, aim];
   }
 
   // The turret evolutions' shots for one frame: a napalm missile 18 tiles a second over nine

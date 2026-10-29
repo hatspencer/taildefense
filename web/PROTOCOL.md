@@ -38,7 +38,7 @@ everything it knows, a terrain message follows).
 ```jsonc
 {
   "t": "welcome",
-  "proto": 24,
+  "proto": 25,
   "version": "a1b2c3d",
   "you": 0,                    // your player id
   "w": 352, "h": 220,          // map size in tiles
@@ -105,6 +105,10 @@ everything it knows, a terrain message follows).
       "ult": {"name": "Dead Eye", "desc": "...", "time": 1.5, "range": 0, "radius": 0, "target": "self"}
       // the ultimate on Q: time s it runs (0 for the launcher's one-shot MIRV), range and radius
       // for a "point" ultimate cast at the cursor
+      // A legendary blade (7 katana, 8 greatsword) adds: "legend": true (found, never sold),
+      // "art": {"name": "Flash Draw", "desc": "...", "range": 7, "cool": 6}, its weapon art on F
+      // in place of the dash while it is in hand, "evolve": [{"name", "desc", "range": 1} × 2],
+      // its two evolutions once its tracks add up to tiers.evolveAt, and "evoCost": 1500.
     }
   ],
   "gear": [ {"name": "Armor", "info": "+25 max HP", "costs": [90, 153, 260, 442, 752]} ],
@@ -151,7 +155,8 @@ everything it knows, a terrain message follows).
     {"name": "Motorbike", "search": 1},
     {"name": "Crashed plane", "search": 6},
     {"name": "Engine", "search": 0},         // the plane's: not loot, see below
-    {"name": "Church", "search": 2.5}        // not loot: its bell, see below
+    {"name": "Church", "search": 2.5},       // not loot: its bell, see below
+    {"name": "Shrine", "search": 6}          // searched at its altar: always a legendary blade
   ],
   "sites": [                   // index = site id, used in the loot command
     {"kind": 0, "x": 40, "y": 30, "w": 8, "h": 6,  // tiles covered: the house with its walls
@@ -288,9 +293,11 @@ u8   nPlayers
   u8   respawn        seconds until respawn when down; until then a teammate can revive
                       them where they fell
   u32  gold, u32 kills, u32 damage
-  u8   owned          bit k set: weapon k owned; bit 7 a second pistol, dual pistols: twice
-                      the pistol's fire rate and magazine
-  u8   levels[28]     weapon-major: levels[w*4 + track]
+  u16  owned          bit k set: weapon k owned; bit 15 a second pistol, dual pistols: twice
+                      the pistol's fire rate and magazine; bit 14 a second katana, a pair
+  u8   levels[36]     weapon-major: levels[w*4 + track]
+  u8   evo            the legendaries' evolutions, 0 none or 1..2: bits 0-1 the katana's,
+                      bits 2-3 the greatsword's
   u8   gear[4]        Armor, Boots, Vitamins, Scavenger
   u8   order          0 idle, 1 move, 2 attack-move, 3 attack, 4 hold, 5 build, 6 repair,
                       7 loot, 8 revive, 9 steer (walking with WASD), 10 pick up a weapon,
@@ -322,7 +329,11 @@ u8   nPlayers
   4 × (u8 level, u16 cooldown deciseconds left)     ability slots 0..3
   u8   medkits        carried
   u8   heal           deciseconds of a medkit's healing left
-  u8   reloading      bit k set: weapon k is reloading, in hand or not
+  u16  reloading      bit k set: weapon k is reloading, in hand or not
+  u8   swings         a legendary's swings, counting up and wrapping: each change is a swing
+  u8   art            bits 6-7 the weapon art under way (0 none, 1 Flash Draw, 2 Skyfall),
+                      bits 0-5 how far along it is, 0..63
+  u16  artCool        deciseconds until the weapon art can be used again
   u16  downs, revives, built, searched, bosses    this game's tallies, capped at 65535
   u32  taken          damage taken
   u32  turret         damage their turrets dealt, part of damage
@@ -340,6 +351,7 @@ u8   nGuns            weapons survivors dropped, lying on the ground (at most 32
   u8   kind           weapon kind
   u16  x, y q8
   u8   lv[4]          its track levels, kept from the hands that dropped it
+  u8   evo            a legendary's evolution, kept as well
   u8   by             the player id who dropped it
 
 u8   evac             the evac Huey: 0 not called, 1 inbound, 2 down on the pad, 3 lifting off,
@@ -384,7 +396,7 @@ u16  nCreeps
 u16  nTracers         shots fired this tick
   u16  x0, y0, x1, y1 q8
   u8   kind           0..6 player weapon kind (6 the crowbar: a swing, the survivor to its
-                      reach), 8 + weapon kind the same under its ultimate (drawn red and wider), 16+structKind turret shot (a missile battery's is a one-tile stub at launch; its missiles fly as 5, rocket, tracers), 32 spitter spit, 35 a hurler's bone, 33 dash (the hero's leap, start to end), 34 the Huey's door gunner, 36 a napalm missile in flight (as 5, burning), 37 an arc web's jump from creep to creep (and from each struck creep to the one two back)
+                      reach), 8 + weapon kind the same under its ultimate (drawn red and wider), 16+structKind turret shot (a missile battery's is a one-tile stub at launch; its missiles fly as 5, rocket, tracers), 32 spitter spit, 35 a hurler's bone, 33 dash (the hero's leap, start to end), 34 the Huey's door gunner, 36 a napalm missile in flight (as 5, burning), 37 an arc web's jump from creep to creep (and from each struck creep to the one two back), 38 a katana's cut and 39 a greatsword's (the survivor to its reach), 40 and 41 the same under their ultimates, 42 Flash Draw's cut (start to end of the survivor's run), 43 Moonlit Edge's crescent, 44 a greatsword's follow-through
                       (x0,y0 is the Huey over the ground; it fires from the air)
 u16  nBlasts          explosions and pulses this tick
   u16  x, y q8
@@ -397,7 +409,8 @@ u16  nBlasts          explosions and pulses this tick
                       sac landing, or the broodmother splitting open), 13 the evac Huey touching
                       down on the helipad, 14 a flame vent bursting, 15 the generator's Overload
                       (at the generator, r its reach), 16 a napalm missile bursting (the
-                      ground burns a moment where it lands)
+                      ground burns a moment where it lands), 17 a creep's blood loss bursting,
+                      18 Skyfall landing (r its reach)
 u16  nDeaths          creeps that died this tick
   u16  x, y q8
   u8   kind
@@ -474,6 +487,7 @@ integers. The host checks everything; a refusal comes back as a `toast` with lev
                                              // stands in the gateway; it swings once per gate.cool s
 {"op": "payIn"}                              // put tiers.step gold into the generator's next tier
 {"op": "evolve",  "s": 7, "track": 1}        // evolve turret 7 into its branch 1 or 2 (structs[k].evolve)
+{"op": "evolveWeapon", "w": 7, "branch": 2}  // at the armory: evolve legendary 7 into its branch 1 or 2 (weapons[w].evolve)
 {"op": "overload"}                           // the generator's Overload, once a wave from tier tiers.overload
 {"op": "ready",   "on": true}                // ready for the next wave (all ready: starts in 3 s)
 {"op": "restart"}                            // a new map, only once the game is over

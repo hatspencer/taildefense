@@ -144,8 +144,8 @@ func (w *World) pay(p *Player, cost int32) error {
 
 // BuyWeapon buys a weapon and switches to it.
 func (w *World) BuyWeapon(p *Player, k WeaponKind) error {
-	if k >= NumWeapons || k == WCrowbar {
-		return errors.New("no such weapon")
+	if !k.Sold() {
+		return errors.New("the armory does not sell that")
 	}
 	if !w.atArmory(p) {
 		return errNotAtArmory

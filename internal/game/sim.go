@@ -395,6 +395,7 @@ func (w *World) stepCreeps() {
 		if c.Mark > 0 {
 			c.Mark -= Dt
 		}
+		c.stepBleed()
 		if c.Burn > 0 {
 			c.Burn -= Dt
 			c.HP -= c.BurnDPS * w.burnMul() * Dt
@@ -728,8 +729,8 @@ func (w *World) attackStruct(c *Creep, d *CreepDef, si int) {
 }
 
 func (w *World) hurtPlayer(p *Player, dmg float32) {
-	if p.Shield > 0 {
-		return
+	if p.Shield > 0 || p.Art == ArtSkyfall {
+		return // in the air, a Skyfall leaps over every blow
 	}
 	p.Tally.Taken += float64(min(dmg, max(p.HP, 0)))
 	p.HP -= dmg
@@ -748,6 +749,7 @@ func (w *World) hurtPlayer(p *Player, dmg float32) {
 		p.Search, p.Revived, p.Emote, p.EmoteLeft = 0, 0, 0, 0
 		p.BuffLeft = 0
 		p.held, p.fly = false, 0
+		p.Art, p.ArtLeft = ArtNone, 0
 		w.note(2, "%s is down  ·  revive them within %.0fs or they are back at the base", p.Name, p.Respawn)
 	}
 }
@@ -781,6 +783,7 @@ func (w *World) respawn(p *Player) {
 	p.Search, p.Revived = 0, 0
 	p.slowLeft, p.slowCool, p.stunLeft = 0, 0, 0
 	p.held, p.fly = false, 0
+	p.Art, p.ArtLeft, p.ArtCool = ArtNone, 0, 0
 	p.walk.reset()
 	p.BuffLeft = 0
 	p.Stamina, p.Winded = 1, false
@@ -898,9 +901,13 @@ func (w *World) shoot(p *Player, st Stats, ang float32) {
 	}
 	switch Weapons[p.Cur].Fire {
 	case FireMelee:
-		hits := w.melee(owner, p.X, p.Y, ang, st.Range, st.Spread, st.Damage, kind)
+		if p.Cur.Legendary() {
+			w.swingLegend(p, st, ang, ult)
+			break
+		}
+		hits := w.melee(owner, p.X, p.Y, ang, st.Range, st.Spread, st.Damage, kind, st.Hits, 1)
 		if ult && p.Cur == WCrowbar {
-			p.HP = min(p.MaxHP, p.HP+float32(hits)*st.Damage*berserkLeech)
+			p.HP = min(p.MaxHP, p.HP+float32(len(hits))*st.Damage*berserkLeech)
 		}
 	case FireRocket:
 		a := ang + (w.rng.Float32()*2-1)*st.Spread
@@ -1093,12 +1100,14 @@ func (w *World) rayCells(x, y, dx, dy, length float32, fn func(i int32)) {
 	w.scratch = cs[:0]
 }
 
-// meleeHits is how many creeps one swing of a melee weapon goes through.
+// meleeHits is how many creeps one swing of a melee weapon goes through, unless its
+// weapon says otherwise.
 const meleeHits = 4
 
-// melee is a swing: the nearest few creeps within reach and within half radians of the aim
-// are hit. One tracer, from the survivor along the swing, lets the client draw it.
-func (w *World) melee(owner int8, x, y, ang, reach, half, dmg float32, kind uint8) int {
+// melee is a swing: the nearest most creeps within reach and within half radians of the aim
+// are hit, each stunned stun times as long as a hit. One tracer, from the survivor along the
+// swing, lets the client draw it. It returns the creeps it hit, good until the next swing.
+func (w *World) melee(owner int8, x, y, ang, reach, half, dmg float32, kind uint8, most int, stun float32) []int32 {
 	dx, dy := float32(math.Cos(float64(ang))), float32(math.Sin(float64(ang)))
 	cosHalf := float32(math.Cos(float64(half)))
 	cands := w.hitBuf[:0]
@@ -1120,11 +1129,13 @@ func (w *World) melee(owner int8, x, y, ang, reach, half, dmg float32, kind uint
 			cands[b], cands[b-1] = cands[b-1], cands[b]
 		}
 	}
-	hits := min(len(cands), meleeHits)
-	for k := 0; k < hits; k++ {
-		w.damage(cands[k].i, dmg, owner)
+	hits := w.swingHits[:0]
+	for k := 0; k < min(len(cands), most); k++ {
+		w.hit(cands[k].i, dmg, owner, stun)
+		hits = append(hits, cands[k].i)
 	}
 	w.hitBuf = cands[:0]
+	w.swingHits = hits
 	w.tracer(x, y, x+dx*reach, y+dy*reach, kind)
 	return hits
 }
