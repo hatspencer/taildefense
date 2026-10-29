@@ -3,7 +3,10 @@ import {
   cameraPosition, clamp, cross, float, instancedDynamicBufferAttribute, length, mix, normalize, positionGeometry,
   abs, exp, mrt, normalView, output, vec4, pow, sin, smoothstep, step, time, uniform, uv, vec3,
 } from 'three/tsl';
-import { BlastKind, EffectKind, LOB_WINDUP, TRACER_ARC, TRACER_HELI, TRACER_NAPALM, TRACER_SHARD, TRACER_ULT, Tile } from '../protocol';
+import {
+  BlastKind, EffectKind, LOB_WINDUP, TRACER_ARC, TRACER_FLASH, TRACER_FOLLOW, TRACER_GREAT_ULT, TRACER_HELI, TRACER_KATANA,
+  TRACER_KATANA_ULT, TRACER_MOON, TRACER_NAPALM, TRACER_SHARD, TRACER_ULT, Tile,
+} from '../protocol';
 import type { Game } from '../state';
 import { K_ARMORY, K_CORE, K_MISSILE, K_SNIPER, K_TESLA } from './structs';
 import { linInto, writeMatrix } from './util';
@@ -236,6 +239,7 @@ export class Effects {
         continue;
       }
       if (k === TRACER_ARC) { this.arcWeb(t, x0, 0.6, y0, x1, 0.6, y1); continue; }
+      if (k >= TRACER_KATANA && k <= TRACER_FOLLOW) { this.legend(t, k, x0, y0, x1, y1, dist); continue; }
       if (k >= 32) {
         this.streaks.add(t, x0, 0.8, y0, x1, 0.9, y1, 0.35, 0x8cff3a, 0.2, 0, 0, 0.25, 1, 1.2);
         this.glow.add(t + 0.3, x1, 0.9, y1, 0, 0.5, 0, 0.25, 0x8cff3a, 0.6, 0.2);
@@ -391,8 +395,151 @@ export class Effects {
     for (let j = 0; j < 3; j++) this.glow.add(t, x1, y1, z1, (Math.random() - 0.5) * 5, Math.random() * 3, (Math.random() - 0.5) * 5, 0.25, 0xffffff, 0.1, 0.02, 10);
   }
 
+  // A legendary's cut, drawn the way a big blade reads at pixel scale: a crescent swept across
+  // its reach over a few frames (an outer smear and a hot core), the side it sweeps from
+  // turning about each swing, with what the blade leaves behind: blood off a katana, grit and
+  // embers off a greatsword, a crater where a follow-through lands.
+  private slashFlip = false;
+  private legend(t: number, k: number, x0: number, y0: number, x1: number, y1: number, dist: number): void {
+    const a = Math.atan2(y1 - y0, x1 - x0);
+    if (k === TRACER_FLASH) { this.flashCut(t, x0, y0, x1, y1, dist); return; }
+    if (k === TRACER_MOON) {
+      // Moonlit Edge: a pale crescent flying out the whole reach, thinning as it goes.
+      for (let s = 0; s < 6; s++) {
+        const r = 1.2 + (dist - 1.2) * s / 5, ts = t + s * 0.035;
+        this.crescent(ts, x0, y0, a, r, 0.42, 0.9, 0.16, 0xbfe6ff, 0.12 * (1 - s / 7), 1.6, true);
+        this.crescent(ts, x0, y0, a, r, 0.38, 0.9, 0.2, 0x5a8cff, 0.32 * (1 - s / 7), 0.6, true);
+      }
+      this.glow.add(t + 0.2, x1, 0.9, y1, 0, 0.2, 0, 0.3, 0xa8d8ff, 1.2, 0.2, 0, 1, 1, 1.1);
+      return;
+    }
+    const kat = k === TRACER_KATANA || k === TRACER_KATANA_ULT;
+    const ult = k === TRACER_KATANA_ULT || k === TRACER_GREAT_ULT;
+    const follow = k === TRACER_FOLLOW;
+    this.slashFlip = !this.slashFlip;
+    const half = kat ? (ult ? 1.05 : 0.8) : 1.2, r = dist * 0.85;
+    if (kat) {
+      // Steel, then a crimson smear behind it; a pair a beat apart under Crimson Tempest.
+      this.crescent(t, x0, y0, a, r, half, 1.05, 0.12, 0xf8faff, 0.06, 1.8, this.slashFlip);
+      this.crescent(t, x0, y0, a, r * 0.92, half, 1.0, 0.2, ult ? 0xff1a2a : 0xb0101c, ult ? 0.36 : 0.22, 0.9, this.slashFlip);
+      if (ult) this.crescent(t + 0.06, x0, y0, a + 0.25, r * 1.08, half, 1.15, 0.22, 0xff4050, 0.3, 1.1, !this.slashFlip);
+      // Blood flung off the edge, falling.
+      for (let j = 0; j < (ult ? 8 : 4); j++) {
+        const b = a + (Math.random() - 0.5) * half * 2, s = r * (0.7 + Math.random() * 0.4);
+        this.glow.add(t + 0.03, x0 + Math.cos(b) * s, 1.0, y0 + Math.sin(b) * s, Math.cos(b) * 2.5, 1.5 + Math.random() * 2, Math.sin(b) * 2.5,
+          0.4 + Math.random() * 0.2, j % 2 ? 0x8a0a14 : 0xd0202c, 0.12, 0.05, 12, 1, 1, 0.9);
+      }
+      return;
+    }
+    // The greatsword: a heavy, slower smear, bone-white at its heart; gold and embers under
+    // Titan's Wrath.
+    const core = ult ? 0xfff0b0 : 0xfff6e4, outer = ult ? 0xff9a20 : 0xc8b490;
+    this.crescent(t, x0, y0, a, r, half, follow ? 1.6 : 1.1, 0.2, core, 0.1, 1.6, this.slashFlip, 0.5);
+    this.crescent(t, x0, y0, a, r * 0.9, half, follow ? 1.5 : 1.0, 0.3, outer, 0.42, 0.7, this.slashFlip, 0.5);
+    if (ult) {
+      for (let j = 0; j < 10; j++) {
+        const b = a + (Math.random() - 0.5) * half * 2, s = r * Math.random();
+        this.glow.add(t + 0.05, x0 + Math.cos(b) * s, 0.8, y0 + Math.sin(b) * s, Math.cos(b), 2 + Math.random() * 2, Math.sin(b),
+          0.6 + Math.random() * 0.3, j % 2 ? 0xff7a1a : 0xffd060, 0.14, 0.03, -1, 1, 1, 1.3);
+      }
+    }
+    // Grit kicked off the ground along the arc.
+    for (let j = 0; j < 4; j++) {
+      const b = a + (Math.random() - 0.5) * half * 2;
+      this.dust.add(t + 0.08, x0 + Math.cos(b) * r, 0.2, y0 + Math.sin(b) * r, Math.cos(b) * 0.8, 0.6, Math.sin(b) * 0.8, 0.6, 0x8a7a5c, 0.25, 0.6, 0, 1, 0.5);
+    }
+    if (!follow && !ult) return;
+    // A follow-through comes down in front: the ground cracks and jumps, a ring of dust rolls out.
+    const qx = x0 + Math.cos(a) * dist * 0.7, qy = y0 + Math.sin(a) * dist * 0.7, tq = t + 0.07;
+    this.rings.add(tq, qx, 0.12, qy, 0, 0, 0, 0.45, 0xe8dcc0, 0.3, 2.6, 0, 1, 1, 1.1);
+    this.glow.add(tq, qx, 0.4, qy, 0, 0, 0, 0.12, 0xfff0d0, 1.6, 0.6, 0, 1, 1, 1.2);
+    this.decals.add(tq, qx, 0.067, qy, 0, 0, 0, 8, 0x2a2018, 0.7, 0.9, 0, 1, 0.7);
+    for (let j = 0; j < 10; j++) {
+      const b = Math.random() * 6.28, sp = 1.5 + Math.random() * 3;
+      this.glow.add(tq, qx, 0.2, qy, Math.cos(b) * sp, 3 + Math.random() * 3, Math.sin(b) * sp, 0.5 + Math.random() * 0.2, j % 2 ? 0x6a5a40 : 0x9a8a66, 0.16, 0.1, 14, 1, 1, 0.5);
+    }
+    for (let j = 0; j < 6; j++) {
+      const b = j / 6 * 6.28;
+      this.dust.add(tq, qx + Math.cos(b) * 0.5, 0.25, qy + Math.sin(b) * 0.5, Math.cos(b) * 3, 0.4, Math.sin(b) * 3, 0.8, 0x9a8a6c, 0.4, 1.2, 0, 1, 0.55);
+    }
+  }
+
+  // A crescent of streaks across a sweep of half each side of angle a at radius r round (x, y),
+  // laid down one after another over sweep seconds from one side (rev: the other), at height h.
+  private crescent(t: number, x: number, y: number, a: number, r: number, half: number, h: number, life: number, hex: number,
+    width: number, bright: number, rev: boolean, sweep = 0.06): void {
+    const n = 7;
+    for (let j = 0; j < n; j++) {
+      const u0 = j / n, u1 = (j + 1) / n;
+      const b0 = a + (rev ? 1 : -1) * half * (1 - 2 * u0), b1 = a + (rev ? 1 : -1) * half * (1 - 2 * u1);
+      // Thinner towards both tips, the arc dipping a little as it crosses.
+      const w = width * (0.35 + Math.sin(Math.PI * (u0 + u1) / 2) * 0.65);
+      const r0 = r * (0.9 + 0.1 * Math.sin(Math.PI * u0)), r1 = r * (0.9 + 0.1 * Math.sin(Math.PI * u1));
+      this.streaks.add(t + u0 * sweep, x + Math.cos(b0) * r0, h - 0.15 * u0, y + Math.sin(b0) * r0, x + Math.cos(b1) * r1, h - 0.15 * u1, y + Math.sin(b1) * r1,
+        life, hex, w, 0, 0, 0.5, 1, bright);
+    }
+  }
+
+  // Flash Draw: one line drawn the whole way at once, a row of afterimages along it, and the
+  // cuts landing a beat later all down its length, each spraying blood.
+  private flashCut(t: number, x0: number, y0: number, x1: number, y1: number, dist: number): void {
+    this.streaks.add(t, x0, 1.0, y0, x1, 1.0, y1, 0.45, 0xffffff, 0.08, 0, 0, 0.5, 1, 2.2);
+    this.streaks.add(t, x0, 1.0, y0, x1, 1.0, y1, 0.6, 0xb0101c, 0.4, 0, 0, 0.5, 1, 0.8);
+    const n = Math.max(2, Math.round(dist / 1.2));
+    const a = Math.atan2(y1 - y0, x1 - x0);
+    for (let j = 0; j <= n; j++) {
+      const u = j / n, x = x0 + (x1 - x0) * u, y = y0 + (y1 - y0) * u;
+      this.glow.add(t + u * 0.05, x, 0.9, y, 0, 0, 0, 0.35, 0xdfe8ff, 0.9, 0.2, 0, 1, 1, 0.55);
+      if (j === 0 || j === n) continue;
+      // The delayed cuts: an X across the line, then blood.
+      const td = t + 0.22 + u * 0.08;
+      for (const s of [-1, 1]) {
+        const b = a + s * 0.9;
+        this.streaks.add(td, x - Math.cos(b) * 0.6, 1.3, y - Math.sin(b) * 0.6, x + Math.cos(b) * 0.6, 0.5, y + Math.sin(b) * 0.6, 0.18, 0xffe8ec, 0.07, 0, 0, 0.5, 1, 1.8);
+      }
+      for (let k = 0; k < 3; k++) {
+        const b = Math.random() * 6.28;
+        this.glow.add(td, x, 0.9, y, Math.cos(b) * 1.5, 2 + Math.random() * 2, Math.sin(b) * 1.5, 0.45, k % 2 ? 0x8a0a14 : 0xd0202c, 0.14, 0.05, 12, 1, 1, 0.9);
+      }
+    }
+    this.flashLight(x1, 1.2, y1, 30);
+  }
+
   private blast(t: number, x: number, y: number, r: number, kind: number): void {
     switch (kind) {
+      case BlastKind.Bleed: {
+        // Blood loss: a crimson burst straight up out of the creep, a spray falling round it
+        // and a pool where it lands.
+        this.spheres.add(t, x, 0.8, y, 0, 0, 0, 0.25, 0xff1a2a, 0.3, 1.1, 0, 0.8, 1, 1.2);
+        this.streaks.add(t, x, 0.3, y, x, 2.6, y, 0.3, 0xff2a3a, 0.35, 0, 0, 0.5, 1, 1.2);
+        this.rings.add(t, x, 0.12, y, 0, 0, 0, 0.4, 0xc0101c, 0.2, 1.3, 0, 1, 1, 1);
+        for (let j = 0; j < 18; j++) {
+          const a = Math.random() * 6.28, sp = 0.6 + Math.random() * 2;
+          this.glow.add(t, x, 1, y, Math.cos(a) * sp, 3 + Math.random() * 4, Math.sin(a) * sp, 0.6 + Math.random() * 0.3, j % 3 ? 0xa00c18 : 0xff3040, 0.18, 0.08, 14, 1, 1, 1);
+        }
+        this.decals.add(t + 0.3, x, 0.068, y, 0, 0, 0, 20, 0x5a0610, 0.5, 0.9, 0, 1, 0.8);
+        return;
+      }
+      case BlastKind.Skyfall: {
+        // Skyfall coming down: a white flash, a shockwave rolling out past the reach, rock
+        // thrown up, dust after it, and a crater.
+        this.flashLight(x, 1.5, y, 40);
+        this.glow.add(t, x, 0.8, y, 0, 0, 0, 0.18, 0xfff8e0, r * 2.2, r, 0, 1, 1, 1.4);
+        this.rings.add(t, x, 0.14, y, 0, 0, 0, 0.5, 0xfff0d0, 0.4, r * 1.4, 0, 1, 1, 1.5);
+        this.rings.add(t + 0.08, x, 0.12, y, 0, 0, 0, 0.7, 0xc8b490, 0.3, r * 1.9, 0, 1, 1, 0.8);
+        this.spheres.add(t, x, 0.1, y, 0, 0, 0, 0.35, 0xe8dcc0, r * 0.2, r * 0.9, 0, 0.5, 1, 0.6);
+        this.decals.add(t, x, 0.067, y, 0, 0, 0, 16, 0x1e1812, r * 0.6, r * 0.75, 0, 1, 0.8);
+        for (let j = 0; j < 24; j++) {
+          const a = Math.random() * 6.28, sp = 2 + Math.random() * 5;
+          this.glow.add(t, x + Math.cos(a) * 0.4, 0.3, y + Math.sin(a) * 0.4, Math.cos(a) * sp, 4 + Math.random() * 5, Math.sin(a) * sp,
+            0.6 + Math.random() * 0.3, j % 3 ? 0x5a4a34 : 0x9a8a6a, 0.2, 0.14, 16, 1, 1, 0.5);
+        }
+        for (let j = 0; j < 12; j++) {
+          const a = j / 12 * 6.28;
+          this.dust.add(t + 0.05, x + Math.cos(a) * r * 0.5, 0.3, y + Math.sin(a) * r * 0.5, Math.cos(a) * 4, 0.5, Math.sin(a) * 4, 1.1, 0xa8987a, 0.5, 1.6, 0, 1, 0.6);
+        }
+        return;
+      }
       case BlastKind.Frost:
         this.rings.add(t, x, 0.12, y, 0, 0, 0, 0.6, 0x7fdcff, r * 0.2, r, 0, 1, 1, 1.2);
         this.spheres.add(t, x, 0.05, y, 0, 0, 0, 0.5, 0x2a6a90, r * 0.3, r, 0, 0.3);

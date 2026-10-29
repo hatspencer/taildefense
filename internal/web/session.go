@@ -344,24 +344,25 @@ func (s *session) result(reason string) Result {
 
 // cmd is a command from the page; see web/PROTOCOL.md.
 type cmd struct {
-	Op    string  `json:"op"`
-	X     float32 `json:"x"`
-	Y     float32 `json:"y"`
-	TX    int     `json:"tx"`
-	TY    int     `json:"ty"`
-	ID    int     `json:"id"`
-	S     int     `json:"s"`
-	Site  int     `json:"site"`
-	P     int     `json:"p"`
-	Slot  int     `json:"slot"`
-	Kind  int     `json:"kind"`
-	W     int     `json:"w"`
-	Track int     `json:"track"`
-	G     int     `json:"g"`
-	Gold  int     `json:"gold"`
-	On    bool    `json:"on"`
-	V     int     `json:"v"`
-	Text  string  `json:"text"`
+	Op     string  `json:"op"`
+	X      float32 `json:"x"`
+	Y      float32 `json:"y"`
+	TX     int     `json:"tx"`
+	TY     int     `json:"ty"`
+	ID     int     `json:"id"`
+	S      int     `json:"s"`
+	Site   int     `json:"site"`
+	P      int     `json:"p"`
+	Slot   int     `json:"slot"`
+	Kind   int     `json:"kind"`
+	W      int     `json:"w"`
+	Track  int     `json:"track"`
+	Branch int     `json:"branch"`
+	G      int     `json:"g"`
+	Gold   int     `json:"gold"`
+	On     bool    `json:"on"`
+	V      int     `json:"v"`
+	Text   string  `json:"text"`
 }
 
 func u8(v int) uint8   { return uint8(min(max(v, 0), 255)) }
@@ -473,6 +474,8 @@ func (s *session) command(p []byte) bool {
 		nc = netplay.Cmd{Op: netplay.OpEvolve, T: u16(c.S), A: u8(c.Track)}
 	case "overload":
 		nc = netplay.Cmd{Op: netplay.OpOverload}
+	case "evolveWeapon":
+		nc = netplay.Cmd{Op: netplay.OpEvolveWeapon, A: u8(c.W), B: u8(c.Branch)}
 	case "ready":
 		nc = netplay.Cmd{Op: netplay.OpReady}
 		if c.On {

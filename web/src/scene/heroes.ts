@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
-import { color, sin, time } from 'three/tsl';
+import { color, sin, time, vertexColor } from 'three/tsl';
 import { WEAPON_BASE } from '../demo/defs';
-import { Emote, Order, PF_ALIVE, PF_FIRING, PF_HURT, PF_RELOADING, OWNED_DUAL, THROW_FLIGHT } from '../protocol';
+import { Art, ART_TIME, Emote, GREAT, KATANA, legendary, Order, PF_ALIVE, PF_FIRING, PF_HURT, PF_RELOADING, OWNED_DUAL, OWNED_DUAL_KATANA, THROW_FLIGHT } from '../protocol';
 import type { Game } from '../state';
 import { litMaterial } from './structs';
 import { Body, type Look, readLook, shade } from './look';
@@ -12,8 +12,13 @@ interface Limb { upper: THREE.Group; lower: THREE.Group }
 interface Hero {
   group: THREE.Group; body: THREE.Group; hips: THREE.Group; torso: THREE.Group; head: THREE.Group; tail: THREE.Group | null; pack: THREE.Group;
   legL: Limb; legR: Limb; armL: Limb; armR: Limb;
-  gun: THREE.Group; gunMesh: THREE.Mesh | null; spin: THREE.Group | null; flash: THREE.Object3D; finger: THREE.Object3D; hand: THREE.Object3D;
-  gun2: THREE.Group; dual: boolean; alt: boolean; // the second pistol, in the left hand; alt: the last shot was its
+  gun: THREE.Group; gunMesh: THREE.Mesh | null; spin: THREE.Group | null; glow: THREE.Mesh | null; flash: THREE.Object3D; finger: THREE.Object3D; hand: THREE.Object3D;
+  gun2: THREE.Group; dual: boolean; alt: boolean; // the second pistol or katana, in the left hand; alt: the last shot was its
+  evo: number; // the legendary's evolution its blade is dressed for
+  // A legendary's swings: the count last seen, when the last began, which of its combo it is,
+  // and the blade's pose as it eases between them. art: the weapon art last seen; artEnd when
+  // it last ended, and which it was.
+  swings: number; swingAt: number; combo: number; bp: Pose; bp2: Pose; art: number; artStart: number; artEnd: number; artWas: number; stance: number;
   shout: THREE.Object3D; stars: THREE.Object3D; goggles: THREE.Object3D; marker: THREE.Object3D; cross: THREE.Object3D; progress: THREE.Object3D;
   look: number; wd: number; ht: number; weapon: number; color: number;
   phase: number; seen: number; down: boolean; pop: number; shotAt: number; crouch: number; downAmt: number; taunt: number; reload: number;
@@ -43,10 +48,20 @@ const HOLDS: Hold[] = [
   { at: [0.16, 0.24, -0.17], grip: [0, 0, 0], fore: [-0.09, 0, 0], muzzle: 0.6 },             // crowbar, both hands on the tape, up at the shoulder
 ];
 
-// The gun in the hand, facing +x from the grip, dressed in the player's colour.
-export function gunParts(w: number, c: number): { body: Part[]; spin: Part[] } {
+// The legendaries are held two-handed, the off hand behind the grip on the hilt; their poses
+// are set by the swing (legendPose), so at is only where a fresh one starts.
+HOLDS[KATANA] = { at: [0.26, 0.14, -0.2], grip: [0, 0, 0], fore: [-0.11, 0, 0], muzzle: 0.9 };
+HOLDS[GREAT] = { at: [0, 0.6, -0.22], grip: [0, 0, 0], fore: [-0.14, 0, 0], muzzle: 1.3 };
+
+// A legendary's edge, lit: plain steel's shine, then by evolution (Crimson Fang, Moonlit Edge;
+// Ashen Colossus, Stormbreaker).
+const EDGE: Record<number, number[]> = { [KATANA]: [0xc8d2e4, 0xff2030, 0x9fdcff], [GREAT]: [0x8a8e96, 0xff6a10, 0xb080ff] };
+
+// The gun in the hand, facing +x from the grip, dressed in the player's colour. glow: the parts
+// drawn lit, a legendary's edge.
+export function gunParts(w: number, c: number, evo = 0): { body: Part[]; spin: Part[]; glow: Part[] } {
   const D = 0x2b2b2b, M = 0x3e3e40, W = 0x5a3e24, O = 0x4e5236;
-  const b: Part[] = [], s: Part[] = [];
+  const b: Part[] = [], s: Part[] = [], gl: Part[] = [];
   const add = (to: Part[], wd: number, h: number, d: number, col: number, x: number, y: number, z = 0, rz = 0) => to.push(part(box(wd, h, d), col, x, y, z, 0, 0, rz));
   switch (w) {
     case 0:
@@ -69,12 +84,81 @@ export function gunParts(w: number, c: number): { body: Part[]; spin: Part[] } {
       // A bar, bent to a claw at the far end, and tape on the grip in the player's colour.
       add(b, 0.62, 0.035, 0.035, 0x4a4f57, 0.24, 0.0, 0, 0.12); add(b, 0.14, 0.035, 0.035, 0x4a4f57, 0.56, 0.1, 0, 1.2);
       add(b, 0.14, 0.05, 0.05, c, 0.0, -0.02, 0, 0.12); break;
+    case KATANA: {
+      // A long hilt bound in the player's colour, a gold guard, and a blade that curves up
+      // towards its point in three lengths, its edge underneath.
+      const edge = EDGE[KATANA][evo] ?? EDGE[KATANA][0];
+      add(b, 0.24, 0.045, 0.045, c, -0.06, 0); add(b, 0.03, 0.05, 0.05, 0x1a1410, -0.19, 0);
+      for (const x of [-0.13, -0.06, 0.01]) add(b, 0.02, 0.05, 0.05, shade(c, 0.55), x, 0);
+      add(b, 0.025, 0.1, 0.1, 0x9a7a30, 0.075, 0); add(b, 0.03, 0.05, 0.03, 0xc8a050, 0.1, 0);
+      const seg = [[0.25, 0.3, 0.0, 0.03], [0.53, 0.28, 0.014, 0.07], [0.77, 0.22, 0.036, 0.15]];
+      seg.forEach(([x, l, y, rz], i) => {
+        add(b, l, i === 2 ? 0.03 : 0.04, 0.014, 0xb8bec8, x, y + 0.006, 0, rz);
+        gl.push(part(box(l, 0.012, 0.016), edge, x, y - 0.014, 0, 0, 0, rz));
+      });
+      add(b, 0.05, 0.018, 0.016, 0xe8ecf4, 0.9, 0.055, 0, 0.35);
+      break;
+    }
+    case GREAT: {
+      // A great slab of iron: a leather grip and a heavy pommel, a wide crossguard with a
+      // stone in the player's colour, and a broad blade with a dark fuller down it.
+      const edge = EDGE[GREAT][evo] ?? EDGE[GREAT][0];
+      add(b, 0.26, 0.06, 0.06, 0x3a2a1c, -0.1, 0); add(b, 0.08, 0.08, 0.08, 0x8a7038, -0.25, 0);
+      add(b, 0.06, 0.07, 0.4, 0x4a4e56, 0.05, 0); add(b, 0.065, 0.06, 0.07, c, 0.05, 0);
+      add(b, 1.0, 0.15, 0.035, 0x8e949c, 0.58, 0); add(b, 0.86, 0.035, 0.04, 0x5a5e66, 0.54, 0);
+      add(b, 0.14, 0.09, 0.034, 0x8e949c, 1.12, 0); add(b, 0.06, 0.04, 0.032, 0x8e949c, 1.21, 0);
+      gl.push(part(box(1.0, 0.016, 0.038), edge, 0.58, 0.075), part(box(1.0, 0.016, 0.038), edge, 0.58, -0.075));
+      if (evo) for (const x of [0.3, 0.5, 0.7, 0.9]) gl.push(part(box(0.04, 0.05, 0.042), edge, x, 0, 0, 0, 0, 0.6));
+      break;
+    }
     default:
       add(b, 0.8, 0.13, 0.13, O, 0.15, 0.03); add(b, 0.08, 0.17, 0.17, 0x3a3e28, 0.56, 0.03); add(b, 0.06, 0.14, 0.06, D, 0.05, -0.08);
       add(b, 0.06, 0.08, 0.02, D, 0.0, 0.12, 0.06); add(b, 0.1, 0.135, 0.135, c, -0.2, 0.03);
   }
-  return { body: b, spin: s };
+  return { body: b, spin: s, glow: gl };
 }
+
+// A blade's pose in the torso's space: where its grip is, and its roll, heading (positive
+// towards the right) and pitch (positive up), radians.
+type Pose = [number, number, number, number, number, number];
+const P = (x: number, y: number, z: number, rx: number, ry: number, rz: number): Pose => [x, y, z, rx, ry, rz];
+const lerpPose = (o: Pose, a: Pose, b: Pose, u: number): Pose => { for (let i = 0; i < 6; i++) o[i] = a[i] + (b[i] - a[i]) * u; return o; };
+const easePose = (o: Pose, g: Pose, k: number, dt: number): void => { const m = Math.min(1, dt * k); for (let i = 0; i < 6; i++) o[i] += (g[i] - o[i]) * m; };
+const mirror = (o: Pose, a: Pose): Pose => { o[0] = a[0]; o[1] = a[1]; o[2] = -a[2]; o[3] = -a[3]; o[4] = -a[4]; o[5] = a[5]; return o; };
+
+// The legendaries' moves, after the soulslikes' long blades but in a few sharp frames: a ready
+// stance, the run, and a three-cut combo, each cut a windup it is chambered in while the
+// survivor keeps attacking, and where it ends. The katana: a flat cut right to left, a rising
+// backhand, then an overhead cleave stepping in. The greatsword: a diagonal chop off the
+// shoulder, a sweep through the whole front, then the follow-through, a hop and the blade
+// brought down two-handed into the ground.
+interface Moves { idle: Pose; run: Pose; combo: [Pose, Pose][]; dur: number[]; lunge: number[] }
+const MOVES: Record<number, Moves> = {
+  [KATANA]: {
+    idle: P(0.26, 0.14, -0.2, 0, 0.15, -0.45), run: P(-0.02, 0.22, -0.26, 0, 0, -2.6),
+    combo: [
+      [P(0.02, 0.42, -0.32, 0, 1.9, 0.15), P(0.28, 0.36, 0.34, 0, -1.7, 0.05)],
+      [P(0.22, 0.24, 0.32, 0, -1.8, -0.3), P(0.2, 0.62, -0.34, 0, 1.6, 0.5)],
+      [P(-0.05, 0.9, -0.1, 0, 0, 2.3), P(0.5, 0.05, -0.05, 0, 0.1, -0.7)],
+    ],
+    dur: [330, 330, 420], lunge: [0.12, 0.12, 0.3],
+  },
+  [GREAT]: {
+    idle: P(0, 0.6, -0.22, 0, 0.1, 2.55), run: P(-0.1, 0.2, -0.3, 0, -0.2, -2.75),
+    combo: [
+      [P(-0.05, 0.95, -0.28, 0, 0.6, 2.1), P(0.5, 0, 0.25, 0, -0.6, -0.8)],
+      [P(0.1, 0.38, 0.42, 0, -2, 0.1), P(0.1, 0.38, -0.42, 0, 2, 0.1)],
+      [P(-0.15, 1, -0.05, 0, 0, 1.9), P(0.62, -0.18, 0, 0, 0, -1.2)],
+    ],
+    dur: [700, 700, 900], lunge: [0.2, 0.15, 0.4],
+  },
+};
+// Flash Draw: held low with the blade sheathed at the left hip, then after the cut the blade
+// out wide to the right, still, before it is flicked clean and brought back. Skyfall: overhead
+// through the leap, then driven into the ground where it lands.
+const SHEATHED = P(0.04, 0.1, 0.24, 0, 0.3, -2.85), ZANSHIN = P(0.12, 0.28, -0.46, 0, 2.3, -0.3), CHIBURI = P(0.3, 0.05, -0.3, 0, 1, -1.25);
+const SKY = P(-0.08, 1, 0, 0, 0, 1.75), SLAM = P(0.62, -0.18, 0, 0, 0, -1.2);
+const T1: Pose = P(0, 0, 0, 0, 0, 0), T2: Pose = P(0, 0, 0, 0, 0, 0);
 
 const V = new THREE.Vector3(), TR = new THREE.Vector3(), TL = new THREE.Vector3(), PR = new THREE.Vector3(-0.4, -1, -0.6), PL = new THREE.Vector3(-0.2, -1, 0.8);
 const AX = new THREE.Vector3(), MAG = new THREE.Vector3();
@@ -99,6 +183,8 @@ export class Heroes {
   private markerMat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
   private crossMat = new THREE.MeshBasicNodeMaterial();
   private progMat = new THREE.MeshBasicNodeMaterial({ color: 0x60ff90, transparent: true, opacity: 0.55, depthWrite: false });
+  // A legendary's edge: its own colour, unlit, breathing a little.
+  private edgeMat = new THREE.MeshBasicNodeMaterial();
   private bubbleGeo: THREE.BufferGeometry; private shoutGeo: THREE.BufferGeometry;
   private starGeo = merge([part(box(0.13, 0.04, 0.04), 0, 0, 0, 0), part(box(0.04, 0.13, 0.04), 0, 0, 0, 0), part(box(0.04, 0.04, 0.13), 0, 0, 0, 0)]);
   private ringGeo: THREE.BufferGeometry; private discGeo: THREE.BufferGeometry; private crossGeo: THREE.BufferGeometry;
@@ -110,6 +196,7 @@ export class Heroes {
     scene.add(this.group);
     const pulse = sin(time.mul(5)).mul(0.2).add(0.5);
     this.markerMat.colorNode = color(0x50ff80).mul(pulse);
+    this.edgeMat.colorNode = vertexColor().rgb.mul(sin(time.mul(3.1)).mul(0.18).add(1.05));
     this.markerMat.fog = false;
     this.crossMat.colorNode = color(0x70ff90).mul(sin(time.mul(5)).mul(0.2).add(1.1));
     // A blocky speech bubble with a red "!" on it, a ground ring and a floating "+".
@@ -242,24 +329,31 @@ export class Heroes {
     g.scale.setScalar(1.15);
     this.group.add(g);
     const h: Hero = {
-      group: g, body, hips, torso, head, tail, pack, legL, legR, armL, armR, gun, gunMesh: null, spin: null, flash, finger, hand, gun2, dual: false, alt: false,
+      group: g, body, hips, torso, head, tail, pack, legL, legR, armL, armR, gun, gunMesh: null, spin: null, glow: null, flash, finger, hand, gun2, dual: false, alt: false,
+      evo: 0, swings: -1, swingAt: -1e9, combo: 0, bp: P(0, 0, 0, 0, 0, 0), bp2: P(0, 0, 0, 0, 0, 0), art: 0, artStart: 0, artEnd: -1e9, artWas: 0, stance: 0,
       shout, stars, goggles, marker, cross, progress, look, wd: L.width, ht: L.height, weapon: -1, color: c,
       phase: 0, seen: 0, down: false, pop: 0, shotAt: -1e9, crouch: 0, downAmt: 0, taunt: 0, reload: 0, sprint: 0, leap: 0, hurt: false, flyAt: -1,
       x: 0, y: 0, vx: 0, vy: 0, legYaw: 0, dirSign: 1, fresh: true,
       leanX: new Spring(2.2, 0.45, 0), leanZ: new Spring(2.2, 0.45, 0), aim: new Spring(4.5, 0.75, 1.6), flinch: new Spring(3, 0.3, 0),
       tailS: new Spring(1.8, 0.25, 0), packS: new Spring(3.5, 0.3, 0), kick: new Spring(9, 0.35, 0),
     };
-    this.setWeapon(h, weapon);
+    this.setWeapon(h, weapon, 0);
     return h;
   }
 
-  private setWeapon(h: Hero, w: number): void {
-    if (h.weapon === w) return;
-    h.weapon = w;
+  private setWeapon(h: Hero, w: number, evo: number): void {
+    if (h.weapon === w && h.evo === evo) return;
+    if (h.weapon !== w && MOVES[w]) { h.bp = [...MOVES[w].idle]; h.bp2 = mirror(P(0, 0, 0, 0, 0, 0), MOVES[w].idle); }
+    h.weapon = w; h.evo = evo;
     if (h.gunMesh) { h.gun.remove(h.gunMesh); h.gunMesh.geometry.dispose(); }
     if (h.spin) { h.gun.remove(h.spin); }
-    const g = gunParts(w, h.color);
+    if (h.glow) { h.gun.remove(h.glow); h.glow.geometry.dispose(); h.glow = null; }
+    const g = gunParts(w, h.color, evo);
     h.gunMesh = this.mesh(g.body, h.gun);
+    if (g.glow.length) {
+      h.glow = new THREE.Mesh(merge(g.glow), this.edgeMat);
+      h.gun.add(h.glow);
+    }
     h.spin = null;
     if (g.spin.length) {
       h.spin = new THREE.Group();
@@ -272,15 +366,48 @@ export class Heroes {
     h.group.traverse((c) => { c.userData.hl = h.group.userData.hl ?? 0; });
   }
 
-  // A second pistol in the left hand, once the pistol's special track has bought it.
+  // A second pistol or katana in the left hand, once found.
   private setDual(h: Hero, on: boolean): void {
-    if (h.dual === on) return;
+    const kind = on ? h.weapon * 4 + h.evo + 1 : 0;
+    if ((h.dual ? h.gun2.userData.kind : 0) === kind) return;
     h.dual = on;
+    h.gun2.userData.kind = kind;
     h.gun.add(h.flash);
     h.alt = false;
     for (const c of [...h.gun2.children]) { h.gun2.remove(c); (c as THREE.Mesh).geometry.dispose(); }
-    if (on) this.mesh(gunParts(0, h.color).body, h.gun2);
+    if (on) {
+      const g = gunParts(h.weapon, h.color, h.evo);
+      this.mesh(g.body, h.gun2);
+      if (g.glow.length) h.gun2.add(new THREE.Mesh(merge(g.glow), this.edgeMat));
+    }
     h.group.traverse((c) => { c.userData.hl = h.group.userData.hl ?? 0; });
+  }
+
+  // Where a legendary's blade (and its pair's) is this frame: snapped through a cut in three
+  // frames and held there a beat, the way a sprite's attack reads, then eased back to rest,
+  // which is the next cut's windup while the survivor keeps attacking. A pair takes turns,
+  // the one not cutting held ready.
+  private legendPose(h: Hero, m: Moves, now: number, firing: boolean, su: number, after: number, artU: number, running: boolean, dt: number): void {
+    const next = h.weapon === GREAT && h.combo === 2 && su >= 0 ? 2 : now - h.swingAt > 1300 ? 0 : (h.combo + 1) % 3;
+    const rest = firing ? m.combo[next][0] : running ? m.run : m.idle;
+    let act: Pose = rest, snap = false, k = 18;
+    if (h.art === Art.Flash) { act = SHEATHED; k = 22; }
+    else if (h.art === Art.Skyfall) { act = SKY; k = 14 + artU * 30; }
+    else if (after >= 0 && h.artWas === Art.Flash) {
+      // Zanshin: still, blade out wide where the cut ended; then the flick, and back.
+      if (after < 0.55) { act = ZANSHIN; snap = true; } else if (after < 0.7) { act = CHIBURI; k = 40; }
+    } else if (after >= 0) {
+      if (after < 0.6) { act = SLAM; snap = true; }
+    } else if (su >= 0) {
+      const [wu, end] = m.combo[h.combo];
+      if (su < 0.2) { act = lerpPose(T1, wu, end, Math.min(1, Math.ceil(su / 0.2 * 3) / 3)); snap = true; }
+      else if (su < 0.42) { act = end; snap = true; }
+    }
+    const lead = !h.dual || !h.alt;
+    const pass = h.dual ? (firing ? rest : m.idle) : rest;
+    const g1 = lead ? act : pass, g2 = mirror(T2, lead ? pass : act);
+    if (snap && lead) h.bp = [...g1] as Pose; else easePose(h.bp, g1, lead ? k : 12, dt);
+    if (h.dual) { if (snap && !lead) h.bp2 = [...g2] as Pose; else easePose(h.bp2, g2, lead ? 12 : k, dt); }
   }
 
   setHover(id: number, on: boolean): void {
@@ -298,8 +425,8 @@ export class Heroes {
       let h = this.heroes.get(p.id);
       if (h && h.look !== p.look) { this.group.remove(h.group); h = undefined; }
       if (!h) { h = this.make(p.id, p.look, p.cur); this.heroes.set(p.id, h); }
-      this.setWeapon(h, p.cur);
-      this.setDual(h, p.cur === 0 && (p.owned & OWNED_DUAL) !== 0);
+      this.setWeapon(h, p.cur, legendary(p.cur) ? p.evo[p.cur] : 0);
+      this.setDual(h, (p.cur === 0 && (p.owned & OWNED_DUAL) !== 0) || (p.cur === KATANA && (p.owned & OWNED_DUAL_KATANA) !== 0));
       h.seen = serial;
       const alive = (p.flags & PF_ALIVE) !== 0;
       // Standing up again (revived or respawned): a little pop.
@@ -313,8 +440,41 @@ export class Heroes {
       const held = alive && p.held, air = alive && p.airborne;
       if (!air) h.flyAt = -1;
       else if (h.flyAt < 0) h.flyAt = t;
+
+      // A legendary's swings and weapon art, from the counters the frame carries: a new swing
+      // goes on to the next cut of the combo if it came soon enough, else starts it over; under
+      // Titan's Wrath every one is the follow-through. An art is timed here from when it was
+      // first seen, the frames' progress too coarse to fly by.
+      const leg: Moves | null = (alive && !held && !air && MOVES[h.weapon]) || null;
+      if (leg) {
+        if (h.swings < 0) h.swings = p.swings;
+        if (p.art !== h.art) {
+          if (p.art !== Art.None) h.artStart = now - p.artFrac * ART_TIME[p.art] * 1000;
+          else { h.artEnd = now; h.artWas = h.art; h.swings = p.swings; }
+          h.art = p.art;
+        }
+        if (p.swings !== h.swings) {
+          h.swings = p.swings;
+          const wrath = h.weapon === GREAT && p.buff === GREAT + 1 && p.buffLeft > 0;
+          h.combo = wrath ? 2 : now - h.swingAt < 1300 ? (h.combo + 1) % 3 : 0;
+          h.swingAt = now;
+          if (h.dual) h.alt = !h.alt;
+        }
+      } else { h.swings = -1; h.art = Art.None; }
+      const artU = leg && h.art !== Art.None ? clamp01((now - h.artStart) / (ART_TIME[h.art] * 1000)) : 0;
+      const sky = leg !== null && h.art === Art.Skyfall, drawing = leg !== null && h.art === Art.Flash;
+      // Progress through the cut under way, and the moments after an art: -1 when none.
+      let su = leg ? (now - h.swingAt) / (leg.dur[h.combo] * (h.dual ? 0.7 : 1)) : -1;
+      if (su > 1 || h.art !== Art.None) su = -1;
+      let after = leg && h.art === Art.None ? (now - h.artEnd) / (h.artWas === Art.Flash ? 700 : 650) : -1;
+      if (after > 1) after = -1;
       let lift = 0;
-      if (air) {
+      if (sky) {
+        // Skyfall: high over the leap, turning one whole somersault on the way down.
+        lift = 3.4 * 4 * artU * (1 - artU);
+        const s = artU * artU * (3 - 2 * artU);
+        h.group.quaternion.setFromAxisAngle(this.axis.set(Math.sin(aim), 0, -Math.cos(aim)), s * Math.PI * 2);
+      } else if (air) {
         const s = Math.min(1, (t - h.flyAt) / THROW_FLIGHT);
         lift = 9.6 * s * (1 - s);
         const v = Math.hypot(h.vx, h.vy);
@@ -351,7 +511,7 @@ export class Heroes {
       h.leap = ease(h.leap, alive && speed > 20 ? 1 : 0, speed > 20 ? 20 : 6, dt);
       h.pop = Math.max(0, h.pop - dt * 2.2);
       // One kick and flash per shot, at the weapon's own rate: a shotgun booms, an SMG chatters.
-      if (!firing) h.shotAt = -1e9;
+      if (!firing || leg) h.shotAt = -1e9;
       else if (now - h.shotAt >= 1000 / (WEAPON_BASE[h.weapon]?.rate ?? 3)) {
         h.shotAt = now; h.kick.kick(h.weapon === 1 || h.weapon === 5 ? 9 : h.weapon === 6 ? -14 : 3);
         // Dual pistols fire turn about, the flash at whichever went off.
@@ -396,6 +556,13 @@ export class Heroes {
       const lp = h.leap;
       thL = thL * (1 - lp) + 1.0 * lp; shL = shL * (1 - lp) - 1.3 * lp;
       thR = thR * (1 - lp) - 0.55 * lp; shR = shR * (1 - lp) - 0.7 * lp;
+      // A legendary's fighting stance: feet apart, the left forward, knees bent; deep and low
+      // for Flash Draw and after a cut has landed, knees tucked up through Skyfall.
+      h.stance = ease(h.stance, leg && (firing || su >= 0 || after >= 0 || h.art !== Art.None) ? 1 : 0, 9, dt);
+      const st = h.stance * (1 - walk * 0.8), low = drawing ? 1 : after >= 0 ? Math.min(1, (1 - after) * 2.5) : 0;
+      thL = thL * (1 - st) + (0.55 + 0.4 * low) * st; shL = shL * (1 - st) - (0.55 + 0.7 * low) * st;
+      thR = thR * (1 - st) - (0.5 + 0.35 * low) * st; shR = shR * (1 - st) - (0.35 + 0.3 * low) * st;
+      if (sky) { thL = 1.3; shL = -1.8; thR = 1.1; shR = -1.6; }
       if (!alive) { thL = 0.35; shL = -0.5; thR = 0.1; shR = -0.15; }
       h.legL.upper.rotation.z = thL; h.legL.lower.rotation.z = shL;
       h.legR.upper.rotation.z = thR; h.legR.lower.rotation.z = shR;
@@ -403,7 +570,11 @@ export class Heroes {
       // The body: a rise at each passing step, kneeling low, the pop on standing up.
       const bob = walk * (0.025 + 0.05 * run + 0.03 * sk) * (1 - Math.abs(Math.sin(ph)));
       const popY = h.pop > 0 ? Math.sin((1 - h.pop) * Math.PI) * 0.35 : 0;
-      h.body.position.y = bob + popY - cr * 0.27 + lp * 0.12 + h.downAmt * 0.2;
+      // A cut steps into it, the follow-through with a hop before it comes down.
+      const lunge = su >= 0 ? leg!.lunge[h.combo] * (su < 0.2 ? su / 0.2 : 1 - (su - 0.2) / 0.8) : 0;
+      const hop = su >= 0 && h.weapon === GREAT && h.combo === 2 && su < 0.2 ? Math.sin(su / 0.2 * Math.PI) * 0.35 : 0;
+      h.body.position.y = bob + popY - cr * 0.27 + lp * 0.12 + h.downAmt * 0.2 - st * 0.08 - low * 0.2 + hop;
+      h.body.position.x = Math.cos(aim) * lunge; h.body.position.z = Math.sin(aim) * lunge;
       // Lean: into the run and into the turn (towards the acceleration), overshooting a
       // little on stopping; lying back when downed.
       const lean = 0.035 + 0.03 * h.sprint;
@@ -433,7 +604,9 @@ export class Heroes {
       const tn = h.taunt;
       const jab = Math.max(0, Math.sin(t * 7)) * 0.18;
       const shoutLean = tn * (0.1 + jab * 0.5);
-      h.torso.rotation.set(0, -(ay2 - Math.sin(ph) * 0.1 * walk), -cr * 0.2 + flinch * 0.6 + kick * 0.15 - shoutLean - lp * 0.25 - h.sprint * 0.12);
+      // A blade's swing turns the shoulders after it and bends the survivor into the cut.
+      const twist = leg ? h.bp[4] * 0.3 * (h.dual ? 0.5 : 1) : 0, bow = leg ? lunge * 0.9 + low * 0.35 : 0;
+      h.torso.rotation.set(0, -(ay2 - Math.sin(ph) * 0.1 * walk) + twist, -cr * 0.2 + flinch * 0.6 + kick * 0.15 - shoutLean - lp * 0.25 - h.sprint * 0.12 - bow);
       h.head.rotation.set(0, -wrapAngle(aim - ay2) * 0.6, -flinch * 0.5 + 0.05 * Math.sin(2 * ph) * walk + cr * 0.35 + (alive ? 0 : 0.3));
       if (h.tail) {
         const goal = -0.35 * Math.min(speed, 5) / 5 - 0.12 * Math.abs(Math.sin(2 * ph)) * walk;
@@ -445,7 +618,11 @@ export class Heroes {
       // canted to the side for a reload.
       const hold = HOLDS[h.weapon] ?? HOLDS[0];
       const rl = h.reload, sp = h.sprint * (1 - rl);
-      if (h.weapon === 6) {
+      if (leg) {
+        this.legendPose(h, leg, now, firing, su, after, artU, sp > 0.5 || run > 0.5, dt);
+        h.gun.position.set(h.bp[0], h.bp[1], h.bp[2]); h.gun.rotation.set(h.bp[3], h.bp[4], h.bp[5]);
+        if (h.dual) { h.gun2.position.set(h.bp2[0], h.bp2[1], h.bp2[2]); h.gun2.rotation.set(h.bp2[3], h.bp2[4], h.bp2[5]); h.gun2.updateMatrix(); }
+      } else if (h.weapon === 6) {
         // The crowbar is held up at the right shoulder, ready, tipped out a little; each swing
         // chops it down and across in front, fast, then lifts it back.
         const u = (now - h.shotAt) / 420;
@@ -465,14 +642,17 @@ export class Heroes {
         h.gun.rotation.set(rl * 0.7, sp * 0.35, kick * 0.6 - sp * 0.55 - rl * 0.3);
       }
       h.gun.updateMatrix();
-      h.flash.visible = h.weapon !== 6 && now - h.shotAt < (h.weapon === 1 ? 70 : 45);
+      // A legendary has no muzzle: its flash is the glint at the point, as Flash Draw is about to
+      // cut and as Skyfall comes down.
+      h.flash.visible = leg ? (drawing && artU > 0.45 && Math.floor(now / 60) % 2 === 0) || (sky && artU > 0.7)
+        : h.weapon !== 6 && now - h.shotAt < (h.weapon === 1 ? 70 : 45);
       if (h.spin) h.spin.rotation.x += dt * (firing ? 40 : 0);
 
       // Hands: on the gun, unless kneeling, taunting or down.
       TR.set(...hold.grip).applyMatrix4(h.gun.matrix);
       if (h.dual) TL.set(...hold.grip).applyMatrix4(h.gun2.matrix);
       else TL.set(...hold.fore).applyMatrix4(h.gun.matrix);
-      if (rl > 0.01 && !h.dual) {
+      if (rl > 0.01 && !h.dual && !leg) {
         // The off hand to the magazine, down to the belt for a fresh one, and back.
         const u = (t * 1.3) % 1;
         const belt = V.set(0.06, 0.02, 0.2);

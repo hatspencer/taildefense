@@ -1348,8 +1348,8 @@ export class DemoHost implements Transport {
       w.u16(Math.ceil(p.hp)); w.u16(p.maxHp); w.u8(p.cur); w.u16(p.ammo); w.u16(this.mag(p));
       w.u8(p.reloadLeft > 0 ? Math.min(255, (p.reloadLeft / WEAPON_BASE[p.cur].reload) * 255) : 0);
       w.u8(Math.ceil(Math.max(0, p.respawn)));
-      w.u32(p.gold); w.u32(p.kills); w.u32(p.damage); w.u8(p.owned);
-      w.bytes(p.levels); w.bytes(p.gear);
+      w.u32(p.gold); w.u32(p.kills); w.u32(p.damage); w.u16(p.owned);
+      w.bytes(p.levels); w.u8(0); w.bytes(p.gear);
       w.u8(p.order);
       const kind = p.order === Order.Loot ? this.welcome.siteKinds[this.sites[p.site]?.kind] : undefined;
       w.u8(kind ? Math.min(255, (p.searchT / kind.search) * 255) : p.order === Order.Revive || p.order === Order.Pickup ? Math.min(255, p.channel * 255) : 0);
@@ -1361,7 +1361,8 @@ export class DemoHost implements Transport {
       w.u8(p.buffLeft > 0 ? p.buff : 0); w.u8(Math.max(0, p.buffLeft * 10)); w.u8(Math.min(255, p.ult * 255));
       for (let a = 0; a < 4; a++) { w.u8(p.abLevel[a]); w.u16(p.abCool[a] * 10); }
       w.u8(p.medkits); w.u8(Math.ceil(p.heal * 10));
-      w.u8(p.reloadLeft > 0 ? 1 << p.cur : 0);
+      w.u16(p.reloadLeft > 0 ? 1 << p.cur : 0);
+      w.u8(0); w.u8(0); w.u16(0); // no legendary swings, art or its cooldown
       for (let k = 0; k < 5; k++) w.u16(p.st[k]);
       w.u32(p.st[5]); w.u32(0);
       w.str8(p.name);
@@ -1371,7 +1372,7 @@ export class DemoHost implements Transport {
     w.u8(this.crates.length);
     for (const c of this.crates) { w.q8(c.x); w.q8(c.y); w.u8(Math.min(255, c.open / 2.5 * 255)); }
     w.u8(this.guns.length);
-    for (const g of this.guns) { w.u16(g.id); w.u8(g.kind); w.q8(g.x); w.q8(g.y); for (const l of g.lv) w.u8(l); w.u8(g.by); }
+    for (const g of this.guns) { w.u16(g.id); w.u8(g.kind); w.q8(g.x); w.q8(g.y); for (const l of g.lv) w.u8(l); w.u8(0); w.u8(g.by); }
     const e = this.evac;
     w.u8(e.stage);
     if (e.stage !== EvacStage.None) {

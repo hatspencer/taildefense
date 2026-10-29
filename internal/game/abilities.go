@@ -69,6 +69,8 @@ var Ultimates = [NumWeapons]UltDef{
 	WMinigun:  {Name: "Overdrive", Desc: "10 seconds of 80% more fire rate, two more pierce, half the spread and no reloading, in red-hot rounds.", Time: 10},
 	WLauncher: {Name: "Cluster MIRV", Desc: "One rocket to a point that splits over it into ten bomblets, each hitting like a rocket.", Range: 24, Radius: mirvRadius},
 	WCrowbar:  {Name: "Berserk", Desc: "8 seconds of swinging twice as fast, every hit healing you, shrugging off slows and stuns.", Time: 8},
+	WKatana:   {Name: "Crimson Tempest", Desc: "8 seconds of cutting half again as fast, every swing a sweep of blood 4.5 tiles out through up to eight creeps, building bleed twice as fast.", Time: 8},
+	WGreat:    {Name: "Titan's Wrath", Desc: "8 seconds of every swing a follow-through, reaching further and coming faster, and nothing slows, stuns or grabs you.", Time: 8},
 }
 
 // The ultimate's charge comes from the damage a survivor deals with their own hands, and from
@@ -124,6 +126,15 @@ const (
 // Berserk heals this share of the damage each hit deals.
 const berserkLeech = .3
 
+// Crimson Tempest's swings come tempestRate times as fast and reach tempestReach; Titan's
+// Wrath's wrathRate times as fast and wrathReach further.
+const (
+	tempestRate  = 1.5
+	tempestReach = 4.5
+	wrathRate    = 1.3
+	wrathReach   = .8
+)
+
 // AbilityRange is how far a slot reaches for this player right now.
 func AbilityRange(p *Player, slot int) float32 {
 	switch slot {
@@ -170,6 +181,14 @@ func (w *World) playerStats(p *Player) Stats {
 			st.Spread *= .5
 		case WCrowbar:
 			st.Rate *= 2
+		case WKatana:
+			st.Rate *= tempestRate
+			st.Range = max(st.Range, tempestReach)
+			st.Spread = max(st.Spread, 1)
+			st.Hits = max(st.Hits, 8)
+		case WGreat:
+			st.Rate *= wrathRate
+			st.Range += wrathReach
 		}
 	}
 	return st
@@ -188,6 +207,12 @@ func (w *World) Cast(p *Player, slot int, x, y float32) error {
 	}
 	if w.Phase == PhaseOver {
 		return errOver
+	}
+	if slot == AbDash && p.Cur.Legendary() {
+		// A legendary in hand: F is its weapon art, not the dash.
+		w.shooter = int8(p.ID)
+		defer func() { w.shooter = -1 }()
+		return w.art(p, x, y)
 	}
 	a := &p.Abil[slot]
 	if a.Lv == 0 {

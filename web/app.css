@@ -323,6 +323,11 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 13px/12p
 .wslot.cur .key { color: #5c4210; }
 .wslot.reloading::after { content: ""; position: absolute; left: 3px; right: 3px; bottom: 2px; height: 3px; background: repeating-linear-gradient(90deg, var(--tape) 0 4px, transparent 4px 7px); animation: wreload .5s steps(3) infinite; }
 @keyframes wreload { to { background-position: 7px 0; } }
+.wslot.legend.owned { color: #ffe9b0; background: #4a1820; box-shadow: 0 0 0 1px #c89a3a, var(--bevel); }
+.wslot.legend.cur { color: #2a0c10; background: #e8c060; box-shadow: 0 0 0 2px #e8c060, 0 0 0 4px var(--black); }
+.wslot.legend.owned::before { content: ""; position: absolute; top: 2px; right: 3px; width: 4px; height: 4px; background: #e8c060; box-shadow: 0 0 4px #e8c060; animation: legendglint 1.6s steps(4) infinite; }
+@keyframes legendglint { 0%, 60% { opacity: .2; } 80% { opacity: 1; } 100% { opacity: .2; } }
+b.legend { color: #e8c060; }
 .wslot.med { margin-right: 6px; }
 .wslot.med.owned { color: #ffd8d0; background: #6a2a22; }
 .wslot.med.cur { color: var(--screen); background: #e05a40; box-shadow: 0 0 0 2px #e05a40, 0 0 0 4px var(--black); }
@@ -385,6 +390,9 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 13px/12p
 .armory .up { min-width: 120px; width: 100%; font-family: var(--small); font-size: 14px; line-height: 1.25; padding: 4px 6px; text-align: left; }
 .armory .up .v { display: block; color: var(--bone); }
 .armory .up .c { color: var(--amber); font: 14px/1 var(--crt); }
+.armory tr.legend .wname { color: #e8c060; }
+.armory tr.legend.evo td { padding-top: 0; }
+.armory .up.evolve { width: calc(50% - 4px); display: inline-block; vertical-align: top; margin: 0 4px 4px 0; border-color: #c89a3a; }
 .armory .pips { display: inline-flex; gap: 2px; margin-left: 4px; vertical-align: 1px; }
 .armory .pips i { width: 6px; height: 6px; background: #3c3f30; box-shadow: 0 0 0 1px var(--black); }
 .armory .pips i.on { background: var(--amber); }

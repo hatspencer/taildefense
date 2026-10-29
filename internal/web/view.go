@@ -97,6 +97,9 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 			if p.Dual && p.Cur == game.WPistol {
 				st = st.Dual()
 			}
+			if p.DualKatana && p.Cur == game.WKatana {
+				st.Rate *= 1.7
+			}
 			mag = st.Mag
 		}
 		e.u16(uint16(max(mag, 0)))
@@ -105,7 +108,7 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 		e.u32(clamp32(p.Gold))
 		e.u32(clamp32(p.Kills))
 		e.u32(clamp32(p.Damage))
-		var owned uint8
+		var owned uint16
 		for k, o := range p.Owned {
 			if o {
 				owned |= 1 << k
@@ -114,12 +117,16 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 		if p.Dual {
 			owned |= game.DualBit
 		}
-		e.u8(owned)
+		if p.DualKatana {
+			owned |= game.DualKatanaBit
+		}
+		e.u16(owned)
 		for k := range p.Lv {
 			for _, l := range p.Lv[k] {
 				e.u8(l)
 			}
 		}
+		e.u8(p.Evo[game.WKatana] | p.Evo[game.WGreat]<<2)
 		for _, g := range p.Gear {
 			e.u8(g)
 		}
@@ -166,7 +173,10 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 		}
 		e.u8(p.Medkits)
 		e.u8(deci8(p.Heal))
-		e.u8(p.ReloadMask)
+		e.u16(p.ReloadMask)
+		e.u8(p.Swings)
+		e.u8(p.Art<<6 | uint8(min(max(p.ArtFrac, 0), 1)*63))
+		e.u16(deci16(p.ArtCool))
 		s := &p.Stats
 		for _, v := range [...]uint64{s.Downs, s.Revives, s.Built, s.Searched, s.Bosses} {
 			e.u16(uint16(min(v, math.MaxUint16)))
@@ -202,6 +212,7 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 		e.pos(g.X)
 		e.pos(g.Y)
 		e.b = append(e.b, g.Lv[:]...)
+		e.u8(g.Evo)
 		e.u8(g.By)
 	}
 	ev := &r.Evac

@@ -185,9 +185,17 @@ func (w *World) searchPlane(p *Player, s *Site) {
 	} else if g, ok := w.giveUpgrade(p, p.Cur, 2); ok {
 		got = append(got, g)
 	}
-	r := max(RollRarity(w.rng.Float64(), w.Luck(p, s)), Rare)
-	got = append(got, w.grant(p, r, FavorWeapons))
+	tag := ""
+	if w.legendFor(p) != NumWeapons && w.rng.Float32() < legendChance {
+		// A crate in the hold, stencilled for some collector who never got it.
+		g, _ := w.giveLegend(p)
+		got = append(got, g)
+		tag = "  ·  legendary"
+	} else {
+		r := max(RollRarity(w.rng.Float64(), w.Luck(p, s)), Rare)
+		got = append(got, w.grant(p, r, FavorWeapons))
+	}
 	p.Dry = 0
 	w.Blasts = append(w.Blasts, Blast{s.SX, s.SY, 1.5, 5})
-	w.note(1, "%s got into the crashed plane's hold: %s", p.Name, strings.Join(got, ", "))
+	w.note(1, "%s got into the crashed plane's hold: %s%s", p.Name, strings.Join(got, ", "), tag)
 }

@@ -16,6 +16,7 @@ type Creep struct {
 	Aff       Affix   // its wave's affixes it carries: armoured, hasty, a sapper's charge, a splitter
 	Mark      float32 // seconds left of a spotter's mark: everything hits it harder (evolve.go)
 	Burn      float32 // seconds of burning left
+	Bleed     float32 // blood loss a katana has built up, bursting at bleedFull (legend.go)
 	BurnDPS   float32
 	ID        uint16
 	Kind      CreepKind
@@ -98,12 +99,13 @@ func (s *Structure) CY() float32 { return float32(s.Y) + float32(s.H)/2 }
 // WeaponState is one weapon in a player's loadout.
 type WeaponState struct {
 	Owned  bool
-	Dual   bool // the pistol only: a second one, found, in the other hand
+	Dual   bool // the pistol or the katana only: a second one, found, in the other hand
 	Lv     [NumTracks]uint8
 	Ammo   int16
 	Reload float32 // seconds of reload left, 0 when ready
 	Cool   float32 // seconds until the next shot
 	Spin   float32 // the minigun only: how far its barrels are spun up, 0 to 1 (orders.go)
+	Evo    uint8   // a legendary's evolution, 1 or 2 (LegendEvos), 0 none
 }
 
 // AbilityState is one of a player's ability slots.
@@ -169,6 +171,19 @@ type Player struct {
 	Dry              uint8   // searches in a row that found little, which makes the next luckier
 	lastAct          uint32  // the tick of the player's last command
 	Look             uint32  // what the survivor looks like, dealt on joining; see Look
+
+	// A legendary in hand (legend.go): swings so far, for the page to time each; the
+	// greatsword's swings in a row and the seconds before that chain lapses; the weapon art
+	// running, its seconds left of all of them, where it set off from and where it goes, and the
+	// seconds before it can be used again.
+	Swings            uint8
+	chain             uint8
+	chainLeft         float32
+	Art               uint8
+	ArtLeft, ArtTotal float32
+	artX0, artY0      float32
+	artX, artY        float32
+	ArtCool           float32
 
 	walk walker
 	// repairOwed is the part of a gold coin repairs have cost and not yet charged.
@@ -434,6 +449,10 @@ type World struct {
 	rng        *rand.Rand
 	scratch    []int32
 	hitBuf     []hitCand
+	swingHits  []int32 // the creeps the last melee swing hit (melee)
+	near       []int32 // the legendaries' gathering of creeps round a point (legend.go)
+	shrineList []int   // the shrines' site indices, for as many sites as shrinesFor
+	shrinesFor int
 	byID       []int32 // creep id -> index in Creeps, valid for creeps alive at the tick's start
 	paths      pathfinder
 	rooms      []int16 // per tile, the walled site it is inside (discover.go)
@@ -625,6 +644,7 @@ type ruin struct {
 	plane      bool // the crashed plane, lying at yaw round cx, cy (plane.go)
 	yaw        float32
 	church     bool // the church, its tower towards yaw and its bell rope at cx, cy (church.go)
+	shrine     bool // a shrine, its gate towards yaw and its altar searched from cx, cy (legend.go)
 }
 
 // generate is Generate, also returning the ruins it built.
@@ -699,6 +719,7 @@ func generate(seed uint64, w, h int) ([]Tile, []ruin) {
 	houses = gasStation(t, w, h, rng, roads, road, houses)
 	houses = planeCrash(t, w, h, rng, road, houses)
 	houses = church(t, w, h, rng, road, houses)
+	houses = shrines(t, w, h, rng, road, houses)
 	// A solid border, so nothing walks off the edge.
 	for x := 0; x < w; x++ {
 		t[x], t[(h-1)*w+x] = TRock, TRock

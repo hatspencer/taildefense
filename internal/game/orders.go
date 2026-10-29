@@ -297,6 +297,12 @@ func (w *World) stepPlayers() {
 				p.Abil[i].Cool = max(p.Abil[i].Cool-Dt, 0)
 			}
 		}
+		if p.ArtCool > 0 {
+			p.ArtCool = max(p.ArtCool-Dt, 0)
+		}
+		if p.chainLeft > 0 {
+			p.chainLeft -= Dt
+		}
 		if p.BuffLeft > 0 {
 			p.BuffLeft = max(p.BuffLeft-Dt, 0)
 			if p.BuffLeft == 0 && p.Buff == WPistol {
@@ -323,9 +329,15 @@ func (w *World) stepPlayers() {
 		p.tickSlow()
 		w.stepHeld(p)
 		target := int32(-1)
-		if p.Stunned() {
+		switch {
+		case p.Art != ArtNone && p.Stunned():
+			p.Art, p.ArtLeft = ArtNone, 0 // knocked out of the stance
 			p.Moving = false
-		} else {
+		case p.Art != ArtNone:
+			w.stepArt(p)
+		case p.Stunned():
+			p.Moving = false
+		default:
 			target = w.act(p, st)
 		}
 		p.stepStamina()
