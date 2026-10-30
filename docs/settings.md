@@ -63,6 +63,13 @@ The game page is served only on `127.0.0.1`, on a random port. Its URL carries a
 the page's WebSocket refuses a wrong token or a page from another origin. One tab plays at a time;
 opening the URL again takes over from the old tab.
 
+Lag? Run `td doctor`. Tailscale sends game traffic straight between machines when it can and
+through a DERP relay when it cannot, and a relay adds tens of milliseconds. `td ls` and the
+launcher's join list show each game's path beside its ping ("23ms direct", "61ms DERP fra" in
+yellow), and `td doctor` says why a path is relayed: UDP blocked (allow outbound UDP 3478 for
+STUN), a hard NAT, or a router that opens no ports (enable UPnP or NAT-PMP, or forward UDP 41641
+to the machine). `tailscale ping HOST` nudges a direct path and shows which one it took.
+
 ## Updates
 
 The version is the git commit. With `AUTOUPDATE` on (the default), the launcher checks
