@@ -1,5 +1,5 @@
 import {
-  Art, ART_TIME, BlastKind, GREAT, K_TESLA, KATANA, OWNED_DUAL, OWNED_DUAL_KATANA, TRACER_FLASH, TRACER_FOLLOW, TRACER_GREAT,
+  Art, ART_TIME, BlastKind, CROWBAR, GREAT, TRACER_HOMERUN, TRACER_HOMERUN_ROUND, K_TESLA, KATANA, OWNED_DUAL, OWNED_DUAL_KATANA, TRACER_FLASH, TRACER_FOLLOW, TRACER_GREAT,
   TRACER_KATANA, TRACER_MOON, THROW_FLIGHT, TRACER_ARC, TRACER_NAPALM, CF_ASLEEP, CF_BURNING, CF_GUARD, CF_STRIKE, CF_WINDUP, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_FIRING, PF_HURT, PF_MOVING, PF_RELOADING, Player,
 } from './protocol';
 import type { Game } from './state';
@@ -10,7 +10,8 @@ import type { Game } from './state';
 // sprinting, kneeling to search and to revive, reloading, taunting and down, firing dual
 // pistols, and caught and thrown by a mauler, each at its own health so the HUD's portraits
 // show every state; then the legendaries: the katana's combo, a pair of katanas, Flash Draw,
-// the greatsword's combo, Skyfall, and the evolved blades (Moonlit Edge, Titan's Wrath). Past them, the turret evolutions' shots ('fx'): a napalm missile flying
+// the greatsword's combo, Skyfall, the evolved blades (Moonlit Edge, Titan's Wrath), and the
+// crowbar's Home Run, plain and Bonebreaker's. Past them, the turret evolutions' shots ('fx'): a napalm missile flying
 // and bursting, and an arc web striking a knot of points. It takes the demo's world over after
 // its first frame and stops it, then poses everything itself.
 
@@ -24,7 +25,7 @@ export class Lab {
   private last = 0;
   // Player poses, by player slot.
   private poses = ['circle', 'sprint', 'loot', 'revive', 'reload', 'taunt', 'down', 'shoot', 'dual', 'thrown',
-    'katana', 'katanas', 'flash', 'great', 'skyfall', 'evolved'];
+    'katana', 'katanas', 'flash', 'great', 'skyfall', 'evolved', 'homerun', 'bonebreaker'];
   // The swing counter each legendary pose last showed, to cut a tracer when it moves.
   private swung: number[] = [];
 
@@ -35,14 +36,23 @@ export class Lab {
   }
 
   // Where to look: the whole bench, or one creep row (0..10), or the survivors ('h'), or one
-  // of them ('h0'..'h15'), or the turret shots ('fx').
+  // of them ('h0'..'h17'), or the crowbar's Home Run ('crowbar'), or the turret shots ('fx').
   center(at = ''): [number, number] {
     if (at === 'fx') return [this.fx() + 4.5, this.y0 + 2.5];
-    if (/^h\d+$/.test(at)) { const i = Number(at.slice(1)); return [this.x0 + COLS.length * DX + 2.5 + (i % 2) * 3.4, this.y0 + Math.floor(i / 2) * DY]; }
+    if (/^h\d+$/.test(at)) return this.spot(Number(at.slice(1)));
+    if (at === 'crowbar') { const [x, y] = this.spot(16); return [x + 1.7, y]; }
     if (at === 'h') return [this.x0 + COLS.length * DX + 4.2, this.y0 + 1.5 * DY];
     if (at === 'legend') return [this.x0 + COLS.length * DX + 4.2, this.y0 + 6 * DY];
     if (at !== '' && !Number.isNaN(Number(at))) return [this.x0 + 3 * DX, this.y0 + Number(at) * DY];
     return [this.x0 + 3 * DX + 3, this.y0 + 2.5 * DY];
+  }
+
+  // Where survivor pose i stands: two to a row beside the creeps, and the crowbar's two (16 and
+  // 17) out in the open to the right, clear of the trees further down.
+  private spot(i: number): [number, number] {
+    const hx = this.x0 + COLS.length * DX + 2.5;
+    if (i >= 16) return [hx + 7.5 + (i % 2) * 3.4, this.y0 + 2 * DY];
+    return [hx + (i % 2) * 3.4, this.y0 + Math.floor(i / 2) * DY];
   }
 
   // The left edge of the turret shots, past the survivors.
@@ -95,18 +105,17 @@ export class Lab {
     f.nBlasts = 0; f.nTracers = 0; f.nDeaths = 0;
 
     // The survivors, to the right of the creeps.
-    const hx = this.x0 + COLS.length * DX + 2.5;
     while (f.players.length < this.poses.length) f.players.push(new Player());
     f.nPlayers = this.poses.length;
     for (let i = 0; i < this.poses.length; i++) {
       const p = f.players[i], pose = this.poses[i];
       // Health varies so the portraits show their wounds; the sprinter has a medkit working.
-      p.id = i; p.look = (i * 2654435761) >>> 0; p.cur = this.gun >= 0 ? this.gun : i % 6; p.hp = [80, 50, 55, 80, 22, 80, 0, 45, 70, 35, 90, 75, 60, 85, 65, 95][i]; p.maxHp = 100;
+      p.id = i; p.look = (i * 2654435761) >>> 0; p.cur = this.gun >= 0 ? this.gun : i % 6; p.hp = [80, 50, 55, 80, 22, 80, 0, 45, 70, 35, 90, 75, 60, 85, 65, 95, 70, 88][i]; p.maxHp = 100;
       p.heal = pose === 'sprint' ? 5 : 0;
       p.flags = PF_CONNECTED | PF_ALIVE; p.order = Order.Idle; p.channel = 0; p.emote = Emote.None; p.emoteLeft = 0; p.sprinting = false;
       p.held = false; p.airborne = false; p.stunned = false; p.owned = 0;
       p.evo.fill(0); p.art = Art.None; p.artFrac = 0; p.artCool = 0;
-      let x = hx + (i % 2) * 3.4, y = this.y0 + Math.floor(i / 2) * DY, aim = Math.PI / 2;
+      let [x, y] = this.spot(i), aim = Math.PI / 2;
       switch (pose) {
         case 'circle': {
           const a = t * 0.9;
@@ -151,6 +160,20 @@ export class Lab {
   // effects and sounds.
   private legend(p: Player, pose: string, t: number, x: number, y: number, i: number, fresh: boolean): [number, number, number] {
     const f = this.game.cur, aim = 0;
+    if (pose === 'homerun' || pose === 'bonebreaker') {
+      // The crowbar's Home Run every 2.5 seconds: wound back, then the swing (Bonebreaker's
+      // all the way round).
+      p.cur = CROWBAR; p.owned = 1 << CROWBAR;
+      if (pose === 'bonebreaker') p.evo[CROWBAR] = 1;
+      const u = t % 2.5, d = ART_TIME[Art.HomeRun], go = u - 0.8, now = Math.floor(t / 2.5);
+      if (go >= 0 && go < d) { p.art = Art.HomeRun; p.artFrac = go / d; }
+      if (fresh && go >= d && (this.swung[i] ?? -1) !== now) {
+        this.swung[i] = now;
+        const j = f.nTracers++;
+        f.tX0[j] = x; f.tY0[j] = y; f.tX1[j] = x + 3.2; f.tY1[j] = y; f.tKind[j] = pose === 'bonebreaker' ? TRACER_HOMERUN_ROUND : TRACER_HOMERUN;
+      }
+      return [x, y, aim];
+    }
     const great = pose === 'great' || pose === 'skyfall';
     p.cur = great ? GREAT : KATANA;
     p.owned = (1 << p.cur) | (pose === 'katanas' ? OWNED_DUAL_KATANA : 0);

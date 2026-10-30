@@ -751,6 +751,25 @@ melee a way to play, and give the far sites something only they hold (`internal/
   beat later; the greatsword's third swing is an overhead into the ground; Skyfall is a lift, a
   somersault and a slam. The scene keys them off the frame's swing counter, so every client sees
   the same swing.
+- **The crowbar joins the school.** Once a blades game made the crowbar a choice rather than a
+  fallback, it needed the same shape: Home Run on F (0.45 s wound back, then 3.2 tiles round in
+  front at triple damage, four times the stun, every creep hurled 2.6 tiles; 7 s), and two
+  evolutions: Bonebreaker (control: double stun and a shove on every hit, Home Run all the way
+  round) and Scrap King (economy: half the bounty again and 4% health a kill, Home Run 3 s
+  sooner). The legendaries hit harder; the crowbar's answer is to keep a crowd off you and to pay
+  for the base. Holding a crowbar on brutal now means F is Home Run, not the dash.
+
+### Blades games
+
+`MODE=blades` (`--mode blades`, the launcher's `m`) is a game with no guns, chosen by the host
+before it starts and kept through a restart (`internal/game/mode.go`). Each survivor picks a
+crowbar, katana or greatsword when they join; the pick is one-off, and until it is made they
+hold the crowbar, so nobody stands unarmed. Rather than a separate rule set, a blades game gates
+the existing sources: the armory, the loot table, the gas station and a weapon on the ground all
+ask the world whether a kind is allowed, and a gun never is; the check that runs every tick
+fails a game where anyone carries one. The gas station's counter, otherwise a gun, always gives
+a legendary there, so the map still has a reason to walk to it. Turrets stay: it is a melee
+game, not a game without the base.
 
 ## Ultimates and abilities
 

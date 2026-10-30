@@ -109,6 +109,9 @@ func (w *World) Check() error {
 			return fmt.Errorf("%s holds weapon %d, not theirs", p.Name, p.Cur)
 		}
 		for k, ws := range p.Weapons {
+			if ws.Owned && !w.allows(WeaponKind(k)) {
+				return fmt.Errorf("%s carries the %s in a %s game", p.Name, Weapons[k].Name, w.Mode)
+			}
 			if ws.Ammo < 0 || !finite(ws.Reload) || !finite(ws.Cool) {
 				return fmt.Errorf("%s weapon %d ammo %d reload %v cool %v", p.Name, k, ws.Ammo, ws.Reload, ws.Cool)
 			}

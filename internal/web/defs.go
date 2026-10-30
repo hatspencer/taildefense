@@ -212,6 +212,8 @@ type welcomeMsg struct {
 	Sites           []siteDef     `json:"sites"`
 	Difficulty      difficultyRef `json:"difficulty"`
 	FogOfWar        bool          `json:"fogOfWar"`
+	Mode            string        `json:"mode"`           // standard, or blades: no guns
+	StartBlades     []int         `json:"startBlades"`    // in a blades game, the weapons a survivor picks from
 	LastWave        int           `json:"lastWave"`       // the wave whose end calls the evac; 0 endless
 	Evac            *evacDef      `json:"evac,omitempty"` // absent in an endless game
 	Dark            float32       `json:"dark,omitempty"` // survivors' sight at night; 0 for none
@@ -275,9 +277,9 @@ func welcome(wel netplay.Welcome, core point, host, hint string, hosting bool) w
 			target = "point"
 		}
 		wd.Ult = ultDef{u.Name, u.Desc, u.Time, u.Range, u.Radius, target}
-		if d.Legend {
+		if wk.Evolves() {
 			a := game.Arts[k]
-			wd.Legend, wd.Art, wd.EvoCost = true, &artDef{a.Name, a.Desc, a.Range, a.Cool}, game.LegendEvoCost
+			wd.Legend, wd.Art, wd.EvoCost = d.Legend, &artDef{a.Name, a.Desc, a.Range, a.Cool}, game.LegendEvoCost
 			for _, e := range game.LegendEvos[k] {
 				wd.Evolve = append(wd.Evolve, evoDef{Name: e.Name, Desc: e.Desc, Range: 1})
 			}
@@ -348,6 +350,10 @@ func welcome(wel netplay.Welcome, core point, host, hint string, hosting bool) w
 	}
 	m.Difficulty = difficultyRef{int(wel.Diff), wel.Diff.String()}
 	m.FogOfWar = wel.Fog
+	m.Mode = wel.Mode.String()
+	for _, k := range game.StartBlades {
+		m.StartBlades = append(m.StartBlades, int(k))
+	}
 	m.LastWave = wel.LastWave
 	if wel.LastWave > 0 {
 		inbound, flight, settle, wait, last, depart, climb, reach, board, half := game.EvacInfo()

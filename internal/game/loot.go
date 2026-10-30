@@ -425,7 +425,7 @@ func (w *World) grant(p *Player, r Rarity, f Favor) string {
 		return gold(w.lootGold(300, 500))
 	}
 	// Jackpot.
-	if w.rng.IntN(2) == 0 && !p.Weapons[WLauncher].Owned {
+	if w.rng.IntN(2) == 0 && !p.Weapons[WLauncher].Owned && w.allows(WLauncher) {
 		s, _ := w.giveWeapon(p, WLauncher, 0)
 		return s
 	}
@@ -443,7 +443,7 @@ func (w *World) grant(p *Player, r Rarity, f Favor) string {
 func (w *World) unowned(p *Player, most int32) WeaponKind {
 	var c []WeaponKind
 	for k := WeaponKind(0); k < NumWeapons; k++ {
-		if (!p.Weapons[k].Owned || k == WPistol && !p.Weapons[k].Dual) && k.Sold() && Weapons[k].Price <= most {
+		if (!p.Weapons[k].Owned || k == WPistol && !p.Weapons[k].Dual) && k.Sold() && w.allows(k) && Weapons[k].Price <= most {
 			c = append(c, k)
 		}
 	}
@@ -456,11 +456,11 @@ func (w *World) unowned(p *Player, most int32) WeaponKind {
 // giveWeapon hands over weapon k with levels on one random track, and equips it. A pistol
 // to one who carries one is a second pistol for the other hand, as upgraded as the first.
 func (w *World) giveWeapon(p *Player, k WeaponKind, levels uint8) (string, bool) {
-	if k == WPistol && p.Weapons[k].Owned && !p.Weapons[k].Dual {
+	if k == WPistol && w.allows(k) && p.Weapons[k].Owned && !p.Weapons[k].Dual {
 		w.dualPistols(p)
 		return "a second pistol: dual pistols", true
 	}
-	if k >= NumWeapons || p.Weapons[k].Owned {
+	if !w.allows(k) || p.Weapons[k].Owned {
 		return "", false
 	}
 	ws := WeaponState{Owned: true}
