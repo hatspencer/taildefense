@@ -25,6 +25,11 @@ export class World {
   flashlight = new THREE.SpotLight(0xfff0c8, 0, 26, FLASH_CONE, 0.55, 1);
   lamp = new THREE.PointLight(0xffb060, 0, 16, 1.2);
   backend: Backend['name'] = 'WebGL2';
+  // Why this is WebGL2 when it is, for F3: forced, no WebGPU in the browser, no adapter, or
+  // what failed. Empty on WebGPU.
+  why = '';
+  // What three's WebGPU backend failed with before it fell back to WebGL2 by itself.
+  private fellBack: unknown = null;
   retro: Retro | null = null;
   pixel = 0;
   night = 0;
@@ -32,9 +37,16 @@ export class World {
   look: WeatherLook | null = null;
   private shadowSpan = 40;
   private cssW = 1; private cssH = 1;
+  // Drawing-buffer pixels to a CSS pixel at most, which the detail governor lowers.
+  private dprCap = 2;
 
   constructor(canvas: HTMLCanvasElement, forceWebGL: boolean, antialias = true) {
     this.renderer = new THREE.WebGPURenderer({ canvas, antialias, forceWebGL, powerPreference: 'high-performance' });
+    // Three falls back to WebGL2 on its own when WebGPU will not start, and says why only in
+    // a console warning; its fallback hook (private, three is pinned) is wrapped to keep it.
+    const r = this.renderer as unknown as { _getFallback: ((e: unknown) => unknown) | null };
+    const fallback = r._getFallback;
+    if (fallback) r._getFallback = (e) => { this.fellBack = e ?? 'unknown'; return fallback(e); };
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.scene.background = new THREE.Color(SKY);
@@ -102,7 +114,16 @@ export class World {
     await this.renderer.init();
     const be = this.renderer.backend as { isWebGPUBackend?: boolean };
     this.backend = be.isWebGPUBackend ? 'WebGPU' : 'WebGL2';
+    if (this.fellBack !== null) this.why = World.reason(this.fellBack);
     console.info(`taildefense: rendering with ${this.backend}`);
+  }
+
+  // A WebGPU start's failure in a few words: no adapter is the common one (a blocklisted GPU,
+  // WebGPU turned off), anything else is its message.
+  static reason(e: unknown): string {
+    const msg = String((e as Error)?.message ?? e);
+    if (/adapter/i.test(msg)) return 'no adapter';
+    return `WebGPU failed: ${msg.length > 60 ? msg.slice(0, 57) + '...' : msg}`;
   }
 
   // GPU device loss (WebGPU only). The host keeps the game, so a reload resumes it.
@@ -115,11 +136,17 @@ export class World {
     this.cssW = w; this.cssH = h;
     // Blocky pixels gain nothing from a dense drawing buffer; the browser scales the canvas up
     // without smoothing.
-    this.renderer.setPixelRatio(this.pixel > 0 ? 1 : Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(this.pixel > 0 ? 1 : Math.min(window.devicePixelRatio, this.dprCap));
     this.renderer.setSize(w, h, false);
     if (this.retro && this.pixel > 0) this.retro.resize(w, h, this.pixel);
     this.camera.aspect = w / Math.max(1, h);
     this.camera.updateProjectionMatrix();
+  }
+
+  setDprCap(cap: number): void {
+    if (cap === this.dprCap) return;
+    this.dprCap = cap;
+    this.resize(this.cssW, this.cssH);
   }
 
   // Keeps the sun and its shadow frustum over the view target; span grows with zoom.
