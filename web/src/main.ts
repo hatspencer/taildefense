@@ -452,7 +452,7 @@ async function main(): Promise<void> {
         `frame ${game.cur.tick}  ${game.interval.toFixed(0)} ms`,
         `ping  ${Number.isNaN(game.rtt) ? '-' : `${game.rtt.toFixed(0)} avg ${game.rttAvg.toFixed(0)}`} p99 ${ms(ns?.rttP99)} lost ${ns?.lost ?? '-'}`,
         `ack   ${ms(game.ack?.ms)} p50 ${ms(ns?.ack?.p50)} p99 ${ms(ns?.ack?.p99)}`,
-        `arrv  p50 ${ms(ns?.arrv?.p50)} p99 ${ms(ns?.arrv?.p99)} max ${ms(ns?.arrv?.max)}`,
+        `arrv  ${ns?.via ?? '-'} p50 ${ms(ns?.arrv?.p50)} p99 ${ms(ns?.arrv?.p99)} max ${ms(ns?.arrv?.max)}`,
         hs ? `host  tick p99 ${hs.tickP99.toFixed(0)} · drop ${hs.drop} · resync ${hs.resync} · q ${hs.q}/${hs.qCap}` : 'host  -',
         `page  drop ${ns?.pageDrop ?? '-'}`,
         `sound ${sound.synth.readout()}`,

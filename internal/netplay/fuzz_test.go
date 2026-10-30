@@ -107,3 +107,41 @@ func FuzzClientDecoders(f *testing.F) {
 		}
 	})
 }
+
+// Whatever arrives on a UDP socket, from the network at large, is refused or read, never a
+// panic: a datagram, the fragments it may complete, the unit they make and its frames.
+func FuzzDatagram(f *testing.F) {
+	var pk unitPacker
+	for _, dg := range fragment(1, 9, pk.pack([]seqFrame{{8, []byte{0, 1, 2}}, {9, make([]byte, 3000)}})) {
+		f.Add(dg)
+	}
+	f.Add(helloDatagram(dgHello, 42))
+	f.Add(ackDatagram(42, 1, 7, 9, ackWantKey))
+	f.Add(pk.pack([]seqFrame{{1, []byte{frameKey, 1, 0, 0, 0}}}))
+	f.Fuzz(func(t *testing.T, b []byte) {
+		var r reassembler
+		var fl frameFlow
+		if m, ok := parseDatagram(b); ok && m.typ == dgFrag {
+			// Twice, as two fragments of one unit.
+			for range 2 {
+				if u := r.add(m); u != nil {
+					if frames, err := unpack(u); err == nil {
+						for _, fr := range frames {
+							fl.frame(fr.seq, fr.p, true)
+						}
+					}
+				}
+			}
+		}
+		if frames, err := unpack(b); err == nil {
+			for _, fr := range frames {
+				fl.frame(fr.seq, fr.p, true)
+			}
+		}
+		_, _ = decodeOffer(b)
+		if sf, err := decodeSeqFrame(b); err == nil {
+			fl.frame(sf.seq, sf.p, false)
+		}
+		fl.ack(Msg{Type: MsgAck, Payload: b})
+	})
+}
