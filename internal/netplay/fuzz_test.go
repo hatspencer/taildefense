@@ -84,6 +84,7 @@ func FuzzClientDecoders(f *testing.F) {
 	f.Add(e.Key(w, nil))
 	w.Step()
 	f.Add(e.Delta(w, nil))
+	key := append([]byte(nil), e.Key(w, nil)...)
 	f.Add([]byte{2, 3, 'h', 'e', 'y'})
 	f.Fuzz(func(t *testing.T, b []byte) {
 		_, _ = DecodeWelcome(b)
@@ -92,6 +93,15 @@ func FuzzClientDecoders(f *testing.F) {
 		if r.Apply(b) == nil && r.Synced {
 			_ = r.Apply(b) // the same frame again, now as a delta on itself if it is one
 		}
+		if r.Count < 0 || r.Count > game.MaxCreeps {
+			t.Fatalf("%d creeps", r.Count)
+		}
+		// And as a delta on a replica that has a world to apply it to.
+		r = NewReplica(w.W, w.H, w.Terrain, 0, w.Seed)
+		if err := r.Apply(key); err != nil {
+			t.Fatal(err)
+		}
+		_ = r.Apply(b)
 		if r.Count < 0 || r.Count > game.MaxCreeps {
 			t.Fatalf("%d creeps", r.Count)
 		}

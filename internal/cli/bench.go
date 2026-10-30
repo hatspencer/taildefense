@@ -42,6 +42,7 @@ func Bench(w io.Writer, o BenchOptions) int {
 		{"relay decode", per(st.Decode, st.Ticks) + "/tick"},
 		{"browser frame", per(st.View, st.Ticks) + "/tick"},
 		{"tailnet", fmt.Sprintf("%.1f KiB/s deflated, keyframe %d bytes", float64(st.Wire)/float64(st.Ticks)*game.TickRate/1024, st.Key)},
+		{"delta frame", fmt.Sprintf("%d bytes/tick raw, %d deflated", st.Raw/max(st.Ticks, 1), st.Wire/max(st.Ticks, 1))},
 		{"localhost", fmt.Sprintf("%.1f KiB/s to the browser", float64(st.ViewBytes)/float64(st.Ticks)*game.TickRate/1024)},
 	})
 	budget := time.Second / game.TickRate

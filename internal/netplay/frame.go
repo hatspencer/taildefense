@@ -1,6 +1,7 @@
 package netplay
 
 import (
+	"bytes"
 	"math"
 	"math/bits"
 
@@ -69,6 +70,7 @@ type Encoder struct {
 	fx       [game.MaxCreeps]uint8 // more flags (fxFrenzy)
 	tg       [game.MaxCreeps]uint8 // the chased player's id, 255 none
 	kind     [game.MaxCreeps]uint8
+	chMask   [game.MaxCreeps]uint8 // what changed this tick, for the creeps in changed
 	curAlive bitset
 	cur      [game.MaxCreeps]int32 // creep id -> index in World.Creeps this tick
 
@@ -76,10 +78,12 @@ type Encoder struct {
 
 	removed, added, changed []uint16
 
-	tick  uint32
-	delta enc
-	key   enc
-	keyOK bool
+	players [256]playerSent
+
+	tick       uint32
+	delta, key enc
+	grp, esc   enc // scratch: one player group, the moves too far for a nibble
+	keyOK      bool
 }
 
 type structRec struct {
@@ -165,7 +169,7 @@ func (e *Encoder) Delta(w *game.World, atArmory func(*game.Player) bool) []byte 
 	b := &e.delta
 	b.b = b.b[:0]
 	b.u8(0)
-	e.header(b, w, atArmory)
+	e.header(b, w, atArmory, false)
 
 	// Creeps: current alive set and index by id.
 	e.curAlive = bitset{}
@@ -199,20 +203,48 @@ func (e *Encoder) Delta(w *game.World, atArmory func(*game.Player) bool) []byte 
 	}
 	// Moves, for every creep alive in both, in id order. The client walks the same set.
 	changed := e.changed[:0]
-	e.alive.each(func(id uint16) {
-		c := &w.Creeps[e.cur[id]]
-		dx := clampDelta(int(qpos(c.X)) - int(e.x[id]))
-		dy := clampDelta(int(qpos(c.Y)) - int(e.y[id]))
-		b.i8(int8(dx))
-		b.i8(int8(dy))
-		e.x[id] = uint16(int(e.x[id]) + dx)
-		e.y[id] = uint16(int(e.y[id]) + dy)
-		h, f, fx, tg := hp8(c.HP, c.MaxHP), creepFlags(c), creepFx(c), creepTarget(c)
-		if h != e.hp[id] || f != e.fl[id] || fx != e.fx[id] || tg != e.tg[id] {
-			e.hp[id], e.fl[id], e.fx[id], e.tg[id] = h, f, fx, tg
-			changed = append(changed, id)
+	e.esc.b = e.esc.b[:0]
+	k, nib := 0, uint8(0)
+	for wi, word := range e.alive {
+		for word != 0 {
+			id := uint16(wi<<6 | bits.TrailingZeros64(word))
+			word &= word - 1
+			c := &w.Creeps[e.cur[id]]
+			dx := clampDelta(int(qpos(c.X)) - int(e.x[id]))
+			dy := clampDelta(int(qpos(c.Y)) - int(e.y[id]))
+			nib |= moveNibble(dx, dy, &e.esc) << (k & 1 * 4)
+			if k&1 == 1 {
+				b.u8(nib)
+				nib = 0
+			}
+			k++
+			e.x[id] = uint16(int(e.x[id]) + dx)
+			e.y[id] = uint16(int(e.y[id]) + dy)
+			var m uint8
+			h, f, fx, tg := hp8(c.HP, c.MaxHP), creepFlags(c), creepFx(c), creepTarget(c)
+			if h != e.hp[id] {
+				m |= chHP
+			}
+			if f != e.fl[id] {
+				m |= chFlags
+			}
+			if fx != e.fx[id] {
+				m |= chFx
+			}
+			if tg != e.tg[id] {
+				m |= chTarget
+			}
+			if m != 0 {
+				e.hp[id], e.fl[id], e.fx[id], e.tg[id] = h, f, fx, tg
+				e.chMask[id] = m
+				changed = append(changed, id)
+			}
 		}
-	})
+	}
+	if k&1 == 1 {
+		b.u8(nib)
+	}
+	b.b = append(b.b, e.esc.b...)
 	b.uv(uint64(len(added)))
 	prev = 0
 	for _, id := range added {
@@ -227,12 +259,23 @@ func (e *Encoder) Delta(w *game.World, atArmory func(*game.Player) bool) []byte 
 	b.uv(uint64(len(changed)))
 	prev = 0
 	for _, id := range changed {
-		b.uv(uint64(int(id) - prev))
+		// The gap to the last id with the mask of what changed in its low four bits: one
+		// byte for a horde losing hit points, ids a few apart.
+		m := e.chMask[id]
+		b.uv(uint64(int(id)-prev)<<4 | uint64(m))
 		prev = int(id)
-		b.u8(e.hp[id])
-		b.u8(e.fl[id])
-		b.u8(e.fx[id])
-		b.u8(e.tg[id])
+		if m&chHP != 0 {
+			b.u8(e.hp[id])
+		}
+		if m&chFlags != 0 {
+			b.u8(e.fl[id])
+		}
+		if m&chFx != 0 {
+			b.u8(e.fx[id])
+		}
+		if m&chTarget != 0 {
+			b.u8(e.tg[id])
+		}
 	}
 	e.removed, e.added, e.changed = removed, added, changed
 
@@ -293,7 +336,7 @@ func (e *Encoder) Key(w *game.World, atArmory func(*game.Player) bool) []byte {
 	b := &e.key
 	b.b = b.b[:0]
 	b.u8(frameKey)
-	e.header(b, w, atArmory)
+	e.header(b, w, atArmory, true)
 	n := 0
 	e.alive.each(func(uint16) { n++ })
 	b.uv(uint64(n))
@@ -320,6 +363,38 @@ func (e *Encoder) Key(w *game.World, atArmory func(*game.Player) bool) []byte {
 }
 
 func clampDelta(d int) int { return min(max(d, -127), 127) }
+
+// What changed in a creep, in the low bits of its entry in the changed list.
+const (
+	chHP = 1 << iota
+	chFlags
+	chFx
+	chTarget
+)
+
+// A creep's move is a nibble, two creeps a byte: two bits an axis, 0 still, 1 an eighth of a
+// tile forward, 2 back, and 3 on either axis for a move further than that, whose dx, dy follow
+// as an i8 pair after all the nibbles. A walker covers well under an eighth a tick, so nearly
+// every move fits, and a horde standing at a wall is a run of zero bytes that deflate all but
+// erases.
+const moveEscape = 0xf
+
+func moveNibble(dx, dy int, esc *enc) uint8 {
+	// A table, not a switch: whether a walker stepped an eighth this tick is a coin toss to
+	// the branch predictor, and with 16k creeps the mispredictions were most of the encode.
+	if uint(dx+1) < 3 && uint(dy+1) < 3 {
+		return axisCode[dx+1] | axisCode[dy+1]<<2
+	}
+	esc.i8(int8(dx))
+	esc.i8(int8(dy))
+	return moveEscape
+}
+
+// axisCode is an axis's code by its move + 1, axisMove the move by its code.
+var (
+	axisCode = [3]uint8{2, 0, 1}
+	axisMove = [3]int{0, 1, -1}
+)
 
 func (e *Encoder) creepRec(b *enc, id uint16) {
 	b.u8(e.kind[id])
@@ -357,7 +432,7 @@ func structRecord(b *enc, r *structRec) {
 	b.u8(state)
 }
 
-func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool) {
+func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool, key bool) {
 	b.u32(w.Tick)
 	b.u8(uint8(w.Phase))
 	b.u16(uint16(w.Wave))
@@ -417,59 +492,118 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 	}
 	b.u8(uint8(len(w.Players)))
 	for _, p := range w.Players {
-		var f uint8
-		if p.Connected {
-			f |= pConnected
+		e.player(b, w, p, atArmory, key)
+	}
+	if !key {
+		// Who this frame listed is the base for the next; a player gone from the list is
+		// sent whole if they come back.
+		for id := range e.players {
+			e.players[id].listed = false
 		}
-		if p.Alive {
-			f |= pAlive
+		for _, p := range w.Players {
+			e.players[p.ID].listed = true
 		}
-		if p.Firing {
-			f |= pFiring
+	}
+}
+
+// A player's record is a few fields that change nearly every tick, sent always, then groups
+// of the rest that are sent only when something in them changed since the last frame: a
+// survivor standing still in a break costs eight bytes, not a hundred. The groups come in
+// order of how often they change, so the usual mask (motion, combat, score) fits a byte.
+const (
+	pgMotion  = iota // stamina and the sprint bits
+	pgCombat         // the weapon in hand, its ammo and reload, the ultimate, a legendary's swings and art
+	pgTimers         // emotes, taunts, buffs, healing, ability cooldowns, the respawn
+	pgOrder          // the order and how far its channel is, how far a revive on them is
+	pgScore          // gold, kills, damage
+	pgKit            // most hit points, medkits, ability levels
+	pgTally          // the game's statistics
+	pgName           // the name
+	pgLook           // the look
+	pgArsenal        // weapons owned, their levels and evolutions
+	pgGear           // gear levels
+	numGroups
+)
+
+const allGroups = 1<<numGroups - 1
+
+// playerSent is what the last delta frame said of one player, by id.
+type playerSent struct {
+	listed bool // in the last delta's player list
+	group  [numGroups][]byte
+}
+
+func (e *Encoder) player(b *enc, w *game.World, p *game.Player, atArmory func(*game.Player) bool, key bool) {
+	var f uint8
+	if p.Connected {
+		f |= pConnected
+	}
+	if p.Alive {
+		f |= pAlive
+	}
+	if p.Firing {
+		f |= pFiring
+	}
+	if p.Ready {
+		f |= pReady
+	}
+	if p.Weapons[p.Cur].Reload > 0 {
+		f |= pReloading
+	}
+	if p.Hurt > 0 {
+		f |= pHurt
+	}
+	if atArmory != nil && atArmory(p) {
+		f |= pAtArmory
+	}
+	if p.Moving {
+		f |= pMoving
+	}
+	b.u8(p.ID)
+	b.u8(f)
+	b.u16(qpos(p.X))
+	b.u16(qpos(p.Y))
+	b.u16(qangle(p.Aim))
+	b.u16(uint16(max(p.HP, 0)))
+
+	s := &e.players[p.ID]
+	if key {
+		// A key frame is the sent state: what the last delta said of a listed player (the
+		// next delta is a difference from that), the world for anyone it did not list.
+		b.uv(allGroups)
+		for g := range numGroups {
+			if s.listed {
+				b.b = append(b.b, s.group[g]...)
+			} else {
+				e.grp.b = e.grp.b[:0]
+				playerGroup(&e.grp, g, w, p)
+				b.b = append(b.b, e.grp.b...)
+			}
 		}
-		if p.Ready {
-			f |= pReady
+		return
+	}
+	var mask uint64
+	for g := range numGroups {
+		e.grp.b = e.grp.b[:0]
+		playerGroup(&e.grp, g, w, p)
+		if !s.listed || !bytes.Equal(e.grp.b, s.group[g]) {
+			s.group[g] = append(s.group[g][:0], e.grp.b...)
+			mask |= 1 << g
 		}
-		ws := &p.Weapons[p.Cur]
-		if ws.Reload > 0 {
-			f |= pReloading
+	}
+	b.uv(mask)
+	for g := range numGroups {
+		if mask&(1<<g) != 0 {
+			b.b = append(b.b, s.group[g]...)
 		}
-		if p.Hurt > 0 {
-			f |= pHurt
-		}
-		if atArmory != nil && atArmory(p) {
-			f |= pAtArmory
-		}
-		if p.Moving {
-			f |= pMoving
-		}
-		b.u8(p.ID)
-		b.str(p.Name)
-		b.u8(f)
-		b.u16(qpos(p.X))
-		b.u16(qpos(p.Y))
-		b.u16(qangle(p.Aim))
-		b.u16(uint16(max(p.HP, 0)))
-		b.u16(uint16(p.MaxHP))
-		b.u8(uint8(p.Order.Kind))
-		var channel uint8
-		switch {
-		case p.Order.Kind == game.OrderLoot && p.Order.Site < len(w.Sites):
-			channel = uint8(min(p.Search/game.SiteDefs[w.Sites[p.Order.Site].Kind].Search, 1) * 255)
-		case p.Order.Kind == game.OrderRevive:
-			_, t, _ := game.ReviveInfo()
-			channel = uint8(min(p.Search/t, 1) * 255)
-		case p.Order.Kind == game.OrderPickup:
-			channel = uint8(min(p.Search/game.GunPickupTime(), 1) * 255)
-		case p.Order.Kind == game.OrderBoard:
-			_, _, _, _, _, _, _, _, t, _ := game.EvacInfo()
-			channel = uint8(min(p.Search/t, 1) * 255)
-		}
-		b.u8(channel)
-		b.u8(uint8(min(p.Revived, 1) * 255))
-		b.u8(p.Emote)
-		b.u8(deci(p.EmoteLeft))
-		b.u16(uint16(min(math.Ceil(float64(p.TauntCool*10)), 65535)))
+	}
+}
+
+// playerGroup writes one group of a player's record; replica.playerGroup reads it.
+func playerGroup(b *enc, g int, w *game.World, p *game.Player) {
+	ws := &p.Weapons[p.Cur]
+	switch g {
+	case pgMotion:
 		b.u8(uint8(min(max(p.Stamina, 0), 1) * 255))
 		sprint := uint8(0)
 		if p.Sprinting() && p.Moving {
@@ -497,7 +631,7 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 			sprint |= 128
 		}
 		b.u8(sprint)
-		b.u32(p.Look)
+	case pgCombat:
 		b.u8(uint8(p.Cur))
 		b.u16(uint16(max(ws.Ammo, 0)))
 		st := ws.Stats(p.Cur)
@@ -506,10 +640,77 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 			reload = uint8(min(ws.Reload/st.Reload, 1) * 255)
 		}
 		b.u8(reload)
+		var reloading uint16
+		for k := range p.Weapons {
+			if p.Weapons[k].Reload > 0 {
+				reloading |= 1 << k
+			}
+		}
+		b.u16(reloading)
+		b.u8(uint8(min(max(p.Ult, 0), 1) * 255))
+		// A legendary's swings so far, its weapon art (the art in the top two bits, how far
+		// through it below) and the seconds until the art is ready.
+		b.u8(p.Swings)
+		art := p.Art << 6
+		if p.Art != game.ArtNone && p.ArtTotal > 0 {
+			art |= uint8(min(max(1-p.ArtLeft/p.ArtTotal, 0), 1) * 63)
+		}
+		b.u8(art)
+		b.u16(uint16(min(math.Ceil(float64(p.ArtCool*10)), 65535)))
+	case pgTimers:
+		b.u8(p.Emote)
+		b.u8(deci(p.EmoteLeft))
+		b.u16(uint16(min(math.Ceil(float64(p.TauntCool*10)), 65535)))
+		if p.BuffLeft > 0 {
+			b.u8(uint8(p.Buff) + 1)
+		} else {
+			b.u8(0)
+		}
+		b.u8(deci(p.BuffLeft))
+		b.u8(deci(p.Heal))
+		for _, a := range p.Abil {
+			b.u16(uint16(min(math.Ceil(float64(a.Cool*10)), 65535)))
+		}
 		b.u8(uint8(max(p.Respawn, 0) + .99))
+	case pgOrder:
+		b.u8(uint8(p.Order.Kind))
+		var channel uint8
+		switch {
+		case p.Order.Kind == game.OrderLoot && p.Order.Site < len(w.Sites):
+			channel = uint8(min(p.Search/game.SiteDefs[w.Sites[p.Order.Site].Kind].Search, 1) * 255)
+		case p.Order.Kind == game.OrderRevive:
+			_, t, _ := game.ReviveInfo()
+			channel = uint8(min(p.Search/t, 1) * 255)
+		case p.Order.Kind == game.OrderPickup:
+			channel = uint8(min(p.Search/game.GunPickupTime(), 1) * 255)
+		case p.Order.Kind == game.OrderBoard:
+			_, _, _, _, _, _, _, _, t, _ := game.EvacInfo()
+			channel = uint8(min(p.Search/t, 1) * 255)
+		}
+		b.u8(channel)
+		b.u8(uint8(min(p.Revived, 1) * 255))
+	case pgScore:
 		b.uv(uint64(max(p.Gold, 0)))
 		b.uv(uint64(p.Kills))
 		b.uv(uint64(p.Damage))
+	case pgKit:
+		b.u16(uint16(p.MaxHP))
+		b.u8(p.Medkits)
+		for _, a := range p.Abil {
+			b.u8(a.Lv)
+		}
+	case pgTally:
+		t := &p.Tally
+		for _, v := range [...]uint32{t.Downs, t.Revives, t.Built, t.Searched, t.Bosses} {
+			b.uv(uint64(v))
+		}
+		b.uv(uint64(t.Taken))
+		b.uv(uint64(t.Turret))
+	case pgName:
+		b.str(p.Name)
+	case pgLook:
+		b.u32(p.Look)
+	case pgArsenal:
 		var owned uint16
 		for k := range p.Weapons {
 			if p.Weapons[k].Owned {
@@ -528,51 +729,13 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 		b.u16(owned)
 		for k := range p.Weapons {
 			if p.Weapons[k].Owned {
-				for _, l := range p.Weapons[k].Lv {
-					b.u8(l)
-				}
+				b.b = append(b.b, p.Weapons[k].Lv[:]...)
 			}
 		}
 		// The blades' evolutions, two bits each: the katana, the greatsword, the crowbar.
 		b.u8(p.Weapons[game.WKatana].Evo | p.Weapons[game.WGreat].Evo<<2 | p.Weapons[game.WCrowbar].Evo<<4)
-		for _, g := range p.Gear {
-			b.u8(g)
-		}
-		if p.BuffLeft > 0 {
-			b.u8(uint8(p.Buff) + 1)
-		} else {
-			b.u8(0)
-		}
-		b.u8(deci(p.BuffLeft))
-		b.u8(uint8(min(max(p.Ult, 0), 1) * 255))
-		for _, a := range p.Abil {
-			b.u8(a.Lv)
-			b.u16(uint16(min(math.Ceil(float64(a.Cool*10)), 65535)))
-		}
-		b.u8(p.Medkits)
-		b.u8(deci(p.Heal))
-		var reloading uint16
-		for k := range p.Weapons {
-			if p.Weapons[k].Reload > 0 {
-				reloading |= 1 << k
-			}
-		}
-		b.u16(reloading)
-		// A legendary's swings so far, its weapon art (the art in the top two bits, how far
-		// through it below) and the seconds until the art is ready.
-		b.u8(p.Swings)
-		art := p.Art << 6
-		if p.Art != game.ArtNone && p.ArtTotal > 0 {
-			art |= uint8(min(max(1-p.ArtLeft/p.ArtTotal, 0), 1) * 63)
-		}
-		b.u8(art)
-		b.u16(uint16(min(math.Ceil(float64(p.ArtCool*10)), 65535)))
-		t := &p.Tally
-		for _, v := range [...]uint32{t.Downs, t.Revives, t.Built, t.Searched, t.Bosses} {
-			b.uv(uint64(v))
-		}
-		b.uv(uint64(t.Taken))
-		b.uv(uint64(t.Turret))
+	case pgGear:
+		b.b = append(b.b, p.Gear[:]...)
 	}
 }
 
