@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { color, dot, floor, fract, mix, normalWorld, positionWorld, sin, smoothstep, time, vec2, vec3, vertexColor, float } from 'three/tsl';
 import { Ruin, SiteKind, Tile, type SiteDef } from '../protocol';
+import { indexed } from './rig';
 import { SHRINE_PLAN, shrineTile } from './shrine';
 import { box, cone, cyl, dodeca, merge, part, setEmissive, writeMatrix } from './util';
 import { uSnow, uWet } from './weather';
@@ -24,6 +25,8 @@ function texelNoise(perTile: number, seed: number) {
 }
 
 export const WATER_Y = -0.24;
+// The ground's pieces, in tiles a side.
+const GROUND_PIECE = 64;
 
 // One prop's instances over the whole map, sorted into blocks of it. Only the blocks in view,
 // or near enough to throw a shadow into it, are packed into the mesh and drawn. One mesh per
@@ -64,7 +67,9 @@ class Scatter {
       this.blocks[this.blocks.length - 1].to = j + 1;
     });
     this.mats = []; this.cols = []; this.keys = [];
-    const m = new THREE.InstancedMesh(geo, mat, n);
+    // Indexed, so a flat face's shared corners run the vertex shader once, not once a
+    // triangle: a thousand trees in a zoomed-out view, and their shadows, are half the work.
+    const m = new THREE.InstancedMesh(indexed(geo), mat, n);
     m.castShadow = shadow; m.receiveShadow = true;
     // Culled here, block by block, for the view and the sun's frustum at once.
     m.frustumCulled = false;
@@ -73,6 +78,9 @@ class Scatter {
     group.add(m);
     this.mesh = m;
   }
+
+  // The indexed copy of the geometry is this prop's own.
+  dispose(): void { this.mesh?.geometry.dispose(); }
 
   // Packs the blocks the frustum touches to the front of the mesh, when that set changes.
   cull(fr: THREE.Frustum): void {
@@ -123,6 +131,7 @@ export class Terrain {
 
   clear(): void {
     for (const d of this.disposables) d.dispose();
+    for (const sc of this.scatters) sc.dispose();
     this.disposables = [];
     this.scatters = [];
     this.group.clear();
@@ -167,13 +176,46 @@ export class Terrain {
       }
       ch[y * (w + 1) + x] = n ? (water && water < n ? Math.min(s / n, -0.3) : s / n) : 0;
     }
-    const n = w * h;
+    const mat = new THREE.MeshLambertNodeMaterial({ vertexColors: true });
+    const fine = texelNoise(4, 0), coarse = texelNoise(2, 7);
+    const base = vertexColor().rgb.mul(fine.mul(0.07).add(0.965)).mul(coarse.mul(0.06).add(0.97));
+    // Rain leaves puddles in the low spots: dark, with a cold sheen that ripples.
+    const puddle = smoothstep(0.55, 0.75, texelNoise(0.5, 13).mul(0.6).add(texelNoise(1, 17).mul(0.4))).mul(uWet);
+    const ripple = sin(time.mul(7).add(texelNoise(6, 23).mul(40))).mul(0.5).add(0.5);
+    const sheen = vec3(0.24, 0.28, 0.32).mul(ripple.mul(0.25).add(0.85));
+    mat.colorNode = mix(weathered(base, float(1)), sheen, puddle.mul(float(1).sub(uSnow)).mul(0.8));
+    this.disposables.push(mat);
+    // In square pieces, so three's frustum culling draws only those in view: the whole map
+    // as one mesh was its every tile, 128k triangles on a 256 map, however close the camera.
+    // Every tile has its own four corners, so a piece's normals are what the whole's were.
+    for (let y0 = 0; y0 < h; y0 += GROUND_PIECE) for (let x0 = 0; x0 < w; x0 += GROUND_PIECE) {
+      const pw = Math.min(GROUND_PIECE, w - x0), ph = Math.min(GROUND_PIECE, h - y0);
+      const geo = this.groundPiece(tiles, w, ch, x0, y0, pw, ph);
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.receiveShadow = true;
+      mesh.name = 'ground';
+      this.group.add(mesh);
+      this.disposables.push(geo);
+    }
+
+    // The world beyond the map edge, so the fog has something to fade.
+    const outer = new THREE.Mesh(new THREE.PlaneGeometry(w * 6, h * 6), new THREE.MeshLambertNodeMaterial({ color: 0x3e4f26 }));
+    outer.rotation.x = -Math.PI / 2;
+    outer.position.set(w / 2, -0.12, h / 2);
+    outer.receiveShadow = true;
+    this.group.add(outer);
+    this.disposables.push(outer.geometry, outer.material as THREE.Material);
+  }
+
+  // The ground of tiles x0..x0+pw, y0..y0+ph; ch holds the corner heights of the whole map.
+  private groundPiece(tiles: Uint8Array, w: number, ch: Float32Array, x0: number, y0: number, pw: number, ph: number): THREE.BufferGeometry {
+    const n = pw * ph;
     const pos = new Float32Array(n * 12), col = new Float32Array(n * 12);
     const idx = new Uint32Array(n * 6);
     const c = new THREE.Color();
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-      const i = y * w + x, t = tiles[i];
-      const v = i * 4;
+    for (let y = y0; y < y0 + ph; y++) for (let x = x0; x < x0 + pw; x++) {
+      const t = tiles[y * w + x];
+      const i = (y - y0) * pw + (x - x0), v = i * 4;
       const hs = [ch[y * (w + 1) + x], ch[y * (w + 1) + x + 1], ch[(y + 1) * (w + 1) + x + 1], ch[(y + 1) * (w + 1) + x]];
       const xs = [x, x + 1, x + 1, x], ys = [y, y, y + 1, y + 1];
       for (let k = 0; k < 4; k++) { pos[(v + k) * 3] = xs[k]; pos[(v + k) * 3 + 1] = hs[k]; pos[(v + k) * 3 + 2] = ys[k]; }
@@ -196,26 +238,8 @@ export class Terrain {
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
     geo.setIndex(new THREE.BufferAttribute(idx, 1));
     geo.computeVertexNormals();
-    const mat = new THREE.MeshLambertNodeMaterial({ vertexColors: true });
-    const fine = texelNoise(4, 0), coarse = texelNoise(2, 7);
-    const base = vertexColor().rgb.mul(fine.mul(0.07).add(0.965)).mul(coarse.mul(0.06).add(0.97));
-    // Rain leaves puddles in the low spots: dark, with a cold sheen that ripples.
-    const puddle = smoothstep(0.55, 0.75, texelNoise(0.5, 13).mul(0.6).add(texelNoise(1, 17).mul(0.4))).mul(uWet);
-    const ripple = sin(time.mul(7).add(texelNoise(6, 23).mul(40))).mul(0.5).add(0.5);
-    const sheen = vec3(0.24, 0.28, 0.32).mul(ripple.mul(0.25).add(0.85));
-    mat.colorNode = mix(weathered(base, float(1)), sheen, puddle.mul(float(1).sub(uSnow)).mul(0.8));
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.receiveShadow = true;
-    mesh.name = 'ground';
-    this.group.add(mesh);
-
-    // The world beyond the map edge, so the fog has something to fade.
-    const outer = new THREE.Mesh(new THREE.PlaneGeometry(w * 6, h * 6), new THREE.MeshLambertNodeMaterial({ color: 0x3e4f26 }));
-    outer.rotation.x = -Math.PI / 2;
-    outer.position.set(w / 2, -0.12, h / 2);
-    outer.receiveShadow = true;
-    this.group.add(outer);
-    this.disposables.push(geo, mat, outer.geometry, outer.material as THREE.Material);
+    geo.computeBoundingSphere();
+    return geo;
   }
 
   private buildWater(w: number, h: number): void {

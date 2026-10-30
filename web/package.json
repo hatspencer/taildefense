@@ -6,7 +6,7 @@
   "description": "Browser client of taildefense",
   "scripts": {
     "build": "node build.mjs",
-    "check": "tsc --noEmit -p . && node test/predict.mts"
+    "check": "tsc --noEmit -p . && node test/predict.mts && node test/detail.mts"
   },
   "dependencies": {
     "@types/three": "0.186.0",

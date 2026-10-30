@@ -62,3 +62,22 @@ func TestNetStatsMessage(t *testing.T) {
 		t.Fatalf("echoes: lost %v rtt p99 %v", m["lost"], m["rttP99"])
 	}
 }
+
+// A page that falls behind loses the oldest frames waiting, not the newest.
+func TestOfferKeepsTheNewestFrames(t *testing.T) {
+	out := make(chan []byte, 4)
+	dropped := 0
+	for i := byte(0); i < 7; i++ {
+		if !offer(out, []byte{i}) {
+			dropped++
+		}
+	}
+	if dropped != 3 {
+		t.Fatalf("dropped %d frames of 7 into a queue of 4, want 3", dropped)
+	}
+	for want := byte(3); want < 7; want++ {
+		if got := <-out; got[0] != want {
+			t.Fatalf("queued frame %d, want %d", got[0], want)
+		}
+	}
+}

@@ -12,6 +12,7 @@ import type { Lab } from './lab';
 import { type Handlers, type Transport, WsTransport } from './net';
 import { EvacStage, PF_ALIVE, PF_ARMORY, Phase, PingKind, SiteKind, siteX, siteY, TTrack, TURRET_TRACKS, turretRange, type PathMsg, type Welcome, wreck } from './protocol';
 import { Creeps } from './scene/creeps';
+import { Detail } from './scene/detail';
 import { Effects } from './scene/effects';
 import { Helis } from './scene/heli';
 import { Heroes } from './scene/heroes';
@@ -57,7 +58,8 @@ function loadDemo(): Promise<TdDemo> {
   });
 }
 
-async function makeWorld(app: HTMLElement, forceWebGL: boolean): Promise<World> {
+// forced: why WebGL2 was asked for, empty to try WebGPU first.
+async function makeWorld(app: HTMLElement, forced: string): Promise<World> {
   const mk = () => {
     const c = document.createElement('canvas');
     c.className = 'view';
@@ -65,11 +67,13 @@ async function makeWorld(app: HTMLElement, forceWebGL: boolean): Promise<World> 
     app.prepend(c);
     return c;
   };
-  if (!forceWebGL && 'gpu' in navigator) {
+  let why = forced ? `forced: ${forced}` : 'no navigator.gpu';
+  if (!forced && 'gpu' in navigator) {
     const canvas = mk();
     const w = new World(canvas, false);
     try { await w.init(); return w; } catch (e) {
       console.warn('taildefense: WebGPU init failed, falling back to WebGL2', e);
+      why = World.reason(e);
       w.renderer.dispose();
       canvas.remove();
     }
@@ -80,7 +84,7 @@ async function makeWorld(app: HTMLElement, forceWebGL: boolean): Promise<World> 
   for (const aa of [true, false]) {
     const canvas = mk();
     const w = new World(canvas, true, aa);
-    try { await w.init(); return w; } catch (e) {
+    try { await w.init(); w.why = why; return w; } catch (e) {
       console.warn(`taildefense: WebGL2 init failed (antialias ${aa})`, e);
       err = e;
       canvas.remove();
@@ -116,13 +120,15 @@ async function main(): Promise<void> {
   let lostBefore = false;
   try { lostBefore = sessionStorage.getItem('td.webgl') === '1'; } catch { /* storage blocked */ }
   splash?.progress(0.05);
-  const world = await makeWorld(app, P.has('webgl') || lostBefore);
+  const world = await makeWorld(app, P.has('webgl') ? '#webgl' : lostBefore ? 'GPU device lost earlier' : '');
   splash?.progress(0.15);
   const canvas = world.renderer.domElement;
   const game = new Game();
   const terrain = new Terrain(world.scene);
   const structs = new Structs(world.scene);
   const creeps = new Creeps(world.scene);
+  // #detail=N pins the detail governor's level (0 full); otherwise it follows the frame time.
+  const detail = new Detail(world, creeps, P.has('detail') ? Number(P.get('detail')) : undefined);
   const heroes = new Heroes(world.scene);
   const loot = new Loot(world.scene);
   const guns = new Guns(world.scene);
@@ -325,7 +331,7 @@ async function main(): Promise<void> {
       }
     }
   };
-  (window as unknown as { td: unknown }).td = { game, ctl, rig, hud, world, heroes, helis, sound, get transport() { return transport; } };
+  (window as unknown as { td: unknown }).td = { game, ctl, rig, hud, world, heroes, helis, sound, creeps, detail, get transport() { return transport; } };
 
   // The 8-bit view: #px=N or the saved choice sets the block size, 0 turns it off, F4 toggles.
   let pixelPref = 'auto';
@@ -357,6 +363,8 @@ async function main(): Promise<void> {
     const rawDt = Math.max(0.0005, (now - last) / 1000);
     const dt = Math.min(0.1, rawDt);
     last = now;
+    // Only frames of the game itself: the splash and the shader warm-up say nothing of it.
+    if (warm === 2 && !covered) detail.frame(now, rawDt * 1000);
     if (demoHost && !lab) demoHost.pump();
     const W = window.innerWidth, H = window.innerHeight;
     const wd = game.welcome;
@@ -458,12 +466,13 @@ async function main(): Promise<void> {
       const ns = game.netStats, hs = ns?.host;
       const ms = (v: number | undefined) => (v === undefined ? '-' : v.toFixed(0));
       hud.setStats([
-        `${world.backend}`,
+        world.why ? `${world.backend} (${world.why})` : world.backend,
         `fps   ${fpsAvg.toFixed(0)}`,
         `cpu   ${msAvg.toFixed(1)} ms`,
         `creeps ${game.cur.nCreeps}`,
         `draws ${info.render.drawCalls}`,
         `tris  ${(info.render.triangles / 1000).toFixed(0)}k`,
+        detail.readout(),
         `frame ${game.cur.tick}  ${game.interval.toFixed(0)} ms`,
         `ping  ${Number.isNaN(game.rtt) ? '-' : `${game.rtt.toFixed(0)} avg ${game.rttAvg.toFixed(0)}`} p99 ${ms(ns?.rttP99)} lost ${ns?.lost ?? '-'}${path ? ` · ${pathLabel(path)}` : ''}`,
         `ack   ${ms(game.ack?.ms)} p50 ${ms(ns?.ack?.p50)} p99 ${ms(ns?.ack?.p99)}`,
