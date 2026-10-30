@@ -32,6 +32,7 @@ type HostOptions struct {
 	Waves   int    // the last wave, the one that ends with the evac; 0 endless
 	Name    string // the hosting player's name; "" is the tailnet first name
 	Version string // this build, shown to everyone who probes the game
+	Bots    int    // bots that play in the game, 0 to netplay.MaxBots
 }
 
 // HostPlan is a host worked out from the tailnet before anything listens: the server's
@@ -63,6 +64,9 @@ func hostConfig(ctx context.Context, status func(context.Context) (tailnet.Self,
 	}
 	if o.Port < 1 || o.Port > 65535 {
 		return HostPlan{}, fmt.Errorf("port %d is out of range", o.Port)
+	}
+	if o.Bots < 0 || o.Bots > netplay.MaxBots {
+		return HostPlan{}, fmt.Errorf("--bots is 0 to %d, not %d", netplay.MaxBots, o.Bots)
 	}
 	seed := o.Seed
 	if seed == 0 {
@@ -142,6 +146,7 @@ func hostConfig(ctx context.Context, status func(context.Context) (tailnet.Self,
 		LocalLogin: login,
 		LocalName:  name,
 		Whois:      tailnet.Whois,
+		Bots:       o.Bots,
 	}
 	if up || os.Getenv(EnvListen) != "" {
 		plan.Hint = JoinCommand(shortHost(self, host), o.Port)

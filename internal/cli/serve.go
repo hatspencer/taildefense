@@ -44,6 +44,7 @@ func Serve(w io.Writer, o HostOptions) int {
 		{"fog of war", map[bool]string{false: "off", true: "on"}[plan.Config.FogOfWar]},
 		{"waves", config.FormatWaves(plan.Config.LastWave)},
 		{"mode", plan.Config.Mode.String()},
+		{"bots", fmt.Sprint(plan.Config.Bots)},
 		{"version", o.Version},
 	}
 	p.Fields(rows)
