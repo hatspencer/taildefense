@@ -2,6 +2,7 @@ package netplay
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"testing"
 	"time"
@@ -112,5 +113,62 @@ func TestALiveBotFollowsTheTeam(t *testing.T) {
 	}
 	for i := 0; i < 5*60*game.TickRate && w.Phase != game.PhaseOver; i++ {
 		act()
+	}
+}
+
+// A weapon a teammate drops is picked up by a bot with a hand free for it.
+func TestABotPicksUpADroppedWeapon(t *testing.T) {
+	w := game.NewGame(9, game.DiffNormal)
+	me, _ := w.Join("me", "me@x")
+	pl, _ := w.Join("bot-1", "bot-1@bots")
+	b := NewBot(pl.ID, 9)
+	b.Live = true
+	me.Weapons[game.WRifle] = game.WeaponState{Owned: true, Ammo: 4}
+	if err := w.DropWeapon(me, game.WRifle); err != nil {
+		t.Fatal(err)
+	}
+	if !w.CanTake(pl, game.WRifle) {
+		t.Fatal("the bot already has a rifle")
+	}
+	for i := 0; i < 20*game.TickRate && len(w.Guns) > 0; i++ {
+		b.Act(w, func(c Cmd) { _, _ = Exec(w, pl, c) })
+		w.Step()
+	}
+	if len(w.Guns) > 0 || !pl.Weapons[game.WRifle].Owned {
+		t.Fatalf("the rifle is still on the ground: %d there, bot order %d at %.1f,%.1f", len(w.Guns), pl.Order.Kind, pl.X, pl.Y)
+	}
+}
+
+// Three bots and a teammate down: one revives, the others guard, and the teammate gets up.
+func TestOneBotRevivesAndTheOthersGuard(t *testing.T) {
+	w := game.NewGame(9, game.DiffNormal)
+	me, _ := w.Join("me", "me@x")
+	var bots []*Bot
+	for i := range 3 {
+		pl, _ := w.Join(fmt.Sprintf("bot-%d", i+1), fmt.Sprintf("bot-%d@bots", i+1))
+		bots = append(bots, NewBot(pl.ID, 9))
+	}
+	w.Step()
+	me.Alive, me.HP, me.Respawn = false, 0, 60
+	revived := false
+	for i := 0; i < 15*game.TickRate && !me.Alive; i++ {
+		for _, b := range bots {
+			pl := w.Players[b.ID]
+			b.Act(w, func(c Cmd) { _, _ = Exec(w, pl, c) })
+		}
+		n := 0
+		for _, b := range bots {
+			if o := w.Players[b.ID].Order; o.Kind == game.OrderRevive && o.Mate == int(me.ID) {
+				n++
+			}
+		}
+		if n > 1 {
+			t.Fatalf("tick %d: %d bots reviving at once", w.Tick, n)
+		}
+		revived = revived || n == 1
+		w.Step()
+	}
+	if !revived || !me.Alive {
+		t.Fatalf("revive ordered %v, up %v", revived, me.Alive)
 	}
 }

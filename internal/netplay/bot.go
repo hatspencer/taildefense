@@ -22,13 +22,15 @@ type Bot struct {
 	Live bool
 	rng  *rand.Rand
 
-	shopped    int        // the wave whose break it is in, from the bot's side
-	builds     int        // builds tried this break
-	exploring  bool       // out exploring: off to a loot site or new ground
-	scout      [2]float32 // the new ground it is walking to, if that
-	bought     bool       // has been to the armory this break
-	buildFirst bool       // builds before it shops this break
-	eager      bool       // readies up as soon as it is done
+	shopped    int             // the wave whose break it is in, from the bot's side
+	builds     int             // builds tried this break
+	exploring  bool            // out exploring: off to a loot site or new ground
+	scout      [2]float32      // the new ground it is walking to, if that
+	bought     bool            // has been to the armory this break
+	buildFirst bool            // builds before it shops this break
+	eager      bool            // readies up as soon as it is done
+	gun        uint16          // the weapon on the ground it last went for
+	noGun      map[uint16]bool // weapons on the ground it could not get to
 }
 
 // NewBot is a bot for player id.
@@ -83,15 +85,16 @@ func (b *Bot) Act(w *game.World, do func(Cmd)) {
 		do(Cmd{Op: OpSelect, A: uint8(b.rng.IntN(int(game.NumWeapons)))})
 	}
 
-	// A teammate down nearby comes first, when nothing is about to bite.
-	for i, m := range w.Players {
-		if i == int(b.ID) || m.Alive || m.Aboard || !m.Connected || p.Order.Kind == game.OrderRevive {
-			continue
-		}
-		if d2(p.X, p.Y, m.X, m.Y) < 30*30 && b.nearest(w, p, 4) < 0 {
-			do(Cmd{Op: OpRevive, T: uint16(i)})
-			return
-		}
+	// A teammate down nearby comes first, when nothing is about to bite: one survivor revives
+	// each, and a bot that finds the revive already taken stands guard over it instead.
+	if b.mates(w, p, do) {
+		return
+	}
+
+	// A weapon lying about is the bot's if nothing is about to bite, and it sees the pickup
+	// through rather than let shopping, building or fighting call it off.
+	if b.pickup(w, p, do) {
+		return
 	}
 
 	switch w.Phase {
@@ -528,6 +531,144 @@ func (b *Bot) explore(w *game.World, p *game.Player, do func(Cmd)) bool {
 	return true
 }
 
+// Picking up weapons on the ground: in a break the bot walks a long way for one, in a wave
+// only a short way and only with no creep near.
+const (
+	gunWalkBreak = 40 // tiles
+	gunWalkWave  = 14
+	gunSafe      = 8 // tiles: no creep this near while it goes for a weapon in a wave
+)
+
+// pickup sends the bot for the nearest weapon on the ground it has a hand free for, or keeps
+// it at a pickup under way, and reports whether that is what it is doing. Nobody else's
+// pickup is cut in on, and the evac, once the Huey is down, comes before any weapon.
+func (b *Bot) pickup(w *game.World, p *game.Player, do func(Cmd)) bool {
+	if len(w.Guns) == 0 || w.Phase == game.PhaseEvac && w.Evac.Stage == game.EvacLanded {
+		return false
+	}
+	walk, safe := float32(gunWalkBreak), float32(4)
+	if w.Phase != game.PhaseBuild {
+		walk, safe = gunWalkWave, gunSafe
+	}
+	if b.nearest(w, p, safe) >= 0 || p.HP < p.MaxHP*.4 {
+		return false
+	}
+	if p.Order.Kind == game.OrderPickup {
+		return true
+	}
+	if b.gun != 0 {
+		// The last pickup ended with the weapon still there and the bot standing idle: it
+		// could not get to it, and does not try again.
+		if p.Order.Kind == game.OrderIdle && b.lying(w, b.gun) {
+			if b.noGun == nil {
+				b.noGun = map[uint16]bool{}
+			}
+			b.noGun[b.gun] = true
+		}
+		b.gun = 0
+	}
+	best, bi := walk*walk, -1
+	for i := range w.Guns {
+		g := &w.Guns[i]
+		if b.noGun[g.ID] || !w.CanTake(p, g.Kind) || b.claimed(w, p, g.ID) {
+			continue
+		}
+		if d := d2(p.X, p.Y, g.X, g.Y); d < best {
+			best, bi = d, i
+		}
+	}
+	if bi < 0 {
+		return false
+	}
+	do(Cmd{Op: OpPickup, T: w.Guns[bi].ID})
+	if p.Order.Kind != game.OrderPickup {
+		return false
+	}
+	b.gun = w.Guns[bi].ID
+	return true
+}
+
+// lying reports whether weapon id is still on the ground.
+func (b *Bot) lying(w *game.World, id uint16) bool {
+	for i := range w.Guns {
+		if w.Guns[i].ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+// claimed reports whether another survivor is already on the way to pick up weapon id.
+func (b *Bot) claimed(w *game.World, p *game.Player, id uint16) bool {
+	for _, o := range w.Players {
+		if o != p && o.Alive && o.Order.Kind == game.OrderPickup && o.Order.Gun == id {
+			return true
+		}
+	}
+	return false
+}
+
+// Downed teammates: a bot revives one nobody is reviving yet within reviveWalk, and guards
+// one somebody is, keeping the creeps within guardR of it off the reviver.
+const (
+	reviveWalk = 30 // tiles
+	guardR     = 14
+)
+
+// mates sends the bot to revive a downed teammate or to guard one being revived, and reports
+// whether it did either. Bots think on different ticks and a revive is ordered at once, so
+// the first to look takes the revive and the next sees it taken.
+func (b *Bot) mates(w *game.World, p *game.Player, do func(Cmd)) bool {
+	if p.Order.Kind == game.OrderRevive {
+		return false // its own revive, broken off near death
+	}
+	guard := -1
+	for i, m := range w.Players {
+		if i == int(b.ID) || m.Alive || m.Aboard || !m.Connected || d2(p.X, p.Y, m.X, m.Y) >= reviveWalk*reviveWalk {
+			continue
+		}
+		if b.reviver(w, p, i) {
+			if guard < 0 {
+				guard = i
+			}
+			continue
+		}
+		if b.nearest(w, p, 4) < 0 {
+			do(Cmd{Op: OpRevive, T: uint16(i)})
+			return true
+		}
+	}
+	if guard < 0 {
+		return false
+	}
+	m := w.Players[guard]
+	if b.nearest(w, p, 6) >= 0 {
+		// Something is on the bot itself: fight it off where it stands.
+		b.fight(w, p, do)
+		return true
+	}
+	if ci := b.nearestTo(w, m.X, m.Y, guardR); ci >= 0 {
+		if c := &w.Creeps[ci]; p.Order.Kind != game.OrderAttack || p.Order.Target != c.ID {
+			do(Cmd{Op: OpAttack, T: c.ID})
+		}
+		return true
+	}
+	if d2(p.X, p.Y, m.X, m.Y) > 5*5 && p.Order.Kind != game.OrderAttackMove {
+		do(Cmd{Op: OpAttackMove, X: m.X + b.jitter(3), Y: m.Y + b.jitter(3)})
+	}
+	return true
+}
+
+// reviver reports whether another survivor is reviving player mate.
+func (b *Bot) reviver(w *game.World, p *game.Player, mate int) bool {
+	for _, o := range w.Players {
+		if o != p && o.Alive && o.Order.Kind == game.OrderRevive && o.Order.Mate == mate {
+			return true
+		}
+	}
+	return false
+}
+
 // unseen is a spot to scout: ground the team has not seen yet, at night, within reach of the
 // base; by day, when the whole map is in sight, a spot out past the towers. ok is false when
 // none turned up in a few tries.
@@ -550,13 +691,18 @@ func (b *Bot) unseen(w *game.World) (x, y float32, ok bool) {
 	return 0, 0, false
 }
 func (b *Bot) nearest(w *game.World, p *game.Player, r float32) int {
+	return b.nearestTo(w, p.X, p.Y, r)
+}
+
+// nearestTo is the nearest creep awake within r of x, y, or -1.
+func (b *Bot) nearestTo(w *game.World, x, y, r float32) int {
 	best, bi := r*r, -1
 	for i := range w.Creeps {
 		c := &w.Creeps[i]
 		if c.Asleep {
 			continue
 		}
-		if d := d2(p.X, p.Y, c.X, c.Y); d < best {
+		if d := d2(x, y, c.X, c.Y); d < best {
 			best, bi = d, i
 		}
 	}
@@ -573,16 +719,33 @@ func (b *Bot) damaged(w *game.World) int {
 	return -1
 }
 
+// taken is how much further off a site someone else is already on the way to search counts:
+// a second bot takes another site only when one is nearly as close, else goes along.
+const taken = 20 // tiles
+
 // site is the nearest loot site not yet searched within a long walk that the bot dares: a
-// lair or a garrison with its guards still up only once the waves have hardened it. -1 when
-// there is none.
+// lair or a garrison with its guards still up only once the waves have hardened it, and one
+// someone else is on the way to counted taken tiles further. -1 when there is none.
 func (b *Bot) site(w *game.World, p *game.Player) int {
-	best, bi := float32(70*70), -1
+	claimed := map[int]bool{}
+	for _, o := range w.Players {
+		if o != p && o.Alive && o.Order.Kind == game.OrderLoot {
+			claimed[o.Order.Site] = true
+		}
+	}
+	best, bi := float64(70), -1
 	for i, st := range w.Sites {
 		if st.Searched || !st.Kind.Lootable() || (st.Guards > 0 && int(st.Guard) >= 3 && w.Wave < 8) {
 			continue
 		}
-		if d := d2(p.X, p.Y, st.SX, st.SY); d < best {
+		d := math.Sqrt(float64(d2(p.X, p.Y, st.SX, st.SY)))
+		if d >= 70 {
+			continue
+		}
+		if claimed[i] {
+			d += taken
+		}
+		if d < best {
 			best, bi = d, i
 		}
 	}
