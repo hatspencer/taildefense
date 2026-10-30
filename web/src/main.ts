@@ -3,13 +3,14 @@ import { Controller } from './controller';
 import type { TdDemo } from './demo';
 import type { DemoHost, DemoOptions } from './demo/host';
 import { Hud } from './hud/hud';
+import { pathLabel } from './hud/link';
 import { Labels } from './hud/labels';
 import { Splash } from './hud/splash';
 import { DROP_HOLD, Input } from './input';
 import { Kiosk } from './kiosk';
 import type { Lab } from './lab';
 import { type Handlers, type Transport, WsTransport } from './net';
-import { EvacStage, PF_ALIVE, PF_ARMORY, Phase, PingKind, SiteKind, siteX, siteY, TTrack, TURRET_TRACKS, turretRange, type Welcome, wreck } from './protocol';
+import { EvacStage, PF_ALIVE, PF_ARMORY, Phase, PingKind, SiteKind, siteX, siteY, TTrack, TURRET_TRACKS, turretRange, type PathMsg, type Welcome, wreck } from './protocol';
 import { Creeps } from './scene/creeps';
 import { Effects } from './scene/effects';
 import { Helis } from './scene/heli';
@@ -140,6 +141,8 @@ async function main(): Promise<void> {
   const ctl = new Controller(game, send, rig, effects);
   const labels = new Labels(app);
   const hud = new Hud(app, ctl);
+  // How packets reach the host, for F3 and the link badge; null until td has asked tailscale.
+  let path: PathMsg | null = null;
   hud.leaving = () => helis.leaving(game);
   // Reloading from the cover is the player's choice: no leave prompt for it.
   hud.cover.onReload = () => { if (kiosk) kiosk.armed = false; location.reload(); };
@@ -224,9 +227,10 @@ async function main(): Promise<void> {
       if (m.t === 'toast') toast(m.text, m.level);
       else if (m.t === 'status') hud.status(m.text);
       else if (m.t === 'difficulty') game.setDifficulty(m.difficulty, m.dark, m.cone);
-      else if (m.t === 'net') { game.rtt = m.rtt; game.rttAvg = Number.isNaN(game.rttAvg) ? m.rtt : game.rttAvg * 0.8 + m.rtt * 0.2; }
+      else if (m.t === 'net') { game.rtt = m.rtt; game.rttAvg = Number.isNaN(game.rttAvg) ? m.rtt : game.rttAvg * 0.8 + m.rtt * 0.2; hud.link(path, game.rttAvg); }
       else if (m.t === 'ack') game.ack = m;
       else if (m.t === 'netstats') game.netStats = m;
+      else if (m.t === 'path') { path = m; hud.link(path, game.rttAvg); }
     },
     onConn(state, detail) {
       hud.setConn(state, detail);
@@ -450,7 +454,7 @@ async function main(): Promise<void> {
         `draws ${info.render.drawCalls}`,
         `tris  ${(info.render.triangles / 1000).toFixed(0)}k`,
         `frame ${game.cur.tick}  ${game.interval.toFixed(0)} ms`,
-        `ping  ${Number.isNaN(game.rtt) ? '-' : `${game.rtt.toFixed(0)} avg ${game.rttAvg.toFixed(0)}`} p99 ${ms(ns?.rttP99)} lost ${ns?.lost ?? '-'}`,
+        `ping  ${Number.isNaN(game.rtt) ? '-' : `${game.rtt.toFixed(0)} avg ${game.rttAvg.toFixed(0)}`} p99 ${ms(ns?.rttP99)} lost ${ns?.lost ?? '-'}${path ? ` · ${pathLabel(path)}` : ''}`,
         `ack   ${ms(game.ack?.ms)} p50 ${ms(ns?.ack?.p50)} p99 ${ms(ns?.ack?.p99)}`,
         `arrv  ${ns?.via ?? '-'} p50 ${ms(ns?.arrv?.p50)} p99 ${ms(ns?.arrv?.p99)} max ${ms(ns?.arrv?.max)}`,
         hs ? `host  tick p99 ${hs.tickP99.toFixed(0)} · drop ${hs.drop} · resync ${hs.resync} · q ${hs.q}/${hs.qCap}` : 'host  -',
