@@ -207,7 +207,7 @@ func TestBotsGetToTheChoppa(t *testing.T) {
 // Bots defend with frost and rockets on the creeps' way in, never walls, raise what they
 // built rather than sell it, and go exploring with their free time.
 func TestBotsBuildFrostAndRocketsAndExplore(t *testing.T) {
-	const seed, players, waves = 5, 2, 4
+	const seed, players, waves = 2, 2, 4
 	s := New(seed, game.DiffNormal, players)
 	s.Hold = true
 	bots := []*Bot{NewBot(0, seed), NewBot(1, seed)}

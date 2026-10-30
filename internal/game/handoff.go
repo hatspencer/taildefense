@@ -165,6 +165,9 @@ func (w *World) actPickup(p *Player, o *Order, walk func() bool) bool {
 	return true
 }
 
+// CanTake reports whether p could pick up a weapon of kind k, for the bots.
+func (w *World) CanTake(p *Player, k WeaponKind) bool { return w.canTake(p, k) }
+
 // canTake reports whether p has a hand free for a weapon of kind k: one they do not carry,
 // or a pistol or a katana to pair with theirs.
 func (w *World) canTake(p *Player, k WeaponKind) bool {
