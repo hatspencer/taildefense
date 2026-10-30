@@ -139,6 +139,8 @@ kbd { display: inline-block; min-width: 15px; text-align: center; font: 13px/12p
 .top .chip.base.hit { background: #4a2018; }
 .top .chip.base.hit .bbar i { background: #ffd8c8; }
 @keyframes basepulse { 50% { box-shadow: var(--bevel), 0 0 0 2px var(--rust); } }
+/* Text says what is wrong, the amber only draws the eye; the title says what to do. */
+.top .chip.link { font: 700 14px/1 var(--small); color: var(--amber); cursor: help; }
 .top .spacer { flex: 1; }
 .top .kills { font: 16px/1 var(--crt); color: var(--khaki); white-space: nowrap; }
 .top .kills b { color: var(--bone); font-weight: 400; }

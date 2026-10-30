@@ -17,6 +17,8 @@ import { Cover } from './cover';
 import { FirstRun, firstRunSeen } from './firstrun';
 import { BladePick } from './pick';
 import { helpHTML } from './help';
+import { linkBadge } from './link';
+import type { PathMsg } from '../protocol';
 import { Pad, focusFirst, navKey, step } from './nav';
 
 const ORDER = ['idle', 'moving', 'attack-moving', 'attacking', 'holding', 'building', 'repairing', 'searching', 'reviving', 'walking'];
@@ -71,6 +73,7 @@ export class Hud {
   private base: { root: HTMLElement; fill: HTMLElement; num: HTMLElement; lbl: HTMLElement; hp: number; hitUntil: number };
   private top: { wave: HTMLElement; diff: HTMLElement; weather: HTMLElement; kills: HTMLElement; fix: HTMLButtonElement; ready: HTMLButtonElement; readies: HTMLElement };
   private statusEl: HTMLElement;
+  private linkEl!: HTMLElement;
   private pauseBtn!: HTMLElement;
   private face!: CanvasRenderingContext2D;
   private faceKey = '';
@@ -149,6 +152,8 @@ export class Hud {
     };
     const weather = el('div', 'chip weather', top);
     this.tipOn(weather, () => this.weatherTip());
+    // How packets reach the host, only while that costs: relayed through DERP, or slow.
+    this.linkEl = el('div', 'chip link hidden', top);
     el('div', 'spacer', top);
     const kills = el('div', 'kills', top);
     kills.title = 'Creeps the team has killed this game';
@@ -448,6 +453,15 @@ export class Hud {
   flash(text: string): void { this.toast(text, 0); }
 
   status(text: string): void { setText(this.statusEl, text); }
+
+  // The link badge, from the last path message and the average ping.
+  link(p: PathMsg | null, rttAvg: number): void {
+    const b = linkBadge(p, rttAvg), e = this.linkEl;
+    show(e, b !== null);
+    if (!b) return;
+    setText(e, b.text);
+    if (e.title !== b.tip) { e.title = b.tip; e.setAttribute('aria-label', `${b.text}: ${b.tip}`); }
+  }
 
   chatOpen(): boolean { return !this.chat.input.classList.contains('hidden'); }
   openChat(): void {
