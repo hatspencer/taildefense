@@ -76,6 +76,7 @@ type netStats struct {
 	echoSent, echoBack, echoTop uint32
 	pageDrop                    uint32 // frames the page was too slow for
 	host                        *netplay.Stats
+	via                         string // how frames come from the host: "udp" or "tcp"
 }
 
 func newNetStats() *netStats {
@@ -125,6 +126,9 @@ func (n *netStats) msg(now time.Time) map[string]any {
 			hist[b]++
 		}
 		m["arrv"] = map[string]any{"p50": r1(q[0]), "p99": r1(q[1]), "max": r1(q[2]), "hist": hist}
+	}
+	if n.via != "" {
+		m["via"] = n.via
 	}
 	if q, ok := n.ackMs.Quantiles(now, 0.5, 0.99); ok {
 		m["ack"] = map[string]any{"p50": r1(q[0]), "p99": r1(q[1])}

@@ -55,8 +55,13 @@ drawn there has to be copied across, which at 5K made the game slower, not faste
 
 ## Network
 
-The host listens on its tailnet address and on loopback, port 7787, and never on any other
-interface. Players are identified by their tailnet login (`tailscale whois`), so someone who drops
+The host listens on its tailnet address and on loopback, port 7787, TCP and UDP, and never on
+any other interface. The game runs over TCP; frames, the world sent every tick, go over UDP
+when it gets through both ways, so a lost packet costs one frame rather than a stall, and fall
+back to TCP on their own when it does not (F3 says which on its `arrv` line). Only the machine
+on the other end of a player's TCP connection, which the tailnet vouches for, can take that
+player's frames over UDP. `TAILDEFENSE_NO_UDP=1`, on the host or a player, keeps every frame on
+TCP. Players are identified by their tailnet login (`tailscale whois`), so someone who drops
 and rejoins keeps their gold and weapons.
 
 The game page is served only on `127.0.0.1`, on a random port. Its URL carries a random token, and

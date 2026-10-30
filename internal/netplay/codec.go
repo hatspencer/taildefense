@@ -12,7 +12,8 @@
 // repeated shape of a horde moving along the same road compresses to a fraction of that. A
 // client that falls behind gets no backlog; it is sent a keyframe as soon as its queue drains.
 // Every client is sent the same deltas from one encoder, so nothing in a frame depends on
-// which client it goes to.
+// which client it goes to. A client whose datagrams get through is sent its frames over UDP
+// instead, each unit deflated on its own (udp.go); everything else stays on TCP.
 //
 // Clients send orders, WC3 style: move here, attack that, cast this there, build that. The
 // host walks the path and fights; nothing is predicted on the client.
@@ -30,7 +31,7 @@ import (
 // Proto is the wire protocol version. A host refuses a client with a different one and names
 // both versions, so the fix (td update) is obvious. Beyond the protocol, a host only lets in a
 // player running the same td (SameVersion).
-const Proto = 27
+const Proto = 28
 
 // DefaultPort is where a host listens.
 const DefaultPort = 7787
@@ -48,6 +49,11 @@ const (
 	MsgEcho    byte = 10 // c->s and back: the host returns the payload as it came, to time the round trip
 	MsgAck     byte = 11 // s->c, to one player: u16 seq, u32 tick; commands up to seq are in that tick's frame
 	MsgStats   byte = 12 // s->c, to one player every 2 s: how the host's link to them is doing (Stats)
+	// UDP frames (udp.go), only between a host and a player that both have them:
+	MsgUDP      byte = 13 // s->c, after the welcome: u16 UDP port, u64 token, u16 epoch
+	MsgUDPOK    byte = 14 // c->s: the host's UDP answer arrived, so frames may come that way
+	MsgResync   byte = 15 // c->s: a delta is missing for good; send a keyframe
+	MsgSeqFrame byte = 16 // s->c: u32 seq, then a frame; what MsgFrame is once UDP was offered
 )
 
 // maxMessage bounds what a peer may make us allocate.
