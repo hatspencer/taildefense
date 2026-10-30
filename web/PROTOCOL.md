@@ -9,8 +9,8 @@ browser ──WebSocket (localhost)──▶ td (this machine) ──TCP, deflat
 
 The local `td` decodes the host's delta stream into a replica and sends the browser a
 **full view of the world every tick** (20 Hz). Localhost bandwidth is free, so the client
-keeps no delta state: each frame replaces the last. Interpolation between the last two
-frames is the client's business.
+keeps no delta state: each frame replaces the last. Interpolation between frames (the page keeps
+a short buffer of them) is the client's business.
 
 ## Connecting
 
