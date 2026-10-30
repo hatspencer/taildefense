@@ -665,6 +665,10 @@ take one's place.
 - **The crowbar hits four.** Four creeps a swing where it was three, 42 a hit at 2 swings a
   second: in reach, fully bought, it does a pistol and a half, and beats back a wave 25 charge in
   about the time the guns do.
+- **A blade's handling is reach.** Handling buys magazine and reload, which a blade has none of,
+  so on the crowbar, katana and greatsword it was gold for nothing but evolution's sum. Each
+  level now adds 8% of the blade's base reach (meleeReachLevel): 40% fully bought, the crowbar
+  1.9 to 2.7, the greatsword 2.8 to 3.9. Not more, so a swing stays a swing and not a spear.
 
 The numbers that moved, and why:
 

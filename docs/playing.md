@@ -74,6 +74,7 @@ see as far at night as by day, in place of brutal's flashlight; everyone sees yo
 and you keep them when you go down.
 
 Weapons go up at the armory by track: damage, fire rate, handling and a special of their own.
+Handling is a bigger magazine and a faster reload on a gun, and longer reach on a blade.
 Find a second pistol in the loot, or pick up one someone dropped, and it goes in your other hand:
 dual pistols, each as upgraded as yours, fire twice as fast from twice the magazine. Dropping
 one leaves you the other.
