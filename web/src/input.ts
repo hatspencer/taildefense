@@ -47,6 +47,7 @@ export class Input {
   private ex = -1; private ey = -1; private inWin = false;
   onRetroToggle: () => void = () => {};
   private dropTimer = 0; // G held: drops the weapon in hand when it fires
+  private shiftTap = false; // Shift down while placing or pinging, with no click since
 
   constructor(canvas: HTMLCanvasElement, private ctl: Controller, private rig: CameraRig, private hud: Hud) {
     canvas.addEventListener('pointermove', (e) => { ctl.mx = e.clientX; ctl.my = e.clientY; ctl.mouseIn = true; this.moved = true; });
@@ -64,7 +65,7 @@ export class Input {
     // and fires a leave while the pointer sits pinned there, and no move follows to restore it.
     const track = (e: PointerEvent | MouseEvent) => { this.ex = e.clientX; this.ey = e.clientY; this.inWin = true; this.moved = true; };
     window.addEventListener('pointermove', track, { capture: true, passive: true });
-    window.addEventListener('pointerdown', track, { capture: true, passive: true });
+    window.addEventListener('pointerdown', (e) => { track(e); this.shiftTap = false; }, { capture: true, passive: true });
     document.addEventListener('mouseleave', (e) => {
       ctl.mouseIn = false;
       const w = window.innerWidth, h = window.innerHeight;
@@ -73,13 +74,17 @@ export class Input {
       if (fullScreen() && atEdge) { this.ex = x; this.ey = y; return; }
       this.inWin = false;
     });
-    window.addEventListener('blur', () => { this.keys.clear(); this.steer.clear(); this.spaceUp(false); this.holdCore(false); this.holdDrop(false); });
+    window.addEventListener('blur', () => { this.shiftTap = false; this.keys.clear(); this.steer.clear(); this.spaceUp(false); this.holdCore(false); this.holdDrop(false); });
     window.addEventListener('keydown', (e) => this.down(e));
     window.addEventListener('keyup', (e) => {
       this.keys.delete(e.key);
       this.steer.delete(e.code);
       if (e.key === ' ') this.spaceUp(true);
       ctl.shift = e.shiftKey;
+      if (e.key === 'Shift' && this.shiftTap) {
+        this.shiftTap = false;
+        if (ctl.mode.k === 'build' || ctl.mode.k === 'ping') ctl.cast(1);
+      }
       if (e.key === 'Tab') this.hud.showScore(false);
       const up = letter(e);
       if (up === 'N') this.holdCore(false);
@@ -203,9 +208,12 @@ export class Input {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (k.startsWith('Arrow')) { e.preventDefault(); this.keys.add(k); return; }
     if (STEER[e.code]) { e.preventDefault(); this.steer.add(e.code); return; }
-    // Shift on its own is the grenade, except while placing or pinging, where it keeps the mode.
+    // Shift is the grenade. While placing or pinging, Shift held through a click keeps the
+    // mode, so there the grenade waits for the key to come up with no click in between.
     if (k === 'Shift') {
-      if (!e.repeat && ctl.mode.k !== 'build' && ctl.mode.k !== 'ping' && !hud.buildCard) ctl.cast(1);
+      if (e.repeat) return;
+      if (ctl.mode.k === 'build' || ctl.mode.k === 'ping') this.shiftTap = true;
+      else ctl.cast(1);
       return;
     }
     // Space: held, sprint; tapped, back to the hero (twice quickly locks the camera to it).
