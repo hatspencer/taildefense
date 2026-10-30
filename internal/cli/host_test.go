@@ -253,3 +253,19 @@ func TestNeedsUpdate(t *testing.T) {
 		}
 	}
 }
+
+func TestHostPassesTheBotsOn(t *testing.T) {
+	t.Setenv(EnvListen, "")
+	plan, err := hostConfig(context.Background(), noTailscale, HostOptions{Port: 9000, Seed: 1, Bots: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Config.Bots != 3 {
+		t.Errorf("bots %d, want 3", plan.Config.Bots)
+	}
+	for _, n := range []int{-1, netplay.MaxBots + 1} {
+		if _, err := hostConfig(context.Background(), noTailscale, HostOptions{Port: 9000, Bots: n}); err == nil || !strings.Contains(err.Error(), "--bots") {
+			t.Errorf("%d bots: %v", n, err)
+		}
+	}
+}

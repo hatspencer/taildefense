@@ -86,7 +86,8 @@ it here along with the code.
   as many as the starting turrets can hold alone, since they have no more to spare.
 - **They scale with players who are actually playing.** Each player beyond the first adds
   `0.6 + 0.015·min(f, 30)` of a wave. A player who hasn't given a command for 90 s doesn't
-  count, so an AFK friend doesn't make the game harder for the rest.
+  count, so an AFK friend doesn't make the game harder for the rest. A host's bots (`--bots`)
+  count like anyone else.
 - **Spawning is spread out.** A wave comes out over `14 + min(wave, 30)` seconds, so later waves
   arrive as a stream, not a drip.
 - **Waves come from a side, not from everywhere.** The map's edge is lined with entry points

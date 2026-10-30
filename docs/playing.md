@@ -132,6 +132,14 @@ greatsword (1, 2 and 3 pick too); until you do you hold the crowbar. The armory 
 no loot gives one; the gas station's counter always has a legendary blade you can take, and the
 shrines and the plane are as ever. The crowbar is the plain choice, but it evolves too.
 
+### Bots
+
+A host can bring up to three bots (`td host --bots 2`; `td --bots 2` and `td serve --bots 2`
+too). They join as `bot-1`, `bot-2` and `bot-3` once the first person is in, and play as the
+playtests' bots do: they shop, build round the generator, loot, fight, revive whoever is down
+near them and get to the Huey. They ready up as soon as everyone else has, never ping, pause or
+restart, and count as players: the waves grow with them, and they take their share of the gold.
+
 ## Turrets
 
 Six turrets, from the build bar (B, then the number):

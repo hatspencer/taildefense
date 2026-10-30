@@ -28,9 +28,9 @@ const usage = `td: co-op wave defense in your browser, over your tailnet
 usage:
   td                             the launcher: host, join, settings
   td host [--port N] [--seed S] [--name NAME] [--difficulty D] [--waves W] [--mode M]
-                                 host a game and play it in the browser
+          [--bots N]             host a game and play it in the browser
   td join HOST[:PORT] [--name NAME]             join a friend's game in the browser
-  td serve [--port N] [--seed S] [--difficulty D] [--waves W] [--mode M]
+  td serve [--port N] [--seed S] [--difficulty D] [--waves W] [--mode M] [--bots N]
                                  a dedicated game with no player of its own, until ctrl+c
   td ls [--json] [--port N]      the games on your tailnet
   td doctor                      check tailscale, the browser and what updates need
@@ -58,6 +58,8 @@ flags:
                    (or TAILDEFENSE_MODE, td config mode)
   --no-browser     print the game's URL instead of opening it (td config browser none)
   --seed S         the map seed when hosting; 0 picks one
+  --bots N         0 (the default) to 3 bots that play beside you in a game you host
+                   (td, td host, td serve); they join once the first person does
   --theme NAME     colour theme for the launcher and output (or TAILDEFENSE_THEME)
   --no-splash      skip the launcher's boot animation
   --no-anim        no animation
@@ -74,7 +76,7 @@ type opts struct {
 	at                                         float64
 	launcherFrame, noBrowser                   bool
 	port, width, height                        int
-	wave, seconds, players                     int
+	wave, seconds, players, bots               int
 	seed                                       uint64
 	name, theme, view, difficulty, waves, mode string
 }
@@ -115,6 +117,7 @@ func run(args []string) int {
 	fs.IntVar(&o.wave, "wave", 0, "")
 	fs.IntVar(&o.seconds, "seconds", 0, "")
 	fs.IntVar(&o.players, "players", 0, "")
+	fs.IntVar(&o.bots, "bots", 0, "")
 	fs.BoolVar(&o.noBrowser, "no-browser", false, "")
 	fs.BoolVar(&o.launcherFrame, "launcher", false, "")
 	fs.Uint64Var(&o.seed, "seed", 0, "")
@@ -192,6 +195,16 @@ func run(args []string) int {
 		ui.Errorf("--json is for td ls and td version only")
 		return 2
 	}
+	if set["bots"] {
+		switch {
+		case cmd != "" && cmd != "launch" && cmd != "host" && cmd != "serve":
+			ui.Errorf("--bots is for games you host: td, td host and td serve")
+			return 2
+		case o.bots < 0 || o.bots > netplay.MaxBots:
+			ui.Errorf("--bots is 0 to %d, not %d", netplay.MaxBots, o.bots)
+			return 2
+		}
+	}
 	takesWords := map[string]int{"join": 1, "config": 2}
 	if n := takesWords[cmd]; len(pos) > n {
 		ui.Errorf("unexpected %q  (try: td help)", strings.Join(pos[n:], " "))
@@ -200,9 +213,9 @@ func run(args []string) int {
 
 	switch cmd {
 	case "", "launch":
-		return launcher(prefs, o.noSplash)
+		return launcher(prefs, o.noSplash, o.bots)
 	case "host":
-		return hostCmd(prefs, o.seed)
+		return hostCmd(prefs, o.seed, o.bots)
 	case "join":
 		if len(pos) == 0 {
 			ui.Errorf("td join needs a host: td join HOST[:PORT]  (td ls lists the games)")
@@ -215,7 +228,7 @@ func run(args []string) int {
 			p.Warn("%s", news)
 			p.Detail("%s", how)
 		}
-		return cli.Serve(os.Stdout, cli.HostOptions{Port: prefs.Port(), Seed: o.seed, Diff: prefs.Difficulty(), Fog: prefs.Fog(), Waves: prefs.Waves(), Mode: prefs.Mode(), Name: prefs.Name(), Version: version.Current()})
+		return cli.Serve(os.Stdout, cli.HostOptions{Port: prefs.Port(), Seed: o.seed, Diff: prefs.Difficulty(), Fog: prefs.Fog(), Waves: prefs.Waves(), Mode: prefs.Mode(), Name: prefs.Name(), Version: version.Current(), Bots: o.bots})
 	case "ls":
 		if o.json {
 			ui.SetJSON(true)
@@ -254,7 +267,7 @@ func run(args []string) int {
 // launcher shows the launcher, runs what it picks, and shows it again with how that went,
 // until the player quits. The game plays in the browser; meanwhile the terminal says where
 // it is and that ctrl+c ends it.
-func launcher(prefs *config.Prefs, noSplash bool) int {
+func launcher(prefs *config.Prefs, noSplash bool, bots int) int {
 	if !platform.CanHostFullscreen() {
 		ui.Errorf("the launcher needs an interactive terminal; without one: td ls, td host or td join HOST")
 		return 1
@@ -276,7 +289,7 @@ func launcher(prefs *config.Prefs, noSplash bool) int {
 			err := cli.Restart(os.Args[1:])
 			last = &tui.Outcome{Kind: tui.ActionRestart, Err: err}
 		case tui.ActionHost:
-			res, err := hostAndPlay(p, prefs, 0)
+			res, err := hostAndPlay(p, prefs, 0, bots)
 			last = &tui.Outcome{Kind: tui.ActionHost, Result: res, Err: err}
 		case tui.ActionJoin:
 			res, err := play(p, prefs, web.Options{Addr: act.Addr, Host: act.Addr})
@@ -339,10 +352,12 @@ func play(p *ui.Printer, prefs *config.Prefs, o web.Options) (web.Result, error)
 }
 
 // hostAndPlay starts a host and plays it in the browser over loopback, and stops the host
-// when the player leaves: a game hosted from a laptop lasts as long as its host plays.
-func hostAndPlay(p *ui.Printer, prefs *config.Prefs, seed uint64) (web.Result, error) {
+// when the player leaves: a game hosted from a laptop lasts as long as its host plays. bots
+// play beside them.
+func hostAndPlay(p *ui.Printer, prefs *config.Prefs, seed uint64, bots int) (web.Result, error) {
 	srv, plan, err := cli.StartHost(context.Background(), cli.HostOptions{
 		Port: prefs.Port(), Seed: seed, Diff: prefs.Difficulty(), Fog: prefs.Fog(), Waves: prefs.Waves(), Mode: prefs.Mode(), Name: prefs.Name(), Version: version.Current(),
+		Bots: bots,
 	}, nil)
 	for _, n := range plan.Notes {
 		p.Warn("%s", n)
@@ -364,9 +379,9 @@ func hostAndPlay(p *ui.Printer, prefs *config.Prefs, seed uint64) (web.Result, e
 		Status: cli.HostStatus(srv, plan)})
 }
 
-func hostCmd(prefs *config.Prefs, seed uint64) int {
+func hostCmd(prefs *config.Prefs, seed uint64, bots int) int {
 	p := ui.New(os.Stdout)
-	res, err := hostAndPlay(p, prefs, seed)
+	res, err := hostAndPlay(p, prefs, seed, bots)
 	return report(p, res, err, "")
 }
 

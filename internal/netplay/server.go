@@ -59,6 +59,9 @@ type ServerConfig struct {
 	Whois func(ctx context.Context, addr string) (tailnet.Identity, error)
 	// Log receives one line per event worth knowing on a dedicated server; nil discards.
 	Log func(format string, a ...any)
+	// Bots is how many survivors the host plays itself, 0 to MaxBots. They join after the
+	// first person does, so the host keeps the first player's colour, and play every tick.
+	Bots int
 }
 
 // Server is a running host.
@@ -72,6 +75,7 @@ type Server struct {
 	cmdCh   chan cmdMsg
 	echoCh  chan cmdMsg // Cmd.Text is the echo's payload
 	peers   []*peer
+	bots    []*Bot // in the game once someone has joined
 	info    atomic.Pointer[Info]
 	done    chan struct{}
 	wg      sync.WaitGroup
@@ -104,6 +108,9 @@ type cmdMsg struct {
 func Listen(cfg ServerConfig) (*Server, error) {
 	if cfg.Log == nil {
 		cfg.Log = func(string, ...any) {}
+	}
+	if cfg.Bots < 0 || cfg.Bots > MaxBots {
+		return nil, fmt.Errorf("bots: 0 to %d, not %d", MaxBots, cfg.Bots)
 	}
 	s := &Server{
 		cfg:     cfg,
@@ -416,6 +423,49 @@ func (s *Server) join(p *peer) {
 	p.out <- s.welcome(p)
 	s.peers = append(s.peers, p)
 	p.result <- nil
+	if len(s.bots) < s.cfg.Bots {
+		s.addBots()
+		s.publishInfo()
+	}
+}
+
+// addBots brings the configured bots into the game, each a survivor with a login no person
+// has, so nobody joining can take one over.
+func (s *Server) addBots() {
+	for i := len(s.bots); i < s.cfg.Bots; i++ {
+		name := fmt.Sprintf("bot-%d", i+1)
+		pl, err := s.world.Join(name, name+"@bots.taildefense")
+		if err != nil {
+			s.cfg.Log("%s could not join: %v", name, err)
+			return
+		}
+		s.bots = append(s.bots, s.newBot(pl.ID))
+		s.cfg.Log("%s joined", name)
+	}
+}
+
+func (s *Server) newBot(id uint8) *Bot {
+	b := NewBot(id, s.world.Seed)
+	b.Live = true
+	return b
+}
+
+// playBots lets every bot think, before the tick, as a client's commands come in before it.
+// A bot goes the way a client's command does, but for what only a person should do: pause,
+// restart and the difficulty. Nobody is told of a bot's refusals.
+func (s *Server) playBots() {
+	w := s.world
+	for _, b := range s.bots {
+		pl := w.Players[b.ID]
+		b.Act(w, func(c Cmd) {
+			switch c.Op {
+			case OpPause, OpRestart, OpDifficulty, OpChat:
+				return
+			}
+			w.Touch(pl)
+			_, _ = Exec(w, pl, c)
+		})
+	}
 }
 
 func (s *Server) leave(p *peer) {
@@ -630,10 +680,15 @@ func (s *Server) restart() {
 			p.conn.Close()
 		}
 	}
+	// The bots keep their survivors and start the new game fresh.
+	for i, b := range s.bots {
+		s.bots[i] = s.newBot(b.ID)
+	}
 	s.cfg.Log("restarted on a new map")
 }
 
 func (s *Server) tick() {
+	s.playBots()
 	w := s.world
 	w.Step()
 	for _, n := range w.Notes {
