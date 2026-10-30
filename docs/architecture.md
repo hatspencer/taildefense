@@ -73,7 +73,7 @@ Browser                   local td (web.Session)               host td (netplay.
   (or a stun, a throw, death) snaps. A click's walk stays the host's: it is pathfinding. F3's
   `pred` line has the mean correction over 10 s and the snaps. `internal/game/predict_test.go`
   walks survivors with the host's code into `web/test/predict-fixture.json`, and `npm run check`
-  replays them through the port, to the bit.
+  replays them through the port, to within float rounding.
 - **Lots of creeps, cheaply.**
   - **Simulation.** Creeps live in a dense array with stable ids. They path with a single
     Dijkstra flow field from the generator and find neighbours through a spatial hash rebuilt
@@ -87,8 +87,9 @@ Browser                   local td (web.Session)               host td (netplay.
     hit flash) in TSL node materials on the GPU.
   - **Numbers.** At wave 40 with 8 players the game hits its 16k creep cap. The host then spends
     about 1-2 ms per tick simulating and 0.1-0.3 ms encoding, and each player gets about
-    130 KiB/s over the tailnet, an 8 KB frame deflated to 4.5 KB (`td bench --wave 40
-    --players 8`).
+    130 KiB/s over TCP, an 8 KB frame deflated to 4.5 KB (`td bench --wave 40 --players 8`).
+    Over UDP it is up to about 140 KiB/s: four datagrams a tick, the repeats of earlier deltas
+    only filling out the last one.
 - **Generated art.** Everything is low-poly geometry built in code with three.js: no asset files.
 - **Generated sound.** The page makes every sound in code from what each frame already says (the
   shots, blasts and deaths of that tick, and what changed since the last one): the protocol

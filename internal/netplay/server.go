@@ -101,6 +101,7 @@ type Server struct {
 	udpCh  chan udpIn
 	ctlCh  chan ctlMsg
 	byTok  map[uint64]*peer
+	toks   sync.Map // byTok's keys, for the UDP readers to drop strangers' datagrams early
 	seq    uint32
 	epoch  uint16
 	hist   []seqFrame
@@ -558,6 +559,7 @@ func (s *Server) leave(p *peer) {
 			s.world.Leave(p.player)
 			p.gone = true
 			delete(s.byTok, p.udpTok)
+			s.toks.Delete(p.udpTok)
 			close(p.out)
 			s.cfg.Log("%s left", p.name)
 			return
@@ -821,7 +823,8 @@ func (s *Server) tick() {
 			s.udpFallback(p, fmt.Sprintf("nothing back over UDP for %v", udpTimeout))
 		}
 		key := p.needKey
-		if p.udpOn && !(key && p.keyTCP) {
+		// A keyframe of many datagrams is lost if any one is, so a big one goes over TCP.
+		if p.udpOn && !(key && (p.keyTCP || len(uf.keyDgs()) > udpKeyFrags)) {
 			dgs := uf.deltaDgs()
 			if key {
 				dgs = uf.keyDgs()

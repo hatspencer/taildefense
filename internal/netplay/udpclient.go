@@ -245,7 +245,10 @@ func (c *Client) datagram(m datagram) {
 		for _, fr := range frames {
 			f.frame(fr.seq, fr.p, true)
 		}
-		c.parts.forget(false, f.applied())
+		// Before anything is applied every partial unit may be the keyframe waited for.
+		if f.valid {
+			c.parts.forget(false, f.last)
+		}
 		c.newest = max(c.newest, m.seq)
 		c.ackUDP()
 	}
