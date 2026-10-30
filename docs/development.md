@@ -22,7 +22,7 @@ prints a `TD_SOAK_ONE=…` line that plays that game again.
 
 `./build.sh netsim [s]` plays a real host to a client through `internal/netsim`'s proxy for
 s seconds (10 by default) at each of 0, 40±10 and 120±30 ms with 0, 1 and 3% loss, applied each
-way, and tables frame gaps (p50, p99, max), stalls of more than 100 ms (two ticks) and the
+way, and tables frame gaps (p50, p99, max), stalls of more than 100 ms (three ticks) and the
 round trip of an echo sent behind the player's steering. It is `TestNetcode`, skipped unless
 `TD_NETSIM=1`, so `check` stays fast. The proxy needs no hooks in the game: point anything at
 `netsim.Listen(target, up, down, seed)` and connect to its `Addr()`. TCP cannot lose a byte, so
@@ -43,13 +43,13 @@ Over the tailnet use `dev tailscale0` the same way; it shapes only what this mac
 shape the other machine too for both directions. netem's jitter reorders packets, which TCP
 puts right at a cost; the proxy never reorders a stream.
 
-On macOS, dummynet through pf, on the game port 7787 (it has no jitter). Loading rules from
+On macOS, dummynet through pf, on the game port 7787, TCP and the UDP frames both (it has no jitter). Loading rules from
 stdin replaces pf's main ruleset until `/etc/pf.conf` is loaded again:
 
 ```
 sudo dnctl pipe 1 config delay 40 plr 0.01
 sudo dnctl pipe 2 config delay 40 plr 0.01
-printf 'dummynet out proto tcp from any to any port 7787 pipe 1\ndummynet out proto tcp from any port 7787 to any pipe 2\n' | sudo pfctl -f -
+printf 'dummynet out proto { tcp udp } from any to any port 7787 pipe 1\ndummynet out proto { tcp udp } from any port 7787 to any pipe 2\n' | sudo pfctl -f -
 sudo pfctl -E    # prints a token
 # undo:
 sudo pfctl -f /etc/pf.conf && sudo dnctl -q flush && sudo pfctl -X <token>
@@ -80,7 +80,7 @@ every sound by name, for a browser test to read; a musical cue counts as `cue:<n
 F3's link lines, all in ms: `ping` the last round trip to the host, its average, its p99 over a
 minute, echoes lost and how packets reach the host (`direct`, `DERP fra`, `relay`, `local`);
 `ack` the last command's time to its ack and the p50 and p99 over 10 s;
-`arrv` the gaps between frames reaching td over 10 s (50 when all is well); `host` the host's
+`arrv` the gaps between frames reaching td over 10 s (33 when all is well); `host` the host's
 tick spacing p99, the frames it dropped for this player, the keyframes it resent after them and
 the deepest the player's queue got of its depth; `page drop` the frames td dropped for a slow
 page. The demo has no link: those lines show `-`.

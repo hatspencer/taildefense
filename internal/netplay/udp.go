@@ -64,8 +64,9 @@ const (
 	fragData = udpMax - fragHdr
 )
 
-// maxFrags bounds a unit: a client never holds more than maxMessage for one.
-const maxFrags = maxMessage / fragData
+// maxFrags bounds a unit, about 75 KB: a delta any bigger puts the player back on TCP, where
+// a frame that size is better off, and a client never holds more than this for one.
+const maxFrags = 64
 
 // ackWantKey is the flag in a dgAck for a client missing a delta it cannot do without.
 const ackWantKey = 1

@@ -332,7 +332,7 @@ The turrets, their evolutions, the traps and the Overload are set on the balance
   turret's quarter second took six), armour came off every tick of napalm or spikes, a hit by
   them had its 12% chance to turn a creep each tick, and a rocket's fuse looked once a tick.
   At 30 Hz each is worked out as it was at 20 (`tunedRate` in `defs.go`), so the game plays the
-  same in seconds: 32 bot games last 106 s a wave at 30 Hz, 107 at 20.
+  same in seconds: 32 bot games last about 108 s a wave at either rate, within a second.
 
 What the bench found, and what changed:
 
