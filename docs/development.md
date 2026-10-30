@@ -18,6 +18,43 @@ would otherwise fuse `a*b+c` into one rounding and play a slightly different gam
 `go test` on arm64 fails `TestProductsAreRoundedOnTheirOwn` to say so. A soak failure
 prints a `TD_SOAK_ONE=…` line that plays that game again.
 
+## Bad networks
+
+`./build.sh netsim [s]` plays a real host to a client through `internal/netsim`'s proxy for
+s seconds (10 by default) at each of 0, 40±10 and 120±30 ms with 0, 1 and 3% loss, applied each
+way, and tables frame gaps (p50, p99, max), stalls of more than 100 ms (two ticks) and the
+round trip of an echo sent behind the player's steering. It is `TestNetcode`, skipped unless
+`TD_NETSIM=1`, so `check` stays fast. The proxy needs no hooks in the game: point anything at
+`netsim.Listen(target, up, down, seed)` and connect to its `Addr()`. TCP cannot lose a byte, so
+there a loss holds its direction for a retransmit timeout (`Profile.RTO`, at least 200 ms) and
+everything behind it waits, which is what a player on TCP sees. `netsim.ListenUDP` drops for
+real and can reorder, for a datagram transport.
+
+To shape the real thing, a hosted game and a browser, use the OS. On Linux, netem shapes what
+leaves an interface; on `lo` both directions leave it, so a round trip pays the delay twice:
+
+```
+sudo tc qdisc add dev lo root netem delay 40ms 10ms loss 1%
+sudo tc qdisc change dev lo root netem delay 120ms 30ms loss 3%
+sudo tc qdisc del dev lo root
+```
+
+Over the tailnet use `dev tailscale0` the same way; it shapes only what this machine sends, so
+shape the other machine too for both directions. netem's jitter reorders packets, which TCP
+puts right at a cost; the proxy never reorders a stream.
+
+On macOS, dummynet through pf, on the game port 7787 (it has no jitter). Loading rules from
+stdin replaces pf's main ruleset until `/etc/pf.conf` is loaded again:
+
+```
+sudo dnctl pipe 1 config delay 40 plr 0.01
+sudo dnctl pipe 2 config delay 40 plr 0.01
+printf 'dummynet out proto tcp from any to any port 7787 pipe 1\ndummynet out proto tcp from any port 7787 to any pipe 2\n' | sudo pfctl -f -
+sudo pfctl -E    # prints a token
+# undo:
+sudo pfctl -f /etc/pf.conf && sudo dnctl -q flush && sudo pfctl -X <token>
+```
+
 ## The client
 
 The client source is in `web/` (TypeScript, three.js 0.186 with `three/webgpu` and TSL,
