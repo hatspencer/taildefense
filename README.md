@@ -42,7 +42,7 @@ WebGL 2 where WebGPU isn't available. Any current Chrome, Edge, Firefox or Safar
 | `td host [--port N] [--seed S] [--name NAME] [--difficulty D] [--waves W] [--mode M] [--bots N]` | host a game and play it in the browser; `--bots N` brings up to 3 bots to play beside you (also for `td` and `td serve`) |
 | `td join HOST[:PORT] [--name NAME]` | join a game by tailnet name or address |
 | `td serve [--port N] [--seed S] [--difficulty D] [--waves W] [--mode M] [--bots N]` | headless dedicated host; logs to stdout until interrupted |
-| `td ls [--json] [--port N]` | games running on your tailnet |
+| `td ls [--json] [--port N]` | games running on your tailnet, with ping and direct or relayed path |
 | `td bench [--wave N] [--players P] [--seconds S] [--seed S]` | time a busy wave offline: simulation, encoding, relay |
 | `td frame [--width W] [--height H] [--view menu\|join\|settings\|changelog\|doctor\|help\|splash] [--at S]` | render one launcher frame from demo data, 160×48 unless told otherwise; `--at` is seconds into the splash |
 | `td doctor` | check tailscale, the browser, container engine, install |

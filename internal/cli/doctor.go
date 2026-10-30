@@ -2,8 +2,10 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,7 +33,9 @@ func Doctor(w io.Writer) int {
 // DoctorReport runs the checks without the banner and heading, as the launcher shows them,
 // and returns Doctor's exit code.
 func DoctorReport(p *ui.Printer) int {
-	checkTailscale(p)
+	if checkTailscale(p) {
+		checkConnectivity(p)
+	}
 	checkBrowser(p)
 	checkUpdates(p)
 	p.Plain("")
@@ -43,12 +47,16 @@ func DoctorReport(p *ui.Printer) int {
 	return 0
 }
 
-func checkTailscale(p *ui.Printer) {
+// tailnetNetcheck is tailnet.Netcheck, a variable so tests can stand in for tailscale.
+var tailnetNetcheck = tailnet.Netcheck
+
+// checkTailscale reports whether tailscale is up, so the connectivity check runs only then.
+func checkTailscale(p *ui.Printer) bool {
 	bin, err := tailnet.Binary()
 	if err != nil {
 		p.Fail("tailscale: %v", err)
 		p.Detail("install it from https://tailscale.com/download, then: tailscale up")
-		return
+		return false
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
@@ -56,7 +64,7 @@ func checkTailscale(p *ui.Printer) {
 	if err != nil {
 		p.Fail("tailscale at %s does not answer: %s", tilde(bin), oneLine(err.Error()))
 		p.Detail("is tailscaled running? start it, then: tailscale up")
-		return
+		return false
 	}
 	if !self.Running {
 		state := self.State
@@ -65,12 +73,12 @@ func checkTailscale(p *ui.Printer) {
 		}
 		p.Fail("tailscale is %s", strings.ToLower(state))
 		p.Detail("connect with: tailscale up")
-		return
+		return false
 	}
 	ip := self.IPv4()
 	if ip == "" {
 		p.Fail("tailscale is up but this machine has no tailnet IPv4 address")
-		return
+		return false
 	}
 	online := 0
 	for _, pe := range peers {
@@ -81,6 +89,61 @@ func checkTailscale(p *ui.Printer) {
 	p.Pass("tailscale %s  %s  %s", ip, ui.StyleBold.Render(self.Host), ui.StyleDim.Render(self.Login))
 	p.Detail("%s online on %s; friends join you with: %s", plural(online, "peer"), orDash(self.Tailnet),
 		JoinCommand(shortHost(self, self.Host), netplay.DefaultPort))
+	return true
+}
+
+// checkConnectivity says how likely direct paths to friends are. A game through a DERP relay
+// still plays, just with tens of milliseconds more, so everything here is a warning at most.
+func checkConnectivity(p *ui.Printer) {
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	defer cancel()
+	r, err := tailnetNetcheck(ctx)
+	if err != nil {
+		p.Warn("netcheck: %s", oneLine(err.Error()))
+		return
+	}
+	self, peers, _ := tailnetStatus(ctx)
+	switch {
+	case !r.UDP:
+		p.Warn("UDP blocked: every friend will be relayed through DERP")
+		p.Detail("allow outbound UDP (3478 for STUN, 41641 for tailscale) on this network")
+	case r.MappingVariesByDestIP != nil && *r.MappingVariesByDestIP:
+		p.Warn("hard NAT: the router gives each destination another port, so direct paths often fail")
+	case r.MappingVariesByDestIP != nil:
+		p.Pass("UDP works and the NAT is easy: friends can usually reach you directly")
+	default:
+		p.Pass("UDP works")
+	}
+	isTrue := func(b *bool) bool { return b != nil && *b }
+	if r.UDP && !isTrue(r.UPnP) && !isTrue(r.PMP) && !isTrue(r.PCP) {
+		p.Info("no UPnP, NAT-PMP or PCP: enable UPnP or NAT-PMP on the router, or forward UDP 41641")
+	}
+	if r.PreferredDERP != 0 {
+		region := self.Relay
+		if region == "" {
+			region = "region " + strconv.Itoa(r.PreferredDERP)
+		}
+		line := "nearest DERP relay " + region
+		if l := r.PreferredLatency(); l > 0 {
+			line += fmt.Sprintf(", %dms", l.Milliseconds())
+		}
+		p.Detail("%s", line)
+	}
+	var relayed []string
+	for _, pe := range peers {
+		if pe.Path == tailnet.PathDERP {
+			relayed = append(relayed, pe.Host+" (DERP "+pe.Via+")")
+		}
+	}
+	if len(relayed) > 0 {
+		// A few names say enough on a big tailnet; the rest is a count.
+		names := strings.Join(relayed, ", ")
+		if len(relayed) > 4 {
+			names = strings.Join(relayed[:4], ", ") + fmt.Sprintf(" and %d more", len(relayed)-4)
+		}
+		p.Warn("relayed through DERP right now: %s", names)
+		p.Detail("tailscale ping HOST nudges a direct path and shows which one it took")
+	}
 }
 
 func checkBrowser(p *ui.Printer) {
