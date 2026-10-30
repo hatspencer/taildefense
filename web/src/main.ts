@@ -223,6 +223,8 @@ async function main(): Promise<void> {
       else if (m.t === 'status') hud.status(m.text);
       else if (m.t === 'difficulty') game.setDifficulty(m.difficulty, m.dark, m.cone);
       else if (m.t === 'net') { game.rtt = m.rtt; game.rttAvg = Number.isNaN(game.rttAvg) ? m.rtt : game.rttAvg * 0.8 + m.rtt * 0.2; }
+      else if (m.t === 'ack') game.ack = m;
+      else if (m.t === 'netstats') game.netStats = m;
     },
     onConn(state, detail) {
       hud.setConn(state, detail);
@@ -435,6 +437,9 @@ async function main(): Promise<void> {
     msAvg = msAvg * 0.95 + ms * 0.05;
     if (hud.statsVisible()) {
       const info = world.renderer.info;
+      // The link's readout, ms; '-' for what the host or td has not said (the demo says none).
+      const ns = game.netStats, hs = ns?.host;
+      const ms = (v: number | undefined) => (v === undefined ? '-' : v.toFixed(0));
       hud.setStats([
         `${world.backend}`,
         `fps   ${fpsAvg.toFixed(0)}`,
@@ -443,7 +448,11 @@ async function main(): Promise<void> {
         `draws ${info.render.drawCalls}`,
         `tris  ${(info.render.triangles / 1000).toFixed(0)}k`,
         `frame ${game.cur.tick}  ${game.interval.toFixed(0)} ms`,
-        `ping  ${Number.isNaN(game.rtt) ? '-' : `${game.rtt.toFixed(0)} ms  avg ${game.rttAvg.toFixed(0)}`}`,
+        `ping  ${Number.isNaN(game.rtt) ? '-' : `${game.rtt.toFixed(0)} avg ${game.rttAvg.toFixed(0)}`} p99 ${ms(ns?.rttP99)} lost ${ns?.lost ?? '-'}`,
+        `ack   ${ms(game.ack?.ms)} p50 ${ms(ns?.ack?.p50)} p99 ${ms(ns?.ack?.p99)}`,
+        `arrv  p50 ${ms(ns?.arrv?.p50)} p99 ${ms(ns?.arrv?.p99)} max ${ms(ns?.arrv?.max)}`,
+        hs ? `host  tick p99 ${hs.tickP99.toFixed(0)} · drop ${hs.drop} · resync ${hs.resync} · q ${hs.q}/${hs.qCap}` : 'host  -',
+        `page  drop ${ns?.pageDrop ?? '-'}`,
         `sound ${sound.synth.readout()}`,
         sound.music.readout(),
       ].join('\n'));

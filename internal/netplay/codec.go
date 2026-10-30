@@ -46,6 +46,8 @@ const (
 	MsgToast   byte = 8  // s->c, to one player
 	MsgDiff    byte = 9  // s->c, to everyone: u8 the difficulty the host changed to
 	MsgEcho    byte = 10 // c->s and back: the host returns the payload as it came, to time the round trip
+	MsgAck     byte = 11 // s->c, to one player: u16 seq, u32 tick; commands up to seq are in that tick's frame
+	MsgStats   byte = 12 // s->c, to one player every 2 s: how the host's link to them is doing (Stats)
 )
 
 // maxMessage bounds what a peer may make us allocate.
