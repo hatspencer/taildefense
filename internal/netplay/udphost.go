@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"net"
 	"net/netip"
 	"os"
@@ -12,9 +13,42 @@ import (
 	"taildefense/internal/game"
 )
 
-// udpTimeout is how long a player's frames go over UDP with nothing coming back before the
-// host takes the path for broken and sends them over TCP again.
-const udpTimeout = 1500 * time.Millisecond
+// udpTimeoutMin is the shortest a player's frames go over UDP with nothing coming back before
+// the host takes the path for broken and sends them over TCP again.
+const udpTimeoutMin = 1500 * time.Millisecond
+
+// udpTimeout is that wait for a player whose datagrams take srtt there and back. A relayed
+// link, a phone's hotspot through a carrier's NAT, can take a few hundred milliseconds a round
+// trip and hold a burst of them in a queue; four round trips with nothing back says the path
+// is gone, where a fixed wait would take a slow path for a dead one.
+func udpTimeout(srtt time.Duration) time.Duration {
+	return max(udpTimeoutMin, 4*srtt)
+}
+
+// udpHoldMin and udpHoldMax bound how long after a fallback the host leaves a player's
+// hellos unanswered, so a link that comes and goes is not switched back and forth every
+// second. The first fallback holds nothing: it is most often an outage, a phone's hotspot
+// gone for a moment, through most of which the timeout ran already, and the frames should
+// be back on UDP as soon as it ends. Each further fallback in a row holds twice as long,
+// from udpHoldMin up to udpHoldMax, and a path that held for udpSettled starts the count again.
+const (
+	udpHoldMin = time.Second
+	udpHoldMax = 10 * time.Second
+	udpSettled = 30 * time.Second
+)
+
+// udpHold is how long the host waits after the n-th fallback in a row before it answers the
+// player's hello again.
+func udpHold(n int) time.Duration {
+	if n <= 1 {
+		return 0
+	}
+	d := udpHoldMin
+	for i := 2; i < n && d < udpHoldMax; i++ {
+		d *= 2
+	}
+	return min(d, udpHoldMax)
+}
 
 // udpHistory is how many deltas before its own a unit may repeat.
 const udpHistory = 2
@@ -116,7 +150,7 @@ func sameIP(from netip.AddrPort, tcp net.Addr) bool {
 // udpDatagram takes a hello or an ack from a player's socket.
 func (s *Server) udpDatagram(in udpIn, now time.Time) {
 	p := s.byTok[in.m.token]
-	if p == nil || p.gone || p.udpDead {
+	if p == nil || p.gone {
 		return
 	}
 	switch in.m.typ {
@@ -124,14 +158,34 @@ func (s *Server) udpDatagram(in udpIn, now time.Time) {
 		if in.sock != p.ln || !sameIP(in.from, p.conn.RemoteAddr()) {
 			return
 		}
+		// Fallen back lately: no answer yet, so the player keeps its frames on TCP a while.
+		if !p.udpOn && now.Before(p.udpHoldTo) {
+			return
+		}
+		// A NAT may give the player's socket another port mid-game; its hello, from the same
+		// machine with the same token, moves the frames there before the old port's silence
+		// would put them on TCP.
+		if p.udpOn && in.from != p.udpAddr && p.udpAddr.IsValid() {
+			s.cfg.Log("%s's UDP moved from %s to %s", p.name, p.udpAddr, in.from)
+		}
+		p.udpAddr = in.from
 		if !p.udpOn {
-			p.udpAddr = in.from
+			p.udpHelloAt = now
 		}
-		if in.from == p.udpAddr {
-			_, _ = s.udps[p.ln].WriteToUDPAddrPort(helloDatagram(dgHelloAck, p.udpTok), in.from)
-		}
+		pc := s.udps[p.ln]
+		// The socket keeps the deadline of the last frame sent on it, long past by now.
+		_ = pc.SetWriteDeadline(time.Now().Add(udpWriteWait))
+		_, _ = pc.WriteToUDPAddrPort(helloDatagram(dgHelloAck, p.udpTok), in.from)
 	case dgAck:
-		if !p.udpOn || in.sock != p.ln || in.from != p.udpAddr {
+		if in.sock != p.ln || in.from != p.udpAddr {
+			return
+		}
+		// An ack while the frames go over TCP confirms the answer to a hello, as MsgUDPOK
+		// does: the client sends both on the answer, and this one does not wait behind a TCP
+		// backlog the outage left. It names the newest frame from before the fallback, no
+		// round trip to time.
+		if !p.udpOn {
+			s.udpUp(p, now)
 			return
 		}
 		p.udpAck = now
@@ -157,13 +211,28 @@ func (s *Server) control(p *peer, typ byte, now time.Time) {
 	}
 	switch typ {
 	case MsgUDPOK:
-		if p.seqFrames && p.udpAddr.IsValid() && !p.udpDead && !p.udpOn {
-			p.udpOn, p.udpAck = true, now
-			s.cfg.Log("%s gets frames over UDP at %s", p.name, p.udpAddr)
-		}
+		s.udpUp(p, now)
 	case MsgResync:
 		s.askKey(p, now)
 	}
+}
+
+// udpUp puts a player's frames on UDP, which a client confirmed by answering a hello.
+func (s *Server) udpUp(p *peer, now time.Time) {
+	// Only a hello answered since the hold ended counts: a confirmation, or an ack, from
+	// before the fallback may arrive after it, and says nothing of the path now.
+	if !p.seqFrames || !p.udpAddr.IsValid() || p.udpOn || now.Before(p.udpHoldTo) ||
+		p.udpHelloAt.IsZero() || p.udpHelloAt.Before(p.udpHoldTo) {
+		return
+	}
+	p.udpOn, p.udpAck, p.udpSince = true, now, now
+	// Back from TCP, the first datagram is a keyframe: frames still queued on the TCP
+	// connection come behind it and are dropped as old, so no delta goes on a base the
+	// player does not have.
+	if p.udpFalls > 0 {
+		p.needKey = true
+	}
+	s.cfg.Log("%s gets frames over UDP at %s", p.name, p.udpAddr)
 }
 
 // askKey sends a player a keyframe on the next tick, unless one went out too lately to have
@@ -175,11 +244,30 @@ func (s *Server) askKey(p *peer, now time.Time) {
 	p.needKey, p.dropKey = true, true
 }
 
+// checkUDP puts a player's frames on TCP once nothing has come back over UDP for longer than
+// the path's round trip makes plausible.
+func (s *Server) checkUDP(p *peer, now time.Time) {
+	if wait := udpTimeout(p.srtt); p.udpOn && now.Sub(p.udpAck) > wait {
+		s.udpFallback(p, now, fmt.Sprintf("nothing back over UDP for %v", wait.Round(time.Millisecond)))
+	}
+}
+
 // udpFallback puts a player's frames back on TCP, with a keyframe since datagrams were lost.
-func (s *Server) udpFallback(p *peer, why string) {
-	p.udpOn, p.udpDead = false, true
+// The token and the binding stay: the player's hellos go on, and once the hold is over the
+// host answers one and the frames come back to UDP.
+func (s *Server) udpFallback(p *peer, now time.Time, why string) {
+	if now.Sub(p.udpSince) >= udpSettled {
+		p.udpFalls = 0
+	}
+	p.udpFalls++
+	hold := udpHold(p.udpFalls)
+	p.udpOn, p.udpHoldTo = false, now.Add(hold)
 	p.needKey = true
-	s.cfg.Log("%s gets frames over TCP again: %s", p.name, why)
+	again := "at once"
+	if hold > 0 {
+		again = "in " + hold.String()
+	}
+	s.cfg.Log("%s gets frames over TCP again: %s; UDP is tried again %s", p.name, why, again)
 }
 
 // udpFrames builds this tick's datagrams lazily, once for every player on UDP: the keyframe's

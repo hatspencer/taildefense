@@ -19,7 +19,16 @@ package netplay
 //
 // The host binds a player's UDP address only from a datagram carrying the token it gave that
 // player over TCP and sent from the IP of the TCP connection, which the tailnet vouches for.
-// If datagrams stop coming back for udpTimeout the player's frames go back to TCP for good.
+// Such a hello may move the binding to another port of that IP at any time, as a NAT that
+// gives the player's socket a new port mid-game makes it. If nothing comes back over UDP for
+// udpTimeout, a few round trips, the player's frames go over TCP, starting with a keyframe.
+// That is never final: a client whose frames stop coming as datagrams says hello again, fast
+// at first and then once a second for as long as it plays. The host answers at once after a
+// first fallback, and after a hold that grows with each further one in a row; the client
+// confirms, over TCP and with an ack datagram both, since after an outage the TCP direction
+// may still be resending what it held; and the frames come back to UDP, again starting with
+// a keyframe. Since every frame is numbered, a frame still on its way by the path left
+// behind is dropped as old or applied in its place, never twice.
 
 import (
 	"bytes"
@@ -54,7 +63,7 @@ const (
 const (
 	dgHello    byte = 1 // c->s: u64 token, sent until the hello is answered
 	dgHelloAck byte = 2 // s->c: u64 token, the answer
-	dgAck      byte = 3 // c->s: u64 token, u16 epoch, u32 applied seq, u32 newest seq, u8 flags
+	dgAck      byte = 3 // c->s: u64 token, u16 epoch, u32 applied seq, u32 newest seq, u8 flags; also the answer to a dgHelloAck
 	dgFrag     byte = 4 // s->c: u16 epoch, u32 seq, u16 index, u16 count, a piece of a unit
 )
 

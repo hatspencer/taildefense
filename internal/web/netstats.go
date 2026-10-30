@@ -76,7 +76,7 @@ type netStats struct {
 	echoSent, echoBack, echoTop uint32
 	pageDrop                    uint32 // frames the page was too slow for
 	host                        *netplay.Stats
-	via                         string // how frames come from the host: "udp" or "tcp"
+	via                         string // how frames come from the host: netplay.Client.Transport
 }
 
 func newNetStats() *netStats {

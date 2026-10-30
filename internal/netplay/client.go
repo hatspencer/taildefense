@@ -88,19 +88,24 @@ type Client struct {
 	done chan struct{}
 	once sync.Once
 
-	// The UDP path. Only dispatch touches these, but for udp, which Close closes too.
-	udpVia   string
-	mu       sync.Mutex
-	closed   bool
-	udp      *net.UDPConn
-	udpUp    atomic.Bool // the host answered the hello
-	viaUDP   atomic.Bool // the last frame handed on came as a datagram
-	token    uint64
-	seqMode  bool // the host offered UDP, so frames are numbered on both paths
-	flow     frameFlow
-	parts    reassembler
-	newest   uint32 // the newest unit seq received over UDP
-	askedKey time.Time
+	// The UDP path. Only dispatch touches these, but for udp, which Close closes too, and
+	// the atomics, which the hello loop and Transport read: when the host offered UDP, when a
+	// datagram last came from it and a frame last came as one (unix nanos, 0 for never), and
+	// whether it ever answered a hello.
+	udpVia      string
+	mu          sync.Mutex
+	closed      bool
+	udp         *net.UDPConn
+	udpOffered  atomic.Int64
+	udpHeard    atomic.Int64
+	udpFrameAt  atomic.Int64
+	udpAnswered atomic.Bool
+	token       uint64
+	seqMode     bool // the host offered UDP, so frames are numbered on both paths
+	flow        frameFlow
+	parts       reassembler
+	newest      uint32 // the newest unit seq received over UDP
+	askedKey    time.Time
 }
 
 // event is a message read from TCP or a datagram from UDP.
@@ -244,6 +249,7 @@ func (c *Client) dispatch() {
 			return
 		}
 		f := &c.flow
+		udpN := f.udpN
 		if e.dg != nil {
 			c.datagram(*e.dg)
 		} else {
@@ -274,10 +280,10 @@ func (c *Client) dispatch() {
 		if c.seqMode {
 			c.askKey()
 		}
+		if f.udpN != udpN {
+			c.udpFrameAt.Store(time.Now().UnixNano())
+		}
 		for _, m := range f.out {
-			if m.Type == MsgFrame {
-				c.viaUDP.Store(f.viaUDP)
-			}
 			select {
 			case c.msgs <- m:
 			case <-c.done:
@@ -291,12 +297,35 @@ func (c *Client) dispatch() {
 	}
 }
 
-// Transport is how frames are coming from the host: "udp" or "tcp".
-func (c *Client) Transport() string {
-	if c.viaUDP.Load() {
+// udpShown is how lately a frame must have come as a datagram for the frames to be said to
+// come over UDP: a keyframe too big for datagrams comes over TCP now and then all the same.
+const udpShown = time.Second
+
+// Transport is how frames are coming from the host, and when that is TCP, why: "udp";
+// "tcp (udp off)" when either side has UDP off or the host has no UDP socket; "tcp (udp:
+// trying)" while the first hellos go unanswered and "tcp (udp: no answer)" once they have
+// for helloFor; "tcp (udp: starting)" between the answer and the first datagram frame; and
+// "tcp (udp: lost, retrying)" once frames came over UDP and now come over TCP while the
+// client says hello again.
+func (c *Client) Transport() string { return c.transport(time.Now()) }
+
+func (c *Client) transport(now time.Time) string {
+	since := func(t int64) time.Duration { return now.Sub(time.Unix(0, t)) }
+	offered, frame := c.udpOffered.Load(), c.udpFrameAt.Load()
+	switch {
+	case frame != 0 && since(frame) < udpShown:
 		return "udp"
+	case offered == 0:
+		return "tcp (udp off)"
+	case frame != 0:
+		return "tcp (udp: lost, retrying)"
+	case c.udpAnswered.Load():
+		return "tcp (udp: starting)"
+	case since(offered) < helloFor:
+		return "tcp (udp: trying)"
+	default:
+		return "tcp (udp: no answer)"
 	}
-	return "tcp"
 }
 
 func (c *Client) writeTCP(typ byte, p []byte) error {

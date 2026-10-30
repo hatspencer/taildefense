@@ -3,9 +3,12 @@ package netplay
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"math/rand/v2"
 	"net"
 	"net/netip"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -414,14 +417,350 @@ func TestUDPFallsBackToTCP(t *testing.T) {
 			}
 			lastFrame = now
 			n++
-			return c.Transport() == "tcp" && r.Synced && n > 2*game.TickRate
+			return strings.HasPrefix(c.Transport(), "tcp") && r.Synced && n > 2*game.TickRate
 		})
-		if c.Transport() != "tcp" || !r.Synced || n <= 2*game.TickRate {
+		if !strings.HasPrefix(c.Transport(), "tcp") || !r.Synced || n <= 2*game.TickRate {
 			t.Fatalf("blocked later %v: %d frames in %v over %s", later, n, time.Since(start), c.Transport())
 		}
-		if later && worst > udpTimeout+time.Second {
+		// Why it is on TCP: never answered, or answered once and lost since.
+		if want := map[bool]string{false: "tcp (udp: trying)", true: "tcp (udp: lost, retrying)"}[later]; c.Transport() != want {
+			t.Fatalf("blocked later %v: transport %q, want %q", later, c.Transport(), want)
+		}
+		if later && worst > udpTimeoutMin+time.Second {
 			t.Fatalf("frames stopped for %v", worst)
 		}
 		c.Close()
+	}
+}
+
+// hostLog is a host's log lines, for a test to read while the host runs.
+type hostLog struct {
+	mu    sync.Mutex
+	lines []string
+}
+
+func (l *hostLog) log(format string, a ...any) {
+	l.mu.Lock()
+	l.lines = append(l.lines, fmt.Sprintf(format, a...))
+	l.mu.Unlock()
+}
+
+func (l *hostLog) all() []string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return append([]string(nil), l.lines...)
+}
+
+// count is how many lines so far hold s.
+func (l *hostLog) count(s string) int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	n := 0
+	for _, ln := range l.lines {
+		if strings.Contains(ln, s) {
+			n++
+		}
+	}
+	return n
+}
+
+func udpHostLog(t *testing.T) (*Server, *hostLog) {
+	t.Helper()
+	l := &hostLog{}
+	s, err := Listen(ServerConfig{Addrs: []string{"127.0.0.1:0"}, Seed: 3, Version: "test", Host: "box", LocalLogin: "me", LocalName: "me", Log: l.log})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(s.Close)
+	if s.udps[0] == nil {
+		t.Skip("no UDP on the TCP port")
+	}
+	return s, l
+}
+
+// fakeConn stands in for a player's TCP connection where only its far end is asked.
+type fakeConn struct {
+	net.Conn
+	remote net.Addr
+}
+
+func (c fakeConn) RemoteAddr() net.Addr { return c.remote }
+
+// The host's UDP bookkeeping, datagram by datagram: a hello moves the binding to another port
+// of the player's IP even while frames go over UDP, never to another IP or from another
+// listener; the fallback waits for a few round trips; after it, once the answer to a hello since then is confirmed, by MsgUDPOK or an ack, they come back
+// with a keyframe, and from the second fallback in a row the hellos go unanswered for a hold
+// that grows with each.
+func TestUDPBookkeeping(t *testing.T) {
+	pc, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pc.Close()
+	var lines []string
+	s := &Server{cfg: ServerConfig{Log: func(f string, a ...any) { lines = append(lines, fmt.Sprintf(f, a...)) }},
+		udps: []*net.UDPConn{pc, pc}, byTok: map[uint64]*peer{}}
+	p := &peer{name: "p", udpTok: 42, seqFrames: true, out: make(chan outMsg, 8),
+		conn: fakeConn{remote: &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 5000}}}
+	s.byTok[42] = p
+	t0 := time.Now()
+	hello := func(from string, sock int, at time.Time) {
+		s.udpDatagram(udpIn{sock, netip.MustParseAddrPort(from), datagram{typ: dgHello, token: 42}}, at)
+	}
+	ack := func(from string, at time.Time) {
+		s.udpDatagram(udpIn{0, netip.MustParseAddrPort(from), datagram{typ: dgAck, token: 42, newest: 1}}, at)
+	}
+	hello("127.0.0.1:1000", 0, t0)
+	s.control(p, MsgUDPOK, t0)
+	if !p.udpOn || p.udpAddr.String() != "127.0.0.1:1000" || p.needKey {
+		t.Fatalf("first hello: on %v at %v, key %v", p.udpOn, p.udpAddr, p.needKey)
+	}
+
+	// Rebinding: the new port counts, the old one no longer does, a stranger never.
+	hello("127.0.0.1:2000", 0, t0)
+	hello("127.0.0.2:2000", 0, t0)
+	hello("127.0.0.1:3000", 1, t0)
+	if p.udpAddr.String() != "127.0.0.1:2000" {
+		t.Fatalf("bound to %v after the rebind", p.udpAddr)
+	}
+	ack("127.0.0.1:1000", t0.Add(time.Second))
+	if !p.udpAck.Equal(t0) {
+		t.Fatal("an ack from the old port counted")
+	}
+	ack("127.0.0.1:2000", t0.Add(time.Second))
+	if !p.udpAck.Equal(t0.Add(time.Second)) {
+		t.Fatal("an ack from the new port did not count")
+	}
+
+	// The timeout goes with the round trip.
+	t1 := p.udpAck
+	p.srtt = time.Second
+	s.checkUDP(p, t1.Add(3*time.Second))
+	if !p.udpOn {
+		t.Fatal("a path of 1 s round trips fell back after 3 s")
+	}
+	t2 := t1.Add(4*time.Second + time.Millisecond)
+	s.checkUDP(p, t2)
+	if p.udpOn || !p.needKey {
+		t.Fatal("no fallback after four round trips")
+	}
+
+	// The first fallback holds nothing, but a confirmation from before it is stale: only the
+	// answer to a hello since counts, by MsgUDPOK or by an ack datagram.
+	p.needKey = false
+	s.control(p, MsgUDPOK, t2)
+	ack("127.0.0.1:2000", t2)
+	if p.udpOn {
+		t.Fatal("a confirmation from before the fallback put the frames on UDP")
+	}
+	hello("127.0.0.1:2000", 0, t2)
+	ack("127.0.0.1:2000", t2.Add(time.Millisecond))
+	if !p.udpOn || !p.needKey {
+		t.Fatalf("after the answer: on %v, key %v", p.udpOn, p.needKey)
+	}
+
+	// The second fallback in a row holds: a hello goes unanswered and binds nothing.
+	t3 := t2.Add(time.Second)
+	s.udpFallback(p, t3, "test")
+	if p.udpFalls != 2 || !p.udpHoldTo.Equal(t3.Add(udpHold(2))) {
+		t.Fatalf("second fallback: %d in a row, held %v", p.udpFalls, p.udpHoldTo.Sub(t3))
+	}
+	p.needKey = false
+	held := t3.Add(udpHold(2) / 2)
+	hello("127.0.0.1:4000", 0, held)
+	s.control(p, MsgUDPOK, held)
+	if p.udpOn || p.udpAddr.String() != "127.0.0.1:2000" {
+		t.Fatalf("held, yet on %v at %v", p.udpOn, p.udpAddr)
+	}
+	t4 := p.udpHoldTo
+	hello("127.0.0.1:4000", 0, t4)
+	s.control(p, MsgUDPOK, t4)
+	if !p.udpOn || p.udpAddr.String() != "127.0.0.1:4000" || !p.needKey {
+		t.Fatalf("after the hold: on %v at %v, key %v", p.udpOn, p.udpAddr, p.needKey)
+	}
+
+	// A fallback after a settled stretch starts the count again.
+	s.udpFallback(p, t4.Add(udpSettled), "test")
+	if p.udpFalls != 1 || !p.udpHoldTo.Equal(t4.Add(udpSettled)) {
+		t.Fatalf("after a settled stretch: %d in a row", p.udpFalls)
+	}
+	if n := strings.Count(strings.Join(lines, "\n"), "moved"); n != 1 {
+		t.Fatalf("%d moves logged: %q", n, lines)
+	}
+}
+
+func TestUDPTimeoutAndHold(t *testing.T) {
+	for _, c := range []struct{ srtt, want time.Duration }{
+		{0, udpTimeoutMin}, {130 * time.Millisecond, udpTimeoutMin}, {time.Second, 4 * time.Second},
+	} {
+		if got := udpTimeout(c.srtt); got != c.want {
+			t.Errorf("udpTimeout(%v) = %v, want %v", c.srtt, got, c.want)
+		}
+	}
+	want := []time.Duration{0, time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second, 10 * time.Second, 10 * time.Second}
+	for i, w := range want {
+		if got := udpHold(i + 1); got != w {
+			t.Errorf("udpHold(%d) = %v, want %v", i+1, got, w)
+		}
+	}
+}
+
+// playUntil plays until ok holds or d is out, and says whether it held; worst is the longest
+// wait for a frame.
+func playUntil(t *testing.T, c *Client, r *Replica, d time.Duration, ok func() bool) (held bool, worst time.Duration) {
+	t.Helper()
+	last := time.Now()
+	play(t, c, r, d, func() bool {
+		now := time.Now()
+		worst, last = max(worst, now.Sub(last)), now
+		held = ok()
+		return held
+	})
+	return held, worst
+}
+
+// UDP that drops out comes back: twice the relay drops everything for longer than the
+// timeout, frames go over TCP with the reason shown, and once it passes again they come back
+// over UDP, the replica applying every frame in order throughout.
+func TestUDPRecoversAfterFallback(t *testing.T) {
+	t.Parallel()
+	s, l := udpHostLog(t)
+	rl := newRelay(t, s.udps[0].LocalAddr().String())
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	c, wel, err := Dial(ctx, s.Addrs()[0], Hello{Name: "tester", Version: "test", UDP: true, UDPVia: rl.addr()})
+	cancel()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	r := NewReplica(wel.W, wel.H, wel.Terrain, wel.You, wel.Seed)
+	onUDP := func() bool { return c.Transport() == "udp" && r.Synced }
+	if ok, _ := playUntil(t, c, r, 3*time.Second, onUDP); !ok {
+		t.Fatal("frames never came over UDP")
+	}
+	for round := 1; round <= 2; round++ {
+		rl.block.Store(true)
+		lost := func() bool { return c.Transport() == "tcp (udp: lost, retrying)" }
+		if ok, worst := playUntil(t, c, r, 4*time.Second, lost); !ok {
+			t.Fatalf("round %d: still %q while blocked", round, c.Transport())
+		} else if worst > udpTimeoutMin+500*time.Millisecond {
+			t.Fatalf("round %d: frames stopped for %v going to TCP", round, worst)
+		}
+		if n := l.count("over TCP again"); n != round {
+			t.Fatalf("round %d: %d fallbacks logged", round, n)
+		}
+		rl.block.Store(false)
+		start := time.Now()
+		ok, worst := playUntil(t, c, r, udpHold(round)+3*time.Second, onUDP)
+		if !ok {
+			t.Fatalf("round %d: still %q %v after the path came back; host: %q", round, c.Transport(), time.Since(start), l.all())
+		}
+		if worst > 500*time.Millisecond {
+			t.Fatalf("round %d: frames stopped for %v going back to UDP", round, worst)
+		}
+		if n := l.count("gets frames over UDP"); n != round+1 {
+			t.Fatalf("round %d: %d switches to UDP logged", round, n)
+		}
+		t.Logf("round %d: back on UDP %v after the path came back", round, time.Since(start).Round(time.Millisecond))
+	}
+}
+
+// natRelay forwards datagrams between a client and a host through an upstream socket that can
+// be swapped for one on another port, as a NAT that rebinds the client's mapping does.
+type natRelay struct {
+	pc     *net.UDPConn
+	host   *net.UDPAddr
+	client atomic.Pointer[netip.AddrPort]
+	up     atomic.Pointer[net.UDPConn]
+}
+
+func newNATRelay(t *testing.T, host string) *natRelay {
+	pc, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ha, _ := net.ResolveUDPAddr("udp", host)
+	r := &natRelay{pc: pc, host: ha}
+	r.rebind(t)
+	t.Cleanup(func() {
+		pc.Close()
+		r.up.Load().Close()
+	})
+	go func() {
+		buf := make([]byte, 2048)
+		for {
+			n, from, err := pc.ReadFromUDPAddrPort(buf)
+			if err != nil {
+				return
+			}
+			r.client.Store(&from)
+			_, _ = r.up.Load().Write(buf[:n])
+		}
+	}()
+	return r
+}
+
+// rebind moves the upstream to a new port; what the host sends the old one is lost.
+func (r *natRelay) rebind(t *testing.T) {
+	up, err := net.DialUDP("udp", nil, r.host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		buf := make([]byte, 2048)
+		for {
+			n, err := up.Read(buf)
+			if err != nil {
+				if isClosed(err) {
+					return
+				}
+				continue
+			}
+			if c := r.client.Load(); c != nil {
+				_, _ = r.pc.WriteToUDPAddrPort(buf[:n], *c)
+			}
+		}
+	}()
+	if old := r.up.Swap(up); old != nil {
+		old.Close()
+	}
+}
+
+// A NAT that gives the client's mapping a new port mid-game costs a moment, not the UDP path:
+// the client's hello from the new port moves the host's binding before the timeout.
+func TestUDPFollowsANewPort(t *testing.T) {
+	t.Parallel()
+	s, l := udpHostLog(t)
+	rl := newNATRelay(t, s.udps[0].LocalAddr().String())
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	c, wel, err := Dial(ctx, s.Addrs()[0], Hello{Name: "tester", Version: "test", UDP: true, UDPVia: rl.pc.LocalAddr().String()})
+	cancel()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	r := NewReplica(wel.W, wel.H, wel.Terrain, wel.You, wel.Seed)
+	onUDP := func() bool { return c.Transport() == "udp" && r.Synced }
+	if ok, _ := playUntil(t, c, r, 3*time.Second, onUDP); !ok {
+		t.Fatal("frames never came over UDP")
+	}
+	for range 2 {
+		rl.rebind(t)
+		moved := l.count("moved")
+		ok, worst := playUntil(t, c, r, 3*time.Second, func() bool { return l.count("moved") > moved })
+		if !ok {
+			t.Fatal("the host never followed the new port")
+		}
+		if worst >= udpTimeoutMin {
+			t.Fatalf("frames stopped for %v", worst)
+		}
+		// Frames keep coming as datagrams for a while after it.
+		playUntil(t, c, r, time.Second, func() bool { return false })
+		if c.Transport() != "udp" {
+			t.Fatalf("on %q after the move", c.Transport())
+		}
+	}
+	if n := l.count("over TCP again"); n != 0 {
+		t.Fatalf("%d fallbacks for a new port", n)
 	}
 }
