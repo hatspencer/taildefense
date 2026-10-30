@@ -23,8 +23,11 @@ prints a `TD_SOAK_ONE=…` line that plays that game again.
 `./build.sh netsim [s]` plays a real host to a client through `internal/netsim`'s proxy for
 s seconds (10 by default) at each of 0, 40±10 and 120±30 ms with 0, 1 and 3% loss, applied each
 way, and tables frame gaps (p50, p99, max), stalls of more than 100 ms (three ticks) and the
-round trip of an echo sent behind the player's steering. It is `TestNetcode`, skipped unless
-`TD_NETSIM=1`, so `check` stays fast. The proxy needs no hooks in the game: point anything at
+round trip of an echo sent behind the player's steering. A last pair plays a phone's hotspot:
+65±20 ms each way, losses in bursts (`Profile.Burst`, two state) and a 2 s outage both ways a
+quarter of the way in (`Profile.Outages`); `max out` is the longest gap outside the outage,
+`on udp` the share of the case frames came over UDP and `switch` how often they moved. It is
+`TestNetcode`, skipped unless `TD_NETSIM=1`, so `check` stays fast. The proxy needs no hooks in the game: point anything at
 `netsim.Listen(target, up, down, seed)` and connect to its `Addr()`. TCP cannot lose a byte, so
 there a loss holds its direction for a retransmit timeout (`Profile.RTO`, at least 200 ms) and
 everything behind it waits, which is what a player on TCP sees. `netsim.ListenUDP` drops for
@@ -80,8 +83,12 @@ every sound by name, for a browser test to read; a musical cue counts as `cue:<n
 F3's link lines, all in ms: `ping` the last round trip to the host, its average, its p99 over a
 minute, echoes lost and how packets reach the host (`direct`, `DERP fra`, `relay`, `local`);
 `ack` the last command's time to its ack and the p50 and p99 over 10 s;
-`arrv` the gaps between frames reaching td over 10 s (33 when all is well); `host` the host's
-tick spacing p99, the frames it dropped for this player, the keyframes it resent after them and
+`arrv` how frames come from the host and the gaps between them reaching td over 10 s (33 when
+all is well): `udp`, or `tcp` with why: `(udp off)` when either side has `TAILDEFENSE_NO_UDP` or
+the host has no UDP socket, `(udp: trying)` and after 5 s `(udp: no answer)` while the host has
+never answered a hello, `(udp: starting)` between the answer and the first datagram, and
+`(udp: lost, retrying)` after frames came over UDP and fell back (td's terminal notes each
+change); `host` the host's tick spacing p99, the frames it dropped for this player, the keyframes it resent after them and
 the deepest the player's queue got of its depth; `page drop` the frames td dropped for a slow
 page. The demo has no link: those lines show `-`.
 `#lab` is the animation bench: every creep kind walking, idle, attacking, hit, burning, asleep
