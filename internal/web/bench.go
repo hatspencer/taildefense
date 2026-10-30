@@ -8,12 +8,14 @@ import (
 	"taildefense/internal/netplay"
 )
 
-// BenchStats is what `td bench` measured, summed over every tick.
+// BenchStats is what `td bench` measured, summed over every tick. Raw is the delta frames as
+// encoded and Wire the same after deflate, so a change to the frame layout shows both what it
+// saves itself and what deflate was already saving.
 type BenchStats struct {
-	Ticks, Peak          int
-	Sim, Encode, Decode  time.Duration
-	View                 time.Duration
-	Wire, ViewBytes, Key int
+	Ticks, Peak               int
+	Sim, Encode, Decode       time.Duration
+	View                      time.Duration
+	Raw, Wire, ViewBytes, Key int
 }
 
 type counter int
@@ -49,6 +51,7 @@ func BenchWave(wave, players, seconds int, seed uint64) BenchStats {
 		t2 := time.Now()
 		_ = r.Apply(d)
 		t3 := time.Now()
+		st.Raw += len(d)
 		st.ViewBytes += len(view.frame(r))
 		t4 := time.Now()
 		_, _ = zw.Write(d)

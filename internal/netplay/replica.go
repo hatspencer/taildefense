@@ -2,6 +2,7 @@ package netplay
 
 import (
 	"fmt"
+	"math/bits"
 	"time"
 
 	"taildefense/internal/game"
@@ -264,15 +265,34 @@ func (r *Replica) Apply(p []byte) error {
 		id := 0
 		for i := 0; i < n && d.err == nil; i++ {
 			id += int(d.uv())
-			if id < game.MaxCreeps {
+			if uint(id) < game.MaxCreeps {
 				r.Alive.clear(uint16(id))
 			}
 		}
+		// Moves: a nibble per creep alive in both, then the escaped ones' i8 pairs.
+		m := 0
+		for _, w := range r.Alive {
+			m += bits.OnesCount64(w)
+		}
+		nb := (m + 1) / 2
+		if !d.need(nb) {
+			return fmt.Errorf("frame: %w", d.err)
+		}
+		nibs := d.b[d.i : d.i+nb]
+		d.i += nb
+		k := 0
 		r.Alive.each(func(id uint16) {
-			dx, dy := d.i8(), d.i8()
+			v := nibs[k>>1] >> (k & 1 * 4) & 0xf
+			k++
+			var dx, dy int
+			if v == moveEscape {
+				dx, dy = int(d.i8()), int(d.i8())
+			} else {
+				dx, dy = axisMove[min(v&3, 2)], axisMove[min(v>>2, 2)]
+			}
 			r.PX[id], r.PY[id] = r.CX[id], r.CY[id]
-			r.qx[id] = uint16(int(r.qx[id]) + int(dx))
-			r.qy[id] = uint16(int(r.qy[id]) + int(dy))
+			r.qx[id] = uint16(int(r.qx[id]) + dx)
+			r.qy[id] = uint16(int(r.qy[id]) + dy)
 			r.CX[id], r.CY[id] = unq(r.qx[id]), unq(r.qy[id])
 		})
 		n = int(d.uv())
@@ -284,13 +304,37 @@ func (r *Replica) Apply(p []byte) error {
 		n = int(d.uv())
 		id = 0
 		for i := 0; i < n && d.err == nil; i++ {
-			id += int(d.uv())
-			h, f, fx, tg := d.u8(), d.u8(), d.u8(), d.u8()
-			if id < game.MaxCreeps {
-				if h < r.HP[id] {
-					r.Flash[id] = 0
+			v := d.uv()
+			id += int(v >> 4)
+			var h, f, fx, tg uint8
+			if v&chHP != 0 {
+				h = d.u8()
+			}
+			if v&chFlags != 0 {
+				f = d.u8()
+			}
+			if v&chFx != 0 {
+				fx = d.u8()
+			}
+			if v&chTarget != 0 {
+				tg = d.u8()
+			}
+			if uint(id) < game.MaxCreeps {
+				if v&chHP != 0 {
+					if h < r.HP[id] {
+						r.Flash[id] = 0
+					}
+					r.HP[id] = h
 				}
-				r.HP[id], r.Flags[id], r.FX[id], r.Target[id] = h, f, fx, tg
+				if v&chFlags != 0 {
+					r.Flags[id] = f
+				}
+				if v&chFx != 0 {
+					r.FX[id] = fx
+				}
+				if v&chTarget != 0 {
+					r.Target[id] = tg
+				}
 			}
 		}
 	}
@@ -421,7 +465,7 @@ func (r *Replica) Apply(p []byte) error {
 
 func (r *Replica) creepRec(d *dec, id int) {
 	k, x, y, h, f, fx, tg := d.u8(), d.u16(), d.u16(), d.u8(), d.u8(), d.u8(), d.u8()
-	if id >= game.MaxCreeps || d.err != nil {
+	if uint(id) >= game.MaxCreeps || d.err != nil {
 		return
 	}
 	r.Alive.set(uint16(id))
@@ -494,42 +538,94 @@ func (r *Replica) header(d *dec) {
 	old := r.Players
 	r.Players = make([]PlayerView, 0, n)
 	for i := 0; i < n && d.err == nil; i++ {
+		// What a frame leaves out of a player is as the last one said: start from that.
 		var p PlayerView
-		p.ID = d.u8()
-		p.Name = d.str()
+		id := d.u8()
+		known := false
+		for _, o := range old {
+			if o.ID == id {
+				p, known = o, true
+				break
+			}
+		}
+		p.ID = id
 		f := d.u8()
 		p.Connected, p.Alive, p.Firing = f&pConnected != 0, f&pAlive != 0, f&pFiring != 0
 		p.Ready, p.Reloading, p.Hurt, p.AtArmory = f&pReady != 0, f&pReloading != 0, f&pHurt != 0, f&pAtArmory != 0
 		p.Moving = f&pMoving != 0
-		p.X, p.Y = unq(d.u16()), unq(d.u16())
 		p.PX, p.PY = p.X, p.Y
-		for _, o := range old {
-			if o.ID == p.ID {
-				p.PX, p.PY = o.X, o.Y
-			}
+		p.X, p.Y = unq(d.u16()), unq(d.u16())
+		if !known {
+			p.PX, p.PY = p.X, p.Y
 		}
 		p.Aim = unqAngle(d.u16())
-		p.HP, p.MaxHP = d.u16(), d.u16()
-		p.Order = game.OrderKind(d.u8())
-		p.Channel = float32(d.u8()) / 255
-		p.Revived = float32(d.u8()) / 255
-		p.Emote = d.u8()
-		p.EmoteLeft = float32(d.u8()) / 10
-		p.TauntCool = float32(d.u16()) / 10
+		p.HP = d.u16()
+		mask := d.uv()
+		for g := range numGroups {
+			if mask&(1<<g) != 0 {
+				p.group(d, g)
+			}
+		}
+		r.Players = append(r.Players, p)
+	}
+}
+
+// group reads one group of a player's record, as playerGroup wrote it.
+func (p *PlayerView) group(d *dec, g int) {
+	switch g {
+	case pgMotion:
 		p.Stamina = float32(d.u8()) / 255
 		sp := d.u8()
 		p.Sprinting, p.Winded, p.Goggles, p.Shielded, p.Aboard = sp&1 != 0, sp&2 != 0, sp&8 != 0, sp&16 != 0, sp&32 != 0
 		p.Stunned, p.Held, p.Airborne = sp&4 != 0, sp&64 != 0, sp&128 != 0
-		p.Look = d.u32()
+	case pgCombat:
 		p.Cur = game.WeaponKind(d.u8())
 		p.Ammo = d.u16()
 		p.ReloadFrac = float32(d.u8()) / 255
+		p.ReloadMask = d.u16()
+		p.Ult = float32(d.u8()) / 255
+		p.Swings = d.u8()
+		art := d.u8()
+		p.Art, p.ArtFrac = art>>6, float32(art&63)/63
+		p.ArtCool = float32(d.u16()) / 10
+	case pgTimers:
+		p.Emote = d.u8()
+		p.EmoteLeft = float32(d.u8()) / 10
+		p.TauntCool = float32(d.u16()) / 10
+		p.Buff = d.u8()
+		p.BuffLeft = float32(d.u8()) / 10
+		p.Heal = float32(d.u8()) / 10
+		for a := range p.Abil {
+			p.Abil[a].Cool = float32(d.u16()) / 10
+		}
 		p.Respawn = d.u8()
+	case pgOrder:
+		p.Order = game.OrderKind(d.u8())
+		p.Channel = float32(d.u8()) / 255
+		p.Revived = float32(d.u8()) / 255
+	case pgScore:
 		p.Gold, p.Kills, p.Damage = d.uv(), d.uv(), d.uv()
+	case pgKit:
+		p.MaxHP = d.u16()
+		p.Medkits = d.u8()
+		for a := range p.Abil {
+			p.Abil[a].Lv = d.u8()
+		}
+	case pgTally:
+		s := &p.Stats
+		s.Downs, s.Revives, s.Built, s.Searched, s.Bosses = d.uv(), d.uv(), d.uv(), d.uv(), d.uv()
+		s.Taken, s.Turret = d.uv(), d.uv()
+	case pgName:
+		p.Name = d.str()
+	case pgLook:
+		p.Look = d.u32()
+	case pgArsenal:
 		owned := d.u16()
 		p.Dual = owned&game.DualBit != 0
 		p.DualKatana = owned&game.DualKatanaBit != 0
 		p.Picking = owned&game.PickBit != 0
+		p.Owned = [game.NumWeapons]bool{}
+		p.Lv = [game.NumWeapons][game.NumTracks]uint8{}
 		for k := 0; k < int(game.NumWeapons); k++ {
 			if owned&(1<<k) != 0 {
 				p.Owned[k] = true
@@ -540,27 +636,10 @@ func (r *Replica) header(d *dec) {
 		}
 		evo := d.u8()
 		p.Evo[game.WKatana], p.Evo[game.WGreat], p.Evo[game.WCrowbar] = evo&3, evo>>2&3, evo>>4&3
+	case pgGear:
 		for g := range p.Gear {
 			p.Gear[g] = d.u8()
 		}
-		p.Buff = d.u8()
-		p.BuffLeft = float32(d.u8()) / 10
-		p.Ult = float32(d.u8()) / 255
-		for a := range p.Abil {
-			p.Abil[a].Lv = d.u8()
-			p.Abil[a].Cool = float32(d.u16()) / 10
-		}
-		p.Medkits = d.u8()
-		p.Heal = float32(d.u8()) / 10
-		p.ReloadMask = d.u16()
-		p.Swings = d.u8()
-		art := d.u8()
-		p.Art, p.ArtFrac = art>>6, float32(art&63)/63
-		p.ArtCool = float32(d.u16()) / 10
-		s := &p.Stats
-		s.Downs, s.Revives, s.Built, s.Searched, s.Bosses = d.uv(), d.uv(), d.uv(), d.uv(), d.uv()
-		s.Taken, s.Turret = d.uv(), d.uv()
-		r.Players = append(r.Players, p)
 	}
 }
 

@@ -41,13 +41,16 @@ Browser                   local td (web.Session)               host td (netplay.
   - **Simulation.** Creeps live in a dense array with stable ids. They path with a single
     Dijkstra flow field from the generator and find neighbours through a spatial hash rebuilt
     each tick by counting sort. A tick allocates nothing.
-  - **Network.** A frame carries only what changed: creeps that left, 1-byte moves for the rest
-    in id order, then new arrivals, all deflated.
+  - **Network.** A frame carries only what changed: creeps that left, then a nibble for every
+    other creep in id order (two bits an axis, still or an eighth of a tile either way, an
+    escape for more), so a horde standing at a wall costs next to nothing; then new arrivals,
+    the changed fields of creeps that were hit or turned, and of each player only the groups of
+    their record that changed. All of it is deflated.
   - **Rendering.** Creeps of each kind are one instanced mesh, animated (bob, sway, burn, slow,
     hit flash) in TSL node materials on the GPU.
   - **Numbers.** At wave 40 with 8 players the game hits its 16k creep cap. The host then spends
-    about 2 ms per tick simulating and 0.3 ms encoding, and each player gets about 135 KiB/s
-    over the tailnet (`td bench --wave 40 --players 8`).
+    about 2 ms per tick simulating and 0.3 ms encoding, and each player gets about 100 KiB/s
+    over the tailnet, a 10 KB frame deflated to 5 KB (`td bench --wave 40 --players 8`).
 - **Generated art.** Everything is low-poly geometry built in code with three.js: no asset files.
 - **Generated sound.** The page makes every sound in code from what each frame already says (the
   shots, blasts and deaths of that tick, and what changed since the last one): the protocol

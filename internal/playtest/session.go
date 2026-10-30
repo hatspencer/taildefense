@@ -118,6 +118,10 @@ func agree(w *game.World, r *netplay.Replica) error {
 			return fmt.Errorf("player %s alive %v gold %d kills %d at %.2f,%.2f, world %v %d %d %.2f,%.2f",
 				p.Name, v.Alive, v.Gold, v.Kills, v.X, v.Y, p.Alive, p.Gold, p.Kills, p.X, p.Y)
 		}
+		// What a delta leaves out when it has not changed must still be what the world says.
+		if err := agreeKit(p, v); err != nil {
+			return fmt.Errorf("player %s: %w", p.Name, err)
+		}
 	}
 	for i, st := range w.Sites {
 		if r.Searched[i] != st.Searched || r.Guards[i] != st.Guards {
@@ -128,6 +132,35 @@ func agree(w *game.World, r *netplay.Replica) error {
 }
 
 func far(a, b float32) bool { return math.Abs(float64(a-b)) > .1 }
+
+// agreeKit compares the slow parts of a player's record, the ones a delta sends only when
+// they change.
+func agreeKit(p *game.Player, v *netplay.PlayerView) error {
+	if v.Name != p.Name || v.Look != p.Look {
+		return fmt.Errorf("name %q look %x, world %q %x", v.Name, v.Look, p.Name, p.Look)
+	}
+	if v.Cur != p.Cur || int(v.Ammo) != int(max(p.Weapons[p.Cur].Ammo, 0)) || v.MaxHP != uint16(p.MaxHP) || v.Medkits != p.Medkits || v.Gear != p.Gear {
+		return fmt.Errorf("weapon %d ammo %d max hp %d medkits %d gear %v, world %d %d %.0f %d %v",
+			v.Cur, v.Ammo, v.MaxHP, v.Medkits, v.Gear, p.Cur, p.Weapons[p.Cur].Ammo, p.MaxHP, p.Medkits, p.Gear)
+	}
+	for k := range p.Weapons {
+		ws := &p.Weapons[k]
+		if v.Owned[k] != ws.Owned || (ws.Owned && v.Lv[k] != ws.Lv) {
+			return fmt.Errorf("weapon %d owned %v levels %v, world %v %v", k, v.Owned[k], v.Lv[k], ws.Owned, ws.Lv)
+		}
+	}
+	for a := range p.Abil {
+		if v.Abil[a].Lv != p.Abil[a].Lv {
+			return fmt.Errorf("ability %d level %d, world %d", a, v.Abil[a].Lv, p.Abil[a].Lv)
+		}
+	}
+	t, s := &p.Tally, &v.Stats
+	if s.Downs != uint64(t.Downs) || s.Revives != uint64(t.Revives) || s.Built != uint64(t.Built) || s.Searched != uint64(t.Searched) ||
+		s.Bosses != uint64(t.Bosses) || s.Taken != uint64(t.Taken) || s.Turret != uint64(t.Turret) || v.Damage != uint64(p.Damage) {
+		return fmt.Errorf("stats %+v damage %d, world %+v %.0f", *s, v.Damage, *t, p.Damage)
+	}
+	return nil
+}
 
 // Replay plays a logged game again from its seed, checking as it goes, and returns the
 // world's hash after every tick.

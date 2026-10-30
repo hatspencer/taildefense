@@ -1,11 +1,18 @@
 // Package netplay carries a game between the host and its players over the tailnet.
 //
 // The host is authoritative: it runs the simulation and sends a frame every tick. Frames are
-// deltas against the previous one: a creep that moved costs two bytes, one that only lost
-// hit points three, and structures are sent only when they change. The host-to-client
-// stream is deflate-compressed with the window kept across frames, so the repeated shape of a
-// horde moving along the same road compresses to a fraction of that. A client that falls
-// behind gets no backlog; it is sent a keyframe as soon as its queue drains.
+// deltas against the previous one. Creeps alive in both ticks cost a nibble each, two bits an
+// axis for a move of an eighth of a tile or none, with an escape to an i8 pair for anything
+// further, so a horde standing still is a run of zero bytes; a creep whose hit points, flags
+// or target changed is sent with a mask of which, then just those. A player's record is the
+// fields that change every tick and a mask of the groups of the rest (name, look, arsenal,
+// tallies and so on) that changed since the last frame, all of them in a keyframe; the
+// replica keeps the rest from the frame before. Structures are sent only when they change.
+// The host-to-client stream is deflate-compressed with the window kept across frames, so the
+// repeated shape of a horde moving along the same road compresses to a fraction of that. A
+// client that falls behind gets no backlog; it is sent a keyframe as soon as its queue drains.
+// Every client is sent the same deltas from one encoder, so nothing in a frame depends on
+// which client it goes to.
 //
 // Clients send orders, WC3 style: move here, attack that, cast this there, build that. The
 // host walks the path and fights; nothing is predicted on the client.
@@ -23,7 +30,7 @@ import (
 // Proto is the wire protocol version. A host refuses a client with a different one and names
 // both versions, so the fix (td update) is obvious. Beyond the protocol, a host only lets in a
 // player running the same td (SameVersion).
-const Proto = 26
+const Proto = 27
 
 // DefaultPort is where a host listens.
 const DefaultPort = 7787
