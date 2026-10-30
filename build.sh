@@ -10,8 +10,8 @@
 #   ./build.sh fuzz [t]   fuzz the commands players give, for t (default 2m)
 #   ./build.sh netsim [s] a host and a client through an impaired path, s seconds (default
 #                         10) for each delay and loss, tabling frame gaps and round trips
-#   ./build.sh golden     rewrite the golden game's record and the launcher's golden frames
-#                         after a deliberate change
+#   ./build.sh golden     rewrite the golden game's record, the launcher's golden frames and
+#                         the walk prediction's fixture after a deliberate change
 #   ./build.sh web        the browser client only, into internal/web/dist
 #   ./build.sh go <args>  one off go command, e.g. go test ./internal/ui
 #   ./build.sh npm <args> one off npm command in web/, e.g. npm install three@0.170.0
@@ -294,8 +294,8 @@ case "$cmd" in
   golden)
     need_engine
     export TD_GOLDEN=update
-    run "$IMAGE" go test -mod=readonly -run Golden ./internal/playtest ./internal/tui
-    git status --short -- internal/playtest/testdata internal/tui/testdata 2>/dev/null || true
+    run "$IMAGE" go test -mod=readonly -run Golden ./internal/playtest ./internal/tui ./internal/game
+    git status --short -- internal/playtest/testdata internal/tui/testdata web/test 2>/dev/null || true
     ;;
   go)
     need_engine

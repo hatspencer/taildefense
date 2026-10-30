@@ -180,6 +180,7 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 		e.u8(p.Swings)
 		e.u8(p.Art<<6 | uint8(min(max(p.ArtFrac, 0), 1)*63))
 		e.u16(deci16(p.ArtCool))
+		e.u8(uint8(min(math.Ceil(float64(p.SlowLeft*100)), 255)))
 		s := &p.Stats
 		for _, v := range [...]uint64{s.Downs, s.Revives, s.Built, s.Searched, s.Bosses} {
 			e.u16(uint16(min(v, math.MaxUint16)))

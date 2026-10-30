@@ -1,4 +1,5 @@
-import { type AckMsg, EvacStage, Frame, MAX_CREEPS, type NetStatsMsg, PF_ALIVE, type Player, type Welcome, Weather, decodeFrame } from './protocol';
+import { type AckMsg, EvacStage, Frame, K_GATE, MAX_CREEPS, type NetStatsMsg, PF_ALIVE, PF_FIRING, type Player, type Welcome, Weather, decodeFrame } from './protocol';
+import { type Me, Predictor, type World, Wrecks, tileBlocked } from './predict';
 import { Vision } from './vision';
 
 // Everything the client knows about the world: the current frame, and a short history of the
@@ -100,6 +101,27 @@ export class Game {
 
   private structSig = '';
 
+  // The page's own survivor walking with WASD is drawn where predict.ts has them now, not
+  // where the frames had them a delay ago; everything else stays interpolated.
+  predict = new Predictor();
+  // Whether the last interpolate() drew the hero predicted.
+  predicted = false;
+  private wrecks: Wrecks | null = null;
+  private meView: Me = {
+    x: 0, y: 0, stamina: 1, winded: false, slow: 0, buff: 0, buffLeft: 0, cur: 0, gear: [0, 0, 0, 0],
+    alive: false, stunned: false, held: false, airborne: false, aboard: false, art: 0,
+  };
+  private searched = (i: number) => this.cur.siteSearched(i);
+  private passable = (k: number) => k === K_GATE || !!this.welcome?.structs[k]?.floor;
+  private kindAt = (tx: number, ty: number) => { const s = this.structAtTile(tx, ty); return s >= 0 ? this.cur.sKind[s] : -1; };
+  // What is in the hero's way, as the host's CanStand sees it: terrain, structures but gates and
+  // traps, wrecks and standing pumps.
+  private walkWorld: World = {
+    blocked: (tx, ty) => tileBlocked(this.tiles, this.w, this.h, tx, ty, this.kindAt, this.passable),
+    wreck: (x, y) => this.wrecks?.at(x, y, this.searched) ?? false,
+    weather: 0, amt: 0,
+  };
+
   // Fog of war, when the host plays with it: creeps out of the team's sight are dropped from
   // each frame as it arrives, so nothing downstream shows them. hiddenAt[id] is the frame
   // serial a creep was last dropped on, which tells a creep walking into the dark from one
@@ -140,6 +162,15 @@ export class Game {
     this.indexById.fill(-1);
     this.cur.nCreeps = 0; this.cur.nStructs = 0; this.cur.nPlayers = 0; this.cur.nSites = 0;
     this.structSig = '';
+    this.predict.reset(w.tickRate);
+    this.predicted = false;
+    this.wrecks = new Wrecks(w.sites, w.w, w.h);
+  }
+
+  // onAck takes the host's ack of this page's commands.
+  onAck(m: AckMsg): void {
+    this.ack = m;
+    this.predict.ack(m.seq, m.tick);
   }
 
   setTerrain(t: Uint8Array): void {
@@ -234,6 +265,16 @@ export class Game {
     }
 
     this.updateStructGrid();
+    const me = this.me();
+    if (me) {
+      const v = this.meView;
+      v.x = me.x; v.y = me.y; v.stamina = me.stamina; v.winded = me.winded; v.slow = me.slow;
+      v.buff = me.buff; v.buffLeft = me.buffLeft; v.cur = me.cur; v.gear = me.gear;
+      v.alive = (me.flags & PF_ALIVE) !== 0; v.stunned = me.stunned; v.held = me.held; v.airborne = me.airborne;
+      v.aboard = me.aboard; v.art = me.art;
+      this.walkWorld.weather = f.weather; this.walkWorld.amt = f.weatherAmt;
+      this.predict.frame(f.tick, v, this.walkWorld, now);
+    }
     return f;
   }
 
@@ -414,6 +455,31 @@ export class Game {
       this.prx[id] = this.sx + this.pex[id];
       this.pry[id] = this.sy + this.pey[id];
       this.paim[id] = this.sampleAim(id * H, this.pSince[id], b) + this.pea[id];
+    }
+    this.drawMe(now);
+  }
+
+  // Puts the page's own survivor where prediction has them, easing over from the interpolated
+  // view when it starts, and back when it ends.
+  private drawMe(now: number): void {
+    const me = this.me();
+    if (!me) { this.predicted = false; return; }
+    const id = me.id, p = this.predict;
+    const lx = p.x, ly = p.y, la = p.aim;
+    if (p.draw(now)) {
+      if (!this.predicted) p.carry(this.prx[id] - p.x, this.pry[id] - p.y);
+      this.prx[id] = p.x; this.pry[id] = p.y;
+      // Shooting, the host turns the hero to the target; the frames say where.
+      if (!(me.flags & PF_FIRING)) this.paim[id] = p.aim;
+      this.predicted = true;
+    } else if (this.predicted) {
+      this.predicted = false;
+      if (!p.lost && Math.abs(lx - this.prx[id]) + Math.abs(ly - this.pry[id]) < 1.5) {
+        this.pex[id] += lx - this.prx[id]; this.pey[id] += ly - this.pry[id];
+        const da = la - this.paim[id];
+        this.pea[id] += Math.atan2(Math.sin(da), Math.cos(da));
+        this.prx[id] = lx; this.pry[id] = ly; this.paim[id] = la;
+      }
     }
   }
 
