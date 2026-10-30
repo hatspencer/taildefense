@@ -20,6 +20,12 @@ the evac Huey comes for the survivors and the game ends, or `endless`, which goe
 generator falls. `--waves` sets it for one run, and the launcher's `w` on Host a game cycles
 through them. A restart keeps it.
 
+`MODE` is the kind of game you host: `standard` (the default), or `blades`, a game with no guns.
+In a blades game everyone picks a crowbar, a katana or a greatsword when they join (and again
+after a restart); the armory sells no gun, and nothing out past the walls hands one over: the
+gas station gives a legendary blade instead. Turrets, traps and abilities are as ever. `--mode`
+sets it for one run, and the launcher's `m` on Host a game flips it. A restart keeps it.
+
 `FOG` is `off` by default. On, the games you host hide whatever the team cannot see, on any
 difficulty; at night (hard and brutal) that is always so.
 

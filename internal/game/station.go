@@ -217,15 +217,16 @@ func (w *World) stationPost(s *Site, j int) (float32, float32) {
 func (w *World) searchStation(p *Player, s *Site) {
 	var guns []WeaponKind
 	for k := WeaponKind(0); k < NumWeapons; k++ {
-		if !p.Weapons[k].Owned && k.Sold() {
+		if !p.Weapons[k].Owned && k.Sold() && w.allows(k) {
 			guns = append(guns, k)
 		}
 	}
 	slices.SortFunc(guns, func(a, b WeaponKind) int { return int(Weapons[b].Price - Weapons[a].Price) })
 	var got []string
 	tag := ""
-	// Now and then what is behind the counter is no gun at all, but a blade wrapped in oilcloth.
-	if w.legendFor(p) != NumWeapons && w.rng.Float32() < legendChance {
+	// Now and then what is behind the counter is no gun at all, but a blade wrapped in oilcloth;
+	// in a blades game, always when there is one to give.
+	if w.legendFor(p) != NumWeapons && (w.rng.Float32() < legendChance || w.Mode == ModeBlades) {
 		g, _ := w.giveLegend(p)
 		got = append(got, g)
 		tag = "  ·  legendary"

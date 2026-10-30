@@ -4,7 +4,7 @@ import {
   abs, exp, mrt, normalView, output, vec4, pow, sin, smoothstep, step, time, uniform, uv, vec3,
 } from 'three/tsl';
 import {
-  BlastKind, EffectKind, LOB_WINDUP, TRACER_ARC, TRACER_FLASH, TRACER_FOLLOW, TRACER_GREAT_ULT, TRACER_HELI, TRACER_KATANA,
+  BlastKind, EffectKind, LOB_WINDUP, TRACER_ARC, TRACER_FLASH, TRACER_FOLLOW, TRACER_HOMERUN, TRACER_HOMERUN_ROUND, TRACER_GREAT_ULT, TRACER_HELI, TRACER_KATANA,
   TRACER_KATANA_ULT, TRACER_MOON, TRACER_NAPALM, TRACER_SHARD, TRACER_ULT, Tile,
 } from '../protocol';
 import type { Game } from '../state';
@@ -240,6 +240,7 @@ export class Effects {
       }
       if (k === TRACER_ARC) { this.arcWeb(t, x0, 0.6, y0, x1, 0.6, y1); continue; }
       if (k >= TRACER_KATANA && k <= TRACER_FOLLOW) { this.legend(t, k, x0, y0, x1, y1, dist); continue; }
+      if (k === TRACER_HOMERUN || k === TRACER_HOMERUN_ROUND) { this.homeRun(t, k === TRACER_HOMERUN_ROUND, x0, y0, x1, y1, dist); continue; }
       if (k >= 32) {
         this.streaks.add(t, x0, 0.8, y0, x1, 0.9, y1, 0.35, 0x8cff3a, 0.2, 0, 0, 0.25, 1, 1.2);
         this.glow.add(t + 0.3, x1, 0.9, y1, 0, 0.5, 0, 0.25, 0x8cff3a, 0.6, 0.2);
@@ -461,6 +462,28 @@ export class Effects {
     for (let j = 0; j < 6; j++) {
       const b = j / 6 * 6.28;
       this.dust.add(tq, qx + Math.cos(b) * 0.5, 0.25, qy + Math.sin(b) * 0.5, Math.cos(b) * 3, 0.4, Math.sin(b) * 3, 0.8, 0x9a8a6c, 0.4, 1.2, 0, 1, 0.55);
+    }
+  }
+
+  // The crowbar's Home Run: one wide, flat smear of hot iron (all the way round for Bonebreaker),
+  // a white crack of a star where it connects, sparks spraying out the way it went and grit
+  // kicked off the ground along the arc.
+  private homeRun(t: number, round: boolean, x0: number, y0: number, x1: number, y1: number, dist: number): void {
+    const a = Math.atan2(y1 - y0, x1 - x0), half = round ? Math.PI : 1.35, r = dist * 0.85;
+    this.slashFlip = !this.slashFlip;
+    this.crescent(t, x0, y0, a, r, half, 0.85, 0.16, 0xfff4dc, 0.12, 1.8, this.slashFlip, round ? 0.12 : 0.07);
+    this.crescent(t, x0, y0, a, r * 0.9, half, 0.8, 0.26, 0xff8a2a, 0.36, 0.8, this.slashFlip, round ? 0.12 : 0.07);
+    const hx = x0 + Math.cos(a) * r, hy = y0 + Math.sin(a) * r, th = t + 0.05;
+    this.glow.add(th, hx, 0.9, hy, 0, 0, 0, 0.1, 0xffffff, 1.4, 0.4, 0, 1, 1, 1.3);
+    this.rings.add(th, hx, 0.9, hy, 0, 0, 0, 0.22, 0xfff0c0, 0.12, 1.6, 0, 1, 1, 1.2);
+    for (let j = 0; j < 14; j++) {
+      const b = a + (Math.random() - 0.5) * (round ? 6.28 : 1.6), sp = 4 + Math.random() * 5;
+      this.glow.add(th, hx, 0.9, hy, Math.cos(b) * sp, 1.5 + Math.random() * 3, Math.sin(b) * sp,
+        0.3 + Math.random() * 0.25, j % 3 ? 0xffc040 : 0xfff6d0, 0.07, 0.02, 14, 1, 1, 1.1);
+    }
+    for (let j = 0; j < 6; j++) {
+      const b = a + (Math.random() - 0.5) * half * 2;
+      this.dust.add(t + 0.06, x0 + Math.cos(b) * r, 0.2, y0 + Math.sin(b) * r, Math.cos(b) * 1.5, 0.5, Math.sin(b) * 1.5, 0.7, 0x8a7a5c, 0.3, 0.8, 0, 1, 0.5);
     }
   }
 

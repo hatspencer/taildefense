@@ -208,8 +208,8 @@ func (w *World) Cast(p *Player, slot int, x, y float32) error {
 	if w.Phase == PhaseOver {
 		return errOver
 	}
-	if slot == AbDash && p.Cur.Legendary() {
-		// A legendary in hand: F is its weapon art, not the dash.
+	if slot == AbDash && p.Cur.Evolves() {
+		// A legendary or the crowbar in hand: F is its weapon art, not the dash.
 		w.shooter = int8(p.ID)
 		defer func() { w.shooter = -1 }()
 		return w.art(p, x, y)

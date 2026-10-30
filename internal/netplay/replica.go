@@ -55,6 +55,7 @@ type PlayerView struct {
 	Look                                       uint32  // see game.dealLook
 	Sprinting, Winded, Goggles, Shielded       bool
 	Aboard                                     bool // got aboard the evac Huey
+	Picking                                    bool // a blades game's survivor yet to pick their blade
 	Stunned, Held, Airborne                    bool // stunned; in a creep's hands; thrown
 	Cur                                        game.WeaponKind
 	Ammo                                       uint16
@@ -528,6 +529,7 @@ func (r *Replica) header(d *dec) {
 		owned := d.u16()
 		p.Dual = owned&game.DualBit != 0
 		p.DualKatana = owned&game.DualKatanaBit != 0
+		p.Picking = owned&game.PickBit != 0
 		for k := 0; k < int(game.NumWeapons); k++ {
 			if owned&(1<<k) != 0 {
 				p.Owned[k] = true
@@ -537,7 +539,7 @@ func (r *Replica) header(d *dec) {
 			}
 		}
 		evo := d.u8()
-		p.Evo[game.WKatana], p.Evo[game.WGreat] = evo&3, evo>>2&3
+		p.Evo[game.WKatana], p.Evo[game.WGreat], p.Evo[game.WCrowbar] = evo&3, evo>>2&3, evo>>4&3
 		for g := range p.Gear {
 			p.Gear[g] = d.u8()
 		}

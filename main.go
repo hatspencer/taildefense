@@ -27,14 +27,14 @@ const usage = `td: co-op wave defense in your browser, over your tailnet
 
 usage:
   td                             the launcher: host, join, settings
-  td host [--port N] [--seed S] [--name NAME] [--difficulty D] [--waves W]
+  td host [--port N] [--seed S] [--name NAME] [--difficulty D] [--waves W] [--mode M]
                                  host a game and play it in the browser
   td join HOST[:PORT] [--name NAME]             join a friend's game in the browser
-  td serve [--port N] [--seed S] [--difficulty D] [--waves W]
+  td serve [--port N] [--seed S] [--difficulty D] [--waves W] [--mode M]
                                  a dedicated game with no player of its own, until ctrl+c
   td ls [--json] [--port N]      the games on your tailnet
   td doctor                      check tailscale, the browser and what updates need
-  td config [KEY [VALUE]]        show, read or set name, port, difficulty, fog, waves, volume,
+  td config [KEY [VALUE]]        show, read or set name, port, difficulty, fog, waves, mode,
                                  browser, autoupdate
                                  (td config KEY --reset returns one to its default)
   td frame [--width W] [--height H] [--view menu|join|settings|changelog|doctor|help|splash] [--at S]
@@ -53,6 +53,9 @@ flags:
                    (or TAILDEFENSE_DIFFICULTY, td config difficulty)
   --waves W        20, 30, 40 (the default) or endless: the wave whose end calls the evac
                    in games you host (or TAILDEFENSE_WAVES, td config waves)
+  --mode M         standard (the default), or blades: no guns, and everyone picks a
+                   crowbar, katana or greatsword to start with, in games you host
+                   (or TAILDEFENSE_MODE, td config mode)
   --no-browser     print the game's URL instead of opening it (td config browser none)
   --seed S         the map seed when hosting; 0 picks one
   --theme NAME     colour theme for the launcher and output (or TAILDEFENSE_THEME)
@@ -66,14 +69,14 @@ update flags:
 `
 
 type opts struct {
-	json, force, offline, noAnim, noColor bool
-	noSplash                              bool
-	at                                    float64
-	launcherFrame, noBrowser              bool
-	port, width, height                   int
-	wave, seconds, players                int
-	seed                                  uint64
-	name, theme, view, difficulty, waves  string
+	json, force, offline, noAnim, noColor      bool
+	noSplash                                   bool
+	at                                         float64
+	launcherFrame, noBrowser                   bool
+	port, width, height                        int
+	wave, seconds, players                     int
+	seed                                       uint64
+	name, theme, view, difficulty, waves, mode string
 }
 
 func main() {
@@ -118,6 +121,7 @@ func run(args []string) int {
 	fs.StringVar(&o.name, "name", "", "")
 	fs.StringVar(&o.difficulty, "difficulty", "", "")
 	fs.StringVar(&o.waves, "waves", "", "")
+	fs.StringVar(&o.mode, "mode", "", "")
 	fs.StringVar(&o.theme, "theme", os.Getenv("TAILDEFENSE_THEME"), "")
 	fs.StringVar(&o.view, "view", tui.FrameMenu, "")
 
@@ -176,7 +180,7 @@ func run(args []string) int {
 			return 2
 		}
 	}
-	for flagName, key := range map[string]string{"port": config.KeyPort, "name": config.KeyName, "difficulty": config.KeyDifficulty, "waves": config.KeyWaves} {
+	for flagName, key := range map[string]string{"port": config.KeyPort, "name": config.KeyName, "difficulty": config.KeyDifficulty, "waves": config.KeyWaves, "mode": config.KeyMode} {
 		if set[flagName] {
 			if err := prefs.Override(key, fs.Lookup(flagName).Value.String()); err != nil {
 				ui.Errorf("%v", err)
@@ -211,7 +215,7 @@ func run(args []string) int {
 			p.Warn("%s", news)
 			p.Detail("%s", how)
 		}
-		return cli.Serve(os.Stdout, cli.HostOptions{Port: prefs.Port(), Seed: o.seed, Diff: prefs.Difficulty(), Fog: prefs.Fog(), Waves: prefs.Waves(), Name: prefs.Name(), Version: version.Current()})
+		return cli.Serve(os.Stdout, cli.HostOptions{Port: prefs.Port(), Seed: o.seed, Diff: prefs.Difficulty(), Fog: prefs.Fog(), Waves: prefs.Waves(), Mode: prefs.Mode(), Name: prefs.Name(), Version: version.Current()})
 	case "ls":
 		if o.json {
 			ui.SetJSON(true)
@@ -338,7 +342,7 @@ func play(p *ui.Printer, prefs *config.Prefs, o web.Options) (web.Result, error)
 // when the player leaves: a game hosted from a laptop lasts as long as its host plays.
 func hostAndPlay(p *ui.Printer, prefs *config.Prefs, seed uint64) (web.Result, error) {
 	srv, plan, err := cli.StartHost(context.Background(), cli.HostOptions{
-		Port: prefs.Port(), Seed: seed, Diff: prefs.Difficulty(), Fog: prefs.Fog(), Waves: prefs.Waves(), Name: prefs.Name(), Version: version.Current(),
+		Port: prefs.Port(), Seed: seed, Diff: prefs.Difficulty(), Fog: prefs.Fog(), Waves: prefs.Waves(), Mode: prefs.Mode(), Name: prefs.Name(), Version: version.Current(),
 	}, nil)
 	for _, n := range plan.Notes {
 		p.Warn("%s", n)

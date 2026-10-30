@@ -169,6 +169,9 @@ func (w *World) actPickup(p *Player, o *Order, walk func() bool) bool {
 // or a pistol or a katana to pair with theirs.
 func (w *World) canTake(p *Player, k WeaponKind) bool {
 	ws := &p.Weapons[k]
+	if !w.allows(k) {
+		return false
+	}
 	return !ws.Owned || (k == WPistol || k == WKatana) && !ws.Dual
 }
 

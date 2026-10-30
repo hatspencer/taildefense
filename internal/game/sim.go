@@ -905,9 +905,16 @@ func (w *World) shoot(p *Player, st Stats, ang float32) {
 			w.swingLegend(p, st, ang, ult)
 			break
 		}
-		hits := w.melee(owner, p.X, p.Y, ang, st.Range, st.Spread, st.Damage, kind, st.Hits, 1)
+		stun := float32(1)
+		if p.Cur == WCrowbar && p.evo(WCrowbar) == 1 {
+			stun = boneStun // Bonebreaker
+		}
+		hits := w.melee(owner, p.X, p.Y, ang, st.Range, st.Spread, st.Damage, kind, st.Hits, stun)
 		if ult && p.Cur == WCrowbar {
 			p.HP = min(p.MaxHP, p.HP+float32(len(hits))*st.Damage*berserkLeech)
+		}
+		if p.Cur == WCrowbar {
+			w.swingCrowbar(p, hits)
 		}
 	case FireRocket:
 		a := ang + (w.rng.Float32()*2-1)*st.Spread

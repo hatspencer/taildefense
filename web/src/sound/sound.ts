@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import {
   BlastKind, CF_ASLEEP, CF_WINDUP, MAX_CREEPS, CF_STRIKE, EffectKind, Phase, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_FIRING, PF_HURT,
-  PF_RELOADING, PingKind, TRACER_ARC, TRACER_FOLLOW, TRACER_HELI, TRACER_KATANA, TRACER_MOON, TRACER_NAPALM, TRACER_SHARD, TRACER_ULT, type Player, TURRET_TRACKS, WET, Weather,
+  PF_RELOADING, PingKind, TRACER_ARC, TRACER_FOLLOW, TRACER_HELI, TRACER_HOMERUN, TRACER_HOMERUN_ROUND, TRACER_KATANA, TRACER_MOON, TRACER_NAPALM, TRACER_SHARD, TRACER_ULT, type Player, TURRET_TRACKS, WET, Weather,
 } from '../protocol';
 import { K_CANNON, K_CORE, K_GUN, K_MISSILE, K_SNIPER, K_TESLA } from '../scene/structs';
 import type { Game } from '../state';
@@ -27,7 +27,7 @@ const TURRET: Record<number, string> = { [K_GUN]: 'turretGun', [K_CANNON]: 'cann
 // How loud each is at the listener, and how many of it one tick may play.
 const LOUD: Record<string, number> = {
   pistol: 0.9, shotgun: 0.87, smg: 0.6, rifle: 1.15, railgun: 1.15, minigun: 0.7, rocket: 0.8, missile: 0.65, crowbar: 0.7,
-  katana: 0.7, moonCut: 0.6, greatsword: 0.85, followThrough: 0.95, flashDraw: 0.95,
+  katana: 0.7, moonCut: 0.6, greatsword: 0.85, followThrough: 0.95, flashDraw: 0.95, homeRun: 0.95,
   turretGun: 0.5, cannon: 0.95, tesla: 0.45, sniper: 0.95, pod: 0.7, doorGun: 0.7,
   spit: 0.5, boneThrow: 0.5, boneLand: 0.45, dash: 0.6,
   gatling: 0.45, penetrator: 0.55, mortar: 0.9, antiMat: 1,
@@ -281,6 +281,7 @@ export class Sound {
       if (k === TRACER_HELI) add('doorGun', x0, y0);
       else if (k === TRACER_SHARD) { add('boneThrow', x0, y0); add('boneLand', x1, y1, 0.2 + Math.hypot(x1 - x0, y1 - y0) * 0.01); }
       else if (k === 33) add('dash', x0, y0);
+      else if (k === TRACER_HOMERUN || k === TRACER_HOMERUN_ROUND) add('homeRun', x0, y0, undefined, alive && Math.abs(x0 - me!.x) < 1.2 && Math.abs(y0 - me!.y) < 1.2);
       else if (k >= TRACER_KATANA && k <= TRACER_FOLLOW) {
         const mine = alive && Math.abs(x0 - me!.x) < 1.2 && Math.abs(y0 - me!.y) < 1.2;
         add(LEGEND[k - TRACER_KATANA], x0, y0, undefined, mine && k !== TRACER_MOON);

@@ -36,6 +36,7 @@ type Info struct {
 	Max     int      `json:"max"`
 	Wave    int      `json:"wave"`
 	Diff    string   `json:"difficulty,omitempty"`
+	Mode    string   `json:"mode,omitempty"`
 	Phase   string   `json:"phase"`
 	Creeps  int      `json:"creeps"`
 	Started int64    `json:"started"`
@@ -47,7 +48,8 @@ type ServerConfig struct {
 	Seed       uint64
 	Difficulty game.Difficulty
 	FogOfWar   bool
-	LastWave   int // the wave that ends the game with the evac; 0 endless
+	Mode       game.Mode // standard, or blades: no guns
+	LastWave   int       // the wave that ends the game with the evac; 0 endless
 	Version    string
 	Host       string // this machine's name, for the join list
 	Owner      string // the hosting login
@@ -114,6 +116,7 @@ func Listen(cfg ServerConfig) (*Server, error) {
 		started: time.Now(),
 	}
 	s.world.FogOfWar = cfg.FogOfWar
+	s.world.Mode = cfg.Mode
 	s.world.LastWave = cfg.LastWave
 	for _, a := range cfg.Addrs {
 		ln, err := net.Listen("tcp", a)
@@ -377,6 +380,7 @@ func (s *Server) welcome(p *peer) outMsg {
 	b.u32(uint32(w.Seed >> 32))
 	b.u8(uint8(w.Diff))
 	b.flag(w.FogOfWar)
+	b.u8(uint8(w.Mode))
 	b.u8(uint8(w.LastWave))
 	b.u16(qpos(w.PadX))
 	b.u16(qpos(w.PadY))
@@ -577,6 +581,8 @@ func Exec(w *game.World, pl *game.Player, c Cmd) (string, error) {
 		err = w.Overload(pl)
 	case OpEvolveWeapon:
 		err = w.EvolveWeapon(pl, game.WeaponKind(c.A), c.B)
+	case OpPickBlade:
+		err = w.PickBlade(pl, game.WeaponKind(c.A))
 	case OpDropWeapon:
 		err = w.DropWeapon(pl, game.WeaponKind(c.A))
 	case OpPickup:
@@ -677,7 +683,7 @@ func (s *Server) publishInfo() {
 		}
 	}
 	s.info.Store(&Info{Proto: Proto, Version: s.cfg.Version, Host: s.cfg.Host, Owner: s.cfg.Owner, Players: names,
-		Max: game.MaxPlayers, Wave: w.Wave, Diff: w.Diff.String(), Phase: w.Phase.String(), Creeps: len(w.Creeps), Started: s.started.Unix()})
+		Max: game.MaxPlayers, Wave: w.Wave, Diff: w.Diff.String(), Mode: w.Mode.String(), Phase: w.Phase.String(), Creeps: len(w.Creeps), Started: s.started.Unix()})
 }
 
 // Ops a client can ask for.
@@ -722,6 +728,7 @@ const (
 	OpEvolve // T structure index, A branch 1 or 2
 	OpOverload
 	OpEvolveWeapon // A a legendary's weapon kind, B branch 1 or 2
+	OpPickBlade    // A the weapon kind a blades game's survivor starts with
 )
 
 // Cmd is a discrete request from a player. X and Y are tiles, sent to 1/8; T names a creep
