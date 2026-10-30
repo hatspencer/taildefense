@@ -81,6 +81,10 @@ type Server struct {
 	wg      sync.WaitGroup
 	started time.Time
 	once    sync.Once
+	// When the last tick ran, the time between ticks, and when the players were last sent
+	// their stats.
+	lastTick, lastStats time.Time
+	tickGap             Window
 }
 
 type outMsg struct {
@@ -97,6 +101,14 @@ type peer struct {
 	needKey bool
 	gone    bool       // left; its out channel is closed
 	result  chan error // the join's answer
+	// The last command applied and whether it is yet to be acked.
+	seq      uint16
+	seqDirty bool
+	// For the player's stats: frames dropped and keyframes sent to catch up after them, a drop
+	// still to be made good, and the deepest the out queue got since the last stats.
+	dropped, resyncs uint32
+	dropKey          bool
+	qMax             int
 }
 
 type cmdMsg struct {
@@ -121,8 +133,10 @@ func Listen(cfg ServerConfig) (*Server, error) {
 		echoCh:  make(chan cmdMsg, 16),
 		done:    make(chan struct{}),
 		started: time.Now(),
+		tickGap: Window{Span: 10 * time.Second},
 	}
 	s.world.FogOfWar = cfg.FogOfWar
+	s.lastStats = s.started // the first stats once there are 2 s of ticks to tell of
 	s.world.Mode = cfg.Mode
 	s.world.LastWave = cfg.LastWave
 	for _, a := range cfg.Addrs {
@@ -495,6 +509,8 @@ func (s *Server) command(p *peer, c Cmd) {
 	if p.gone {
 		return
 	}
+	// Applied, refused or not: either way the next frame is the answer to it.
+	p.seq, p.seqDirty = c.Seq, true
 	w, pl := s.world, p.player
 	w.Touch(pl)
 	var msg string
@@ -674,6 +690,7 @@ func (s *Server) restart() {
 	for _, p := range s.peers {
 		p.player = nw.Players[p.player.ID]
 		p.needKey = true
+		p.dropKey = false // the keyframe now is for the new map, not a catch-up
 		select {
 		case p.out <- s.welcome(p):
 		default:
@@ -688,6 +705,11 @@ func (s *Server) restart() {
 }
 
 func (s *Server) tick() {
+	now := time.Now()
+	if !s.lastTick.IsZero() {
+		s.tickGap.Add(now, float64(now.Sub(s.lastTick))/float64(time.Millisecond))
+	}
+	s.lastTick = now
 	s.playBots()
 	w := s.world
 	w.Step()
@@ -702,14 +724,15 @@ func (s *Server) tick() {
 		}
 	}
 	delta := s.enc.Delta(w, w.AtArmory)
-	var shared, key []byte
+	var shared, keyFrame []byte
 	for _, p := range s.peers {
 		var m outMsg
-		if p.needKey {
-			if key == nil {
-				key = append([]byte(nil), s.enc.Key(w, w.AtArmory)...)
+		key := p.needKey
+		if key {
+			if keyFrame == nil {
+				keyFrame = append([]byte(nil), s.enc.Key(w, w.AtArmory)...)
 			}
-			m = outMsg{MsgFrame, key}
+			m = outMsg{MsgFrame, keyFrame}
 		} else {
 			if shared == nil {
 				shared = append([]byte(nil), delta...)
@@ -719,13 +742,48 @@ func (s *Server) tick() {
 		select {
 		case p.out <- m:
 			p.needKey = false
+			if key && p.dropKey {
+				p.resyncs++
+				p.dropKey = false
+			}
+			// Behind its frame, so the ack never reaches the client before what it acks.
+			if p.seqDirty {
+				select {
+				case p.out <- outMsg{MsgAck, Ack{Seq: p.seq, Tick: uint32(w.Tick)}.encode()}:
+					p.seqDirty = false
+				default:
+				}
+			}
 		default:
-			// The client is behind: drop frames until its queue drains, then resync.
+			// The client is behind: drop frames until its queue drains, then resync. An ack
+			// waits for a frame that gets through.
 			p.needKey = true
+			p.dropKey = true
+			p.dropped++
 		}
+		p.qMax = max(p.qMax, len(p.out))
+	}
+	if now.Sub(s.lastStats) >= 2*time.Second {
+		s.sendStats(now)
 	}
 	if w.Tick%game.TickRate == 0 {
 		s.publishInfo()
+	}
+}
+
+// sendStats tells each player how the host's link to them is doing; see Stats.
+func (s *Server) sendStats(now time.Time) {
+	s.lastStats = now
+	q, _ := s.tickGap.Quantiles(now, 0.5, 0.99, 1)
+	tenths := func(ms float64) uint16 { return uint16(min(max(math.Round(ms*10), 0), 65535)) }
+	for _, p := range s.peers {
+		st := Stats{Dropped: p.dropped, Resyncs: p.resyncs, QMax: uint8(min(p.qMax, 255)), QCap: uint8(min(cap(p.out), 255)),
+			TickP50: tenths(q[0]), TickP99: tenths(q[1]), TickMax: tenths(q[2])}
+		select {
+		case p.out <- outMsg{MsgStats, st.encode()}:
+			p.qMax = 0
+		default:
+		}
 	}
 }
 
@@ -787,12 +845,14 @@ const (
 )
 
 // Cmd is a discrete request from a player. X and Y are tiles, sent to 1/8; T names a creep
-// or a structure.
+// or a structure. Seq counts a client's commands, wrapping; the host acks the last one it
+// applied (MsgAck), so a client can tell which of its orders a frame already shows.
 type Cmd struct {
 	Op, A, B uint8
 	X, Y     float32
 	T        uint16
 	Text     string
+	Seq      uint16
 }
 
 func (c Cmd) encode() []byte {
@@ -804,12 +864,13 @@ func (c Cmd) encode() []byte {
 	b.u16(qpos(c.Y))
 	b.u16(c.T)
 	b.str(c.Text)
+	b.u16(c.Seq)
 	return b.b
 }
 
 func decodeCmd(p []byte) (Cmd, error) {
 	d := &dec{b: p}
-	c := Cmd{Op: d.u8(), A: d.u8(), B: d.u8(), X: unq(d.u16()), Y: unq(d.u16()), T: d.u16(), Text: d.str()}
+	c := Cmd{Op: d.u8(), A: d.u8(), B: d.u8(), X: unq(d.u16()), Y: unq(d.u16()), T: d.u16(), Text: d.str(), Seq: d.u16()}
 	return c, d.err
 }
 
