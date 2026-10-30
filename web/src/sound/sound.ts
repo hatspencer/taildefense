@@ -42,9 +42,9 @@ const CROWD0 = 6, CROWD1 = 30;
 // Creep kinds that throw rather than strike: their blows are tracers.
 const THROWS = new Set([4, 6]);
 const BIG = new Set([3, 5, 7, 9, 10]);
-// A tick, in seconds: the events of one frame are spread over it so fast fire is a stream,
-// not a burst twenty times a second.
-const TICK = 0.05;
+// A tick, in seconds, set from the welcome's tick rate on every frame: the events of one frame
+// are spread over it so fast fire is a stream, not a burst every tick.
+let TICK = 0.05;
 const AHEAD = 0.03;
 // Footsteps: how loud a survivor's, a creep's and a big one's are, and how many of the dead
 // may step in one tick. Steps are the first sounds let go when many are playing.
@@ -282,6 +282,7 @@ export class Sound {
   onFrame(game: Game): void {
     const wd = game.welcome;
     if (!wd) return;
+    TICK = 1 / (wd.tickRate || 20);
     const f = game.cur;
     this.cues.onFrame(game);
     this.cues.level(this.music.level);
