@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net"
 	"net/netip"
+	"os"
 	"time"
 
 	"taildefense/internal/game"
@@ -17,6 +18,12 @@ const udpTimeout = 1500 * time.Millisecond
 
 // udpHistory is how many deltas before its own a unit may repeat.
 const udpHistory = 2
+
+// udpKeyFrags is the most datagrams a keyframe goes over UDP in; a bigger one goes over TCP.
+const udpKeyFrags = 8
+
+// udpWriteWait is the longest the tick loop waits on a player's UDP socket in a tick.
+const udpWriteWait = 5 * time.Millisecond
 
 // udpIn is a datagram a host's UDP socket read, for the tick loop.
 type udpIn struct {
@@ -64,6 +71,11 @@ func (s *Server) udpLoop(i int, pc *net.UDPConn) {
 		if !ok || (m.typ != dgHello && m.typ != dgAck) {
 			continue
 		}
+		// A token never given out is dropped here, so a flood of strangers' datagrams cannot
+		// crowd the players' out of udpCh.
+		if _, known := s.toks.Load(m.token); !known {
+			continue
+		}
 		// The tick loop may be busy; a datagram dropped here is like one lost on the way.
 		select {
 		case s.udpCh <- udpIn{i, from, m}:
@@ -84,6 +96,7 @@ func (s *Server) offerUDP(p *peer) {
 		p.udpTok = binary.LittleEndian.Uint64(t[:])
 	}
 	s.byTok[p.udpTok] = p
+	s.toks.Store(p.udpTok, struct{}{})
 	p.seqFrames = true
 	o := udpOffer{Port: uint16(pc.LocalAddr().(*net.UDPAddr).Port), Token: p.udpTok, Epoch: s.epoch}
 	p.out <- outMsg{MsgUDP, o.encode()}
@@ -118,7 +131,7 @@ func (s *Server) udpDatagram(in udpIn, now time.Time) {
 			_, _ = s.udps[p.ln].WriteToUDPAddrPort(helloDatagram(dgHelloAck, p.udpTok), in.from)
 		}
 	case dgAck:
-		if !p.udpOn || in.from != p.udpAddr {
+		if !p.udpOn || in.sock != p.ln || in.from != p.udpAddr {
 			return
 		}
 		p.udpAck = now
@@ -186,7 +199,12 @@ func (u *udpFrames) deltaDgs() [][]byte {
 	cur := seqFrame{u.seq, u.delta()}
 	frames := []seqFrame{cur}
 	best := s.packer.pack(frames)
+	// Repeats may fill out a lone datagram or double it; a unit already in pieces takes them
+	// only while they add no piece, since every piece is another chance to lose the unit.
 	budget := max(fragData, 2*len(best))
+	if n := (len(best) + fragData - 1) / fragData; n > 1 {
+		budget = min(2*len(best), n*fragData)
+	}
 	for i := len(s.hist) - 1; i >= 0; i-- {
 		h := s.hist[i]
 		if h.seq != frames[0].seq-1 {
@@ -216,10 +234,13 @@ func (s *Server) sendUDP(p *peer, dgs [][]byte) bool {
 		return false
 	}
 	pc := s.udps[p.ln]
+	// The tick loop must not wait on a socket: past the deadline the rest of the frame is
+	// lost, which the client recovers from as from any other loss.
+	_ = pc.SetWriteDeadline(time.Now().Add(udpWriteWait))
 	for _, dg := range dgs {
-		// A full socket buffer loses the datagram, which the client recovers from as from
-		// any other loss.
-		_, _ = pc.WriteToUDPAddrPort(dg, p.udpAddr)
+		if _, err := pc.WriteToUDPAddrPort(dg, p.udpAddr); errors.Is(err, os.ErrDeadlineExceeded) {
+			break
+		}
 	}
 	return true
 }
