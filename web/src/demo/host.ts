@@ -10,10 +10,12 @@ import {
 } from '../protocol';
 import { ABILITY_RADIUS, CREEPS, DEMO_TICK_RATE, STRUCTS, WEAPON_BASE, WEATHERS, demoWelcome, turretStats } from './defs';
 import { Writer } from './encode';
+import { type Blocker, Wrecks, move, stamina, steerAngle, steerTurns, stride, tileBlocked } from '../predict';
 import { type DemoMap, generateMap, rng } from './map';
 
 // weather: a fixed kind, or -1 to cycle. down: a teammate starts downed. coreHp: the generator's share of hp.
-export interface DemoOptions { creeps: number; phase: 'wave' | 'build' | 'over'; wave: number; gold: number; weather?: number; down?: boolean; coreHp?: number; drop?: boolean; fog?: boolean; evac?: boolean }
+// lag: a round trip in ms, half each way, laid on commands, frames and acks, to see prediction at work.
+export interface DemoOptions { creeps: number; phase: 'wave' | 'build' | 'over'; wave: number; gold: number; weather?: number; down?: boolean; coreHp?: number; drop?: boolean; fog?: boolean; evac?: boolean; lag?: number }
 
 // How much each weather counts as rain, as the host's wetness.
 const SNOWY = [0, 0, 0, 0, 0.4, 0, 0, 1];
@@ -35,7 +37,7 @@ const LOB_EVERY = 4.5 * DEMO_TICK_RATE, LOB_MIN = 4, LOB_MAX = 16;
 const boss = (k: number) => k === 5 || k === 7;
 
 // A tick in seconds and in ms.
-const W = 320, H = 200, DT = 1 / DEMO_TICK_RATE, TICK_MS = 1000 / DEMO_TICK_RATE;
+const W = 320, H = 200, DT = 1 / DEMO_TICK_RATE, TICK_MS = 1000 / DEMO_TICK_RATE, DTF = Math.fround(DT);
 // The helipad and the evac Huey's timing, as internal/game/evac.go has them.
 const EVAC = { half: 3, reach: 4, board: 1, inbound: 60, flight: 16, settle: 3, wait: 90, last: 30, depart: 10, climb: 2.5 };
 // Seconds picking up a dropped weapon takes: the host's gunPickup.
@@ -49,7 +51,9 @@ interface DPlayer {
   buildKind: number; repairId: number; buff: number; buffLeft: number; ult: number; abLevel: number[]; abCool: number[];
   ready: boolean; fireCd: number; shot: number; hurt: number; harm: number; moving: boolean; wander: number;
   site: number; searchT: number; revTarget: number; channel: number; emoteLeft: number; tauntCool: number; downT: number; look: number;
-  medkits: number; heal: number; steerX: number; steerY: number; steerLeft: number;
+  medkits: number; heal: number; steerTurns: number; steerLeft: number;
+  // Sprint held, and the stamina it spends, as noise.go has them.
+  sprint: boolean; stamina: number; winded: boolean;
   gunId: number; // Order.Pickup: the weapon on the ground's id
   aboard?: boolean; // on the evac Huey
   boardT?: number; // Order.Board: seconds spent climbing in
@@ -71,6 +75,19 @@ export class DemoHost implements Transport {
   private ring: { x0: number; y0: number; x1: number; y1: number };
   private timer = 0;
   private statusTimer = 0;
+  // #demo&lag=ms: what is on its way each way; the last numbered command applied, to ack.
+  private lag = 0;
+  private inbox: { at: number; cmd: Command }[] = [];
+  private outbox: { at: number; msg: ArrayBuffer | string }[] = [];
+  private appliedSeq = 0; private seqDirty = false;
+  // What a survivor walks round, as the host's CanStand: terrain, structures but gates and
+  // traps, wrecks and standing pumps.
+  private wrecks: Wrecks | null = null;
+  private blocker: Blocker = {
+    blocked: (tx, ty) => tileBlocked(this.tiles, W, H, tx, ty, (x, y) => { const s = this.occ[y * W + x]; return s > 0 ? this.structs[s - 1].kind : -1; },
+      (k) => k === 4 || !!this.welcome.structs[k]?.floor),
+    wreck: (x, y) => this.wrecks?.at(x, y, (i) => this.searched[i] === 1) ?? false,
+  };
   private tick = 0;
   private phase = Phase.Wave;
   private wave = 7;
@@ -153,6 +170,8 @@ export class DemoHost implements Transport {
     this.sites = this.placeSites(m);
     this.welcome.sites = this.sites;
     this.welcome.fogOfWar = !!opt.fog;
+    this.lag = Math.max(0, opt.lag ?? 0);
+    this.wrecks = new Wrecks(this.sites, W, H);
     if (opt.evac) this.placePad();
     this.reset();
     h.onConn('connecting');
@@ -181,8 +200,20 @@ export class DemoHost implements Transport {
     if (!this.timer) return;
     const now = performance.now();
     let n = 0;
-    while (now - this.clock >= TICK_MS && n++ < 4) { this.clock += TICK_MS; this.step(); }
+    while (now - this.clock >= TICK_MS && n++ < 4) {
+      this.clock += TICK_MS;
+      // Commands that have arrived by this tick go in before it, as on the host.
+      while (this.inbox.length && this.inbox[0].at <= this.clock) this.apply(this.inbox.shift()!.cmd);
+      this.step();
+    }
     if (now - this.clock > 200) this.clock = now;
+    while (this.outbox.length && this.outbox[0].at <= now) dispatch(this.h, this.outbox.shift()!.msg);
+  }
+
+  // A frame or an ack to the page, half a round trip later with lag.
+  private deliver(msg: ArrayBuffer | string): void {
+    if (this.lag > 0) this.outbox.push({ at: this.clock + this.lag / 2, msg });
+    else dispatch(this.h, msg);
   }
 
   private reset(): void {
@@ -259,7 +290,7 @@ export class DemoHost implements Transport {
       gold: 400 + id * 150, kills: 40 + id * 17, damage: 9000 + id * 2100, owned: 1 | (1 << cur),
       levels: new Uint8Array(WEAPON_SLOTS * 4), gear: new Uint8Array(4), order: Order.Idle, tx: x, ty: y, target: -1, buildKind: 0,
       repairId: -1, buff: 0, buffLeft: 0, ult: 0, abLevel: [1, 0, 0, 0], abCool: [0, 0, 0, 0], ready: bot, fireCd: 0, shot: 0, hurt: 0, harm: 0,
-      moving: false, wander: 2 + id, site: -1, searchT: 0, revTarget: -1, channel: 0, emoteLeft: 0, tauntCool: 0, downT: 0, medkits: 1, heal: 0, steerX: 0, steerY: 0, steerLeft: 0, gunId: 0, st: [0, 0, 0, 0, 0, 0],
+      moving: false, wander: 2 + id, site: -1, searchT: 0, revTarget: -1, channel: 0, emoteLeft: 0, tauntCool: 0, downT: 0, medkits: 1, heal: 0, steerTurns: 0, steerLeft: 0, sprint: false, stamina: 1, winded: false, gunId: 0, st: [0, 0, 0, 0, 0, 0],
       // A random survivor, a different outfit for each.
       look: ((Math.floor(this.rnd() * 0x10000000) << 4) | (id * 3 % 10)) >>> 0,
     };
@@ -891,11 +922,18 @@ export class DemoHost implements Transport {
       case Order.Move:
         if (this.walk(p, p.tx, p.ty, 0.15)) p.order = Order.Idle;
         break;
-      case Order.Steer:
-        // A steer lapses unless the client repeats it, as on the host.
-        if ((p.steerLeft -= DT) <= 0) { p.order = Order.Idle; break; }
-        this.walk(p, p.x + p.steerX * 2, p.y + p.steerY * 2, 0);
+      case Order.Steer: {
+        // A steer lapses unless the client repeats it, and walks as on the host, with the
+        // same code the page predicts its own walk with (predict.ts), so they agree.
+        if ((p.steerLeft = Math.fround(p.steerLeft - DTF)) <= 0) { p.order = Order.Idle; break; }
+        const s = stride({ boots: p.gear[1], weather: this.weather, amt: this.weatherAmt, sprinting: p.sprint && !p.winded, slowed: false,
+          marking: p.buffLeft > 0 && p.buff === 1, smgUlt: p.buffLeft > 0 && p.buff === 3 && p.cur === 2 }, DTF);
+        const a = steerAngle(p.steerTurns), x = Math.fround(p.x), y = Math.fround(p.y), to = { x: 0, y: 0 };
+        move(this.blocker, x, y, Math.fround(Math.fround(Math.cos(a)) * s), Math.fround(Math.fround(Math.sin(a)) * s), to);
+        p.moving = to.x !== x || to.y !== y;
+        p.x = to.x; p.y = to.y; p.aim = a;
         break;
+      }
       case Order.Attack:
         if (!this.cAlive[p.target]) { p.order = Order.Idle; break; }
         if (Math.hypot(this.cX[p.target] - p.x, this.cY[p.target] - p.y) > w.range * 0.95) this.walk(p, this.cX[p.target], this.cY[p.target], 0);
@@ -960,6 +998,9 @@ export class DemoHost implements Transport {
     if (p.order === Order.AMove) {
       if (target < 0 && this.walk(p, p.tx, p.ty, 0.2)) p.order = Order.Idle;
     }
+    const sm = { stamina: 0, winded: false };
+    stamina(p.stamina, p.winded, p.sprint && !p.winded, p.moving, p.buffLeft > 0 && p.buff === 3 && p.cur === 2, DTF, sm);
+    p.stamina = sm.stamina; p.winded = sm.winded;
     if (p.reloadLeft > 0) {
       p.reloadLeft -= DT;
       if (p.reloadLeft <= 0) { p.reloadLeft = 0; p.ammo = this.mag(p); }
@@ -1309,7 +1350,11 @@ export class DemoHost implements Transport {
       this.stepEffects();
       this.stepCrates();
     }
-    dispatch(this.h, this.encode());
+    this.deliver(this.encode());
+    if (this.seqDirty) {
+      this.seqDirty = false;
+      this.deliver(JSON.stringify({ t: 'ack', wire: this.appliedSeq, tick: this.tick, seq: this.appliedSeq }));
+    }
     this.notes.length = 0; this.pings.length = 0;
     if (--this.statusTimer <= 0) {
       this.statusTimer = 40;
@@ -1358,12 +1403,13 @@ export class DemoHost implements Transport {
       if (!alive) for (const o of this.players) if (o.order === Order.Revive && o.revTarget === p.id) rev = Math.max(rev, o.channel);
       w.u8(Math.min(255, rev * 255));
       w.u8(p.emoteLeft > 0 ? Emote.Taunt : Emote.None); w.u8(Math.ceil(p.emoteLeft * 10)); w.u16(Math.ceil(p.tauntCool * 10));
-      w.u8(255); w.u8(p.aboard ? 32 : 0); w.u32(p.look);
+      w.u8(p.stamina * 255); w.u8((p.sprint && !p.winded && p.moving ? 1 : 0) | (p.winded ? 2 : 0) | (p.aboard ? 32 : 0)); w.u32(p.look);
       w.u8(p.buffLeft > 0 ? p.buff : 0); w.u8(Math.max(0, p.buffLeft * 10)); w.u8(Math.min(255, p.ult * 255));
       for (let a = 0; a < 4; a++) { w.u8(p.abLevel[a]); w.u16(p.abCool[a] * 10); }
       w.u8(p.medkits); w.u8(Math.ceil(p.heal * 10));
       w.u16(p.reloadLeft > 0 ? 1 << p.cur : 0);
       w.u8(0); w.u8(0); w.u16(0); // no legendary swings, art or its cooldown
+      w.u8(0); // never slowed
       for (let k = 0; k < 5; k++) w.u16(p.st[k]);
       w.u32(p.st[5]); w.u32(0);
       w.str8(p.name);
@@ -1427,7 +1473,15 @@ export class DemoHost implements Transport {
 
   // --- commands ---
 
+  // The page's commands: numbered ones are acked behind the next frame, as the host does;
+  // with lag they arrive half a round trip late.
   send(cmd: Command): void {
+    if (this.lag > 0 && cmd.op !== 'leave') this.inbox.push({ at: performance.now() + this.lag / 2, cmd });
+    else this.apply(cmd);
+  }
+
+  private apply(cmd: Command): void {
+    if (cmd.seq !== undefined) { this.appliedSeq = cmd.seq; this.seqDirty = true; }
     const p = this.players[0];
     const wd = this.welcome;
     switch (cmd.op) {
@@ -1438,8 +1492,9 @@ export class DemoHost implements Transport {
       case 'steer':
         if (!cmd.on) { if (p.order === Order.Steer) p.order = Order.Idle; break; }
         if (p.hp <= 0) break;
-        p.order = Order.Steer; p.steerX = Math.cos(cmd.x); p.steerY = Math.sin(cmd.x); p.steerLeft = 0.4;
+        p.order = Order.Steer; p.steerTurns = steerTurns(cmd.x); p.steerLeft = Math.fround(0.4);
         break;
+      case 'sprint': p.sprint = cmd.on; break;
       case 'medkit':
         if (p.hp <= 0) this.toast('you are down');
         else if (p.medkits <= 0) this.toast('no medkits; buy them at the armory');

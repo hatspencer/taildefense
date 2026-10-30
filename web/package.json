@@ -1,11 +1,12 @@
 {
   "name": "taildefense-web",
   "private": true,
+  "type": "module",
   "version": "0.0.0",
   "description": "Browser client of taildefense",
   "scripts": {
     "build": "node build.mjs",
-    "check": "tsc --noEmit -p ."
+    "check": "tsc --noEmit -p . && node test/predict.mts"
   },
   "dependencies": {
     "@types/three": "0.186.0",

@@ -250,7 +250,7 @@ func parseFrame(t *testing.T, p []byte) frameSummary {
 		if k == 0 {
 			f.x, f.y = float32(x)/8, float32(y)/8
 		}
-		skip(2 + 4 + 1 + 4 + 1 + 1 + 12 + 2 + int(game.NumWeapons)*int(game.NumTracks) + 1 + 4 + 1 + 1 + 1 + 1 + 1 + 2 + 2 + 1 + 1 + 4 + 1 + 4*3 + 1 + 1 + 2 + 1 + 1 + 2 + 5*2 + 4 + 4)
+		skip(2 + 4 + 1 + 4 + 1 + 1 + 12 + 2 + int(game.NumWeapons)*int(game.NumTracks) + 1 + 4 + 1 + 1 + 1 + 1 + 1 + 2 + 2 + 1 + 1 + 4 + 1 + 4*3 + 1 + 1 + 2 + 1 + 1 + 2 + 1 + 5*2 + 4 + 4)
 		skip(u8())
 	}
 	f.sites = u16()

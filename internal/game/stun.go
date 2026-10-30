@@ -52,6 +52,10 @@ func (p *Player) stun(t float32) {
 // mauler or a goliath (grab.go).
 func (p *Player) Stunned() bool { return p.stunLeft > 0 || p.held || p.fly > 0 }
 
+// SlowLeft is how many seconds survivor p still walks at slowSpeed; the page needs it to
+// predict its own walk.
+func (p *Player) SlowLeft() float32 { return max(p.slowLeft, 0) }
+
 // tickSlow counts a survivor's slow and stun down, once a tick.
 func (p *Player) tickSlow() {
 	if p.slowCool > 0 {
