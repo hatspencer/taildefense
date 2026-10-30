@@ -63,6 +63,21 @@ export function merge(parts: Part[]): THREE.BufferGeometry {
   return geo;
 }
 
+// Already merged geometries as one: their positions, normals and colours one after another.
+export function concat(geos: THREE.BufferGeometry[]): THREE.BufferGeometry {
+  if (geos.length === 1) return geos[0];
+  const out = new THREE.BufferGeometry();
+  for (const name of ['position', 'normal', 'color']) {
+    const parts = geos.map((g) => g.getAttribute(name).array as Float32Array);
+    const arr = new Float32Array(parts.reduce((n, a) => n + a.length, 0));
+    let o = 0;
+    for (const a of parts) { arr.set(a, o); o += a.length; }
+    out.setAttribute(name, new THREE.BufferAttribute(arr, 3));
+  }
+  out.computeBoundingSphere();
+  return out;
+}
+
 export const box = (w: number, h: number, d: number) => new THREE.BoxGeometry(w, h, d);
 export const cyl = (rt: number, rb: number, h: number, seg = 8) => new THREE.CylinderGeometry(rt, rb, h, seg);
 export const cone = (r: number, h: number, seg = 6) => new THREE.ConeGeometry(r, h, seg);

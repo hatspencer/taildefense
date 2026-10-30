@@ -324,11 +324,7 @@ func (s *session) host(m netplay.Msg) {
 		if !s.b.ready {
 			s.greet()
 		}
-		frame := s.enc.frame(s.r)
-		select {
-		case s.b.out <- append([]byte(nil), frame...):
-		default:
-			// The page is behind; this frame is dropped, the next one is whole anyway.
+		if !offer(s.b.out, append([]byte(nil), s.enc.frame(s.r)...)) {
 			s.net.pageDrop++
 		}
 	case netplay.MsgAck:
@@ -379,6 +375,28 @@ func (s *session) host(m netplay.Msg) {
 			s.text(s.b, map[string]any{"t": "toast", "level": level, "text": text})
 		}
 	}
+}
+
+// offer queues a frame for the page. With the queue full the page is behind, and the oldest
+// frame waiting is dropped rather than this one: each frame is the whole world, so the newest
+// is the one worth having, and after a stall the page goes on from now, not from frames
+// already a queue old. It reports whether nothing was dropped. Only the session sends on out,
+// so the room made is there for the frame.
+func offer(out chan []byte, f []byte) bool {
+	select {
+	case out <- f:
+		return true
+	default:
+	}
+	select {
+	case <-out:
+	default:
+	}
+	select {
+	case out <- f:
+	default:
+	}
+	return false
 }
 
 // greet sends a page the welcome and the terrain, once the replica has a keyframe to say

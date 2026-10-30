@@ -41,6 +41,46 @@ export function mergeRig(parts: RigPart[]): THREE.BufferGeometry {
   return geo;
 }
 
+// The parts a figure keeps when it is far away: those at least `share` of its height across
+// at their longest. What goes is the small stuff (eyes, teeth, claws, a dangling strip of
+// skin) that covers a pixel or less there.
+export function farParts(parts: RigPart[], share = 0.1): RigPart[] {
+  const all = new THREE.Box3(), b = new THREE.Box3(), s = new THREE.Vector3();
+  for (const p of parts) all.union(b.setFromBufferAttribute(p.geo.getAttribute('position') as THREE.BufferAttribute));
+  const min = (all.max.y - all.min.y) * share;
+  return parts.filter((p) => {
+    b.setFromBufferAttribute(p.geo.getAttribute('position') as THREE.BufferAttribute).getSize(s);
+    return Math.max(s.x, s.y, s.z) >= min;
+  });
+}
+
+// The same flat-shaded geometry with each corner a face shares stored once and indexed. It
+// draws exactly as before, but a box's 36 corners become 24, and for a posed creep every
+// corner is a run of its vertex shader.
+export function indexed(geo: THREE.BufferGeometry): THREE.BufferGeometry {
+  const names = Object.keys(geo.attributes);
+  const attrs = names.map((n) => geo.getAttribute(n) as THREE.BufferAttribute);
+  const n = attrs[0].count;
+  const seen = new Map<string, number>(), idx = new Uint32Array(n), first: number[] = [];
+  for (let i = 0; i < n; i++) {
+    let key = '';
+    for (const a of attrs) for (let c = 0; c < a.itemSize; c++) key += a.array[i * a.itemSize + c] + ',';
+    let v = seen.get(key);
+    if (v === undefined) { v = first.length; seen.set(key, v); first.push(i); }
+    idx[i] = v;
+  }
+  const out = new THREE.BufferGeometry();
+  names.forEach((name, k) => {
+    const a = attrs[k], arr = new Float32Array(first.length * a.itemSize);
+    first.forEach((src, d) => { for (let c = 0; c < a.itemSize; c++) arr[d * a.itemSize + c] = a.array[src * a.itemSize + c]; });
+    out.setAttribute(name, new THREE.BufferAttribute(arr, a.itemSize));
+  });
+  out.setIndex(new THREE.BufferAttribute(idx, 1));
+  out.computeBoundingBox();
+  out.computeBoundingSphere();
+  return out;
+}
+
 // Critically damped-ish second-order motion towards a goal (after t3ssel8r): f is how fast it
 // follows in Hz, z its damping (below 1 overshoots), r its response (above 1 anticipates,
 // below 0 winds up the wrong way first).

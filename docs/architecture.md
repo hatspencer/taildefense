@@ -84,7 +84,19 @@ Browser                   local td (web.Session)               host td (netplay.
     the changed fields of creeps that were hit or turned, and of each player only the groups of
     their record that changed. All of it is deflated.
   - **Rendering.** Creeps of each kind are one instanced mesh, animated (bob, sway, burn, slow,
-    hit flash) in TSL node materials on the GPU.
+    hit flash) in TSL node materials on the GPU, and a second one for those past 45 from the
+    camera, the same figure without the parts too small to see there (eyes, teeth, claws),
+    picked per creep each frame with a little hysteresis. Their geometry is indexed, so a
+    face's shared corners run the posing shader once. The effect pools draw only the slots
+    still showing something, the ground is in 64-tile pieces that are culled, and a turret's
+    shadowless trim is one mesh. On an empty field that took a frame from about 950k
+    triangles to 360k, most of the rest trees and walls with their shadows.
+  - **Detail.** `web/src/scene/detail.ts` watches the frame time. When frames stay slower
+    than 22 ms it steps detail down, a step at a time: the far creeps from 30 and without
+    shadows, the drawing buffer at 1.5 then 1 pixel a CSS pixel, no creep shadows, a
+    1024 shadow map. A step that buys too little is taken back and not tried for a while,
+    and with headroom again (18 ms) it steps back up, waiting longer each time one is soon
+    undone. A machine that keeps up never leaves full detail; F3 shows the level.
   - **Numbers.** At wave 40 with 8 players the game hits its 16k creep cap. The host then spends
     about 1-2 ms per tick simulating and 0.1-0.3 ms encoding, and each player gets about
     130 KiB/s over TCP, an 8 KB frame deflated to 4.5 KB (`td bench --wave 40 --players 8`).

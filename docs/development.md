@@ -73,6 +73,13 @@ by td it is both. F3's `music` line shows the track wanted, the wave's intensity
 `#demo&firstrun` opens the first steps (a real game shows them once per machine), `#demo&phase=over`
 the field report, and `#demo&help`, `#demo&menu` and `#demo&score` the windows.
 The demo and the lab are a bundle of their own, `demo.js`, which the page fetches only for `#demo` and `#lab`.
+F3's first line is the renderer, and on WebGL2 why: `forced: #webgl`, `forced: GPU device lost
+earlier`, `no navigator.gpu` (the browser has no WebGPU), `no adapter` (it has, but gives none:
+turned off or a blocklisted GPU) or `WebGPU failed: …`. `draws` and `tris` count every pass
+of the frame, the sun's shadow and the portraits included. The `detail` line is the detail
+governor: its level of 5, `auto` or `pinned`, what its last step did, and the creeps drawn in
+the near and the far model and where the far one starts. `#demo&detail=N` pins a level (0 is
+full detail); `#demo&creeps=8000&cam=a,a,a,60` is a big horde from far up to measure with.
 F3's `sound` line shows the voices playing and the most at once, the sounds dropped and taken
 over since the last frame, the output's peak in dBFS and the compressor's pull in dB. The demo
 leaves the sound engine at `window.tdSound`, whose `synth.plays`, `drops` and `steals` count
@@ -83,7 +90,7 @@ minute, echoes lost and how packets reach the host (`direct`, `DERP fra`, `relay
 `arrv` the gaps between frames reaching td over 10 s (33 when all is well); `host` the host's
 tick spacing p99, the frames it dropped for this player, the keyframes it resent after them and
 the deepest the player's queue got of its depth; `page drop` the frames td dropped for a slow
-page. The demo has no link: those lines show `-`.
+page (with four waiting it drops the oldest, so the page goes on from the newest). The demo has no link: those lines show `-`.
 `#lab` is the animation bench: every creep kind walking, idle, attacking, hit, burning, asleep
 and dying, beside the survivors' poses; `#lab=0`…`#lab=10` looks at one creep row, `#lab=h` at the
 survivors (`#lab=h0`…`#lab=h17` at one of them), `#lab=legend` at the legendary blades (the
