@@ -359,7 +359,7 @@ func (w *World) stepEffects() {
 				dx, dy := c.X-x, c.Y-y
 				if dx*dx+dy*dy <= r*r {
 					w.burning = true
-					w.damage(i, dps*Dt, owner)
+					w.dot(i, dps, owner)
 					w.burning = false
 					w.ignite(i, dps*.5)
 				}

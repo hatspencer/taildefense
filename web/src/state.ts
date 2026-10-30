@@ -10,8 +10,8 @@ export const PING_LIFE = 5000;
 // Motion is drawn a little in the past, at renderTime = now - delay, from the two snapshots
 // either side of it, so a frame arriving late or several arriving together change nothing on
 // screen as long as the delay covers them. Snapshots kept, per creep and player: the delay is
-// at most three intervals at 20 Hz, so four always bracket it.
-const HIST = 4;
+// at most DELAY_MAX, four and a half intervals at the host's 30 Hz, so six always bracket it.
+const HIST = 6;
 // The delay is the mean arrival interval plus twice the jitter, no less than a tick and no
 // more than DELAY_MAX ms: past that the lag is felt more than a stutter would be. It moves
 // toward that by at most DELAY_SLEW ms per ms, which slows or speeds the drawn world by 5%
@@ -135,6 +135,8 @@ export class Game {
     this.pSeen.fill(0);
     this.resync = true;
     this.tickMs = 1000 / (w.tickRate > 0 ? w.tickRate : 20);
+    // A new session's timeline starts from its host's tick, not the last one's.
+    this.interval = this.meanInterval = this.delay = this.delayGoal = this.tickMs;
     this.indexById.fill(-1);
     this.cur.nCreeps = 0; this.cur.nStructs = 0; this.cur.nPlayers = 0; this.cur.nSites = 0;
     this.structSig = '';
@@ -252,7 +254,7 @@ export class Game {
     }
     this.resync = false;
     this.frameAt = now;
-    this.interval = Math.min(120, Math.max(30, this.meanInterval));
+    this.interval = Math.min(2.4 * this.tickMs, Math.max(0.6 * this.tickMs, this.meanInterval));
     this.delayGoal = Math.min(DELAY_MAX, Math.max(this.tickMs, this.meanInterval + 2 * this.jitter));
     return st;
   }

@@ -18,7 +18,7 @@ Browser                   local td (web.Session)               host td (netplay.
   │                                │  t, text, seq                      │
   │                                │ ──────────────────────────────────→│  netplay.Exec on the World,
   │                                │                                    │  between ticks
-  │                                │                                    │  every 50 ms: World.Step,
+  │                                │                                    │  every 33 ms: World.Step,
   │                                │                                    │  Encoder.Delta, shared by
   │                                │  frame: delta (or keyframe)        │  every player's queue
   │                                │  ack: seq, tick, behind the frame  │
@@ -31,8 +31,12 @@ Browser                   local td (web.Session)               host td (netplay.
 
 ## Why it's built this way
 
-- **The host is authoritative.** It simulates at 20 Hz, and each player's `td` keeps a replica fed
-  by compressed delta frames over one TCP connection. Players send orders, not keystrokes: a
+- **The host is authoritative.** It simulates at 30 Hz, and each player's `td` keeps a replica fed
+  by compressed delta frames over one TCP connection. 30 rather than 20 puts a command in a
+  frame and the frame on screen about 25 ms sooner, for half again the host's work and about a
+  third more bandwidth. The rules are in seconds; the few things the balance was tuned on 20 Hz
+  ticks for (a turret's or a creep's cadence, armour against damage over time, a rocket's
+  fuse) say so in `internal/game` and play the same at either rate. Players send orders, not keystrokes: a
   spot to walk to (the host finds the A* path), a heading for WASD, a target, a purchase. Every
   rule runs on the host, so there's nothing to cheat with.
 - **Every command is acked.** The local `td` numbers the commands it relays; after a tick the host
@@ -42,7 +46,7 @@ Browser                   local td (web.Session)               host td (netplay.
 - **The browser only draws.** Your local `td` turns its replica into one compact binary frame per
   tick and sends it to the page over a localhost WebSocket, so the page keeps no delta state. The page
   draws motion a little in the past (the mean frame interval plus twice the arrival jitter,
-  50-150 ms) from a buffer of the last four frames, so late or bunched frames don't stutter;
+  a tick to 150 ms) from a buffer of the last six frames, so late or bunched frames don't stutter;
   past the newest it extrapolates up to 100 ms, then waits. The player's own acts (a cast, a
   build, a reload) get their ring, sound and pending ghost at once; the host still decides.
   The WebSocket is a small stdlib implementation, so the Go side adds no modules for it.
@@ -58,8 +62,9 @@ Browser                   local td (web.Session)               host td (netplay.
   - **Rendering.** Creeps of each kind are one instanced mesh, animated (bob, sway, burn, slow,
     hit flash) in TSL node materials on the GPU.
   - **Numbers.** At wave 40 with 8 players the game hits its 16k creep cap. The host then spends
-    about 2 ms per tick simulating and 0.3 ms encoding, and each player gets about 100 KiB/s
-    over the tailnet, a 10 KB frame deflated to 5 KB (`td bench --wave 40 --players 8`).
+    about 1-2 ms per tick simulating and 0.1-0.3 ms encoding, and each player gets about
+    130 KiB/s over the tailnet, an 8 KB frame deflated to 4.5 KB (`td bench --wave 40
+    --players 8`).
 - **Generated art.** Everything is low-poly geometry built in code with three.js: no asset files.
 - **Generated sound.** The page makes every sound in code from what each frame already says (the
   shots, blasts and deaths of that tick, and what changed since the last one): the protocol

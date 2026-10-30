@@ -8,7 +8,7 @@ import {
   CF_WINDUP, CF_STRIKE, WEAPON_SLOTS, EvacStage,
   BlastKind, EffectKind, Emote, type SiteDef, SiteKind, TRACER_HELI, TRACER_ULT, WET, Weather, type Welcome,
 } from '../protocol';
-import { ABILITY_RADIUS, CREEPS, STRUCTS, WEAPON_BASE, WEATHERS, demoWelcome, turretStats } from './defs';
+import { ABILITY_RADIUS, CREEPS, DEMO_TICK_RATE, STRUCTS, WEAPON_BASE, WEATHERS, demoWelcome, turretStats } from './defs';
 import { Writer } from './encode';
 import { type DemoMap, generateMap, rng } from './map';
 
@@ -30,11 +30,12 @@ const RATE = CREEPS.map((c) => c.rate ?? 1), WINDUP = CREEPS.map((c) => c.windup
 const HEFT = [1, 1, 0.7, 2.5, 1, 5, 1, 4];
 // A creep's blow on a structure, as the host's.
 const SDMG = [6, 4, 2, 39, 9, 105, 9, 90];
-// A broodmother's sac (internal/game/brood.go): every so many ticks, at a survivor this far.
-const LOB_EVERY = 90, LOB_MIN = 4, LOB_MAX = 16;
+// A broodmother's sac (internal/game/brood.go): every 4.5 s (in ticks), at a survivor this far.
+const LOB_EVERY = 4.5 * DEMO_TICK_RATE, LOB_MIN = 4, LOB_MAX = 16;
 const boss = (k: number) => k === 5 || k === 7;
 
-const W = 320, H = 200, DT = 0.05;
+// A tick in seconds and in ms.
+const W = 320, H = 200, DT = 1 / DEMO_TICK_RATE, TICK_MS = 1000 / DEMO_TICK_RATE;
 // The helipad and the evac Huey's timing, as internal/game/evac.go has them.
 const EVAC = { half: 3, reach: 4, board: 1, inbound: 60, flight: 16, settle: 3, wait: 90, last: 30, depart: 10, climb: 2.5 };
 // Seconds picking up a dropped weapon takes: the host's gunPickup.
@@ -167,20 +168,20 @@ export class DemoHost implements Transport {
     dispatch(this.h, terr.buffer);
     this.step();
     this.clock = performance.now();
-    this.timer = window.setInterval(() => this.pump(), 50);
+    this.timer = window.setInterval(() => this.pump(), TICK_MS);
   }
 
   // Stops the simulation where it is, for the lab to take the world over.
   halt(): void { window.clearInterval(this.timer); this.timer = 0; }
 
-  // Runs the 20 Hz simulation on wall time. Called from a timer and from the render loop,
+  // Runs the simulation at DEMO_TICK_RATE on wall time. Called from a timer and from the render loop,
   // because background or headless pages throttle timers.
   private clock = 0;
   pump(): void {
     if (!this.timer) return;
     const now = performance.now();
     let n = 0;
-    while (now - this.clock >= 50 && n++ < 4) { this.clock += 50; this.step(); }
+    while (now - this.clock >= TICK_MS && n++ < 4) { this.clock += TICK_MS; this.step(); }
     if (now - this.clock > 200) this.clock = now;
   }
 

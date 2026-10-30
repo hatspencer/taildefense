@@ -146,10 +146,21 @@ func (w *World) provoke(c *Creep) {
 		c.Hunt, c.HuntLeft, c.Returning = w.shooter, 6, false
 		return
 	}
-	if c.Hunt < 0 && w.rng.Float32() < .12 {
+	chance := float32(provokeChance)
+	if w.dotting {
+		chance = provokeTick
+	}
+	if c.Hunt < 0 && w.rng.Float32() < chance {
 		c.Hunt, c.HuntLeft, c.Siege = w.shooter, 4, -1
 	}
 }
+
+// provokeChance is how likely a hit is to turn a creep of the waves on the shooter, and
+// provokeTick the same for a tick of damage over time: as likely a second as 20 ticks of it
+// were at the tuned rate, so standing in napalm turns them no faster at a faster tick.
+const provokeChance = .12
+
+var provokeTick = float32(1 - math.Pow(1-provokeChance, float64(tunedRate)/TickRate))
 
 // think is a creep of the waves considering, every couple of seconds, whether to go for
 // something other than the generator.

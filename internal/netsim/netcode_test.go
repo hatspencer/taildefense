@@ -11,15 +11,16 @@ import (
 	"testing"
 	"time"
 
+	"taildefense/internal/game"
 	"taildefense/internal/netplay"
 	"taildefense/internal/netsim"
 )
 
 // TestNetcode plays a real host to a client through the impairment proxy for a matrix of
 // delays and losses, and tables what a player would feel: how evenly frames arrive, how often
-// they stop for longer than two ticks, and how long a command takes there and back. It takes
-// minutes, so it runs only with TD_NETSIM=1 (./build.sh netsim); TD_NETSIM_SECS sets how
-// long each case plays, 10 by default.
+// they stop for longer than 100 ms (three ticks), and how long a command takes there and
+// back. It takes minutes, so it runs only with TD_NETSIM=1 (./build.sh netsim);
+// TD_NETSIM_SECS sets how long each case plays, 10 by default.
 func TestNetcode(t *testing.T) {
 	if os.Getenv("TD_NETSIM") == "" {
 		t.Skip("set TD_NETSIM=1 to measure the netcode under bad networks (./build.sh netsim)")
@@ -37,7 +38,7 @@ func TestNetcode(t *testing.T) {
 		{"120±30ms", 120 * time.Millisecond, 30 * time.Millisecond},
 	}
 	var table strings.Builder
-	fmt.Fprintf(&table, "\n%d s a case, delay and loss each way, frames due every 50 ms\n", secs)
+	fmt.Fprintf(&table, "\n%d s a case, delay and loss each way, frames due every %d ms\n", secs, 1000/game.TickRate)
 	fmt.Fprintf(&table, "%-9s %5s %7s %8s %8s %8s %7s %8s %8s\n",
 		"path", "loss", "frames", "gap p50", "gap p99", "gap max", ">100ms", "rtt p50", "rtt p99")
 	for _, path := range paths {

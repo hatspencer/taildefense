@@ -67,7 +67,7 @@ func (w *World) stepTraps() {
 		d := &Structs[s.Kind]
 		switch s.Kind {
 		case STrapSpikes:
-			w.damage(int32(i), w.trapDamage(s)*Dt, s.Owner)
+			w.dot(int32(i), w.trapDamage(s), s.Owner)
 			s.HP -= spikeWear * Dt
 		case STrapTar:
 			c.chill(tarLinger+Dt, tarChill)
@@ -75,7 +75,7 @@ func (w *World) stepTraps() {
 			if s.Cool > 0 {
 				continue
 			}
-			s.Cool = 1 / d.Rate
+			rearm(&s.Cool, 1/d.Rate)
 			w.flame(s.CX(), s.CY(), d.Range, w.trapDamage(s), s.Owner)
 		case STrapMine:
 			w.explode(s.CX(), s.CY(), d.Range, w.trapDamage(s), s.Owner, 0)

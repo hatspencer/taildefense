@@ -26,16 +26,17 @@ func TestRepairChargesByTheHitPoint(t *testing.T) {
 		t.Fatalf("50 hp cost %d gold", spent)
 	}
 	// Chipped every tick while being mended, it costs what the chips add up to, not a coin a
-	// tick: half a hit point a tick for five seconds is 50 hp, so 5 gold.
+	// tick: 15 hit points a second (more than half a point a tick, or it counts as whole) for
+	// five seconds is 75 hp, so 7.5 gold.
 	s.HP, p.Gold = s.MaxHP-1, 1000
 	if err := w.OrderRepair(p, w.Core); err != nil {
 		t.Fatal(err)
 	}
 	for i := 0; i < TickRate*5; i++ {
-		s.HP -= .5
+		s.HP -= 15.1 * Dt
 		w.Step()
 	}
-	if spent := 1000 - p.Gold; spent > 7 {
+	if spent := 1000 - p.Gold; spent > 10 {
 		t.Fatalf("chip damage drained %d gold", spent)
 	}
 }

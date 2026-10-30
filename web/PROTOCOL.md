@@ -8,7 +8,8 @@ browser ──WebSocket (localhost)──▶ td (this machine) ──TCP, deflat
 ```
 
 The local `td` decodes the host's delta stream into a replica and sends the browser a
-**full view of the world every tick** (20 Hz). Localhost bandwidth is free, so the client
+**full view of the world every tick** (30 Hz; the welcome's `tickRate` says, and the page paces
+itself by that rather than assuming it). Localhost bandwidth is free, so the client
 keeps no delta state: each frame replaces the last. Interpolation between frames (the page keeps
 a short buffer of them) is the client's business.
 
@@ -46,7 +47,7 @@ everything it knows, a terrain message follows).
   "host": "box",               // the host machine
   "hosting": true,             // this td is the host (leaving ends the game for everyone)
   "hint": "td join box",       // how friends join, "" when only this machine can
-  "tickRate": 20,
+  "tickRate": 30,              // ticks a second, and so frames; the demo runs at 20
   "difficulty": {"id": 1, "name": "Normal"},   // chosen by the host before hosting
   "difficulties": ["Easy", "Normal", "Hard", "Brutal"],
   "fogOfWar": false,           // the host's FOG setting: the client hides what the team cannot see
@@ -471,15 +472,15 @@ something to say, and the demo sends none:
   "rttP99": 72,              // the echoes' round trip over the last minute, ms
   "lost": 0,                 // echoes that never came back, this game
   "pageDrop": 0,             // frames td dropped because the page was behind, this game
-  "arrv": {"p50": 50, "p99": 88, "max": 140,   // ms between frames from the host, last 10 s,
-    "hist": [0, 0, 0, 3, 40, 150, 6, 1, 0, 0]}, // and their histogram: from 0, 5, 10, 20, 35,
+  "arrv": {"p50": 33, "p99": 70, "max": 140,   // ms between frames from the host, last 10 s,
+    "hist": [0, 0, 0, 220, 70, 6, 3, 1, 0, 0]}, // and their histogram: from 0, 5, 10, 20, 35,
                                                 // 50, 75, 100, 150 and 250 ms up
-  "ack": {"p50": 52, "p99": 110},              // command to ack, ms, last 10 s
+  "ack": {"p50": 40, "p99": 95},              // command to ack, ms, last 10 s
   "host": {                  // the host's own view, sent to td every 2 s:
     "drop": 3,               // frames it dropped for you since you joined (your queue was full)
     "resync": 2,             // keyframes it sent you to catch up after a drop
-    "q": 7, "qCap": 24,      // the deepest your queue got in the last 2 s, and its depth
-    "tickP50": 50, "tickP99": 52, "tickMax": 61   // ms between its ticks, last 10 s; 50 keeps up
+    "q": 7, "qCap": 36,      // the deepest your queue got in the last 2 s, and its depth (1.2 s)
+    "tickP50": 33, "tickP99": 35, "tickMax": 44   // ms between its ticks, last 10 s; a tick (33) keeps up
   }
 }
 ```
