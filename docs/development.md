@@ -63,6 +63,9 @@ camera-controls, esbuild). `web/PROTOCOL.md` is the contract between `td` and th
 `internal/web/dist/index.html#demo` straight from disk for a self-running demo with a fake host;
 `#demo&webgl` forces the WebGL 2 path, `#demo&creeps=8000` stresses it, and `#demo&evac` plays
 the end: the evac Huey flying in to the helipad, boarding (E), lift-off and the field report.
+`#demo&lag=120` delays commands, frames and acks by half that each way, to watch the hero's
+WASD prediction at work (F3's `pred` line); the demo walks a steered survivor with the same
+`predict.ts` code and acks numbered commands as the host does.
 The demo plays sound at 70 after the first click; `#demo&vol=0` silences it, `#demo&vol=40` sets it,
 and `#demo&music=30` the music (50 by default). From disk the music plays outside Web Audio
 (a browser gives Web Audio only silence from file://), so it fades but is not filtered; served

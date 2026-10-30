@@ -46,6 +46,17 @@ Browser                   local td (web.Session)               host td (netplay.
   past the newest it extrapolates up to 100 ms, then waits. The player's own acts (a cast, a
   build, a reload) get their ring, sound and pending ghost at once; the host still decides.
   The WebSocket is a small stdlib implementation, so the Go side adds no modules for it.
+- **Your own WASD walk is predicted.** `web/src/predict.ts` is a float32 port of the host's
+  steer, stride, collision and stamina. The page numbers its commands, and each frame it
+  replays the ones the host's ack does not yet cover from that frame's position, so your hero
+  moves the instant you press a key and is drawn now, not a delay ago; everyone else stays
+  interpolated. Each ack also says which host tick a command sent at a known time landed in,
+  which pins where the host's ticks fall on the page's clock. When the port is right a replay
+  lands where the last one did; a correction is eased out over 100 ms, and one over 1.5 tiles
+  (or a stun, a throw, death) snaps. A click's walk stays the host's: it is pathfinding. F3's
+  `pred` line has the mean correction over 10 s and the snaps. `internal/game/predict_test.go`
+  walks survivors with the host's code into `web/test/predict-fixture.json`, and `npm run check`
+  replays them through the port, to the bit.
 - **Lots of creeps, cheaply.**
   - **Simulation.** Creeps live in a dense array with stable ids. They path with a single
     Dijkstra flow field from the generator and find neighbours through a spatial hash rebuilt

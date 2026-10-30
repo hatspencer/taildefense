@@ -324,6 +324,8 @@ export class Player {
   // starts a swing's animation when it moves). art: the weapon art under way, artFrac how far
   // along, 0..1; artCool: seconds until it can be used again.
   swings = 0; art = 0; artFrac = 0; artCool = 0;
+  // Seconds left walking at half speed after a creep's blow.
+  slow = 0;
   // The game so far: times down, teammates revived, structures built, sites searched, bosses
   // finished, damage taken, damage their turrets dealt (part of damage).
   downs = 0; revives = 0; built = 0; searched = 0; bosses = 0; taken = 0; turret = 0;
@@ -348,7 +350,7 @@ export class Player {
     this.order = o.order; this.channel = o.channel; this.revived = o.revived; this.emote = o.emote;
     this.emoteLeft = o.emoteLeft; this.tauntCool = o.tauntCool; this.stamina = o.stamina; this.sprinting = o.sprinting; this.winded = o.winded; this.stunned = o.stunned; this.held = o.held; this.airborne = o.airborne; this.goggles = o.goggles; this.shielded = o.shielded; this.aboard = o.aboard; this.look = o.look; this.buff = o.buff; this.buffLeft = o.buffLeft; this.ult = o.ult;
     this.abLevel.set(o.abLevel); this.abCool.set(o.abCool); this.medkits = o.medkits; this.heal = o.heal; this.reloading = o.reloading; this.name = o.name;
-    this.evo.set(o.evo); this.swings = o.swings; this.art = o.art; this.artFrac = o.artFrac; this.artCool = o.artCool;
+    this.evo.set(o.evo); this.swings = o.swings; this.art = o.art; this.artFrac = o.artFrac; this.artCool = o.artCool; this.slow = o.slow;
     this.downs = o.downs; this.revives = o.revives; this.built = o.built; this.searched = o.searched; this.bosses = o.bosses; this.taken = o.taken; this.turret = o.turret;
   }
 }
@@ -497,7 +499,7 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
       p.abLevel[a] = d.getUint8(o); p.abCool[a] = d.getUint16(o + 1, true) / 10; o += 3;
     }
     p.medkits = d.getUint8(o); p.heal = d.getUint8(o + 1) / 10; p.reloading = d.getUint16(o + 2, true);
-    p.swings = bytes[o + 4]; const art = bytes[o + 5]; p.art = art >> 6; p.artFrac = (art & 63) / 63; p.artCool = d.getUint16(o + 6, true) / 10; o += 8;
+    p.swings = bytes[o + 4]; const art = bytes[o + 5]; p.art = art >> 6; p.artFrac = (art & 63) / 63; p.artCool = d.getUint16(o + 6, true) / 10; p.slow = bytes[o + 8] / 100; o += 9;
     p.downs = d.getUint16(o, true); p.revives = d.getUint16(o + 2, true); p.built = d.getUint16(o + 4, true);
     p.searched = d.getUint16(o + 6, true); p.bosses = d.getUint16(o + 8, true);
     p.taken = d.getUint32(o + 10, true); p.turret = d.getUint32(o + 14, true); o += 18;

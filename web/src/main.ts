@@ -136,7 +136,17 @@ async function main(): Promise<void> {
   const routes = new Routes();
   const rig = new CameraRig(world.camera, canvas);
   let transport: Transport | null = null;
-  const send: Controller['send'] = (c) => transport?.send(c);
+  // Every command the host gets is numbered, so its ack says which ones a frame already
+  // shows; prediction replays the rest. volume, music and leave stay with td.
+  let seq = 0;
+  const send: Controller['send'] = (c) => {
+    if (!transport) return;
+    if (c.op !== 'volume' && c.op !== 'music' && c.op !== 'leave') {
+      c.seq = ++seq;
+      game.predict.sent(c.op, c.seq, performance.now(), c.op === 'steer' ? c.x : undefined, c.op === 'steer' || c.op === 'sprint' ? c.on : undefined);
+    }
+    transport.send(c);
+  };
   const ctl = new Controller(game, send, rig, effects);
   const labels = new Labels(app);
   const hud = new Hud(app, ctl);
@@ -225,7 +235,7 @@ async function main(): Promise<void> {
       else if (m.t === 'status') hud.status(m.text);
       else if (m.t === 'difficulty') game.setDifficulty(m.difficulty, m.dark, m.cone);
       else if (m.t === 'net') { game.rtt = m.rtt; game.rttAvg = Number.isNaN(game.rttAvg) ? m.rtt : game.rttAvg * 0.8 + m.rtt * 0.2; }
-      else if (m.t === 'ack') game.ack = m;
+      else if (m.t === 'ack') game.onAck(m);
       else if (m.t === 'netstats') game.netStats = m;
     },
     onConn(state, detail) {
@@ -246,6 +256,7 @@ async function main(): Promise<void> {
       drop: P.has('drop'),
       fog: P.has('fog'),
       evac: P.has('evac'),
+      lag: Number(P.get('lag') ?? 0) || 0,
     };
     demoKit = await loadDemo();
     // #lab=sound: the sound bench over the lab.
@@ -455,10 +466,17 @@ async function main(): Promise<void> {
         `arrv  p50 ${ms(ns?.arrv?.p50)} p99 ${ms(ns?.arrv?.p99)} max ${ms(ns?.arrv?.max)}`,
         hs ? `host  tick p99 ${hs.tickP99.toFixed(0)} · drop ${hs.drop} · resync ${hs.resync} · q ${hs.q}/${hs.qCap}` : 'host  -',
         `page  drop ${ns?.pageDrop ?? '-'}`,
+        predLine(now),
         `sound ${sound.synth.readout()}`,
         sound.music.readout(),
       ].join('\n'));
     }
+  };
+  // Prediction of the hero's walk over the last 10 s: the mean correction a frame made, in
+  // tiles, and how many were too big to ease (snaps); '-' before any.
+  const predLine = (now: number) => {
+    const s = game.predict.stats(now);
+    return s.n ? `pred  err ${s.err.toFixed(2)} corr ${s.snaps}` : 'pred  -';
   };
   // The id of what the cursor is on, if it is of this kind.
   const hovered = (t: NonNullable<typeof ctl.hover>['t']) => (ctl.hover?.t === t ? ctl.hover.id : -1);
