@@ -914,10 +914,14 @@ export class Hud {
     const w = wd.weapons[me.cur];
     setText(h.weapon, w ? w.name : '');
     const reloading = (me.flags & PF_RELOADING) !== 0;
+    // A melee weapon has no ammo: no count, no reload, and the bar stays full and quiet.
+    const melee = w?.fire === 'melee';
+    show(h.ammoNum, !melee);
+    show(h.reload, !melee);
     setClass(h.ammoBar, 'reload', reloading);
-    h.ammo.style.transform = `scaleX(${reloading ? 1 - me.reload : me.ammo / Math.max(1, me.mag)})`;
+    h.ammo.style.transform = `scaleX(${melee ? 1 : reloading ? 1 - me.reload : me.ammo / Math.max(1, me.mag)})`;
     // Low and empty magazines say so on the bar, with the key that fixes them.
-    const lowAmmo = alive && !reloading && me.mag > 0 && me.ammo <= Math.max(1, me.mag * 0.2);
+    const lowAmmo = alive && !melee && !reloading && me.mag > 0 && me.ammo <= Math.max(1, me.mag * 0.2);
     setText(h.ammoTxt, reloading ? 'reloading' : !lowAmmo ? '' : me.ammo <= 0 ? 'EMPTY · R reload' : 'LOW AMMO · R');
     setClass(h.ammoBar, 'low', lowAmmo);
     const an = `${me.ammo}<i>/${me.mag}</i>`;
