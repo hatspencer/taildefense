@@ -251,7 +251,7 @@ export interface AckMsg { t: 'ack'; wire: number; tick: number; seq?: number; ms
 // there is something to say: no frames, no echoes back, no acks, no word from the host yet.
 export interface NetStatsMsg {
   t: 'netstats';
-  rttP99?: number; lost?: number; pageDrop?: number;
+  rttP99?: number; lost?: number; pageDrop?: number; via?: 'udp' | 'tcp';
   arrv?: { p50: number; p99: number; max: number; hist: number[] };
   ack?: { p50: number; p99: number };
   host?: { drop: number; resync: number; q: number; qCap: number; tickP50: number; tickP99: number; tickMax: number };

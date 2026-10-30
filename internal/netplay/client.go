@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"taildefense/internal/game"
@@ -80,10 +81,32 @@ func DecodeWelcome(p []byte) (Welcome, error) {
 // Client is a connection to a host.
 type Client struct {
 	conn net.Conn
+	wmu  sync.Mutex // the TCP writer is shared by Send, Echo and the client's own messages
 	bw   *bufio.Writer
 	msgs chan Msg
+	ev   chan event // from the TCP and UDP readers to dispatch, which owns what follows
 	done chan struct{}
 	once sync.Once
+
+	// The UDP path. Only dispatch touches these, but for udp, which Close closes too.
+	udpVia   string
+	mu       sync.Mutex
+	closed   bool
+	udp      *net.UDPConn
+	udpUp    atomic.Bool // the host answered the hello
+	viaUDP   atomic.Bool // the last frame handed on came as a datagram
+	token    uint64
+	seqMode  bool // the host offered UDP, so frames are numbered on both paths
+	flow     frameFlow
+	parts    reassembler
+	newest   uint32 // the newest unit seq received over UDP
+	askedKey time.Time
+}
+
+// event is a message read from TCP or a datagram from UDP.
+type event struct {
+	m  Msg
+	dg *datagram
 }
 
 // RejectError is a host's refusal, worded by the host.
@@ -140,6 +163,9 @@ func dial(ctx context.Context, addr string, h Hello) (net.Conn, *bufio.Reader, *
 // Dial joins a game. It returns once the host has answered with a welcome or a refusal.
 func Dial(ctx context.Context, addr string, h Hello) (*Client, Welcome, error) {
 	h.Proto = Proto
+	if udpDisabled() {
+		h.UDP = false
+	}
 	c, br, bw, err := dial(ctx, addr, h)
 	if err != nil {
 		return nil, Welcome{}, err
@@ -177,13 +203,14 @@ func Dial(ctx context.Context, addr string, h Hello) (*Client, Welcome, error) {
 		return nil, Welcome{}, &RejectError{versionRefusal(wel.Version, h.Version)}
 	}
 	_ = c.SetReadDeadline(time.Time{})
-	cl := &Client{conn: c, bw: bw, msgs: make(chan Msg, 256), done: make(chan struct{})}
+	cl := &Client{conn: c, bw: bw, msgs: make(chan Msg, 256), ev: make(chan event, 256), done: make(chan struct{}),
+		udpVia: h.UDPVia}
 	go cl.read(br)
+	go cl.dispatch()
 	return cl, wel, nil
 }
 
 func (c *Client) read(br *bufio.Reader) {
-	defer close(c.msgs)
 	for {
 		typ, p, err := readMsg(br)
 		if err != nil {
@@ -191,43 +218,116 @@ func (c *Client) read(br *bufio.Reader) {
 				err = errors.New("the host ended the game or went away")
 			}
 			select {
-			case c.msgs <- Msg{Err: err}:
+			case c.ev <- event{m: Msg{Err: err}}:
 			case <-c.done:
 			}
 			return
 		}
 		select {
-		case c.msgs <- Msg{Type: typ, Payload: p}:
+		case c.ev <- event{m: Msg{Type: typ, Payload: p}}:
 		case <-c.done:
 			return
 		}
 	}
 }
 
+// dispatch puts what both paths bring into the one ordered stream of Msgs. Over TCP alone it
+// passes everything on as it comes; once the host has offered UDP, frames and acks go through
+// the client's frameFlow.
+func (c *Client) dispatch() {
+	defer close(c.msgs)
+	for {
+		var e event
+		select {
+		case e = <-c.ev:
+		case <-c.done:
+			return
+		}
+		f := &c.flow
+		if e.dg != nil {
+			c.datagram(*e.dg)
+		} else {
+			m := e.m
+			switch {
+			case m.Err != nil:
+				f.out = append(f.out, m)
+			case m.Type == MsgUDP:
+				if o, err := decodeOffer(m.Payload); err == nil && !c.seqMode {
+					c.seqMode = true
+					f.epoch = o.Epoch
+					c.startUDP(o)
+				}
+			case m.Type == MsgSeqFrame:
+				if sf, err := decodeSeqFrame(m.Payload); err == nil {
+					f.frame(sf.seq, sf.p, false)
+				}
+			case m.Type == MsgAck && c.seqMode:
+				f.ack(m)
+			case m.Type == MsgWelcome && c.seqMode:
+				f.welcome(m)
+				c.parts.forget(true, 0)
+				c.newest = 0
+			default:
+				f.out = append(f.out, m)
+			}
+		}
+		if c.seqMode {
+			c.askKey()
+		}
+		for _, m := range f.out {
+			if m.Type == MsgFrame {
+				c.viaUDP.Store(f.viaUDP)
+			}
+			select {
+			case c.msgs <- m:
+			case <-c.done:
+				return
+			}
+			if m.Err != nil {
+				return
+			}
+		}
+		f.out = f.out[:0]
+	}
+}
+
+// Transport is how frames are coming from the host: "udp" or "tcp".
+func (c *Client) Transport() string {
+	if c.viaUDP.Load() {
+		return "udp"
+	}
+	return "tcp"
+}
+
+func (c *Client) writeTCP(typ byte, p []byte) error {
+	c.wmu.Lock()
+	defer c.wmu.Unlock()
+	if err := writeMsg(c.bw, typ, p); err != nil {
+		return err
+	}
+	return c.bw.Flush()
+}
+
 // Msgs delivers everything the host sends, in order; closed after the final error.
 func (c *Client) Msgs() <-chan Msg { return c.msgs }
 
 // Send sends a command.
-func (c *Client) Send(cmd Cmd) error {
-	if err := writeMsg(c.bw, MsgCmd, cmd.encode()); err != nil {
-		return err
-	}
-	return c.bw.Flush()
-}
+func (c *Client) Send(cmd Cmd) error { return c.writeTCP(MsgCmd, cmd.encode()) }
 
 // Echo sends p to the host, which sends it straight back as a MsgEcho.
-func (c *Client) Echo(p []byte) error {
-	if err := writeMsg(c.bw, MsgEcho, p); err != nil {
-		return err
-	}
-	return c.bw.Flush()
-}
+func (c *Client) Echo(p []byte) error { return c.writeTCP(MsgEcho, p) }
 
 // Close hangs up.
 func (c *Client) Close() {
 	c.once.Do(func() {
 		close(c.done)
 		c.conn.Close()
+		c.mu.Lock()
+		c.closed = true
+		if c.udp != nil {
+			c.udp.Close()
+		}
+		c.mu.Unlock()
 	})
 }
 
