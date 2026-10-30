@@ -22,7 +22,8 @@ type frameFlow struct {
 	pending map[uint32][]byte
 	held    []Msg // acks waiting for their frame
 	wantKey bool
-	viaUDP  bool // the last frame handed on came as a datagram
+	viaUDP  bool   // the last frame handed on came as a datagram
+	udpN    uint64 // how many frames handed on came as datagrams
 	out     []Msg
 }
 
@@ -89,6 +90,9 @@ func (f *frameFlow) drain() {
 
 func (f *frameFlow) hand(seq uint32, p []byte, udp bool) {
 	f.last, f.viaUDP = seq, udp
+	if udp {
+		f.udpN++
+	}
 	if t, ok := frameTick(p); ok {
 		f.tick = t
 	}
@@ -139,15 +143,21 @@ func (f *frameFlow) applied() uint32 {
 // resyncEvery is how often a client still missing a keyframe asks again over TCP.
 const resyncEvery = 500 * time.Millisecond
 
-// helloEvery and helloFor are how often and how long a client says hello over UDP before it
-// leaves its frames on TCP.
+// A client says hello over UDP whenever nothing has come from the host that way for
+// udpQuiet, which is ten ticks of frames: before the first answer, after the host put its
+// frames on TCP, and when a NAT gave its socket a new port the host does not know yet. It
+// says it every helloEvery for helloFor after the quiet began and every helloSlow after
+// that, for as long as it plays: an 11 byte datagram a second costs nothing, and a phone's
+// hotspot that dropped out for a few seconds gets its frames back on UDP when it returns.
 const (
+	udpQuiet   = 300 * time.Millisecond
 	helloEvery = 200 * time.Millisecond
 	helloFor   = 5 * time.Second
+	helloSlow  = time.Second
 )
 
 // startUDP opens the client's socket to the host's UDP port, reads it into the client's
-// events, and says hello until the host answers.
+// events, and says hello whenever the host has gone quiet on it.
 func (c *Client) startUDP(o udpOffer) {
 	target := c.udpVia
 	if target == "" {
@@ -174,6 +184,7 @@ func (c *Client) startUDP(o udpOffer) {
 	c.udp = uc
 	c.mu.Unlock()
 	c.token = o.Token
+	c.udpOffered.Store(time.Now().UnixNano())
 	go func() {
 		buf := make([]byte, 2048)
 		for {
@@ -198,25 +209,38 @@ func (c *Client) startUDP(o udpOffer) {
 			}
 		}
 	}()
-	go func() {
-		hello := helloDatagram(dgHello, o.Token)
-		t := time.NewTicker(helloEvery)
-		defer t.Stop()
-		end := time.After(helloFor)
-		for {
-			if c.udpUp.Load() {
-				return
+	go c.helloLoop(uc, helloDatagram(dgHello, o.Token))
+}
+
+// helloLoop says hello while the host is quiet on UDP, until the client closes.
+func (c *Client) helloLoop(uc *net.UDPConn, hello []byte) {
+	t := time.NewTicker(helloEvery)
+	defer t.Stop()
+	var quiet, sent time.Time
+	for {
+		now := time.Now()
+		if h := c.udpHeard.Load(); h != 0 && now.Sub(time.Unix(0, h)) <= udpQuiet {
+			quiet = time.Time{}
+		} else {
+			if quiet.IsZero() {
+				quiet = now
 			}
-			_, _ = uc.Write(hello)
-			select {
-			case <-t.C:
-			case <-end:
-				return
-			case <-c.done:
-				return
+			every := helloSlow
+			if now.Sub(quiet) < helloFor {
+				every = helloEvery
+			}
+			// Half a hello early still counts, so the ticker's own jitter does not skip one.
+			if now.Sub(sent) >= every-helloEvery/2 {
+				_, _ = uc.Write(hello)
+				sent = now
 			}
 		}
-	}()
+		select {
+		case <-t.C:
+		case <-c.done:
+			return
+		}
+	}
 }
 
 func isClosed(err error) bool { return errors.Is(err, net.ErrClosed) }
@@ -226,11 +250,20 @@ func (c *Client) datagram(m datagram) {
 	f := &c.flow
 	switch m.typ {
 	case dgHelloAck:
-		if m.token == c.token && !c.udpUp.Swap(true) {
-			// Datagrams get through both ways: the host may send frames this way now.
-			_ = c.writeTCP(MsgUDPOK, nil)
+		if m.token != c.token {
+			return
 		}
+		// Datagrams get through both ways: the host may send frames this way (again). The
+		// client says so over both paths, an ack datagram being there first when TCP is
+		// still catching up after an outage. It says hello only while the host is quiet on
+		// UDP, so these go out at most once a hello, and a host that has the frames on UDP
+		// already takes no notice.
+		c.udpHeard.Store(time.Now().UnixNano())
+		c.udpAnswered.Store(true)
+		c.ackUDP()
+		_ = c.writeTCP(MsgUDPOK, nil)
 	case dgFrag:
+		c.udpHeard.Store(time.Now().UnixNano())
 		if m.epoch != f.epoch || (f.valid && m.seq <= f.last) {
 			return
 		}

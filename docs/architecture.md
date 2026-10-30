@@ -50,8 +50,15 @@ Browser                   local td (web.Session)               host td (netplay.
   datagram unit, deflated on its own and cut into fragments under the tailnet's MTU, repeats
   the one or two deltas before it while that no more than doubles it, so a single loss heals
   without a round trip, and a longer hole asks for a keyframe. An ack waits in the local `td`
-  until its frame is in. With nothing back over UDP for 1.5 s, or no UDP at all, frames stay
-  on TCP.
+  until its frame is in. With nothing back over UDP for four round trips (at least 1.5 s),
+  frames go over TCP, starting with a keyframe, but not for good: the client says hello
+  whenever nothing has come over UDP for 300 ms (five a second for 5 s, then one a second for
+  as long as it plays), the host answers (at once after a first fallback, then after a hold
+  of 1 s doubling with each further one in a row up to 10 s), the client confirms (an ack
+  datagram and a TCP message, whichever is first) and frames go back to UDP with a keyframe.
+  A hello from the player's IP with its token may move the host's binding to a new port at
+  any time, as a NAT that remaps a phone's hotspot mid-game needs. With no UDP at all frames
+  stay on TCP. F3's `arrv` line says which, and why.
 - **Every command is acked.** The local `td` numbers the commands it relays; after a tick the host
   tells each player the last one it applied, so the page can tell which of its orders a frame
   already shows, the base a prediction needs. F3 shows the link: the round trip, command to ack,

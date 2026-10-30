@@ -58,7 +58,8 @@ drawn there has to be copied across, which at 5K made the game slower, not faste
 The host listens on its tailnet address and on loopback, port 7787, TCP and UDP, and never on
 any other interface. The game runs over TCP; frames, the world sent every tick, go over UDP
 when it gets through both ways, so a lost packet costs one frame rather than a stall, and fall
-back to TCP on their own when it does not (F3 says which on its `arrv` line). Only the machine
+back to TCP on their own when it does not, coming back to UDP once it gets through again, as
+after a phone's hotspot drops out for a moment (F3 says which, and why, on its `arrv` line). Only the machine
 on the other end of a player's TCP connection, which the tailnet vouches for, can take that
 player's frames over UDP. `TAILDEFENSE_NO_UDP=1`, on the host or a player, keeps every frame on
 TCP. Players are identified by their tailnet login (`tailscale whois`), so someone who drops
