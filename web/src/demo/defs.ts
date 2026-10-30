@@ -3,6 +3,10 @@ import type { AbilityDef, CreepDef, StructDef, WeaponDef, Welcome } from '../pro
 // Definitions for demo mode. They follow internal/game/defs.go where that exists and invent
 // the rest (ultimates, abilities) the way the host is expected to send them.
 
+// The demo's own tick rate. It stays at 20 Hz, the rate its numbers were written for: it
+// says so in its welcome, so the page paces itself by it as it does by a host's 30.
+export const DEMO_TICK_RATE = 20;
+
 export const CREEPS: CreepDef[] = [
   { name: 'walker', hp: 40, speed: 1.7, radius: 0.45, size: 1, ranged: false, bounty: 3, rate: 1, windup: 0.4 },
   { name: 'runner', hp: 24, speed: 3.6, radius: 0.4, size: 1, ranged: false, bounty: 3, rate: 1.6, windup: 0.28 },
@@ -149,7 +153,7 @@ export const WEATHERS = [
 export function demoWelcome(w: number, h: number): Welcome {
   return {
     t: 'welcome', proto: 4, version: 'demo', you: 0, w, h, seed: '424242', host: 'demo',
-    hosting: true, hint: '', tickRate: 20, core: { x: w / 2, y: h / 2 }, buildRadius: 40,
+    hosting: true, hint: '', tickRate: DEMO_TICK_RATE, core: { x: w / 2, y: h / 2 }, buildRadius: 40,
     shopRadius: 4.5, maxLevel: 5, maxStructLevel: 5, repairCostPerHP: 0.1,
     tracks: ['damage', 'fire rate', 'handling', 'special'],
     turretTracks: ['damage', 'fire rate', 'range', 'special'],

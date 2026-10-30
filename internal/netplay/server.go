@@ -92,6 +92,11 @@ type outMsg struct {
 	payload []byte
 }
 
+// outCap is how many messages a player's out queue holds: 1.2 s of frames, which rides out
+// a stall on a slow link before frames are dropped and a keyframe resyncs it, and no more,
+// so a client that cannot keep up is caught up rather than shown an ever older world.
+const outCap = 6 * game.TickRate / 5
+
 type peer struct {
 	conn    net.Conn
 	id      tailnet.Identity
@@ -270,7 +275,7 @@ func (s *Server) handshake(c net.Conn) {
 	if name == "" {
 		name = "survivor"
 	}
-	pr := &peer{conn: c, id: id, name: name, out: make(chan outMsg, 24), result: make(chan error, 1)}
+	pr := &peer{conn: c, id: id, name: name, out: make(chan outMsg, outCap), result: make(chan error, 1)}
 	select {
 	case s.joinCh <- pr:
 	case <-s.done:

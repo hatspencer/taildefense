@@ -34,7 +34,7 @@ type Stats struct {
 	Resyncs uint32 // keyframes sent to catch up after a drop
 	QMax    uint8  // the deepest the player's out queue got since the last stats
 	QCap    uint8  // how deep it can get
-	// The time between the host's ticks over the last 10 s: 50 ms when it keeps up.
+	// The time between the host's ticks over the last 10 s: one tick (33 ms) when it keeps up.
 	TickP50, TickP99, TickMax uint16
 }
 

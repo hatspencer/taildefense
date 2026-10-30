@@ -193,7 +193,7 @@ func (w *World) pickUp(p *Player, gi int) {
 	}
 	ws := WeaponState{Owned: true, Lv: g.Lv, Evo: g.Evo, Ammo: g.Ammo}
 	if ws.Ammo <= 0 {
-		ws.Reload = WeaponStats(g.Kind, g.Lv).Reload
+		ws.Reload = tunedTimer(WeaponStats(g.Kind, g.Lv).Reload)
 	}
 	p.Weapons[g.Kind] = ws
 	p.Cur = g.Kind
