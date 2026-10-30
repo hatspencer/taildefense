@@ -54,7 +54,7 @@ function weaponDefs(): WeaponDef[] {
       for (let l = 0; l <= 5; l++) {
         if (t === 0) v.push(`${Math.round(w.dmg * (1 + 0.22 * l))} dmg`);
         else if (t === 1) v.push(`${(w.rate * (1 + 0.13 * l)).toFixed(1)}/s`);
-        else if (t === 2) v.push(`${Math.round(w.mag * (1 + 0.25 * l))} mag, ${(w.reload * (1 - 0.11 * l)).toFixed(1)}s reload`);
+        else if (t === 2) v.push(w.fire === 'melee' ? `${(w.range * (1 + 0.08 * l)).toFixed(1)} m reach` : `${Math.round(w.mag * (1 + 0.25 * l))} mag, ${(w.reload * (1 - 0.11 * l)).toFixed(1)}s reload`);
         else v.push(l === 0 ? 'base' : `${w.special} ×${l}`);
       }
       costs.push(c); values.push(v);
