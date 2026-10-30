@@ -8,6 +8,8 @@
 #   ./build.sh test       go test only, extra arguments go to go test
 #   ./build.sh soak [n]   bots play n more games (default 12) to late waves, checking every tick
 #   ./build.sh fuzz [t]   fuzz the commands players give, for t (default 2m)
+#   ./build.sh netsim [s] a host and a client through an impaired path, s seconds (default
+#                         10) for each delay and loss, tabling frame gaps and round trips
 #   ./build.sh golden     rewrite the golden game's record and the launcher's golden frames
 #                         after a deliberate change
 #   ./build.sh web        the browser client only, into internal/web/dist
@@ -38,7 +40,7 @@ BINARY=td
 PLATFORMS="darwin/arm64 darwin/amd64 linux/amd64 linux/arm64"
 
 usage() {
-  sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
@@ -194,7 +196,7 @@ run() {
     -e "GOFLAGS=-mod=readonly -gcflags=all=-d=fmahash=qn" \
     -e GOCACHE=/gobuild \
     -e GOMODCACHE=/gomodcache \
-    -e TD_SOAK -e TD_SOAK_ONE -e TD_GOLDEN \
+    -e TD_SOAK -e TD_SOAK_ONE -e TD_GOLDEN -e TD_NETSIM -e TD_NETSIM_SECS \
     -v "$PWD:/src$z" \
     -v "$GOCACHE_DIR/build:/gobuild$z" \
     -v "$GOCACHE_DIR/home:/gohome$z" \
@@ -283,6 +285,11 @@ case "$cmd" in
   fuzz)
     need_engine
     run "$IMAGE" go test -mod=readonly -run '^$' -fuzz FuzzCommands -fuzztime "${1:-2m}" ./internal/playtest
+    ;;
+  netsim)
+    need_engine
+    export TD_NETSIM=1 TD_NETSIM_SECS="${1:-10}"
+    run "$IMAGE" go test -mod=readonly -timeout 60m -run Netcode -v ./internal/netsim
     ;;
   golden)
     need_engine
