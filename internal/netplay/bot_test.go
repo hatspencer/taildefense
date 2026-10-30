@@ -104,7 +104,7 @@ func TestALiveBotFollowsTheTeam(t *testing.T) {
 		})
 		w.Step()
 	}
-	for i := 0; i < 2*think; i++ {
+	for i := 0; i < 2*game.TickRate/think; i++ { // two looks
 		act()
 	}
 	if !pl.Ready {

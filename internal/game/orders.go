@@ -378,7 +378,7 @@ func (w *World) pull(p *Player, st Stats, ang float32, loud bool) {
 			continue
 		}
 		if ws.Ammo--; ws.Ammo == 0 {
-			ws.Reload = st.Reload
+			ws.Reload = tunedTimer(st.Reload)
 		}
 	}
 	w.shooter = -1

@@ -136,7 +136,7 @@ ultimates, weather, waves and breaks) is in [docs/playing.md](docs/playing.md).
 │  │  netplay.Server · tailnet IP + lo    │  │        │                                    │
 │  │  :7787, nothing else                 │  │        │                                    │
 │  │                                      │  │  TCP   │                                    │
-│  │  game.World ── Step() at 20 Hz       │←─┼────────┼── commands (orders, not keys)      │
+│  │  game.World ── Step() at 30 Hz       │←─┼────────┼── commands (orders, not keys)      │
 │  │  flow field · spatial hash · A*      │  │tailnet │                                    │
 │  │  waves · loot · aggro · weather      │──┼────────┼─→ deltas, deflated; a keyframe     │
 │  │                                      │  │        │   to catch up                      │

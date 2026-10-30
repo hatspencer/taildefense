@@ -317,6 +317,7 @@ type Projectile struct {
 	Turret       bool    // a missile battery's: its damage counts as the turret's
 	Burn         float32 // a napalm missile's: what it bursts on burns this much a second
 	Cluster      uint8   // a cluster rocket: flies over creeps to its point and splits into this many bomblets
+	ticks        int32   // ticks flown, for where its fuse looks (looks)
 }
 
 // Spawn is one creep waiting to enter.
@@ -364,6 +365,7 @@ type World struct {
 	pumpsFor   int     // len(Sites) when pumpIdx was built
 	turretFire bool    // while turrets fire, so their damage is counted as theirs
 	burning    bool    // while burning ground does its damage, which stuns nothing
+	dotting    bool    // while a hit is one tick of damage over time (dot)
 	trap       bool    // while a fuel pump or an engine blows up or burns, so its kills pay the team
 	pot        int32   // shared bounties that did not divide evenly, carried to the next
 	ult        struct {

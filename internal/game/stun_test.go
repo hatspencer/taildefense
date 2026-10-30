@@ -1,6 +1,9 @@
 package game
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 // A survivor's hit stops a creep for a moment, its windup held; a second hit straight after
 // does not, and a turret's never does.
@@ -29,7 +32,7 @@ func TestHitsStunCreepsForAMoment(t *testing.T) {
 			w.damage(0, 5, 0) // too soon to stun again
 		}
 	}
-	if want := int(stunFor * TickRate); stopped < want-1 || stopped > want+1 {
+	if want := int(math.Round(stunFor * TickRate)); stopped < want-1 || stopped > want+1 {
 		t.Fatalf("stopped for %d ticks, want about %d", stopped, want)
 	}
 	w.turretFire = true
