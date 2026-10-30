@@ -1074,7 +1074,8 @@ export class Hud {
       head(esc(evo ? `${evo.name} · ${d?.name}` : d?.name ?? '?'), esc(owner), evo ? `evo${f.sEvo[id]}` : '');
       const upg = d?.upgradable ?? d?.turret;
       const lv = (t: number) => f.sLv[id * TURRET_TRACKS + t];
-      el('div', 'sub', c, `HP ${f.sHp[id]} / ${f.sMaxHp[id]}${upg && !d?.turret ? ` · level ${f.sLevel[id]}/${wd.maxStructLevel}` : ''}${d?.turret ? ` · range ${turretRange(d, lv(TTrack.Range), f.sEvo[id]).toFixed(1).replace(/\.0$/, '')}` : ''}`);
+      // The armory is never hit, so its card shows no HP.
+      if (f.sKind[id] !== K_ARMORY) el('div', 'sub', c, `HP ${f.sHp[id]} / ${f.sMaxHp[id]}${upg && !d?.turret ? ` · level ${f.sLevel[id]}/${wd.maxStructLevel}` : ''}${d?.turret ? ` · range ${turretRange(d, lv(TTrack.Range), f.sEvo[id]).toFixed(1).replace(/\.0$/, '')}` : ''}`);
       // A turret's card is full with its tracks; its description goes on the title instead.
       if (d?.desc && !d.turret) el('div', 'sub', c, d.desc);
       if (d?.turret) {

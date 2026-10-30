@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { EffectKind, Order, PF_ALIVE, PingKind, siteX, siteY, walled } from '../protocol';
+import { EffectKind, K_ARMORY, Order, PF_ALIVE, PingKind, siteX, siteY, walled } from '../protocol';
 import { type Game, PING_LIFE } from '../state';
 import { cssHex, playerColor } from '../scene/util';
 
@@ -172,9 +172,9 @@ export class Labels {
     const zoom = Math.max(0.6, Math.min(1.3, 34 / dist));
     c.textAlign = 'center'; c.textBaseline = 'bottom';
 
-    // Structures: bars when damaged, hovered or selected.
+    // Structures: bars when damaged, hovered or selected. The armory is never hit, so it has none.
     for (let i = 0; i < f.nStructs; i++) {
-      if (!f.sAlive[i]) continue;
+      if (!f.sAlive[i] || f.sKind[i] === K_ARMORY) continue;
       const damaged = f.sHp[i] < f.sMaxHp[i];
       if (!damaged && i !== focus.hoverStruct && i !== focus.selStruct && !focus.showAllBars) continue;
       const k = f.sKind[i];
