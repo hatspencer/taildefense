@@ -126,7 +126,7 @@ type Track uint8
 const (
 	TrackDamage Track = iota
 	TrackRate
-	TrackHandling // magazine and reload
+	TrackHandling // magazine and reload; a blade's reach
 	TrackSpecial  // per weapon: pierce, pellets, burn, blast radius
 	NumTracks
 )
@@ -241,6 +241,9 @@ type Stats struct {
 // them fully bought keeps up late.
 const pistolDamageLevel = .3
 
+// meleeReachLevel is the share of a blade's base reach each level of handling adds.
+const meleeReachLevel = .08
+
 // WeaponStats applies upgrade levels to a weapon's base stats.
 func WeaponStats(w WeaponKind, lv [NumTracks]uint8) Stats {
 	d := Weapons[w]
@@ -260,6 +263,11 @@ func WeaponStats(w WeaponKind, lv [NumTracks]uint8) Stats {
 	}
 	if s.Hits == 0 {
 		s.Hits = meleeHits
+	}
+	// A blade has no magazine to handle: its handling is reach, the swing a little longer a level.
+	if d.Fire == FireMelee {
+		s.Range = d.Range * (1 + meleeReachLevel*float32(lv[TrackHandling]))
+		s.Mag, s.Reload = d.Mag, 0
 	}
 	sp := int(lv[TrackSpecial])
 	switch w {
@@ -556,7 +564,7 @@ func TrackValue(w WeaponKind, t Track, level uint8) string {
 		return fmt.Sprintf("%.1f/s", st.Rate)
 	case TrackHandling:
 		if Weapons[w].Fire == FireMelee {
-			return "no ammo"
+			return fmt.Sprintf("%.1f m reach", st.Range)
 		}
 		return fmt.Sprintf("%d rounds, %.1fs reload", st.Mag, st.Reload)
 	}
