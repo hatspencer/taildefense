@@ -163,7 +163,9 @@ export class Coverage {
       }
       if (fx & CX_SAPPER && !(f.cFlags[i] & CF_ASLEEP) && d < sapD) { sapD = d; sap = i; }
     }
-    const spread = () => t0 + Math.random() * 0.05;
+    // Spread over the tick the frame covers, so a crowd's sounds do not all start at once.
+    const tick = 1 / (game.welcome?.tickRate || 20);
+    const spread = () => t0 + Math.random() * tick;
     if (spike >= 0 && this.once('spikes', SPIKE_GAP0 + (SPIKE_GAP1 - SPIKE_GAP0) * crowd)) at('spikes', f.cX[spike], f.cY[spike], 0.5, 1, spread(), Prio.Texture);
     if (tarI >= 0 && this.once('tar', TAR_GAP)) at('tar', f.cX[tarI], f.cY[tarI], 0.45, 1, spread(), Prio.Texture);
     if (rico >= 0 && this.once('rico', RICO_GAP0 + (RICO_GAP1 - RICO_GAP0) * crowd)) at('ricochet', f.cX[rico], f.cY[rico], 0.35, 1, spread(), Prio.Texture);

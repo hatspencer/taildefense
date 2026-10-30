@@ -35,13 +35,21 @@ func NewBot(id uint8, seed uint64) *Bot {
 	return &Bot{ID: id, rng: rand.New(rand.NewPCG(seed, uint64(id)+1)), shopped: -1}
 }
 
-// think is how often a bot looks around, in ticks.
-const think = 5
+// think is how many times a second a bot looks around. Its odds are per look, so it plays
+// the same in seconds at any tick rate.
+const think = 4
+
+// thinks reports whether tick is one a bot of id thinks on: the first tick of each of think
+// slots a second, staggered a tick a bot so they do not all think at once. At 20 Hz that is
+// every fifth tick; at 30 it is every seventh or eighth, still four a second.
+func thinks(tick uint32, id uint8) bool {
+	return (tick+uint32(id))*think%game.TickRate < think
+}
 
 // Act gives this tick's commands, if it is the bot's turn to think. do carries one out at
 // once, as the host would a client's, so what the bot reads next sees it done.
 func (b *Bot) Act(w *game.World, do func(Cmd)) {
-	if (w.Tick+uint32(b.ID))%think != 0 || w.Phase == game.PhaseOver || w.Paused >= 0 {
+	if !thinks(w.Tick, b.ID) || w.Phase == game.PhaseOver || w.Paused >= 0 {
 		return
 	}
 	p := w.Players[b.ID]

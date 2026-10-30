@@ -295,7 +295,7 @@ func (w *World) Select(p *Player, k WeaponKind) error {
 func (w *World) Reload(p *Player) {
 	ws := &p.Weapons[p.Cur]
 	if st := ws.Stats(p.Cur); ws.Reload <= 0 && ws.Ammo < st.Mag {
-		ws.Reload = st.Reload
+		ws.Reload = tunedTimer(st.Reload)
 	}
 }
 

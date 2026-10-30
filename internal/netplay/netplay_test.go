@@ -331,8 +331,8 @@ func TestCommandsAreAcked(t *testing.T) {
 			t.Fatalf("after 4s: ack %+v, stats %+v", ack, stats)
 		}
 	}
-	if stats.QCap != 24 || stats.TickP50 < 300 || stats.TickP50 > 2000 || stats.TickMax < stats.TickP99 {
-		t.Errorf("stats %+v: want a 24 deep queue and ticks about 50 ms apart", *stats)
+	if stats.QCap != outCap || stats.TickP50 < 200 || stats.TickP50 > 2000 || stats.TickMax < stats.TickP99 {
+		t.Errorf("stats %+v: want a %d deep queue and ticks about %d ms apart", *stats, outCap, 1000/game.TickRate)
 	}
 }
 

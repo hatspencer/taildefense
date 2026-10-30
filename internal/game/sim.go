@@ -644,7 +644,7 @@ func (c *Creep) swing(d *CreepDef, tx, ty float32) bool {
 	}
 	switch {
 	case c.Cool <= 0:
-		c.Cool = 1 / d.Rate
+		rearm(&c.Cool, 1/d.Rate)
 		c.Swing = SwingStrike
 		return true
 	case c.Cool <= d.Windup:
@@ -809,6 +809,11 @@ func (w *World) repair(p *Player, si int) bool {
 	p.Gold -= coins
 	p.repairOwed = owed - float32(coins)
 	s.HP += hp
+	if s.mended() {
+		// As good as whole is whole: the ticks' heals need not add up to the last bit, which
+		// in float32 they do at some tick rates and not others.
+		s.HP = s.MaxHP
+	}
 	return true
 }
 
@@ -1158,6 +1163,19 @@ func (w *World) ignite(i int32, dps float32) {
 // damage is a hit on creep i that stuns as any hit does.
 func (w *World) damage(i int32, dmg float32, owner int8) { w.hit(i, dmg, owner, 1) }
 
+// dotArmor is the share of its armour a creep takes off one tick of damage over time. Armour
+// comes off every hit, and a tick of burning ground or spikes is a hit, so at the tuned 20 Hz
+// it came off 20 times a second; scaled to the tick it still does at any rate, where in full
+// a faster tick would wear a fire down to its 25% floor on anything armoured.
+const dotArmor = Dt * tunedRate
+
+// dot is a tick's damage over time to creep i, dps a second.
+func (w *World) dot(i int32, dps float32, owner int8) {
+	w.dotting = true
+	w.damage(i, dps*Dt, owner)
+	w.dotting = false
+}
+
 // hit deals dmg to creep i from owner, -1 for nobody, and stuns it stun times as long as a hit
 // does.
 func (w *World) hit(i int32, dmg float32, owner int8, stun float32) {
@@ -1167,7 +1185,11 @@ func (w *World) hit(i int32, dmg float32, owner int8, stun float32) {
 	}
 	d := dmg
 	if !w.noArmor {
-		d = max(dmg-c.armor(), dmg*.25)
+		a := c.armor()
+		if w.dotting {
+			a *= dotArmor
+		}
+		d = max(dmg-a, dmg*.25)
 	}
 	if c.Mark > 0 {
 		d *= 1 + markBonus
@@ -1245,7 +1267,7 @@ func (w *World) stepTurrets() {
 			s.Cool = .2 // idle: look again shortly rather than every tick
 			continue
 		}
-		s.Cool = 1 / st.Rate
+		rearm(&s.Cool, 1/st.Rate)
 		c := &w.Creeps[t]
 		kind := TracerTurret + uint8(s.Kind)
 		w.noArmor = fx == fxPierce
@@ -1425,25 +1447,43 @@ func (w *World) chain(s *Structure, first int32, dmg float32, jumps int, hop flo
 	w.Blasts = append(w.Blasts, Blast{x, y, .8, 2})
 }
 
+// rocketFuse is how near a creep a survivor's rocket bursts. It was tuned with the fuse
+// looking once a 20 Hz tick, a twentieth of a second's flight at a time from the muzzle, and
+// where those looks fall decides where it bursts and which creeps it flies past; looks keeps
+// them where they were at any tick rate.
+const rocketFuse = .9
+
+// looks is how many of the fuse's looks fall in the n-th tick of a rocket's flight, the last
+// of them at its end: the k with (n-1)/TickRate < k/tunedRate <= n/TickRate.
+func looks(n int32) (first, last int32) {
+	return (n-1)*tunedRate/TickRate + 1, n * tunedRate / TickRate
+}
+
 func (w *World) stepRockets() {
 	live := w.Rockets[:0]
 	for _, r := range w.Rockets {
 		r.X += r.VX * Dt
 		r.Y += r.VY * Dt
 		r.TTL -= Dt
-		boom := r.TTL <= 0 || w.blocksShot(int(r.X), int(r.Y))
+		r.ticks++
+		boom := false
 		// A cluster rocket flies over the crowd to its point, and a turret's missile to where
 		// it was sent.
-		if !boom && r.Cluster == 0 {
-			// A rocket flies on through what nobody can see.
-			if !r.Turret {
-				t := w.nearestCreep(r.X, r.Y, .9)
-				boom = t >= 0 && !w.hidden(&w.Creeps[t])
-			}
-			if v := sqrt32(r.VX*r.VX + r.VY*r.VY); !boom && v > 0 {
-				if p, _ := w.pumpOnRay(r.X-r.VX*Dt, r.Y-r.VY*Dt, r.VX/v, r.VY/v, v*Dt+tankRadius); p >= 0 {
-					boom = true
+		if r.Cluster == 0 && !r.Turret {
+			for k, last := looks(r.ticks); k <= last && !boom; k++ {
+				// The look k/tunedRate s into the flight, back seconds before this tick's end.
+				back := float32(r.ticks*tunedRate-k*TickRate) / (tunedRate * TickRate)
+				x, y := r.X-r.VX*back, r.Y-r.VY*back
+				// A rocket flies on through what nobody can see.
+				if t := w.nearestCreep(x, y, rocketFuse); t >= 0 && !w.hidden(&w.Creeps[t]) {
+					r.X, r.Y, boom = x, y, true
 				}
+			}
+		}
+		boom = boom || r.TTL <= 0 || w.blocksShot(int(r.X), int(r.Y))
+		if v := sqrt32(r.VX*r.VX + r.VY*r.VY); !boom && r.Cluster == 0 && v > 0 {
+			if p, _ := w.pumpOnRay(r.X-r.VX*Dt, r.Y-r.VY*Dt, r.VX/v, r.VY/v, v*Dt+tankRadius); p >= 0 {
+				boom = true
 			}
 		}
 		if boom {

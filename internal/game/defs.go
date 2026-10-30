@@ -13,10 +13,44 @@ import (
 )
 
 // TickRate is how many simulation steps run per second. Snapshots go out at the same rate.
-const TickRate = 20
+// At 30 a command is in a frame and the frame on screen about 25 ms sooner than at the 20 the
+// game started at, for half again the host's work and bandwidth.
+const TickRate = 30
 
 // Dt is one tick in seconds.
 const Dt = float32(1) / TickRate
+
+// tunedRate is the tick rate the game's numbers were balanced at. Everything is in seconds,
+// but two things were tuned on its whole ticks: a cooldown restarted when it runs out (a
+// turret's, a creep's blow, a vent's) fired on the tick it reached zero, and armour came off
+// every tick of damage over time (dot scales it to the tick).
+const tunedRate = 20
+
+// rearm restarts cooldown cool, just run out, for the next interval: as long as it lasted
+// counted down at the tuned rate, carrying what this tick overshot, so the cadence in
+// seconds is the one the balance was set on at any tick rate. Clamped to a tick's overshoot
+// for one that has sat run out a while (a creep out of reach, a vent with nothing on it).
+func rearm(cool *float32, interval float32) {
+	*cool = max(*cool, -Dt) + tunedInterval(interval)
+}
+
+// tunedInterval is how long a cooldown of interval took to run out at the tuned rate: the
+// whole ticks it spans, and for many one more, where counting down in float32 left a
+// sliver over zero (a gun turret's quarter second took six ticks, not five). Counted the same
+// way, so the numbers play exactly as they were tuned; a few dozen subtractions a shot.
+func tunedInterval(interval float32) float32 {
+	const dt = float32(1) / tunedRate
+	n := 0
+	for c := interval; c > 0; c -= dt {
+		n++
+	}
+	return float32(max(n, 1)) / tunedRate
+}
+
+// tunedTimer is a countdown of secs that, counted down a tick at a time and done on the tick
+// it reaches zero, ends on the tick nearest where it did at the tuned rate. For one restarted
+// by hand rather than rearmed, such as a reload, where there is no overshoot to carry.
+func tunedTimer(secs float32) float32 { return tunedInterval(secs) - Dt/2 }
 
 // MaxCreeps bounds the creep id space; ids are uint16 on the wire.
 const MaxCreeps = 16384

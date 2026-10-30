@@ -326,6 +326,13 @@ The turrets, their evolutions, the traps and the Overload are set on the balance
 - **The gold curve.** A solo game earns about 9 000 by wave 10, 54 000 by 20 and 190 000 by 30
   while a wave's health grows from 70 000 to 2.6 million: gold outruns health, so late on
   nothing is short of gold, only of value per gold and of room.
+- **Tuned at 20 Hz, played at 30.** The bench numbers were taken at 20 ticks a second, and some
+  of them lean on its whole ticks: a cooldown set afresh when it runs out (a turret's shot, a
+  creep's blow, a vent, a reload) lasted as many 20 Hz ticks as counting it down took (a gun
+  turret's quarter second took six), armour came off every tick of napalm or spikes, a hit by
+  them had its 12% chance to turn a creep each tick, and a rocket's fuse looked once a tick.
+  At 30 Hz each is worked out as it was at 20 (`tunedRate` in `defs.go`), so the game plays the
+  same in seconds: 32 bot games last 106 s a wave at 30 Hz, 107 at 20.
 
 What the bench found, and what changed:
 

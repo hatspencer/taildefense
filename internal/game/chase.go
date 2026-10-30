@@ -6,9 +6,11 @@ package game
 // stop it too, but for an open gate: a survivor behind the base's walls is out of its reach
 // unless there is a way round to them, and only a frenzied creep (maze.go) breaks through.
 
+// chaseEvery is the ticks between recomputing it while they move: a quarter second, or as
+// near as whole ticks come (seven at 30 Hz, fresher rather than staler).
 const (
 	chaseDepth = 48 // steps the field spreads from the survivor
-	chaseEvery = 5  // ticks between recomputing it while they move
+	chaseEvery = TickRate / 4
 )
 
 // chaseField is the step count to one survivor from the tiles around them.

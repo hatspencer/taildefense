@@ -63,9 +63,9 @@ export class Lab {
   step(now: number): boolean {
     const g = this.game, f = g.cur, wd = g.welcome!;
     const t = (now - this.t0) / 1000;
-    // A new frame 20 times a second, for what keys off frames (the dead).
+    // A new frame at the welcome's tick rate, for what keys off frames (the dead).
     let fresh = false;
-    if (now - this.last >= 50) { this.last = now; g.frames++; this.tick++; fresh = true; }
+    if (now - this.last >= 1000 / (wd.tickRate || 20)) { this.last = now; g.frames++; this.tick++; fresh = true; }
     const kinds = wd.creeps.length;
     let n = 0;
     for (let k = 0; k < kinds; k++) {
