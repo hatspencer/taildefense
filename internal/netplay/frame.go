@@ -511,7 +511,7 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 // survivor standing still in a break costs eight bytes, not a hundred. The groups come in
 // order of how often they change, so the usual mask (motion, combat, score) fits a byte.
 const (
-	pgMotion  = iota // stamina and the sprint bits
+	pgMotion  = iota // stamina, the sprint bits and the slow
 	pgCombat         // the weapon in hand, its ammo and reload, the ultimate, a legendary's swings and art
 	pgTimers         // emotes, taunts, buffs, healing, ability cooldowns, the respawn
 	pgOrder          // the order and how far its channel is, how far a revive on them is
@@ -631,6 +631,9 @@ func playerGroup(b *enc, g int, w *game.World, p *game.Player) {
 			sprint |= 128
 		}
 		b.u8(sprint)
+		// Centiseconds of a creep's slow left (2.2 s at most), so a page predicting its own
+		// walk knows when it is back to full speed.
+		b.u8(uint8(min(math.Ceil(float64(p.SlowLeft()*100)), 255)))
 	case pgCombat:
 		b.u8(uint8(p.Cur))
 		b.u16(uint16(max(ws.Ammo, 0)))

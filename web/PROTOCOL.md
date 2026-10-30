@@ -39,7 +39,7 @@ everything it knows, a terrain message follows).
 ```jsonc
 {
   "t": "welcome",
-  "proto": 27,
+  "proto": 28,
   "version": "a1b2c3d",
   "you": 0,                    // your player id
   "w": 352, "h": 220,          // map size in tiles
@@ -341,6 +341,8 @@ u8   nPlayers
                       3 Home Run),
                       bits 0-5 how far along it is, 0..63
   u16  artCool        deciseconds until the weapon art can be used again
+  u8   slow           centiseconds left walking at half speed after a creep's blow (the
+                      page's own walk prediction needs it)
   u16  downs, revives, built, searched, bosses    this game's tallies, capped at 65535
   u32  taken          damage taken
   u32  turret         damage their turrets dealt, part of damage
@@ -501,7 +503,10 @@ integers. The host checks everything; a refusal comes back as a `toast` with lev
 
 Any command relayed to the host may carry `"seq": n`, the page's own count for it (a number,
 increasing); the `ack` that covers it echoes it back. `volume` and `music` stay here and are
-never acked.
+never acked. The page numbers every other command and predicts its own WASD walk from them
+(`web/src/predict.ts`): from each frame it replays the steers and sprints the ack does not yet
+cover, and the ack's tick for a command sent at a known time tells it where the host's ticks
+fall on its clock. The demo host acks numbered commands too.
 
 ```jsonc
 {"op": "move",    "x": 160.5, "y": 103.2}   // walk there, ignoring creeps

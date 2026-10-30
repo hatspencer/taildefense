@@ -46,6 +46,7 @@ type PlayerView struct {
 	Emote                                      uint8
 	EmoteLeft, TauntCool                       float32 // seconds
 	Stamina                                    float32 // 0..1
+	SlowLeft                                   float32 // seconds left walking slowed by a creep's blow
 	Medkits                                    uint8
 	Heal                                       float32 // seconds of a medkit's healing left
 	ReloadMask                                 uint16  // a bit per weapon reloading, in hand or not
@@ -578,6 +579,7 @@ func (p *PlayerView) group(d *dec, g int) {
 		sp := d.u8()
 		p.Sprinting, p.Winded, p.Goggles, p.Shielded, p.Aboard = sp&1 != 0, sp&2 != 0, sp&8 != 0, sp&16 != 0, sp&32 != 0
 		p.Stunned, p.Held, p.Airborne = sp&4 != 0, sp&64 != 0, sp&128 != 0
+		p.SlowLeft = float32(d.u8()) / 100
 	case pgCombat:
 		p.Cur = game.WeaponKind(d.u8())
 		p.Ammo = d.u16()
