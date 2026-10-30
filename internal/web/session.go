@@ -156,7 +156,7 @@ func Run(ctx context.Context, o Options) (Result, error) {
 		o.Ready(page)
 	}
 
-	s := &session{o: o, cl: cl, start: time.Now()}
+	s := &session{o: o, cl: cl, start: time.Now(), cmds: newCmdLog(), net: newNetStats()}
 	s.reset(wel)
 	status := time.NewTicker(2 * time.Second)
 	defer status.Stop()
@@ -206,9 +206,14 @@ func Run(ctx context.Context, o Options) (Result, error) {
 			if o.Status != nil && s.b != nil {
 				s.text(s.b, map[string]any{"t": "status", "text": o.Status()})
 			}
+			if s.b != nil && s.b.ready {
+				s.text(s.b, s.net.msg(time.Now()))
+			}
 		case <-echo.C:
 			// Time since start, which the host sends back: monotonic, unlike the wall clock.
-			_ = cl.Echo(binary.LittleEndian.AppendUint64(nil, uint64(time.Since(s.start))))
+			// Then a count, so an echo that never comes back is noticed.
+			p := binary.LittleEndian.AppendUint64(nil, uint64(time.Since(s.start)))
+			_ = cl.Echo(binary.LittleEndian.AppendUint32(p, s.net.echo()))
 		}
 	}
 }
@@ -222,6 +227,8 @@ type session struct {
 	b     *browser
 	enc   viewEncoder
 	core  point
+	cmds  *cmdLog   // commands relayed, awaiting their acks
+	net   *netStats // for the page's F3 readout
 }
 
 func (s *session) reset(wel netplay.Welcome) {
@@ -241,6 +248,7 @@ func (s *session) host(m netplay.Msg) {
 			s.reset(wel)
 		}
 	case netplay.MsgFrame:
+		s.net.frame(time.Now())
 		if err := s.r.Apply(m.Payload); err != nil || !s.r.Synced {
 			return
 		}
@@ -256,6 +264,31 @@ func (s *session) host(m netplay.Msg) {
 		case s.b.out <- append([]byte(nil), frame...):
 		default:
 			// The page is behind; this frame is dropped, the next one is whole anyway.
+			s.net.pageDrop++
+		}
+	case netplay.MsgAck:
+		a, err := netplay.DecodeAck(m.Payload)
+		if err != nil {
+			return
+		}
+		now := time.Now()
+		r := s.cmds.ack(a.Seq, now)
+		for _, ms := range r.ms {
+			s.net.ackMs.Add(now, ms)
+		}
+		if s.b != nil && s.b.ready {
+			am := map[string]any{"t": "ack", "wire": a.Seq, "tick": a.Tick}
+			if r.page != nil {
+				am["seq"] = *r.page
+			}
+			if len(r.ms) > 0 {
+				am["ms"] = math.Round(r.ms[len(r.ms)-1]*10) / 10
+			}
+			s.text(s.b, am)
+		}
+	case netplay.MsgStats:
+		if st, err := netplay.DecodeStats(m.Payload); err == nil {
+			s.net.host = &st
 		}
 	case netplay.MsgDiff:
 		// The host changed the difficulty: the page's welcome follows it.
@@ -267,9 +300,13 @@ func (s *session) host(m netplay.Msg) {
 		}
 	case netplay.MsgEcho:
 		// The round trip to the host, for the page's F3 readout.
-		if len(m.Payload) == 8 && s.b != nil && s.b.ready {
-			rtt := time.Since(s.start) - time.Duration(binary.LittleEndian.Uint64(m.Payload))
-			s.text(s.b, map[string]any{"t": "net", "rtt": math.Round(rtt.Seconds()*1e4) / 10})
+		if len(m.Payload) == 12 {
+			now := time.Now()
+			rtt := now.Sub(s.start) - time.Duration(binary.LittleEndian.Uint64(m.Payload))
+			s.net.echoed(binary.LittleEndian.Uint32(m.Payload[8:]), rtt, now)
+			if s.b != nil && s.b.ready {
+				s.text(s.b, map[string]any{"t": "net", "rtt": math.Round(rtt.Seconds()*1e4) / 10})
+			}
 		}
 	case netplay.MsgToast:
 		level, text := netplay.DecodeToast(m.Payload)
@@ -363,6 +400,8 @@ type cmd struct {
 	On     bool    `json:"on"`
 	V      int     `json:"v"`
 	Text   string  `json:"text"`
+	// The page's own count for the command, echoed in its ack; optional.
+	Seq *float64 `json:"seq"`
 }
 
 func u8(v int) uint8   { return uint8(min(max(v, 0), 255)) }
@@ -497,6 +536,7 @@ func (s *session) command(p []byte) bool {
 	default:
 		return false
 	}
+	s.cmds.sent(&nc, c.Seq, time.Now())
 	_ = s.cl.Send(nc)
 	return false
 }

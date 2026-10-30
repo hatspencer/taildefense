@@ -15,12 +15,13 @@ Browser                   local td (web.Session)               host td (netplay.
   │                                │                                    │
   │  {"op":"move","x":…,"y":…}     │                                    │
   │ ──────────────────────────────→│  Cmd: op, a, b, x/y to 1/8 tile,   │
-  │                                │  t, text                           │
+  │                                │  t, text, seq                      │
   │                                │ ──────────────────────────────────→│  netplay.Exec on the World,
   │                                │                                    │  between ticks
   │                                │                                    │  every 50 ms: World.Step,
   │                                │                                    │  Encoder.Delta, shared by
   │                                │  frame: delta (or keyframe)        │  every player's queue
+  │                                │  ack: seq, tick, behind the frame  │
   │                                │ ←──────────────────────────────────│
   │                                │  Replica.Apply                     │
   │  frame: the whole world        │                                    │
@@ -34,6 +35,10 @@ Browser                   local td (web.Session)               host td (netplay.
   by compressed delta frames over one TCP connection. Players send orders, not keystrokes: a
   spot to walk to (the host finds the A* path), a heading for WASD, a target, a purchase. Every
   rule runs on the host, so there's nothing to cheat with.
+- **Every command is acked.** The local `td` numbers the commands it relays; after a tick the host
+  tells each player the last one it applied, so the page can tell which of its orders a frame
+  already shows, the base a prediction needs. F3 shows the link: the round trip, command to ack,
+  the gaps between frames, and the host's drops, resyncs and tick spacing.
 - **The browser only draws.** Your local `td` turns its replica into one compact binary frame per
   tick and sends it to the page over a localhost WebSocket, so the page keeps no delta state. The page interpolates between frames.
   The WebSocket is a small stdlib implementation, so the Go side adds no modules for it.
