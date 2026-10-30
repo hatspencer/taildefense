@@ -132,6 +132,34 @@ export class Overlays {
     (this.area.material as THREE.MeshBasicNodeMaterial).color.setHex(hex);
   }
 
+  // The builds sent and not yet shown by a frame: a ghost standing where each was placed, so a
+  // click is answered at once, until the structure itself comes in.
+  private pendingMat: THREE.MeshLambertNodeMaterial | null = null;
+  private pendingAt = new Map<string, THREE.Group>();
+  pending(list: readonly { kind: number; tx: number; ty: number; w: number; h: number }[]): void {
+    const at = this.pendingAt;
+    if (!list.length && !at.size) return;
+    const want = new Set<string>();
+    for (const p of list) {
+      const key = `${p.kind}:${p.tx}:${p.ty}`;
+      want.add(key);
+      if (at.has(key)) continue;
+      if (!this.pendingMat) {
+        this.pendingMat = new THREE.MeshLambertNodeMaterial({ transparent: true, depthWrite: false });
+        const c = uniform(new THREE.Color(0x40ff70));
+        this.pendingMat.colorNode = mix(vertexColor().rgb, c, 0.35);
+        setEmissive(this.pendingMat, c.mul(0.2));
+        this.pendingMat.opacityNode = sin(time.mul(14)).mul(0.1).add(0.55);
+      }
+      const g = this.structs.ghost(p.kind, this.pendingMat);
+      g.renderOrder = 5;
+      g.position.set(p.tx + p.w / 2, 0.02, p.ty + p.h / 2);
+      this.group.add(g);
+      at.set(key, g);
+    }
+    for (const [key, g] of at) if (!want.has(key)) { this.group.remove(g); at.delete(key); }
+  }
+
   // kind < 0 hides the ghost.
   buildGhost(kind: number, tx = 0, ty = 0, w = 1, h = 1, ok = true): void {
     if (kind !== this.ghostKind) {

@@ -1,10 +1,38 @@
 import { type AckMsg, EvacStage, Frame, MAX_CREEPS, type NetStatsMsg, PF_ALIVE, type Player, type Welcome, Weather, decodeFrame } from './protocol';
 import { Vision } from './vision';
 
-// Everything the client knows about the world: the last two frames and the interpolation
-// state derived from them. Renderers read the r* arrays, indexed like the current frame.
+// Everything the client knows about the world: the current frame, and a short history of the
+// creeps' and players' positions the page draws them from. Renderers read the r* arrays,
+// indexed like the current frame.
 // How long a ping stays on the map, in ms.
 export const PING_LIFE = 5000;
+
+// Motion is drawn a little in the past, at renderTime = now - delay, from the two snapshots
+// either side of it, so a frame arriving late or several arriving together change nothing on
+// screen as long as the delay covers them. Snapshots kept, per creep and player: the delay is
+// at most three intervals at 20 Hz, so four always bracket it.
+const HIST = 4;
+// The delay is the mean arrival interval plus twice the jitter, no less than a tick and no
+// more than DELAY_MAX ms: past that the lag is felt more than a stutter would be. It moves
+// toward that by at most DELAY_SLEW ms per ms, which slows or speeds the drawn world by 5%
+// rather than jumping it.
+const DELAY_MAX = 150, DELAY_SLEW = 0.05;
+// Past the newest snapshot things go on along their last velocity for up to EXTRAP_MS, then
+// stand: a guess longer than that is more often wrong than right.
+const EXTRAP_MS = 100;
+// When a frame moves where something is drawn (after a guess past the newest snapshot, or the
+// oldest falling out of the history), the difference is carried and let go with this time
+// constant in ms, so nothing snaps.
+const BLEND_MS = 100;
+// The timeline the snapshots are stamped on: each is due one mean interval after the last,
+// pulled PLL_GAIN of the way to when it really came, so arrival jitter does not become speed
+// jitter. The mean and the jitter (mean |arrival - due|) are running averages with these gains.
+// A frame over RESYNC_MS off its due time (a stall, a background tab) restarts the timeline.
+const MEAN_GAIN = 0.05, PLL_GAIN = 0.1, JIT_GAIN = 0.1, RESYNC_MS = 250;
+
+// Where renderTime falls among the snapshots: between lo and lo + 1 at frac, or ext ms past
+// the newest (top); inv is 1 / the newest pair's spacing, for the velocity.
+class Bracket { lo = 0; top = 0; frac = 0; ext = 0; inv = 0 }
 
 export class Game {
   welcome: Welcome | null = null;
@@ -19,8 +47,15 @@ export class Game {
   private back = new Frame();
   // Starts at 1 so a never-seen id (seen 0) is never taken for one seen last frame.
   frames = 1;
+  // When the newest frame came, and the mean time between frames (clamped for alpha's users).
   frameAt = 0;
   interval = 50;
+  // How far in the past motion is drawn, in ms, and what it is moving toward.
+  delay = 50;
+  delayGoal = 50;
+  // The running mean frame interval and arrival jitter behind it, in ms.
+  meanInterval = 50;
+  jitter = 0;
   // The last round trip to the host in ms, and its running average; NaN before the first.
   rtt = NaN;
   rttAvg = NaN;
@@ -29,9 +64,22 @@ export class Game {
   ack: AckMsg | null = null;
   netStats: NetStatsMsg | null = null;
 
-  // Per creep id.
-  private x0 = new Float32Array(MAX_CREEPS); private y0 = new Float32Array(MAX_CREEPS);
-  private x1 = new Float32Array(MAX_CREEPS); private y1 = new Float32Array(MAX_CREEPS);
+  // The snapshot timeline: the newest snapshot's serial (0 before any), and each kept one's
+  // stamp in performance.now() ms, by serial % HIST.
+  private snap = 0;
+  private stamps = new Float64Array(HIST);
+  private resync = true;
+  private tickMs = 50;
+  private drawnAt = 0;
+  private brOld = new Bracket(); private brNew = new Bracket(); private brNow = new Bracket();
+  // What sample() found.
+  private sx = 0; private sy = 0;
+
+  // Per creep id: positions by id * HIST + serial % HIST, the serial its unbroken history
+  // starts at, and the carried difference being let go.
+  private hx = new Float32Array(MAX_CREEPS * HIST); private hy = new Float32Array(MAX_CREEPS * HIST);
+  private since = new Uint32Array(MAX_CREEPS);
+  private ex = new Float32Array(MAX_CREEPS); private ey = new Float32Array(MAX_CREEPS);
   private seen = new Uint32Array(MAX_CREEPS);
   private kindById = new Uint8Array(MAX_CREEPS);
   private hpById = new Uint8Array(MAX_CREEPS);
@@ -44,10 +92,10 @@ export class Game {
   rx = new Float32Array(MAX_CREEPS);
   ry = new Float32Array(MAX_CREEPS);
 
-  // Per player id.
-  private px0 = new Float32Array(256); private py0 = new Float32Array(256);
-  private px1 = new Float32Array(256); private py1 = new Float32Array(256);
-  private pAim0 = new Float32Array(256); private pAim1 = new Float32Array(256);
+  // Per player id, as for creeps, with the aim; pSeen is the snapshot serial last seen in.
+  private phx = new Float32Array(256 * HIST); private phy = new Float32Array(256 * HIST); private pha = new Float32Array(256 * HIST);
+  private pSince = new Uint32Array(256); private pSeen = new Uint32Array(256);
+  private pex = new Float32Array(256); private pey = new Float32Array(256); private pea = new Float32Array(256);
   prx = new Float32Array(256); pry = new Float32Array(256); paim = new Float32Array(256);
 
   private structSig = '';
@@ -84,6 +132,9 @@ export class Game {
     this.hiddenAt.fill(0);
     this.frames++;
     this.seen.fill(0);
+    this.pSeen.fill(0);
+    this.resync = true;
+    this.tickMs = 1000 / (w.tickRate > 0 ? w.tickRate : 20);
     this.indexById.fill(-1);
     this.cur.nCreeps = 0; this.cur.nStructs = 0; this.cur.nPlayers = 0; this.cur.nSites = 0;
     this.structSig = '';
@@ -118,45 +169,142 @@ export class Game {
     const serial = this.frames;
     for (const g of f.pings) this.pings.push({ ...g, at: now });
     while (this.pings.length && (now - this.pings[0].at > PING_LIFE || this.pings.length > 24)) this.pings.shift();
-    if (this.frameAt > 0) this.interval = Math.min(120, Math.max(30, this.interval * 0.9 + (now - this.frameAt) * 0.1));
-    this.frameAt = now;
     const contiguous = f.tick === prevTick + 1 || f.tick === prevTick;
     if (this.vision && this.welcome) this.hideUnseen(f, serial);
 
-    const prevIndex = this.indexById;
+    // The snapshot this frame becomes. Where things are drawn now is read against the old
+    // history and the new, to carry over whatever the new one would move.
+    const top = this.snap, next = top + 1, H = HIST;
+    const rt = now - this.delay;
+    this.bracket(rt, top, this.brOld);
+    this.stamps[next % H] = this.arrive(now);
+    this.snap = next;
+    this.bracket(rt, next, this.brNew);
+    const bo = this.brOld, bn = this.brNew, slot = next % H, prev = top % H;
+
+    const prevIndex = this.indexById, hx = this.hx, hy = this.hy;
     for (let i = 0; i < this.back.nCreeps; i++) prevIndex[this.back.cId[i]] = -1;
     for (let i = 0; i < f.nCreeps; i++) {
-      const id = f.cId[i], x = f.cX[i], y = f.cY[i], k = f.cKind[i];
+      const id = f.cId[i], x = f.cX[i], y = f.cY[i], k = f.cKind[i], base = id * H;
       prevIndex[id] = i;
       const known = this.seen[id] === serial - 1 && contiguous && this.kindById[id] === k;
-      const ox = this.x1[id], oy = this.y1[id];
-      const dx = x - ox, dy = y - oy;
+      const dx = x - hx[base + prev], dy = y - hy[base + prev];
       if (known && dx * dx + dy * dy < 9) {
-        this.x0[id] = ox; this.y0[id] = oy;
+        this.sample(hx, hy, base, this.since[id], bo);
+        const bx = this.sx, by = this.sy;
+        hx[base + slot] = x; hy[base + slot] = y;
+        this.sample(hx, hy, base, this.since[id], bn);
+        this.ex[id] += bx - this.sx; this.ey[id] += by - this.sy;
         if (dx * dx + dy * dy > 1e-4) this.heading[id] = Math.atan2(dy, dx);
         if (f.cHp[i] < this.hpById[id]) this.flashUntil[id] = now + 90;
       } else {
-        this.x0[id] = x; this.y0[id] = y;
+        // New, back from the dark or a jump of three tiles or more: it starts here.
+        hx[base + slot] = x; hy[base + slot] = y;
+        this.since[id] = next;
+        this.ex[id] = 0; this.ey[id] = 0;
         this.flashUntil[id] = 0;
         if (!known) this.heading[id] = Math.random() * Math.PI * 2;
       }
-      this.x1[id] = x; this.y1[id] = y;
       this.kindById[id] = k; this.hpById[id] = f.cHp[i];
       this.seen[id] = serial;
     }
 
+    const phx = this.phx, phy = this.phy, pha = this.pha;
     for (let i = 0; i < f.nPlayers; i++) {
-      const p = f.players[i], id = p.id;
-      const old = this.back.player(id);
-      const jump = !old || Math.abs(p.x - this.px1[id]) + Math.abs(p.y - this.py1[id]) > 4;
-      this.px0[id] = jump ? p.x : this.px1[id]; this.py0[id] = jump ? p.y : this.py1[id];
-      this.pAim0[id] = jump ? p.aim : this.pAim1[id];
-      this.px1[id] = p.x; this.py1[id] = p.y; this.pAim1[id] = p.aim;
-      if (!(p.flags & PF_ALIVE)) { this.px0[id] = p.x; this.py0[id] = p.y; }
+      const p = f.players[i], id = p.id, base = id * H;
+      const known = top > 0 && this.pSeen[id] === top && contiguous;
+      // The dead lie where they fell: no gliding into it.
+      const jump = !known || !(p.flags & PF_ALIVE) || Math.abs(p.x - phx[base + prev]) + Math.abs(p.y - phy[base + prev]) > 4;
+      if (!jump) {
+        this.sample(phx, phy, base, this.pSince[id], bo);
+        const bx = this.sx, by = this.sy, ba = this.sampleAim(base, this.pSince[id], bo);
+        phx[base + slot] = p.x; phy[base + slot] = p.y; pha[base + slot] = p.aim;
+        this.sample(phx, phy, base, this.pSince[id], bn);
+        this.pex[id] += bx - this.sx; this.pey[id] += by - this.sy;
+        const da = ba - this.sampleAim(base, this.pSince[id], bn);
+        this.pea[id] += Math.atan2(Math.sin(da), Math.cos(da));
+      } else {
+        phx[base + slot] = p.x; phy[base + slot] = p.y; pha[base + slot] = p.aim;
+        this.pSince[id] = next;
+        this.pex[id] = 0; this.pey[id] = 0; this.pea[id] = 0;
+      }
+      this.pSeen[id] = next;
     }
 
     this.updateStructGrid();
     return f;
+  }
+
+  // Stamps a frame arriving at now on the snapshot timeline and updates the delay's goal.
+  private arrive(now: number): number {
+    const top = this.snap;
+    let st = now;
+    if (top > 0 && !this.resync) {
+      const last = this.stamps[top % HIST];
+      const gap = Math.min(now - this.frameAt, RESYNC_MS);
+      this.meanInterval = Math.min(RESYNC_MS, Math.max(10, this.meanInterval + (gap - this.meanInterval) * MEAN_GAIN));
+      const due = last + this.meanInterval, dev = now - due;
+      if (Math.abs(dev) <= RESYNC_MS) {
+        st = due + dev * PLL_GAIN;
+        this.jitter += (Math.abs(dev) - this.jitter) * JIT_GAIN;
+      }
+      st = Math.max(st, last + 1);
+    }
+    this.resync = false;
+    this.frameAt = now;
+    this.interval = Math.min(120, Math.max(30, this.meanInterval));
+    this.delayGoal = Math.min(DELAY_MAX, Math.max(this.tickMs, this.meanInterval + 2 * this.jitter));
+    return st;
+  }
+
+  // Finds where renderTime rt falls among the snapshots up to top.
+  private bracket(rt: number, top: number, b: Bracket): void {
+    const st = this.stamps, H = HIST;
+    b.top = top; b.lo = top; b.frac = 0; b.ext = 0; b.inv = 0;
+    if (top === 0) return;
+    if (top > 1) { const d = st[top % H] - st[(top - 1) % H]; b.inv = d > 0 ? 1 / d : 0; }
+    const tTop = st[top % H];
+    if (rt >= tTop) { b.ext = Math.min(rt - tTop, EXTRAP_MS); return; }
+    const oldest = Math.max(1, top - H + 1);
+    for (let s = top - 1; s >= oldest; s--) {
+      const t = st[s % H];
+      if (rt >= t) { b.lo = s; b.frac = (rt - t) / (st[(s + 1) % H] - t); return; }
+    }
+    // Older than everything kept: the oldest stands.
+    b.lo = oldest;
+  }
+
+  // One thing's position at bracket b, from its history at base, unbroken from serial since,
+  // into sx, sy.
+  private sample(hx: Float32Array, hy: Float32Array, base: number, since: number, b: Bracket): void {
+    const H = HIST;
+    let lo = b.lo, frac = b.frac;
+    // Its history starts after renderTime: it stands where it was first seen until then.
+    if (lo < since) { lo = since; frac = 0; }
+    const a = base + lo % H;
+    let x = hx[a], y = hy[a];
+    if (lo === b.top) {
+      if (b.ext > 0 && since < lo) {
+        const p = base + (lo - 1) % H, k = b.ext * b.inv;
+        x += (x - hx[p]) * k; y += (y - hy[p]) * k;
+      }
+    } else if (frac > 0) {
+      const n = base + (lo + 1) % H;
+      x += (hx[n] - x) * frac; y += (hy[n] - y) * frac;
+    }
+    this.sx = x; this.sy = y;
+  }
+
+  // A player's aim at bracket b, turning the short way round; it stands past the newest.
+  private sampleAim(base: number, since: number, b: Bracket): number {
+    const H = HIST, ha = this.pha;
+    let lo = b.lo, frac = b.frac;
+    if (lo < since) { lo = since; frac = 0; }
+    const a0 = ha[base + lo % H];
+    if (lo === b.top || frac <= 0) return a0;
+    let d = ha[base + (lo + 1) % H] - a0;
+    d = Math.atan2(Math.sin(d), Math.cos(d));
+    return a0 + d * frac;
   }
 
   // How many guards site i has left; -1 while fog of war keeps that from the team, -2 at
@@ -234,26 +382,36 @@ export class Game {
     }
   }
 
-  // Interpolation factor for now, 0 at the last frame's arrival, 1 one interval later.
+  // Progress since the newest frame came: 0 on its arrival, 1 one mean interval later. For
+  // what is still drawn from the last two frames alone (the evac Huey) and the countdowns.
   alpha(now: number): number {
     return Math.min(1, Math.max(0, (now - this.frameAt) / this.interval));
   }
 
+  // Draws the creeps and players at renderTime, now - delay, into rx/ry and prx/pry/paim.
   interpolate(now: number): void {
-    const a = this.alpha(now);
-    const f = this.cur;
+    const dt = this.drawnAt > 0 ? Math.min(100, Math.max(0, now - this.drawnAt)) : 0;
+    this.drawnAt = now;
+    const step = dt * DELAY_SLEW;
+    this.delay += Math.min(step, Math.max(-step, this.delayGoal - this.delay));
+    const b = this.brNow;
+    this.bracket(now - this.delay, this.snap, b);
+    const k = Math.exp(-dt / BLEND_MS), H = HIST;
+    const f = this.cur, ex = this.ex, ey = this.ey;
     for (let i = 0; i < f.nCreeps; i++) {
       const id = f.cId[i];
-      this.rx[i] = this.x0[id] + (this.x1[id] - this.x0[id]) * a;
-      this.ry[i] = this.y0[id] + (this.y1[id] - this.y0[id]) * a;
+      this.sample(this.hx, this.hy, id * H, this.since[id], b);
+      ex[id] *= k; ey[id] *= k;
+      this.rx[i] = this.sx + ex[id];
+      this.ry[i] = this.sy + ey[id];
     }
     for (let i = 0; i < f.nPlayers; i++) {
       const id = f.players[i].id;
-      this.prx[id] = this.px0[id] + (this.px1[id] - this.px0[id]) * a;
-      this.pry[id] = this.py0[id] + (this.py1[id] - this.py0[id]) * a;
-      let d = this.pAim1[id] - this.pAim0[id];
-      d = Math.atan2(Math.sin(d), Math.cos(d));
-      this.paim[id] = this.pAim0[id] + d * a;
+      this.sample(this.phx, this.phy, id * H, this.pSince[id], b);
+      this.pex[id] *= k; this.pey[id] *= k; this.pea[id] *= k;
+      this.prx[id] = this.sx + this.pex[id];
+      this.pry[id] = this.sy + this.pey[id];
+      this.paim[id] = this.sampleAim(id * H, this.pSince[id], b) + this.pea[id];
     }
   }
 

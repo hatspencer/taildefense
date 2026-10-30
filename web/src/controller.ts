@@ -1,7 +1,8 @@
 import * as THREE from 'three/webgpu';
 import type { CameraRig } from './camera';
-import { canTake, dualIn, KATANA, OWNED_DUAL_KATANA, EvacStage, K_ARMORY, lootable, stickyKind, repairCost, walled, type Command, Order, PF_ALIVE, PF_ARMORY, PF_CONNECTED, OWNED_DUAL, PF_READY, Phase, PingKind, SiteKind, siteX, siteY, Tile, K_GATE } from './protocol';
+import { canTake, dualIn, KATANA, OWNED_DUAL_KATANA, EvacStage, K_ARMORY, lootable, stickyKind, repairCost, walled, type Command, Order, PF_ALIVE, PF_ARMORY, PF_CONNECTED, OWNED_DUAL, PF_READY, PF_RELOADING, Phase, PingKind, SiteKind, siteX, siteY, Tile, K_GATE } from './protocol';
 import type { Effects } from './scene/effects';
+import type { LocalCue } from './sound/sound';
 import type { Game } from './state';
 
 export type Mode = { k: 'none' } | { k: 'ping' } | { k: 'ability'; slot: number } | { k: 'build'; kind: number };
@@ -30,7 +31,12 @@ const USE_REACH = 4;
 const CRATE_REACH = 14; // tiles within which E walks to a supply crate
 const LOOT_SEEK = 24; // tiles within which E twice walks to a loot site, about a screen's worth
 const SEEK_PENDING = 1000; // ms a loot order just sent counts as on its way, until the host echoes it
+// ms a placed build stands as a pending ghost while the host has yet to show it: about a
+// round trip and the render delay, with room; past it the host must have refused it.
+const BUILD_PENDING = 1000;
 
+// A build sent to the host and not yet in a frame.
+export interface PendingBuild { kind: number; tx: number; ty: number; w: number; h: number; at: number }
 // What the player is doing with the mouse, what is selected and hovered, and every action
 // the input handlers and the HUD buttons can trigger.
 export class Controller {
@@ -51,6 +57,10 @@ export class Controller {
   private g1 = new THREE.Vector3();
   onToast: (text: string, level: number) => void = () => {};
   onModeChange: () => void = () => {};
+  // The local player's acts are answered on the page at once (a ring, a sound) rather than a
+  // round trip later when the frame shows them; the host still decides. onCue plays the sound.
+  onCue: (cue: LocalCue, x: number, y: number, key?: string) => void = () => {};
+  pending: PendingBuild[] = [];
 
   constructor(public game: Game, public send: (c: Command) => void, public rig: CameraRig, public fx: Effects) {}
 
@@ -181,7 +191,13 @@ export class Controller {
 
   taunt(): void {
     const me = this.me();
-    if (me && me.flags & PF_ALIVE) this.send({ op: 'taunt' });
+    if (!me || !(me.flags & PF_ALIVE)) return;
+    this.send({ op: 'taunt' });
+    // Only when it will come off: a taunt still cooling is the host's to refuse, silently.
+    if (me.tauntCool <= 0) {
+      this.fx.ping(this.game.prx[me.id], this.game.pry[me.id], 0xff9040);
+      this.onCue('taunt', me.x, me.y);
+    }
   }
 
   // --- clicks ---
@@ -394,7 +410,18 @@ export class Controller {
 
   medkit(): void {
     const me = this.me();
-    if (me && me.flags & PF_ALIVE) this.send({ op: 'medkit' });
+    if (!me || !(me.flags & PF_ALIVE)) return;
+    this.send({ op: 'medkit' });
+    // One in the bag and none already working, as the host wants; it may still refuse (full
+    // health), and then the cue was a little early hope.
+    if (me.medkits > 0 && me.heal <= 0) this.onCue('medkit', me.x, me.y);
+  }
+
+  // R: the hands go to the reload at once; the frame that starts it then stays quiet.
+  reload(): void {
+    const me = this.me();
+    this.send({ op: 'reload' });
+    if (me && me.flags & PF_ALIVE && me.cur < 6 && !(me.flags & PF_RELOADING) && me.ammo < me.mag) this.onCue('reload', me.x, me.y);
   }
 
   // Marks a spot for the whole team. Its meaning comes from what is under the cursor: a creep
@@ -512,6 +539,10 @@ export class Controller {
   castAt(slot: number, x: number, y: number): void {
     this.send({ op: 'ability', slot, x, y });
     this.fx.ping(x, y, 0xffd040);
+    // The grenade's throw is the one cast with a sound of its own at the thrower; the rest are
+    // heard as what they do, which is the host's to say.
+    const me = this.me();
+    if (slot === AIMED && me) this.onCue('grenade', me.x, me.y);
   }
 
   // --- building ---
@@ -542,15 +573,29 @@ export class Controller {
       if (g.tile(x, y) >= Tile.Water) return 'blocked terrain';
       if (g.structAtTile(x, y) >= 0) return 'occupied';
     }
+    // A build just sent counts as standing, so a second click on it is not sent too.
+    for (const p of this.pending) if (tx < p.tx + p.w && p.tx < tx + d.w && ty < p.ty + p.h && p.ty < ty + d.h) return 'occupied';
     return '';
   }
 
   placeBuild(kind: number, keep: boolean): void {
-    const { tx, ty } = this.buildTile(kind);
+    const { tx, ty, w, h } = this.buildTile(kind);
     const err = this.canPlace(kind, tx, ty);
     if (err) { this.onToast(err, 2); return; }
     this.send({ op: 'build', kind, tx, ty });
+    this.pending.push({ kind, tx, ty, w, h, at: performance.now() });
+    this.fx.ping(tx + w / 2, ty + h / 2, 0x40ff70);
+    this.onCue('build', tx + w / 2, ty + h / 2, `build:${tx}:${ty}`);
     if (!keep) this.setMode({ k: 'none' });
+  }
+
+  // Drops the pending builds a frame now shows standing, or that waited too long.
+  prunePending(now: number): void {
+    const g = this.game;
+    for (let i = this.pending.length - 1; i >= 0; i--) {
+      const p = this.pending[i];
+      if (g.structAtTile(p.tx, p.ty) >= 0 || now - p.at > BUILD_PENDING) this.pending.splice(i, 1);
+    }
   }
 
   // --- selection actions ---

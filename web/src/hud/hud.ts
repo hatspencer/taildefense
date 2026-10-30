@@ -256,7 +256,7 @@ export class Hud {
     // The word gives way first on a narrow screen, so the weapon's name keeps its room.
     reload.innerHTML = '<span class="rl">Reload</span><kbd>R</kbd>';
     reload.setAttribute('aria-label', 'Reload (R)');
-    reload.onclick = () => ctl.send({ op: 'reload' });
+    reload.onclick = () => ctl.reload();
     this.tipOn(reload, () => '<b>Reload</b><kbd>R</kbd><br>Swap in a fresh magazine now instead of when it runs dry.');
     const ammoBar = el('div', 'bar ammo', hero);
     const ammo = el('div', 'fill', ammoBar);
@@ -286,7 +286,7 @@ export class Hud {
     const ts = mkSlot('slot taunt', 'J');
     ts.icon.innerHTML = iconFor('taunt');
     const cap = el('div', 'cap', ts.root, 'taunt');
-    ts.root.onclick = () => ctl.send({ op: 'taunt' });
+    ts.root.onclick = () => ctl.taunt();
     this.tipOn(ts.root, () => this.tauntTip());
     this.taunt = { ...ts, cap };
 
