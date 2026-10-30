@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { color, float, fract, max, mix, positionLocal, sin, step, time, uniform, vertexColor, vec3 } from 'three/tsl';
 import { K_ARMORY, K_CANNON, K_CORE, K_FROST, K_GATE, K_GUN, K_MINE, K_MISSILE, K_SNIPER, K_SPIKES, K_PYLON, K_TAR, K_TESLA, K_VENT, K_WALL, type StructDef, TURRET_TRACKS } from '../protocol';
 import type { Game } from '../state';
-import { box, cone, cyl, dodeca, ico, merge, octa, part, playerColor, setEmissive, torus, writeMatrix, type Part } from './util';
+import { box, concat, cone, cyl, dodeca, ico, merge, octa, part, playerColor, setEmissive, torus, writeMatrix, type Part } from './util';
 
 export { K_ARMORY, K_CANNON, K_CORE, K_FROST, K_GATE, K_GUN, K_MISSILE, K_SNIPER, K_TESLA, K_WALL };
 
@@ -451,7 +451,6 @@ export class Structs {
   private objs = new Map<number, Obj>();
   private built = new Map<number, Built>();
   private mat = litMaterial();
-  private pipMat = litMaterial();
   private walls: WallSet;
   private version = -1;
   private defs: StructDef[] = [];
@@ -541,14 +540,21 @@ export class Structs {
     const dmg: THREE.Object3D[] = [];
     for (const d of b.dmg ?? []) { const m = new THREE.Mesh(d, this.mat); m.visible = false; m.castShadow = true; g.add(m); dmg.push(m); }
     const def = this.defs[kind];
-    if (def?.turret) {
-      const pm = new THREE.Mesh(this.pips(f, i), this.pipMat);
-      g.add(pm);
-    }
-    if (kind !== K_WALL && kind !== K_GATE) g.add(new THREE.Mesh(this.ring(f.sOwner[i], w), this.mat));
     const evo = f.sEvo[i], tier = kind === K_CORE ? f.tier : 0;
+    // The trim that throws no shadow and never moves (the upgrade pips, the owner's ring, an
+    // evolution's fittings) is one mesh: as three were it was three draws a turret, and on
+    // WebGL2 every draw is CPU time.
+    const trim: THREE.BufferGeometry[] = [];
+    if (def?.turret) trim.push(this.pips(f, i));
+    if (kind !== K_WALL && kind !== K_GATE) trim.push(this.ring(f.sOwner[i], w));
+    if (evo) trim.push(this.extra('evo', () => merge(evoParts())));
+    if (trim.length) {
+      let pip = 0;
+      for (let t = 0; t < TURRET_TRACKS; t++) pip = pip * 8 + f.sLv[i * TURRET_TRACKS + t];
+      const key = `trim${def?.turret ? pip : -1}:${kind !== K_WALL && kind !== K_GATE ? f.sOwner[i] * 16 + w : -1}:${evo ? 1 : 0}`;
+      g.add(new THREE.Mesh(this.extra(key, () => concat(trim)), this.mat));
+    }
     if (evo) {
-      g.add(new THREE.Mesh(this.extra('evo', () => merge(evoParts())), this.mat));
       g.add(new THREE.Mesh(this.extra('evoLamp', () => merge([part(ico(0.07), 0, -0.36, 0.7, 0.36)])), this.evoMats[evo - 1]));
     }
     if (tier >= 2) {

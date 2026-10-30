@@ -23,7 +23,11 @@ const LIGHTS = 4;
 
 // Effect instances live entirely on the GPU: the CPU writes an instance once when it spawns
 // (start, end or velocity, birth time, life, colour, sizes) and the TSL material computes
-// motion and fade from the shared clock. Slots are reused as a ring.
+// motion and fade from the shared clock. Only the first `used` slots are drawn: a new effect
+// takes a slot whose effect is over, and the range grows only when none near the cursor is,
+// then shrinks again as the effects at its top end. Drawing every slot of every pool whether
+// it held anything or not was half a million triangles a frame on an empty field, each a
+// vertex shader run for nothing, which a slow GPU felt.
 //   0..3  p0.xyz, born      4..7  p1.xyz (end, or velocity), life
 //   8..11 rgb, size0        12..15 size1, gravity, yScale, -
 class FxPool {
@@ -32,12 +36,17 @@ class FxPool {
   private buf: THREE.InstancedInterleavedBuffer;
   private head = 0;
   private lo = Infinity; private hi = -1;
+  // When each slot's effect is over, on the shared clock, and how many slots are drawn.
+  private ends: Float32Array;
+  private used = 0;
+  private clock = 0;
 
   constructor(parent: THREE.Object3D, geo: THREE.BufferGeometry, private cap: number, mode: Mode, now: THREE.UniformNode<'float', number>,
     right: THREE.UniformNode<'vec3', THREE.Vector3>, up: THREE.UniformNode<'vec3', THREE.Vector3>, additive: boolean, soft: boolean, rim = false, star = false, drag = 0) {
     this.data = new Float32Array(cap * STRIDE);
     // Unused slots must not render: born far in the future.
     for (let i = 0; i < cap; i++) { this.data[i * STRIDE + 3] = 1e9; this.data[i * STRIDE + 7] = 1; }
+    this.ends = new Float32Array(cap);
     this.buf = new THREE.InstancedInterleavedBuffer(this.data, STRIDE, 1);
     this.buf.setUsage(THREE.DynamicDrawUsage);
     const a = instancedDynamicBufferAttribute<'vec4'>(this.buf, 'vec4', STRIDE, 0);
@@ -91,20 +100,24 @@ class FxPool {
     mat.fog = !additive;
     if (additive) mat.blending = THREE.AdditiveBlending;
     mat.side = THREE.DoubleSide;
+    // Drawn once with both faces: three would otherwise draw a transparent double-sided mesh
+    // twice, its back faces and then its front, which for flat quads, discs and rings that
+    // write no depth comes to the same pixels at twice the cost.
+    mat.forceSinglePass = true;
     // Leave the normals the outline pass reads alone (a zero with zero alpha blends to nothing);
     // otherwise every camera-facing quad reads as a crease and gets a dark box drawn round it.
     mat.mrtNode = mrt({ output, normal: vec4(0, 0, 0, 0) });
     this.mesh = new THREE.InstancedMesh(geo, mat, cap);
     this.mesh.frustumCulled = false;
-    this.mesh.count = cap;
+    this.mesh.count = 0;
     this.mesh.renderOrder = additive ? 3 : 2;
     parent.add(this.mesh);
   }
 
   add(now: number, x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, life: number,
     hex: number, size0: number, size1: number, gravity = 0, yScale = 1, alpha = 1, bright = 1): void {
-    const i = this.head;
-    this.head = (this.head + 1) % this.cap;
+    const i = this.slot();
+    this.ends[i] = now + life;
     const o = i * STRIDE, d = this.data;
     d[o] = x0; d[o + 1] = y0; d[o + 2] = z0; d[o + 3] = now;
     d[o + 4] = x1; d[o + 5] = y1; d[o + 6] = z1; d[o + 7] = life;
@@ -114,7 +127,27 @@ class FxPool {
     if (i > this.hi) this.hi = i;
   }
 
-  flush(): void {
+  // A free slot: one of the next few after the last taken whose effect is over, else one
+  // more at the top, else (every slot busy) the next one, cutting its effect short. Free is
+  // judged on the clock at the last flush, not the new effect's birth, which can lie ahead.
+  private slot(): number {
+    for (let k = 0; k < 4 && this.used > 0; k++) {
+      if (this.head >= this.used) this.head = 0;
+      if (this.ends[this.head] <= this.clock) return this.head++;
+      this.head++;
+    }
+    if (this.used < this.cap) return this.used++;
+    if (this.head >= this.used) this.head = 0;
+    return this.head++;
+  }
+
+  // Uploads what changed and draws only up to the last slot still showing something; now is
+  // the shared clock. A pool with nothing in it is hidden, so three does no work on it.
+  flush(now: number): void {
+    this.clock = now;
+    while (this.used > 0 && this.ends[this.used - 1] <= now) this.used--;
+    this.mesh.count = this.used;
+    this.mesh.visible = this.used > 0;
     if (this.hi < 0) return;
     this.buf.clearUpdateRanges();
     this.buf.addUpdateRange(this.lo * STRIDE, (this.hi - this.lo + 1) * STRIDE);
@@ -881,7 +914,7 @@ export class Effects {
     }
     const done = (m: THREE.InstancedMesh, n: number) => { m.count = n; if (n) m.instanceMatrix.needsUpdate = true; };
     done(this.lasting, nr); done(this.lastingFire, nf); done(this.grenades, ng); done(this.acid, na); done(this.sacs, ns);
-    for (const p of [this.glow, this.smoke, this.streaks, this.spheres, this.rings, this.decals, this.stars, this.dust]) p.flush();
+    for (const p of [this.glow, this.smoke, this.streaks, this.spheres, this.rings, this.decals, this.stars, this.dust]) p.flush(t);
   }
 
   // A team ping: three rings rippling out wide, brighter than a command ping, so it reads
