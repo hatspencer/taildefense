@@ -146,19 +146,25 @@ type peer struct {
 	qMax             int
 	// UDP (udp.go): the listener it came in on, whether it asked for UDP, whether it was
 	// offered it (so its frames are numbered), its token and bound address, whether its
-	// frames go that way now or never will again, when it last acked a datagram, the
-	// smoothed round trip, when it was last sent a keyframe and whether the next keyframe
-	// must go over TCP to stay behind a welcome.
-	ln             int
-	wantUDP        bool
-	seqFrames      bool
-	udpTok         uint64
-	udpAddr        netip.AddrPort
-	udpOn, udpDead bool
-	udpAck         time.Time
-	srtt           time.Duration
-	keyAt          time.Time
-	keyTCP         bool
+	// frames go that way now, since when, how often in a row they fell back to TCP, until
+	// when its hellos go unanswered for it and when one was last answered while its frames
+	// went over TCP, when it last acked a datagram, the smoothed round
+	// trip, when it was last sent a keyframe and whether the next keyframe must go over TCP
+	// to stay behind a welcome.
+	ln         int
+	wantUDP    bool
+	seqFrames  bool
+	udpTok     uint64
+	udpAddr    netip.AddrPort
+	udpOn      bool
+	udpSince   time.Time
+	udpFalls   int
+	udpHoldTo  time.Time
+	udpHelloAt time.Time
+	udpAck     time.Time
+	srtt       time.Duration
+	keyAt      time.Time
+	keyTCP     bool
 }
 
 type cmdMsg struct {
@@ -819,9 +825,7 @@ func (s *Server) tick() {
 	uf := udpFrames{s: s, seq: seq, delta: sharedF, key: keyF}
 	s.sentAt[seq%uint32(len(s.sentAt))].seq, s.sentAt[seq%uint32(len(s.sentAt))].at = seq, now
 	for _, p := range s.peers {
-		if p.udpOn && now.Sub(p.udpAck) > udpTimeout {
-			s.udpFallback(p, fmt.Sprintf("nothing back over UDP for %v", udpTimeout))
-		}
+		s.checkUDP(p, now)
 		key := p.needKey
 		// A keyframe of many datagrams is lost if any one is, so a big one goes over TCP.
 		if p.udpOn && !(key && (p.keyTCP || len(uf.keyDgs()) > udpKeyFrags)) {
@@ -833,7 +837,7 @@ func (s *Server) tick() {
 				s.sent(p, key, now, w)
 				continue
 			}
-			s.udpFallback(p, "a frame too large for datagrams")
+			s.udpFallback(p, now, "a frame too large for datagrams")
 		}
 		var m outMsg
 		switch {

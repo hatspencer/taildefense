@@ -58,6 +58,9 @@ type Options struct {
 	// Ready is called once the page is served and the browser started, before anything
 	// waits on a browser. The caller says where the game is.
 	Ready func(Page)
+	// Log, when set, takes a line about the link worth telling the player in the terminal,
+	// such as the frames moving from UDP to TCP and back.
+	Log func(format string, a ...any)
 	// Notice is shown in the page once it is up, such as that td is out of date.
 	Notice string
 	// Volume is the page's sound, 0 (off) to 100, the VOLUME setting. SaveVolume, when set,
@@ -219,8 +222,15 @@ func Run(ctx context.Context, o Options) (Result, error) {
 			if o.Status != nil && s.b != nil {
 				s.text(s.b, map[string]any{"t": "status", "text": o.Status()})
 			}
+			// How the frames come, said in the terminal whenever it changes, so a player
+			// whose game stutters can tell what the link was doing at the time.
+			if via := cl.Transport(); via != s.net.via {
+				if o.Log != nil {
+					o.Log("frames from the host come over %s", via)
+				}
+				s.net.via = via
+			}
 			if s.b != nil && s.b.ready {
-				s.net.via = cl.Transport()
 				s.text(s.b, s.net.msg(time.Now()))
 			}
 		case <-pathT.C:
