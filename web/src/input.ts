@@ -259,9 +259,10 @@ export class Input {
       case 'U': ctl.upgradeSel(); return;
       case 'E': {
         if (ctl.board()) { hud.flash('get to the choppa!'); return; }
-        // Twice quickly: the hero heads for the nearest loot site, and stays on it while E is spammed.
+        // Twice quickly: the hero heads for the nearest loot site, and stays on it while E is
+        // spammed. Not during a revive: E pressed again there just carries on with it.
         const now = performance.now();
-        if (now - this.lastE < 400) {
+        if (now - this.lastE < 400 && !ctl.reviving()) {
           this.lastE = now;
           if (ctl.seekLoot()) hud.flash('off to the nearest loot site'); else ctl.onToast('no loot site in sight', 1);
           return;

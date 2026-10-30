@@ -22,12 +22,13 @@ type Bot struct {
 	Live bool
 	rng  *rand.Rand
 
-	shopped    int // the wave whose break it is in, from the bot's side
-	builds     int // builds tried this break
-	looting    bool
-	bought     bool // has been to the armory this break
-	buildFirst bool // builds before it shops this break
-	eager      bool // readies up as soon as it is done
+	shopped    int        // the wave whose break it is in, from the bot's side
+	builds     int        // builds tried this break
+	exploring  bool       // out exploring: off to a loot site or new ground
+	scout      [2]float32 // the new ground it is walking to, if that
+	bought     bool       // has been to the armory this break
+	buildFirst bool       // builds before it shops this break
+	eager      bool       // readies up as soon as it is done
 }
 
 // NewBot is a bot for player id.
@@ -62,6 +63,12 @@ func (b *Bot) Act(w *game.World, do func(Cmd)) {
 	}
 	if p.HP < p.MaxHP*.4 && p.Medkits > 0 && p.Heal == 0 {
 		do(Cmd{Op: OpMedkit})
+	}
+	// A revive under way is all the bot does until it is done: any other order, or the revive
+	// asked for again, would start its count over and nobody would ever get up. Only being
+	// near death itself breaks it off.
+	if p.Order.Kind == game.OrderRevive && p.HP > p.MaxHP*.3 {
+		return
 	}
 	if b.rng.IntN(40) == 0 {
 		do(Cmd{Op: OpSprint, A: uint8(b.rng.IntN(2))})
@@ -109,7 +116,7 @@ func (b *Bot) Act(w *game.World, do func(Cmd)) {
 // shops, so some gold always goes on the base.
 func (b *Bot) between(w *game.World, p *game.Player, do func(Cmd)) {
 	if b.shopped != w.Wave {
-		b.shopped, b.builds, b.looting, b.bought = w.Wave, 0, false, false
+		b.shopped, b.builds, b.bought = w.Wave, 0, false
 		b.buildFirst, b.eager = b.rng.IntN(2) == 0, b.rng.IntN(5) == 0
 	}
 	if b.Live && !p.Ready && othersReady(w, p) {
@@ -123,8 +130,15 @@ func (b *Bot) between(w *game.World, p *game.Player, do func(Cmd)) {
 		b.goShop(w, p, do)
 		return
 	}
-	if b.builds < 4+w.Wave/2 && b.build(w, p, do) {
-		return
+	// Gold for the next tower is kept back from upgrades while there is building left to do.
+	var keep int32
+	if b.builds < 4+w.Wave/2 {
+		if b.build(w, p, do) {
+			return
+		}
+		if k, ok := b.want(w, p); ok {
+			keep = game.Structs[k].Price
+		}
 	}
 	if !b.bought {
 		b.goShop(w, p, do)
@@ -134,15 +148,19 @@ func (b *Bot) between(w *game.World, p *game.Player, do func(Cmd)) {
 		do(Cmd{Op: OpRepair, T: uint16(si)})
 		return
 	}
-	if b.rng.IntN(6) == 0 {
-		b.upkeep(w, p, do)
+	if b.upkeep(w, p, keep, do) {
+		return
 	}
-	if !b.looting && w.PhaseLeft > 20 && b.rng.IntN(2) == 0 {
-		b.looting = true
-		if si := b.site(w, p); si >= 0 {
-			do(Cmd{Op: OpLoot, T: uint16(si)})
+	// Free time: out exploring while the break has time in it, back to the generator before
+	// the wave comes.
+	if w.PhaseLeft > exploreUntil {
+		if b.explore(w, p, do) {
 			return
 		}
+	} else if b.exploring && d2(p.X, p.Y, w.CoreX, w.CoreY) > 20*20 && p.Order.Kind != game.OrderMove {
+		b.exploring = false
+		do(Cmd{Op: OpMove, X: w.CoreX + b.jitter(6), Y: w.CoreY + b.jitter(6)})
+		return
 	}
 	if !p.Ready && (b.eager || w.PhaseLeft < 8) {
 		do(Cmd{Op: OpReady, A: 1})
@@ -164,21 +182,140 @@ func othersReady(w *game.World, p *game.Player) bool {
 	return n > 0
 }
 
-// build orders something it can afford put up near the generator, and reports whether it did.
-func (b *Bot) build(w *game.World, p *game.Player, do func(Cmd)) bool {
-	kinds := []game.StructKind{game.STurretGun, game.STurretGun, game.STurretCannon, game.STurretFrost, game.STurretTesla, game.STurretSniper, game.STurretMissile, game.SWall, game.SGate}
-	k := kinds[b.rng.IntN(len(kinds))]
-	if p.Gold < game.Structs[k].Price {
-		k = game.SWall
-		if p.Gold < game.Structs[k].Price {
-			return false
+// The bot's defence is frost and rockets: frost towers beside the way the creeps walk in, to
+// hold them under fire, and missile batteries behind them, nearer the generator, whose
+// salvos land on the slowed crowd. It builds no walls: a wall dropped at random inside the
+// base blocks the survivors and turns the creeps into the turrets' blind side. A gun turret
+// only starts a base that has no turret at all and no gold yet for anything better.
+
+// Where on the way in each goes, in tiles from the generator's centre: frost just inside the
+// starting walls (14 out), where the creeps that break through bunch up, the batteries
+// further in, their 14 of reach still over the walls.
+const (
+	frostFrom, frostTo     = 8, 13
+	missileFrom, missileTo = 4, 9
+)
+
+// want is the tower the team's base needs next and whether the bot could ever build it now
+// (the generator's tier allows it): a frost tower for every missile battery, frost first.
+func (b *Bot) want(w *game.World, p *game.Player) (game.StructKind, bool) {
+	frost, missile, turrets := 0, 0, 0
+	for i := range w.Structs {
+		s := &w.Structs[i]
+		if !s.Alive || !game.Structs[s.Kind].Turret {
+			continue
+		}
+		turrets++
+		switch s.Kind {
+		case game.STurretFrost:
+			frost++
+		case game.STurretMissile:
+			missile++
 		}
 	}
+	k := game.STurretMissile
+	if frost <= missile {
+		k = game.STurretFrost
+	}
+	switch {
+	case p.Gold >= game.Structs[k].Price:
+	case k == game.STurretMissile && frost < missile+2 && p.Gold >= game.Structs[game.STurretFrost].Price:
+		// A battery is out of reach this break, a second frost tower is not.
+		k = game.STurretFrost
+	case turrets == 0 && p.Gold < game.Structs[game.STurretFrost].Price:
+		k = game.STurretGun
+	}
+	return k, game.Structs[k].Tier <= w.Tier
+}
+
+// build orders the tower the base needs put up on the creeps' way in, if the bot can afford
+// it and finds ground for it, and reports whether it did.
+func (b *Bot) build(w *game.World, p *game.Player, do func(Cmd)) bool {
+	k, ok := b.want(w, p)
+	if !ok || p.Gold < game.Structs[k].Price {
+		return false
+	}
+	x, y, ok := b.ground(w, p, k)
+	if !ok {
+		return false
+	}
 	b.builds++
-	ang := b.rng.Float64() * 2 * math.Pi
-	r := 5 + b.rng.Float64()*9
-	do(Cmd{Op: OpBuild, A: uint8(k), X: w.CoreX + float32(r*math.Cos(ang)), Y: w.CoreY + float32(r*math.Sin(ang))})
+	do(Cmd{Op: OpBuild, A: uint8(k), X: float32(x), Y: float32(y)})
 	return true
+}
+
+// ground finds a tile for k beside a way in: the path the creeps take from a spawn point to
+// the generator (lane). Frost goes right beside it, further out, a
+// battery two or three tiles off it nearer in; never on it, which would only send the creeps
+// round, and not crowded on a tower of the same kind. ok is false when there is none.
+func (b *Bot) ground(w *game.World, p *game.Player, k game.StructKind) (x, y int, ok bool) {
+	from, to, off, spread := float32(frostFrom), float32(frostTo), []int{1}, float32(4)
+	switch k {
+	case game.STurretMissile:
+		from, to, off, spread = missileFrom, missileTo, []int{2, 3}, 2
+	case game.STurretGun:
+		from, to, off, spread = 5, 12, []int{1, 2}, 2
+	}
+	n := len(w.SpawnPts)
+	if n == 0 {
+		return 0, 0, false
+	}
+	first := b.rng.IntN(n)
+	for s := range n {
+		sp := w.SpawnPts[(first+s)%n]
+		lane := b.lane(w, int(sp[0]), int(sp[1]))
+		on := make(map[[2]int]bool, len(lane))
+		var spots [][2]int
+		for _, t := range lane {
+			on[t] = true
+			if d := d2(float32(t[0])+.5, float32(t[1])+.5, w.CoreX, w.CoreY); d >= from*from && d <= to*to {
+				spots = append(spots, t)
+			}
+		}
+		if len(spots) == 0 {
+			continue
+		}
+		start := b.rng.IntN(len(spots))
+		for i := range spots {
+			t := spots[(start+i)%len(spots)]
+			for _, o := range off {
+				for _, dir := range [...][2]int{{o, 0}, {-o, 0}, {0, o}, {0, -o}, {o, o}, {-o, o}, {o, -o}, {-o, -o}} {
+					cx, cy := t[0]+dir[0], t[1]+dir[1]
+					if on[[2]int{cx, cy}] || b.crowded(w, k, cx, cy, spread) || w.CanBuildFrom(p, k, cx, cy) != nil {
+						continue
+					}
+					return cx, cy, true
+				}
+			}
+		}
+	}
+	return 0, 0, false
+}
+
+// lane is the way a creep from x, y walks to the generator, breaking in where the creeps
+// would: tile by tile along the host's own field, until the generator.
+func (b *Bot) lane(w *game.World, x, y int) [][2]int {
+	var path [][2]int
+	for range 2 * (w.W + w.H) {
+		path = append(path, [2]int{x, y})
+		nx, ny, ok := w.StepIn(x, y)
+		if !ok {
+			break
+		}
+		x, y = nx, ny
+	}
+	return path
+}
+
+// crowded reports whether a tower of kind k already stands within r of tile x, y.
+func (b *Bot) crowded(w *game.World, k game.StructKind, x, y int, r float32) bool {
+	for i := range w.Structs {
+		s := &w.Structs[i]
+		if s.Alive && s.Kind == k && d2(s.CX(), s.CY(), float32(x)+.5, float32(y)+.5) < r*r {
+			return true
+		}
+	}
+	return false
 }
 
 // goShop walks to the armory and spends there once it arrives.
@@ -231,30 +368,95 @@ func (b *Bot) shop(p *game.Player, do func(Cmd)) {
 	}
 }
 
-// upkeep upgrades or, once in a while, sells one of the bot's own structures.
-func (b *Bot) upkeep(w *game.World, p *game.Player, do func(Cmd)) {
-	var own []int
+// upkeep spends what is over keep on the bot's own turrets, and reports whether it ordered
+// anything: an evolution when one is due (napalm for a battery, cryo for frost), else the
+// cheapest next level of the track that does most for a turret's job, frost and rockets
+// before anything else it owns. It never sells: a tower sold is half its gold thrown away.
+func (b *Bot) upkeep(w *game.World, p *game.Player, keep int32, do func(Cmd)) bool {
+	spare := p.Gold - keep
+	best, bt, bc := -1, game.Track(0), int32(math.MaxInt32)
 	for i := range w.Structs {
-		if st := &w.Structs[i]; st.Alive && st.Owner == int8(p.ID) {
-			own = append(own, i)
+		s := &w.Structs[i]
+		if !s.Alive || s.Owner != int8(p.ID) || !game.Structs[s.Kind].Turret {
+			continue
+		}
+		if br := evolveInto(s.Kind); s.Evo == 0 && br > 0 && w.Tier >= game.EvolveTier && game.TrackSum(s) >= game.EvolveAt && game.Structs[s.Kind].Price <= spare {
+			do(Cmd{Op: OpEvolve, T: uint16(i), A: br})
+			return true
+		}
+		t, ok := nextTrack(s)
+		if !ok {
+			continue
+		}
+		c := game.TurretUpgradeCost(s.Kind, s.Lv[t])
+		rank := c
+		if s.Kind != game.STurretFrost && s.Kind != game.STurretMissile {
+			rank *= 2
+		}
+		if c <= spare && rank < bc {
+			best, bt, bc = i, t, rank
 		}
 	}
-	if len(own) == 0 {
-		return
+	if best < 0 {
+		return false
 	}
-	si := own[b.rng.IntN(len(own))]
-	if b.rng.IntN(8) == 0 {
-		do(Cmd{Op: OpSell, T: uint16(si)})
-	} else {
-		do(Cmd{Op: OpUpgradeStruct, T: uint16(si), A: uint8(b.rng.IntN(int(game.NumTracks)))})
+	do(Cmd{Op: OpUpgradeStruct, T: uint16(best), A: uint8(bt)})
+	return true
+}
+
+// tracks is, per turret, the order its tracks are worth raising in: a battery's extra
+// missile and its blast's damage, a frost tower's deeper cold and wider reach (its damage
+// is a token three, never worth gold).
+func tracks(k game.StructKind) []game.Track {
+	switch k {
+	case game.STurretMissile:
+		return []game.Track{game.TrackSpecial, game.TrackDamage, game.TrackRate, game.TrackRange}
+	case game.STurretFrost:
+		return []game.Track{game.TrackSpecial, game.TrackRange, game.TrackRate}
 	}
+	return []game.Track{game.TrackDamage, game.TrackRate, game.TrackRange, game.TrackSpecial}
+}
+
+// nextTrack is the track of s to raise next: the lowest, the earlier in tracks on a tie, so
+// they go up together with the ones that matter a step ahead.
+func nextTrack(s *game.Structure) (game.Track, bool) {
+	ts := tracks(s.Kind)
+	best, bs := game.Track(0), math.MaxInt
+	for i, t := range ts {
+		if s.Lv[t] >= game.MaxLevel {
+			continue
+		}
+		if score := int(s.Lv[t])*len(ts) + i; score < bs {
+			best, bs = t, score
+		}
+	}
+	return best, bs != math.MaxInt
+}
+
+// evolveInto is the evolution a bot picks for a turret of kind k, or 0 for none.
+func evolveInto(k game.StructKind) uint8 {
+	switch k {
+	case game.STurretMissile:
+		return 2 // napalm: the slowed crowd burns under it
+	case game.STurretFrost:
+		return 1 // cryo: every third pulse freezes the crowd solid
+	}
+	return 1
 }
 
 // fight is a bot's wave: go for the nearest creep in reach with abilities to hand, else
 // hold the ground round the generator.
 func (b *Bot) fight(w *game.World, p *game.Player, do func(Cmd)) {
 	ci := b.nearest(w, p, 22)
+	if ci < 0 && w.Phase == game.PhaseWave && w.CreepsLeft < exploreFew && p.HP > p.MaxHP*.5 {
+		// The wave is down to its last few and none is near: the turrets have them, and the
+		// bot goes exploring rather than stand about.
+		if b.explore(w, p, do) {
+			return
+		}
+	}
 	if ci < 0 {
+		b.exploring = false
 		if p.Order.Kind == game.OrderIdle || p.Order.Kind == game.OrderHold || b.rng.IntN(20) == 0 {
 			if d2(p.X, p.Y, w.CoreX, w.CoreY) > 14*14 || b.rng.IntN(4) == 0 {
 				do(Cmd{Op: OpAttackMove, X: w.CoreX + b.jitter(10), Y: w.CoreY + b.jitter(10)})
@@ -291,7 +493,62 @@ func (b *Bot) fight(w *game.World, p *game.Player, do func(Cmd)) {
 	}
 }
 
-// nearest is the index of the closest awake creep within r, or -1.
+// Exploring: a break with more than exploreUntil seconds left is free time, and a wave with
+// fewer than exploreFew creeps left is the turrets' to finish.
+const (
+	exploreUntil = 15
+	exploreFew   = 5
+)
+
+// explore sends the bot out, or keeps it going, and reports whether it is out: to the
+// nearest unsearched loot site it dares, else to ground the team has not seen yet, else to
+// somewhere out past the towers. It goes there fighting what it meets.
+func (b *Bot) explore(w *game.World, p *game.Player, do func(Cmd)) bool {
+	if b.exploring {
+		switch p.Order.Kind {
+		case game.OrderLoot:
+			return true
+		case game.OrderAttackMove, game.OrderAttack:
+			if d2(p.X, p.Y, b.scout[0], b.scout[1]) > 3*3 {
+				return true
+			}
+		}
+	}
+	if si := b.site(w, p); si >= 0 {
+		b.exploring = true
+		do(Cmd{Op: OpLoot, T: uint16(si)})
+		return true
+	}
+	x, y, ok := b.unseen(w)
+	if !ok {
+		return false
+	}
+	b.exploring, b.scout = true, [2]float32{x, y}
+	do(Cmd{Op: OpAttackMove, X: x, Y: y})
+	return true
+}
+
+// unseen is a spot to scout: ground the team has not seen yet, at night, within reach of the
+// base; by day, when the whole map is in sight, a spot out past the towers. ok is false when
+// none turned up in a few tries.
+func (b *Bot) unseen(w *game.World) (x, y float32, ok bool) {
+	for range 40 {
+		ang := b.rng.Float64() * 2 * math.Pi
+		r := 18 + b.rng.Float64()*40
+		tx, ty := int(w.CoreX+float32(r*math.Cos(ang))), int(w.CoreY+float32(r*math.Sin(ang)))
+		if tx < 1 || ty < 1 || tx >= w.W-1 || ty >= w.H-1 || w.At(tx, ty).Solid() {
+			continue
+		}
+		if _, _, in := w.StepIn(tx, ty); !in {
+			continue // shut off from the base: no way there either
+		}
+		if w.Seen != nil && w.Seen.Has(ty*w.W+tx) {
+			continue
+		}
+		return float32(tx) + .5, float32(ty) + .5, true
+	}
+	return 0, 0, false
+}
 func (b *Bot) nearest(w *game.World, p *game.Player, r float32) int {
 	best, bi := r*r, -1
 	for i := range w.Creeps {
@@ -316,18 +573,20 @@ func (b *Bot) damaged(w *game.World) int {
 	return -1
 }
 
-// site is a loot site not yet searched within a walk, picked at random, or -1.
+// site is the nearest loot site not yet searched within a long walk that the bot dares: a
+// lair or a garrison with its guards still up only once the waves have hardened it. -1 when
+// there is none.
 func (b *Bot) site(w *game.World, p *game.Player) int {
-	var near []int
+	best, bi := float32(70*70), -1
 	for i, st := range w.Sites {
-		if !st.Searched && st.Kind.Lootable() && d2(p.X, p.Y, st.SX, st.SY) < 45*45 {
-			near = append(near, i)
+		if st.Searched || !st.Kind.Lootable() || (st.Guards > 0 && int(st.Guard) >= 3 && w.Wave < 8) {
+			continue
+		}
+		if d := d2(p.X, p.Y, st.SX, st.SY); d < best {
+			best, bi = d, i
 		}
 	}
-	if len(near) == 0 {
-		return -1
-	}
-	return near[b.rng.IntN(len(near))]
+	return bi
 }
 
 func (b *Bot) jitter(r float32) float32 { return (b.rng.Float32()*2 - 1) * r }

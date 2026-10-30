@@ -88,6 +88,12 @@ func (w *World) OrderRevive(p *Player, mate int) error {
 	if m.Alive || !m.Connected || m.Aboard {
 		return fmt.Errorf("%s is not down", m.Name)
 	}
+	// Asked again for the revive already under way (E pressed again, a button clicked twice):
+	// it carries on. A new order would start the count over, and pressed often enough it would
+	// never get anyone up.
+	if p.Order.Kind == OrderRevive && p.Order.Mate == mate {
+		return nil
+	}
 	w.order(p, Order{Kind: OrderRevive, Mate: mate, X: m.X, Y: m.Y})
 	return nil
 }

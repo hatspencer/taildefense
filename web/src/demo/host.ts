@@ -1626,6 +1626,7 @@ export class DemoHost implements Transport {
       case 'revive': {
         const o = this.players[cmd.p];
         if (!o || o === p || o.hp > 0) { this.toast('nobody to revive there'); break; }
+        if (p.order === Order.Revive && p.revTarget === o.id) break; // already at it: carry on
         p.order = Order.Revive; p.revTarget = o.id; p.channel = 0;
         break;
       }
