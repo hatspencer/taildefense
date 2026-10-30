@@ -324,6 +324,7 @@ func play(p *ui.Printer, prefs *config.Prefs, o web.Options) (web.Result, error)
 		p.Detail("%s", how)
 		o.Notice = news + " · " + how
 	}
+	o.Log = func(format string, a ...any) { p.Detail(format, a...) }
 	o.Ready = func(pg web.Page) {
 		switch {
 		case pg.Opened != "":
