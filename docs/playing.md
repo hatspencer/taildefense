@@ -60,6 +60,10 @@ a few it says what to check (is td still running in its terminal?) and offers a 
 game ends for the tab it says why in words, the host gone, you left, the game opened in another
 tab or td stopped, and what to do next.
 
+When your packets to the host go through a Tailscale DERP relay, or the ping averages over
+120 ms, a small badge in the top bar says so (`DERP fra · 61 ms`, `lag 140 ms`); hover it for
+what to try, starting with `td doctor`.
+
 ## Weapons and kit
 
 A weapon run dry reloads in the background: switch to another and keep shooting, and the empty

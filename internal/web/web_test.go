@@ -285,3 +285,64 @@ func TestMusicIsServedAsAudio(t *testing.T) {
 		t.Errorf(".ogg is %q, want audio/ogg", got)
 	}
 }
+
+// The page is told how packets reach the host, asked of tailscale (here a stand-in) for the
+// host's address soon after joining.
+func TestThePageLearnsThePathToTheHost(t *testing.T) {
+	srv, err := netplay.Listen(netplay.ServerConfig{Addrs: []string{"127.0.0.1:0"}, Seed: 3, Version: "test", Host: "box", LocalLogin: "me", LocalName: "me"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	urls, asked := make(chan string, 1), make(chan string, 8)
+	done := make(chan error, 1)
+	go func() {
+		_, err := Run(context.Background(), Options{Addr: srv.Addrs()[0], Name: "ana", Version: "test", Host: "box",
+			Ready: func(p Page) { urls <- p.URL },
+			PathTo: func(_ context.Context, ip string) (string, string, error) {
+				select {
+				case asked <- ip:
+				default:
+				}
+				return "derp", "fra", nil
+			}})
+		done <- err
+	}()
+	var url string
+	select {
+	case url = <-urls:
+	case err := <-done:
+		t.Fatalf("Run ended early: %v", err)
+	}
+	addr, token, _ := strings.Cut(strings.TrimPrefix(url, "http://"), "/#")
+	ws, code := dialWS(t, addr, "/ws?token="+token, "http://"+addr)
+	if code != http.StatusSwitchingProtocols {
+		t.Fatalf("upgrade: %d", code)
+	}
+	deadline := time.Now().Add(pathFirst + 5*time.Second)
+	for {
+		if time.Now().After(deadline) {
+			t.Fatal("no path message reached the page")
+		}
+		op, p, err := ws.recv()
+		if err != nil {
+			t.Fatal(err)
+		}
+		var m pathMsg
+		if op == opText && json.Unmarshal(p, &m) == nil && m.T == "path" {
+			if m.Path != "derp" || m.Via != "fra" {
+				t.Fatalf("path message %s", p)
+			}
+			break
+		}
+	}
+	if ip := <-asked; ip != "127.0.0.1" {
+		t.Errorf("asked the path to %q, want the host's 127.0.0.1", ip)
+	}
+	_ = ws.send(opText, []byte(`{"op":"leave"}`))
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("leave did not end the session")
+	}
+}

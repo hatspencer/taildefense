@@ -256,7 +256,10 @@ export interface NetStatsMsg {
   ack?: { p50: number; p99: number };
   host?: { drop: number; resync: number; q: number; qCap: number; tickP50: number; tickP99: number; tickMax: number };
 }
-export type TextMsg = Welcome | Toast | Status | End | DifficultyMsg | NetMsg | AckMsg | NetStatsMsg;
+// How packets reach the host, as tailscale says, soon after joining and about every 10 s.
+export type LinkPath = 'direct' | 'derp' | 'peer-relay' | 'idle' | 'local';
+export interface PathMsg { t: 'path'; path: LinkPath; via?: string }
+export type TextMsg = Welcome | Toast | Status | End | DifficultyMsg | NetMsg | AckMsg | NetStatsMsg | PathMsg;
 
 // seq, optional on any command, is the page's own count for it, echoed in its ack.
 export type Command = (

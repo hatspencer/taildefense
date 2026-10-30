@@ -453,7 +453,15 @@ u8   nPings           spots players marked for the team this tick
 {"t": "net", "rtt": 23.4}                                               // about every 1 s: the round trip to the host in ms, for F3
 {"t": "ack", "seq": 41, "wire": 1207, "tick": 5120, "ms": 55.2}         // the host applied your commands up to this one
 {"t": "netstats", ...}                                                  // about every 2 s: how the link is doing, for F3
+{"t": "path", "path": "derp", "via": "fra"}                             // ~2 s after joining, then about every 10 s: how packets reach the host
 ```
+
+`path` is how tailscale sends this machine's packets to the host, for F3 and the link badge:
+`direct`, `derp` (through a Tailscale DERP server; `via` is its region code), `peer-relay`
+(through another node of the tailnet; `via` is its address), `idle` (no path chosen yet) or
+`local` (the host is this machine, or on loopback). `via` is absent when there is nothing to
+name. It is sent only when tailscale answered, so a page may never get one, such as for a host
+reached over a LAN; a tab opened later gets the last one with its welcome.
 
 An `ack` says the host has applied every command up to the one the page numbered `seq` (see
 `seq` below; absent when none of the commands it covers had one), and that their effect is
