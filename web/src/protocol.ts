@@ -243,9 +243,23 @@ export interface End { t: 'end'; reason: string }
 // The host changed the difficulty mid-game; dark is the night it brings (0 for none).
 export interface DifficultyMsg { t: 'difficulty'; difficulty: { id: number; name: string }; dark: number; cone?: number }
 export interface NetMsg { t: 'net'; rtt: number }
-export type TextMsg = Welcome | Toast | Status | End | DifficultyMsg | NetMsg;
+// The host applied this page's commands up to the one it numbered seq (absent when it gave
+// none; wire is td's own count), and the frame of tick shows them. ms is from td relaying
+// the command to the ack coming back.
+export interface AckMsg { t: 'ack'; wire: number; tick: number; seq?: number; ms?: number }
+// How the link is doing, about every 2 s, for F3; see PROTOCOL.md. A part is absent until
+// there is something to say: no frames, no echoes back, no acks, no word from the host yet.
+export interface NetStatsMsg {
+  t: 'netstats';
+  rttP99?: number; lost?: number; pageDrop?: number;
+  arrv?: { p50: number; p99: number; max: number; hist: number[] };
+  ack?: { p50: number; p99: number };
+  host?: { drop: number; resync: number; q: number; qCap: number; tickP50: number; tickP99: number; tickMax: number };
+}
+export type TextMsg = Welcome | Toast | Status | End | DifficultyMsg | NetMsg | AckMsg | NetStatsMsg;
 
-export type Command =
+// seq, optional on any command, is the page's own count for it, echoed in its ack.
+export type Command = (
   | { op: 'move' | 'amove'; x: number; y: number }
   | { op: 'attack'; id: number }
   | { op: 'stop' } | { op: 'hold' } | { op: 'reload' } | { op: 'restart' } | { op: 'leave' } | { op: 'taunt' } | { op: 'sprint'; on: boolean } | { op: 'pause' }
@@ -287,7 +301,8 @@ export type Command =
   // To this machine's td only, never the host: save the VOLUME setting.
   | { op: 'volume'; v: number }
   // The same for the MUSIC setting.
-  | { op: 'music'; v: number };
+  | { op: 'music'; v: number }
+) & { seq?: number };
 
 export class Player {
   id = 0; flags = 0; x = 0; y = 0; aim = 0; hp = 0; maxHp = 1; cur = 0; ammo = 0; mag = 0;

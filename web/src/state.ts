@@ -1,4 +1,4 @@
-import { EvacStage, Frame, MAX_CREEPS, PF_ALIVE, type Player, type Welcome, Weather, decodeFrame } from './protocol';
+import { type AckMsg, EvacStage, Frame, MAX_CREEPS, type NetStatsMsg, PF_ALIVE, type Player, type Welcome, Weather, decodeFrame } from './protocol';
 import { Vision } from './vision';
 
 // Everything the client knows about the world: the last two frames and the interpolation
@@ -24,6 +24,10 @@ export class Game {
   // The last round trip to the host in ms, and its running average; NaN before the first.
   rtt = NaN;
   rttAvg = NaN;
+  // The latest ack of this page's commands (see AckMsg), and the latest netstats; null before
+  // the first. The demo host sends neither.
+  ack: AckMsg | null = null;
+  netStats: NetStatsMsg | null = null;
 
   // Per creep id.
   private x0 = new Float32Array(MAX_CREEPS); private y0 = new Float32Array(MAX_CREEPS);

@@ -150,28 +150,40 @@ func TestTheBrowserPlaysThroughTheBridge(t *testing.T) {
 		t.Fatalf("terrain: op %d len %d err %v", op, len(p), err)
 	}
 	var x0 float32
-	moved := false
-	for i := 0; i < 80 && !moved; i++ {
+	moved, acked, sentMove := false, false, false
+	for i := 0; i < 80 && !(moved && acked); i++ {
 		op, p, err = ws.recv()
 		if err != nil {
 			t.Fatal(err)
 		}
 		if op != opBinary {
+			// The move's ack names the page's own seq for it.
+			var a struct {
+				T    string   `json:"t"`
+				Seq  *float64 `json:"seq"`
+				Tick uint32   `json:"tick"`
+			}
+			if json.Unmarshal(p, &a) == nil && a.T == "ack" && a.Seq != nil && *a.Seq == 5 && a.Tick > 0 {
+				acked = true
+			}
 			continue
 		}
 		f := parseFrame(t, p)
 		if f.sites != len(wel.Sites) || len(wel.Sites) == 0 || len(wel.SiteKinds) != int(game.NumSiteKinds) {
 			t.Fatalf("frame has %d sites, welcome %d", f.sites, len(wel.Sites))
 		}
-		if i == 0 {
-			x0 = f.x
-			_ = ws.send(opText, []byte(fmt.Sprintf(`{"op":"move","x":%f,"y":%f}`, f.x+3, f.y)))
+		if !sentMove {
+			x0, sentMove = f.x, true
+			_ = ws.send(opText, []byte(fmt.Sprintf(`{"op":"move","x":%f,"y":%f,"seq":5}`, f.x+3, f.y)))
 		} else if f.x > x0+1 {
 			moved = true
 		}
 	}
 	if !moved {
 		t.Fatal("the hero never walked")
+	}
+	if !acked {
+		t.Fatal("the move was never acked")
 	}
 	// The menu's volume is this machine's setting, saved here, clamped to 0..100.
 	_ = ws.send(opText, []byte(`{"op":"volume","v":130}`))

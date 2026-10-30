@@ -38,7 +38,7 @@ everything it knows, a terrain message follows).
 ```jsonc
 {
   "t": "welcome",
-  "proto": 26,
+  "proto": 27,
   "version": "a1b2c3d",
   "you": 0,                    // your player id
   "w": 352, "h": 220,          // map size in tiles
@@ -450,12 +450,48 @@ u8   nPings           spots players marked for the team this tick
 {"t": "end", "reason": "the host ended the game or went away"}          // then the socket closes
 {"t": "difficulty", "difficulty": {"id": 2, "name": "Hard"}, "dark": 7, "cone": 0}  // the host changed it; dark, cone as in the welcome
 {"t": "net", "rtt": 23.4}                                               // about every 1 s: the round trip to the host in ms, for F3
+{"t": "ack", "seq": 41, "wire": 1207, "tick": 5120, "ms": 55.2}         // the host applied your commands up to this one
+{"t": "netstats", ...}                                                  // about every 2 s: how the link is doing, for F3
+```
+
+An `ack` says the host has applied every command up to the one the page numbered `seq` (see
+`seq` below; absent when none of the commands it covers had one), and that their effect is
+in the frame of `tick`. Acks are cumulative and come at most once a tick, so one ack may
+cover several commands. `wire` is td's own count for the command; `ms` is the time from td
+relaying it to the ack coming back, absent when td no longer remembers it. An ack can reach
+the page before the frame it names (text goes ahead of frames): a command is in the page's
+view once it has drawn a frame whose tick is at least the ack's.
+
+`netstats` is what td and the host measure of the link. Every part is absent until there is
+something to say, and the demo sends none:
+
+```jsonc
+{
+  "t": "netstats",
+  "rttP99": 72,              // the echoes' round trip over the last minute, ms
+  "lost": 0,                 // echoes that never came back, this game
+  "pageDrop": 0,             // frames td dropped because the page was behind, this game
+  "arrv": {"p50": 50, "p99": 88, "max": 140,   // ms between frames from the host, last 10 s,
+    "hist": [0, 0, 0, 3, 40, 150, 6, 1, 0, 0]}, // and their histogram: from 0, 5, 10, 20, 35,
+                                                // 50, 75, 100, 150 and 250 ms up
+  "ack": {"p50": 52, "p99": 110},              // command to ack, ms, last 10 s
+  "host": {                  // the host's own view, sent to td every 2 s:
+    "drop": 3,               // frames it dropped for you since you joined (your queue was full)
+    "resync": 2,             // keyframes it sent you to catch up after a drop
+    "q": 7, "qCap": 24,      // the deepest your queue got in the last 2 s, and its depth
+    "tickP50": 50, "tickP99": 52, "tickMax": 61   // ms between its ticks, last 10 s; 50 keeps up
+  }
+}
 ```
 
 ## Browser → server
 
 Text messages, JSON, one command each. Coordinates are tiles (floats); `tx`, `ty` are tile
 integers. The host checks everything; a refusal comes back as a `toast` with level 2.
+
+Any command relayed to the host may carry `"seq": n`, the page's own count for it (a number,
+increasing); the `ack` that covers it echoes it back. `volume` and `music` stay here and are
+never acked.
 
 ```jsonc
 {"op": "move",    "x": 160.5, "y": 103.2}   // walk there, ignoring creeps

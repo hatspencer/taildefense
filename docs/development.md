@@ -37,6 +37,12 @@ F3's `sound` line shows the voices playing and the most at once, the sounds drop
 over since the last frame, the output's peak in dBFS and the compressor's pull in dB. The demo
 leaves the sound engine at `window.tdSound`, whose `synth.plays`, `drops` and `steals` count
 every sound by name, for a browser test to read; a musical cue counts as `cue:<name>`.
+F3's link lines, all in ms: `ping` the last round trip to the host, its average, its p99 over a
+minute and echoes lost; `ack` the last command's time to its ack and the p50 and p99 over 10 s;
+`arrv` the gaps between frames reaching td over 10 s (50 when all is well); `host` the host's
+tick spacing p99, the frames it dropped for this player, the keyframes it resent after them and
+the deepest the player's queue got of its depth; `page drop` the frames td dropped for a slow
+page. The demo has no link: those lines show `-`.
 `#lab` is the animation bench: every creep kind walking, idle, attacking, hit, burning, asleep
 and dying, beside the survivors' poses; `#lab=0`…`#lab=10` looks at one creep row, `#lab=h` at the
 survivors (`#lab=h0`…`#lab=h17` at one of them), `#lab=legend` at the legendary blades (the
