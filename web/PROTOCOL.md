@@ -471,6 +471,7 @@ something to say, and the demo sends none:
   "rttP99": 72,              // the echoes' round trip over the last minute, ms
   "lost": 0,                 // echoes that never came back, this game
   "pageDrop": 0,             // frames td dropped because the page was behind, this game
+  "via": "udp",              // how frames come from the host: "udp", or "tcp" (no UDP, or it failed)
   "arrv": {"p50": 50, "p99": 88, "max": 140,   // ms between frames from the host, last 10 s,
     "hist": [0, 0, 0, 3, 40, 150, 6, 1, 0, 0]}, // and their histogram: from 0, 5, 10, 20, 35,
                                                 // 50, 75, 100, 150 and 250 ms up
