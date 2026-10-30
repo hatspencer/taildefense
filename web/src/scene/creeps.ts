@@ -8,7 +8,8 @@ import {
 } from '../protocol';
 import type { Game } from '../state';
 import { type CreepRig, creepRig } from './creepModels';
-import { J, JOINTS, mergeRig, turnTowards } from './rig';
+import { FAR } from './detail';
+import { farParts, indexed, J, JOINTS, mergeRig, turnTowards } from './rig';
 import { box, lin, merge, octa, part, setEmissive, writeMatrix } from './util';
 
 type F = THREE.Node<'float'>;
@@ -38,7 +39,14 @@ const MARKS = 2048;
 // The dead lie a while, then sink away.
 const CORPSES = 1024, LIE = 3.4, SINK = 1.3, FALL = 0.7;
 
-interface KindMesh { mesh: THREE.InstancedMesh; fx: Float32Array; buf: THREE.InstancedInterleavedBuffer; scale: number; top: number; n: number; rig: CreepRig; def: CreepDef }
+// One kind's figures at one level of detail.
+interface Lod { mesh: THREE.InstancedMesh; fx: Float32Array; buf: THREE.InstancedInterleavedBuffer; n: number }
+// A kind: its figures up close, and far off without their smallest parts.
+interface KindMesh { near: Lod; far: Lod; scale: number; top: number; rig: CreepRig; def: CreepDef }
+
+// Either side of where the far model starts (FAR, or closer as the detail governor has it),
+// so a creep on the line does not flicker between the two.
+const HYST = 2;
 
 const hash = (id: number, salt: number) => {
   let h = Math.imul(id ^ Math.imul(salt, 0x9e3779b1), 0x85ebca6b);
@@ -192,6 +200,17 @@ export class Creeps {
   private prevIds = new Uint16Array(MAX_CREEPS);
   private nPrev = 0;
   private lastFrames = 0;
+  // Per creep id and per corpse: drawn in the far model.
+  private farId = new Uint8Array(MAX_CREEPS);
+  private farCorpse = new Uint8Array(CORPSES);
+  // Where the far model starts, and whether creeps throw shadows at each distance: what the
+  // detail governor turns down on a machine that cannot keep up.
+  farFrom = FAR;
+  nearShadows = true;
+  farShadows = true;
+  // Figures drawn in each model, the last frame, for F3.
+  drawnNear = 0;
+  drawnFar = 0;
 
   // The dead.
   private cK = new Uint8Array(CORPSES); private cId = new Uint16Array(CORPSES);
@@ -219,7 +238,7 @@ export class Creeps {
   }
 
   setup(defs: CreepDef[]): void {
-    for (const k of this.kinds) { k.mesh.geometry.dispose(); (k.mesh.material as THREE.Material).dispose(); }
+    for (const k of this.kinds) for (const l of [k.near, k.far]) { l.mesh.geometry.dispose(); (l.mesh.material as THREE.Material).dispose(); }
     this.kinds = [];
     this.group.clear();
     this.group.add(this.zs);
@@ -229,32 +248,44 @@ export class Creeps {
     defs.forEach((d, i) => {
       const cap = MAX_CREEPS + CORPSES;
       const r = creepRig(i, d.name);
-      const geo = mergeRig(r.parts);
+      const geo = indexed(mergeRig(r.parts));
       // Fit the model's footprint to the creep's diameter, a little larger so crowds read as solid.
       // Its length counts for less than its breadth, or a crawler would shrink to a rat.
-      geo.computeBoundingBox();
       const bb = geo.boundingBox!;
       const foot = Math.max((bb.max.x - bb.min.x) * 0.6, bb.max.z - bb.min.z, 0.3);
       const scale = (d.radius * 2.3) / foot;
-      const fx = new Float32Array(cap * STRIDE);
-      const buf = new THREE.InstancedInterleavedBuffer(fx, STRIDE, 1);
-      buf.setUsage(THREE.DynamicDrawUsage);
-      const mesh = new THREE.InstancedMesh(geo, material(r, scale, buf, this.uHover), cap);
-      // Placement is in the state buffer; the instance matrices stay the identity.
-      mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
-      mesh.count = 0;
-      mesh.frustumCulled = false;
-      mesh.castShadow = true;
-      mesh.receiveShadow = false;
-      this.group.add(mesh);
-      this.kinds.push({ mesh, fx, buf, scale, top: bb.max.y * scale, n: 0, rig: r, def: d });
+      const lod = (g: THREE.BufferGeometry): Lod => {
+        const fx = new Float32Array(cap * STRIDE);
+        const buf = new THREE.InstancedInterleavedBuffer(fx, STRIDE, 1);
+        buf.setUsage(THREE.DynamicDrawUsage);
+        const mesh = new THREE.InstancedMesh(g, material(r, scale, buf, this.uHover), cap);
+        // Placement is in the state buffer; the instance matrices stay the identity.
+        mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+        mesh.count = 0;
+        mesh.visible = false;
+        mesh.frustumCulled = false;
+        mesh.castShadow = true;
+        mesh.receiveShadow = false;
+        this.group.add(mesh);
+        return { mesh, fx, buf, n: 0 };
+      };
+      // Hung on the same joints and posed by the same shader, so the two only differ in what
+      // is too small to see where the far one is drawn.
+      this.kinds.push({ near: lod(geo), far: lod(indexed(mergeRig(farParts(r.parts)))), scale, top: bb.max.y * scale, rig: r, def: d });
     });
   }
+
+  // Which model a figure at squared distance d2 from the camera takes, from the one it had.
+  private farAt(d2: number, was: number): number {
+    const f = this.farFrom;
+    return d2 > (was ? f - HYST : f + HYST) ** 2 ? 1 : 0;
+  }
+
 
   update(game: Game, now: number, dt: number, cam?: THREE.Camera): void {
     const f = game.cur;
     const kinds = this.kinds;
-    for (const k of kinds) k.n = 0;
+    for (const k of kinds) { k.near.n = 0; k.far.n = 0; }
     const sec = now / 1000;
     this.uHover.value = 0.6 + 0.4 * Math.sin(sec * 8);
     const you = game.welcome?.you ?? -1;
@@ -267,8 +298,10 @@ export class Creeps {
     let nt = 0;
     const newFrame = game.frames !== this.lastFrames;
     // Only those in view, or near enough to throw a shadow into it, are drawn.
+    let ex = 0, ey = 0, ez = 0;
     if (cam) {
       cam.updateMatrixWorld();
+      ex = e![12]; ey = e![13]; ez = e![14];
       this.viewM.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
       this.view.setFromProjectionMatrix(this.viewM, cam.coordinateSystem);
     }
@@ -345,8 +378,10 @@ export class Creeps {
       this.yaw[id] = turnTowards(this.yaw[id], goal, dt * r.turn);
       if (!seen(km, x, y)) continue;
 
-      const j = km.n++;
-      const fx = km.fx, o = j * STRIDE;
+      const far = this.farId[id] = this.farAt((x - ex) ** 2 + ey * ey + (y - ez) ** 2, this.farId[id]);
+      const lod = far ? km.far : km.near;
+      const j = lod.n++;
+      const fx = lod.fx, o = j * STRIDE;
       const asleep = (fl & CF_ASLEEP) !== 0, me = (fl & CF_HUNTING) !== 0 && tg === you;
       fx[o] = fl & CF_BURNING ? 1 : 0;
       fx[o + 1] = fl & CF_SLOWED ? 1 : 0;
@@ -413,8 +448,10 @@ export class Creeps {
       const km = kinds[this.cK[s]];
       if (!km || !seen(km, this.cX[s], this.cY[s])) continue;
       const id = this.cId[s];
-      const j = km.n++;
-      const fx = km.fx, o = j * STRIDE;
+      const far = this.farCorpse[s] = this.farAt((this.cX[s] - ex) ** 2 + ey * ey + (this.cY[s] - ez) ** 2, this.farCorpse[s]);
+      const lod = far ? km.far : km.near;
+      const j = lod.n++;
+      const fx = lod.fx, o = j * STRIDE;
       fx.fill(0, o, o + STRIDE);
       fx[o] = this.cBurn[s] && age < 1.2 ? 1 : 0;
       fx[o + 4] = hash(id, 1) * 6.28;
@@ -441,11 +478,19 @@ export class Creeps {
     if (nz) this.zs.instanceMatrix.needsUpdate = true;
     this.tags.count = nt;
     if (nt) { this.tags.instanceMatrix.needsUpdate = true; this.tags.instanceColor!.needsUpdate = true; }
+    let nn = 0, nf = 0;
     for (const k of kinds) {
-      k.mesh.count = k.n;
-      if (k.n === 0) continue;
-      k.buf.clearUpdateRanges(); k.buf.addUpdateRange(0, k.n * STRIDE); k.buf.needsUpdate = true;
+      nn += k.near.n; nf += k.far.n;
+      for (const l of [k.near, k.far]) {
+        l.mesh.count = l.n;
+        // A kind with none in view is left out of the drawing altogether, not drawn empty.
+        l.mesh.visible = l.n > 0;
+        l.mesh.castShadow = l === k.near ? this.nearShadows : this.farShadows;
+        if (l.n === 0) continue;
+        l.buf.clearUpdateRanges(); l.buf.addUpdateRange(0, l.n * STRIDE); l.buf.needsUpdate = true;
+      }
     }
+    this.drawnNear = nn; this.drawnFar = nf;
   }
 
   // Who it was: limp, arms, the arm it lost, trousers.
@@ -469,5 +514,6 @@ export class Creeps {
     this.cThrown[s] = thrown ? 0.6 + Math.random() * 0.5 : 0;
     this.cArm[s] = this.armless[id];
     this.cBurn[s] = burning ? 1 : 0;
+    this.farCorpse[s] = this.farId[id];
   }
 }
