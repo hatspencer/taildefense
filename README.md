@@ -177,6 +177,7 @@ it. How one tick travels from a key press to the screen, and why it's built this
 | `internal/netplay` | host and client: handshake, commands, delta/keyframe codec, the replica |
 | `internal/web` | the local web server: page, WebSocket, the browser's frame, browser launching |
 | `internal/playtest` | bots, the invariant checker, the fuzzer, the golden game |
+| `internal/netsim` | TCP and UDP proxies that delay, jitter, lose and throttle, to measure the netcode |
 | `internal/tui`, `internal/ui` | the launcher (Bubble Tea) and td's terminal output |
 | `internal/cli` | the commands: host, serve, ls, doctor, config, bench, install, update |
 | `internal/tailnet` | talks to the installed tailscale: this machine, peers, whois |
@@ -194,6 +195,7 @@ it. How one tick travels from a key press to the screen, and why it's built this
 ./build.sh npm …   # run npm in the node container, inside web/
 ./build.sh soak 12 # bots play 12 more games to late waves (the short set runs in check)
 ./build.sh fuzz 2m # fuzz the commands players give
+./build.sh netsim  # frame gaps and round trips through delay, jitter and loss
 ./build.sh golden  # rewrite the golden game and the launcher's golden frames after a deliberate change
 ./build.sh go …    # any go command in the container; fmt, tidy and shell too
 ```
