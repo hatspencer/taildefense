@@ -4,6 +4,7 @@ import (
 	"compress/flate"
 	"context"
 	"math"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -97,6 +98,77 @@ func TestDeltasTrackTheWorld(t *testing.T) {
 	}
 	if w.TotalKills == 0 {
 		t.Log("no creep died during the test; deaths were not exercised")
+	}
+}
+
+// A delta leaves out what did not change in a player: the stream still says every player's
+// name, look, arsenal and the rest as a keyframe of the same tick would, through a survivor
+// joining mid-game and every slow field changing at some point, and a player standing still
+// costs only their few always-sent fields.
+func TestPlayerRecordsSurviveTheirDeltas(t *testing.T) {
+	w := newWorldWithCreeps(50)
+	var e Encoder
+	r := NewReplica(w.W, w.H, w.Terrain, 0, w.Seed)
+	if err := r.Apply(e.Key(w, nil)); err != nil {
+		t.Fatal(err)
+	}
+	strip := func(ps []PlayerView) []PlayerView {
+		out := append([]PlayerView(nil), ps...)
+		for i := range out {
+			out[i].PX, out[i].PY = 0, 0
+		}
+		return out
+	}
+	for tick := 0; tick < 120; tick++ {
+		w.Step()
+		p := w.Players[0]
+		switch tick {
+		case 10:
+			p.Name = "ana banana"
+		case 20:
+			p.Look ^= 0xdeadbeef
+		case 30:
+			p.Weapons[game.WShotgun].Owned = true
+			p.Weapons[game.WShotgun].Lv[1] = 3
+		case 40:
+			p.Gear[0]++
+		case 50:
+			p.Gold += 77
+			p.Tally.Built++
+		case 60:
+			if _, err := w.Join("bo", "bo@example"); err != nil {
+				t.Fatal(err)
+			}
+		case 70:
+			w.Players[1].Name = "bo the second"
+			p.Weapons[game.WShotgun].Owned = false
+		}
+		d := e.Delta(w, nil)
+		if err := r.Apply(d); err != nil {
+			t.Fatal(err)
+		}
+		fresh := NewReplica(w.W, w.H, w.Terrain, 0, w.Seed)
+		if err := fresh.Apply(e.Key(w, nil)); err != nil {
+			t.Fatal(err)
+		}
+		if got, want := strip(r.Players), strip(fresh.Players); !reflect.DeepEqual(got, want) {
+			t.Fatalf("tick %d: the deltas say\n%+v\na keyframe\n%+v", tick, got, want)
+		}
+		if v := &r.Players[0]; v.Name != p.Name || v.Look != p.Look || v.Owned[game.WShotgun] != p.Weapons[game.WShotgun].Owned || v.Gear != p.Gear || v.Gold != uint64(p.Gold) || v.Stats.Built != uint64(p.Tally.Built) {
+			t.Fatalf("tick %d: player %+v, world %+v", tick, *v, *p)
+		}
+		if len(w.Players) > 1 && r.Players[1].Name != w.Players[1].Name {
+			t.Fatalf("tick %d: second player %q, world %q", tick, r.Players[1].Name, w.Players[1].Name)
+		}
+	}
+	// Nobody moving and nothing ticking: the record is the id, flags, position, aim, hit
+	// points and an empty mask.
+	var b enc
+	e.player(&b, w, w.Players[1], nil, false)
+	b.b = b.b[:0]
+	e.player(&b, w, w.Players[1], nil, false)
+	if len(b.b) != 11 {
+		t.Fatalf("a player standing still costs %d bytes", len(b.b))
 	}
 }
 
