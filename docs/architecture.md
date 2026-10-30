@@ -20,7 +20,8 @@ Browser                   local td (web.Session)               host td (netplay.
   │                                │                                    │  between ticks
   │                                │                                    │  every 33 ms: World.Step,
   │                                │                                    │  Encoder.Delta, shared by
-  │                                │  frame: delta (or keyframe)        │  every player's queue
+  │                                │  frame: delta (or keyframe),       │  every player's queue
+  │                                │  over UDP when it gets through     │
   │                                │  ack: seq, tick, behind the frame  │
   │                                │ ←──────────────────────────────────│
   │                                │  Replica.Apply                     │
@@ -32,13 +33,25 @@ Browser                   local td (web.Session)               host td (netplay.
 ## Why it's built this way
 
 - **The host is authoritative.** It simulates at 30 Hz, and each player's `td` keeps a replica fed
-  by compressed delta frames over one TCP connection. 30 rather than 20 puts a command in a
+  by compressed delta frames. 30 rather than 20 puts a command in a
   frame and the frame on screen about 25 ms sooner, for half again the host's work and about a
   third more bandwidth. The rules are in seconds; the few things the balance was tuned on 20 Hz
   ticks for (a turret's or a creep's cadence, armour against damage over time, a rocket's
   fuse) say so in `internal/game` and play the same at either rate. Players send orders, not keystrokes: a
   spot to walk to (the host finds the A* path), a heading for WASD, a target, a purchase. Every
   rule runs on the host, so there's nothing to cheat with.
+- **Frames over UDP, everything else over TCP.** A player's TCP connection carries the
+  handshake, welcomes, commands, acks, toasts, stats and chat, which must all arrive in order.
+  Frames go as datagrams once a hello with a token from the TCP welcome has come back over UDP
+  from the same tailnet IP: over TCP one lost segment holds every frame behind it for a
+  retransmit timeout (a 250-430 ms stall at 1% loss in `./build.sh netsim`), though the next
+  frame would have made the lost one moot. Over UDP a loss costs one frame. Every frame on
+  either path is numbered, and the replica applies a delta only on the one before it; each
+  datagram unit, deflated on its own and cut into fragments under the tailnet's MTU, repeats
+  the one or two deltas before it while that no more than doubles it, so a single loss heals
+  without a round trip, and a longer hole asks for a keyframe. An ack waits in the local `td`
+  until its frame is in. With nothing back over UDP for 1.5 s, or no UDP at all, frames stay
+  on TCP.
 - **Every command is acked.** The local `td` numbers the commands it relays; after a tick the host
   tells each player the last one it applied, so the page can tell which of its orders a frame
   already shows, the base a prediction needs. F3 shows the link: the round trip, command to ack,

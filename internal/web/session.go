@@ -2,7 +2,7 @@
 // machine, talking to td over a WebSocket. td relays to the host over the tailnet, so the
 // host still sees a tailnet peer it can whois, and the browser never leaves localhost.
 //
-//	browser ──WebSocket, localhost──▶ td ──TCP, deltas, tailnet──▶ host
+//	browser ──WebSocket, localhost──▶ td ──TCP, and UDP for frames, tailnet──▶ host
 //
 // The page is the client in web/, built into dist/ and embedded here.
 package web
@@ -113,7 +113,7 @@ type inbound struct {
 // away, or ctx ends.
 func Run(ctx context.Context, o Options) (Result, error) {
 	dctx, cancel := context.WithTimeout(ctx, 15*time.Second)
-	cl, wel, err := netplay.Dial(dctx, o.Addr, netplay.Hello{Name: o.Name, Version: o.Version})
+	cl, wel, err := netplay.Dial(dctx, o.Addr, netplay.Hello{Name: o.Name, Version: o.Version, UDP: true})
 	cancel()
 	if err != nil {
 		return Result{}, err
@@ -207,6 +207,7 @@ func Run(ctx context.Context, o Options) (Result, error) {
 				s.text(s.b, map[string]any{"t": "status", "text": o.Status()})
 			}
 			if s.b != nil && s.b.ready {
+				s.net.via = cl.Transport()
 				s.text(s.b, s.net.msg(time.Now()))
 			}
 		case <-echo.C:

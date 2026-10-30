@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"net/netip"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -24,6 +25,11 @@ type Hello struct {
 	Version string `json:"version"`
 	Name    string `json:"name"`
 	Probe   bool   `json:"probe,omitempty"`
+	// UDP asks for frames over UDP when the host offers it (see udp.go).
+	UDP bool `json:"udp,omitempty"`
+	// UDPVia sends the client's datagrams here instead of the host's UDP port, for tests
+	// that put an impaired path in between.
+	UDPVia string `json:"-"`
 }
 
 // Info answers a probe: what a game is, for the join list.
@@ -62,6 +68,8 @@ type ServerConfig struct {
 	// Bots is how many survivors the host plays itself, 0 to MaxBots. They join after the
 	// first person does, so the host keeps the first player's colour, and play every tick.
 	Bots int
+	// NoUDP keeps every frame on TCP: no UDP socket, no offer (see udp.go). EnvNoUDP does too.
+	NoUDP bool
 }
 
 // Server is a running host.
@@ -85,6 +93,27 @@ type Server struct {
 	// their stats.
 	lastTick, lastStats time.Time
 	tickGap             Window
+
+	// Frames over UDP (udp.go): a socket per listener (nil where there is none), what they
+	// read, the players by token, and what numbers the frames: the seq of this tick's, the
+	// epoch (restarts so far), the deltas a unit may repeat and when each recent seq went out.
+	udps   []*net.UDPConn
+	udpCh  chan udpIn
+	ctlCh  chan ctlMsg
+	byTok  map[uint64]*peer
+	seq    uint32
+	epoch  uint16
+	hist   []seqFrame
+	packer unitPacker
+	sentAt [64]struct {
+		seq uint32
+		at  time.Time
+	}
+}
+
+type ctlMsg struct {
+	p   *peer
+	typ byte
 }
 
 type outMsg struct {
@@ -114,6 +143,21 @@ type peer struct {
 	dropped, resyncs uint32
 	dropKey          bool
 	qMax             int
+	// UDP (udp.go): the listener it came in on, whether it asked for UDP, whether it was
+	// offered it (so its frames are numbered), its token and bound address, whether its
+	// frames go that way now or never will again, when it last acked a datagram, the
+	// smoothed round trip, when it was last sent a keyframe and whether the next keyframe
+	// must go over TCP to stay behind a welcome.
+	ln             int
+	wantUDP        bool
+	seqFrames      bool
+	udpTok         uint64
+	udpAddr        netip.AddrPort
+	udpOn, udpDead bool
+	udpAck         time.Time
+	srtt           time.Duration
+	keyAt          time.Time
+	keyTCP         bool
 }
 
 type cmdMsg struct {
@@ -137,6 +181,9 @@ func Listen(cfg ServerConfig) (*Server, error) {
 		cmdCh:   make(chan cmdMsg, 256),
 		echoCh:  make(chan cmdMsg, 16),
 		done:    make(chan struct{}),
+		udpCh:   make(chan udpIn, 256),
+		ctlCh:   make(chan ctlMsg, 16),
+		byTok:   map[uint64]*peer{},
 		started: time.Now(),
 		tickGap: Window{Span: 10 * time.Second},
 	}
@@ -157,10 +204,11 @@ func Listen(cfg ServerConfig) (*Server, error) {
 	if len(s.lns) == 0 {
 		return nil, errors.New("no address to listen on")
 	}
+	s.listenUDP()
 	s.publishInfo()
-	for _, ln := range s.lns {
+	for i, ln := range s.lns {
 		s.wg.Add(1)
-		go s.acceptLoop(ln)
+		go s.acceptLoop(ln, i)
 	}
 	s.wg.Add(1)
 	go s.tickLoop()
@@ -186,18 +234,23 @@ func (s *Server) Close() {
 		for _, l := range s.lns {
 			l.Close()
 		}
+		for _, pc := range s.udps {
+			if pc != nil {
+				pc.Close()
+			}
+		}
 	})
 	s.wg.Wait()
 }
 
-func (s *Server) acceptLoop(ln net.Listener) {
+func (s *Server) acceptLoop(ln net.Listener, i int) {
 	defer s.wg.Done()
 	for {
 		c, err := ln.Accept()
 		if err != nil {
 			return
 		}
-		go s.handshake(c)
+		go s.handshake(c, i)
 	}
 }
 
@@ -210,7 +263,7 @@ func isLoopback(addr net.Addr) bool {
 
 // handshake reads the hello, answers a probe, or identifies the player and hands them to the
 // tick loop.
-func (s *Server) handshake(c net.Conn) {
+func (s *Server) handshake(c net.Conn, ln int) {
 	_ = c.SetDeadline(time.Now().Add(10 * time.Second))
 	br := bufio.NewReader(c)
 	bw := bufio.NewWriterSize(c, 64<<10)
@@ -275,7 +328,7 @@ func (s *Server) handshake(c net.Conn) {
 	if name == "" {
 		name = "survivor"
 	}
-	pr := &peer{conn: c, id: id, name: name, out: make(chan outMsg, outCap), result: make(chan error, 1)}
+	pr := &peer{conn: c, id: id, name: name, out: make(chan outMsg, outCap), result: make(chan error, 1), ln: ln, wantUDP: h.UDP}
 	select {
 	case s.joinCh <- pr:
 	case <-s.done:
@@ -351,6 +404,12 @@ func (s *Server) reader(p *peer, br *bufio.Reader) {
 			case <-s.done:
 				return
 			}
+		case MsgUDPOK, MsgResync:
+			select {
+			case s.ctlCh <- ctlMsg{p, typ}:
+			case <-s.done:
+				return
+			}
 		case MsgEcho:
 			// Answered from the tick loop, behind the frames already queued, as a command would be.
 			select {
@@ -388,6 +447,10 @@ func (s *Server) tickLoop() {
 				default:
 				}
 			}
+		case m := <-s.ctlCh:
+			s.control(m.p, m.typ, time.Now())
+		case in := <-s.udpCh:
+			s.udpDatagram(in, time.Now())
 		case <-t.C:
 			s.tick()
 		}
@@ -440,6 +503,7 @@ func (s *Server) join(p *peer) {
 	p.player = pl
 	p.needKey = true
 	p.out <- s.welcome(p)
+	s.offerUDP(p)
 	s.peers = append(s.peers, p)
 	p.result <- nil
 	if len(s.bots) < s.cfg.Bots {
@@ -493,6 +557,7 @@ func (s *Server) leave(p *peer) {
 			s.peers = append(s.peers[:i], s.peers[i+1:]...)
 			s.world.Leave(p.player)
 			p.gone = true
+			delete(s.byTok, p.udpTok)
 			close(p.out)
 			s.cfg.Log("%s left", p.name)
 			return
@@ -692,10 +757,14 @@ func (s *Server) restart() {
 	s.world = nw
 	// Nothing sent about the old map is a base for the new one: every peer gets a key frame.
 	s.enc = Encoder{}
+	s.epoch++
+	s.hist = nil
 	for _, p := range s.peers {
 		p.player = nw.Players[p.player.ID]
 		p.needKey = true
 		p.dropKey = false // the keyframe now is for the new map, not a catch-up
+		// Over UDP it could arrive before the welcome and be dropped as of a map to come.
+		p.keyTCP = true
 		select {
 		case p.out <- s.welcome(p):
 		default:
@@ -729,36 +798,60 @@ func (s *Server) tick() {
 		}
 	}
 	delta := s.enc.Delta(w, w.AtArmory)
-	var shared, keyFrame []byte
+	s.seq++
+	seq := s.seq
+	// Each form of this tick's frame is made once, when the first player needs it.
+	var shared, keyFrame, sharedSeq, keySeq []byte
+	sharedF := func() []byte {
+		if shared == nil {
+			shared = append([]byte(nil), delta...)
+		}
+		return shared
+	}
+	keyF := func() []byte {
+		if keyFrame == nil {
+			keyFrame = append([]byte(nil), s.enc.Key(w, w.AtArmory)...)
+		}
+		return keyFrame
+	}
+	uf := udpFrames{s: s, seq: seq, delta: sharedF, key: keyF}
+	s.sentAt[seq%uint32(len(s.sentAt))].seq, s.sentAt[seq%uint32(len(s.sentAt))].at = seq, now
 	for _, p := range s.peers {
-		var m outMsg
+		if p.udpOn && now.Sub(p.udpAck) > udpTimeout {
+			s.udpFallback(p, fmt.Sprintf("nothing back over UDP for %v", udpTimeout))
+		}
 		key := p.needKey
-		if key {
-			if keyFrame == nil {
-				keyFrame = append([]byte(nil), s.enc.Key(w, w.AtArmory)...)
+		if p.udpOn && !(key && p.keyTCP) {
+			dgs := uf.deltaDgs()
+			if key {
+				dgs = uf.keyDgs()
 			}
-			m = outMsg{MsgFrame, keyFrame}
-		} else {
-			if shared == nil {
-				shared = append([]byte(nil), delta...)
+			if s.sendUDP(p, dgs) {
+				s.sent(p, key, now, w)
+				continue
 			}
-			m = outMsg{MsgFrame, shared}
+			s.udpFallback(p, "a frame too large for datagrams")
+		}
+		var m outMsg
+		switch {
+		case p.seqFrames && key:
+			if keySeq == nil {
+				keySeq = encodeSeqFrame(seq, keyF())
+			}
+			m = outMsg{MsgSeqFrame, keySeq}
+		case p.seqFrames:
+			if sharedSeq == nil {
+				sharedSeq = encodeSeqFrame(seq, sharedF())
+			}
+			m = outMsg{MsgSeqFrame, sharedSeq}
+		case key:
+			m = outMsg{MsgFrame, keyF()}
+		default:
+			m = outMsg{MsgFrame, sharedF()}
 		}
 		select {
 		case p.out <- m:
-			p.needKey = false
-			if key && p.dropKey {
-				p.resyncs++
-				p.dropKey = false
-			}
-			// Behind its frame, so the ack never reaches the client before what it acks.
-			if p.seqDirty {
-				select {
-				case p.out <- outMsg{MsgAck, Ack{Seq: p.seq, Tick: uint32(w.Tick)}.encode()}:
-					p.seqDirty = false
-				default:
-				}
-			}
+			s.sent(p, key, now, w)
 		default:
 			// The client is behind: drop frames until its queue drains, then resync. An ack
 			// waits for a frame that gets through.
@@ -768,11 +861,36 @@ func (s *Server) tick() {
 		}
 		p.qMax = max(p.qMax, len(p.out))
 	}
+	if len(s.byTok) > 0 {
+		s.remember(seq, delta)
+	}
 	if now.Sub(s.lastStats) >= 2*time.Second {
 		s.sendStats(now)
 	}
 	if w.Tick%game.TickRate == 0 {
 		s.publishInfo()
+	}
+}
+
+// sent notes that a player was sent this tick's frame, a keyframe if key, and queues the ack
+// of its commands.
+func (s *Server) sent(p *peer, key bool, now time.Time, w *game.World) {
+	p.needKey = false
+	if key {
+		p.keyAt, p.keyTCP = now, false
+		if p.dropKey {
+			p.resyncs++
+			p.dropKey = false
+		}
+	}
+	// Behind its frame, so the ack never reaches the client before what it acks. A frame
+	// over UDP may still be overtaken; the client holds the ack until its frame is in.
+	if p.seqDirty {
+		select {
+		case p.out <- outMsg{MsgAck, Ack{Seq: p.seq, Tick: uint32(w.Tick)}.encode()}:
+			p.seqDirty = false
+		default:
+		}
 	}
 }
 
