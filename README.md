@@ -39,9 +39,9 @@ WebGL 2 where WebGPU isn't available. Any current Chrome, Edge, Firefox or Safar
 | command | what it does |
 |---|---|
 | `td` | launcher: host (←/→ picks the difficulty, w the game's length, f turns fog of war on or off, m the mode (standard, or blades: no guns), y copies the join command for your friends), join (lists the games on your tailnet), settings, a changelog of the latest commits with yours marked, the doctor's checks, update status. It opens with a short splash (any key skips it, `--no-splash` or `--no-anim` turns it off) |
-| `td host [--port N] [--seed S] [--name NAME] [--difficulty D] [--waves W] [--mode M]` | host a game and play it in the browser |
+| `td host [--port N] [--seed S] [--name NAME] [--difficulty D] [--waves W] [--mode M] [--bots N]` | host a game and play it in the browser; `--bots N` brings up to 3 bots to play beside you (also for `td` and `td serve`) |
 | `td join HOST[:PORT] [--name NAME]` | join a game by tailnet name or address |
-| `td serve [--port N] [--seed S] [--difficulty D] [--waves W] [--mode M]` | headless dedicated host; logs to stdout until interrupted |
+| `td serve [--port N] [--seed S] [--difficulty D] [--waves W] [--mode M] [--bots N]` | headless dedicated host; logs to stdout until interrupted |
 | `td ls [--json] [--port N]` | games running on your tailnet |
 | `td bench [--wave N] [--players P] [--seconds S] [--seed S]` | time a busy wave offline: simulation, encoding, relay |
 | `td frame [--width W] [--height H] [--view menu\|join\|settings\|changelog\|doctor\|help\|splash] [--at S]` | render one launcher frame from demo data, 160×48 unless told otherwise; `--at` is seconds into the splash |

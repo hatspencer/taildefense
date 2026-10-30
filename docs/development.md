@@ -5,7 +5,8 @@ on the host. The README lists its targets.
 
 ## Playtests
 
-`internal/playtest` plays whole games with nobody at the keys. Bots shop, build, loot, fight,
+`internal/playtest` plays whole games with nobody at the keys. Bots (`netplay.Bot`, the same ones
+`--bots` puts in a hosted game) shop, build, loot, fight,
 revive and taunt through the host's own command path (`netplay.Exec`). After every tick it
 checks the world's invariants (`game.World.Check`), rebuilds a client replica from the wire to
 see it agrees, and fails a wave that won't end. A game is its seed and its command log, so it
