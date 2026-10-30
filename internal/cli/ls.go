@@ -40,7 +40,11 @@ type LsGame struct {
 	Proto      int      `json:"proto"`
 	Compatible bool     `json:"compatible"`
 	PingMs     int64    `json:"pingMs"`
-	Started    int64    `json:"started,omitempty"`
+	// Path is how packets reach the host: tailnet.PathDirect, PathDERP, PathPeerRelay,
+	// PathIdle, PathLocal, or "" when tailscale did not say. Via is where through.
+	Path    string `json:"path"`
+	Via     string `json:"via"`
+	Started int64  `json:"started,omitempty"`
 }
 
 // LsResult is the whole `td ls --json` document.
@@ -82,10 +86,38 @@ func Scan(ctx context.Context, port int) (LsResult, tailnet.Self) {
 			res.Tailnet.Peers++
 		}
 	}
-	for _, f := range discover(ctx, self, peers, port) {
-		res.Games = append(res.Games, GameOf(f))
+	found := discover(ctx, self, peers, port)
+	// The probes were traffic, so a peer idle before may have a path now: read status once
+	// more for it rather than reporting the path as it was before anyone spoke.
+	if res.Tailnet.Running && len(found) > 0 {
+		if s2, p2, err := tailnetStatus(ctx); err == nil {
+			self, peers = s2, p2
+		}
+	}
+	for _, f := range found {
+		g := GameOf(f)
+		if ip, _, err := net.SplitHostPort(f.Addr); err == nil {
+			g.Path, g.Via, _ = tailnet.PeerPath(self, peers, ip)
+		}
+		res.Games = append(res.Games, g)
 	}
 	return res, self
+}
+
+// PingText is a game's ping with its path, "23ms direct" or "61ms DERP fra", the DERP one in
+// yellow because a relay is what makes a game lag.
+func PingText(g LsGame) string {
+	t := fmt.Sprintf("%dms", g.PingMs)
+	if g.Path == tailnet.PathLocal {
+		return "local"
+	}
+	if l := tailnet.PathLabel(g.Path, g.Via); l != "" {
+		t += " " + l
+	}
+	if g.Path == tailnet.PathDERP {
+		return ui.StyleYellow.Render(t)
+	}
+	return t
 }
 
 // GameOf is a discovered game as `td ls` and the launcher show it.
@@ -141,8 +173,9 @@ func Ls(w io.Writer, o LsOptions) int {
 		ui.StyleDim.Render("WAVE"), ui.StyleDim.Render("VERSION"), ui.StyleDim.Render("PING"),
 		ui.StyleDim.Render("JOIN"),
 	}}
-	incompatible := false
+	incompatible, relayed := false, false
 	for _, g := range res.Games {
+		relayed = relayed || g.Path == tailnet.PathDERP
 		ver := g.Version
 		if !g.Compatible {
 			ver = ui.StyleYellow.Render(ver + " ✗")
@@ -150,13 +183,16 @@ func Ls(w io.Writer, o LsOptions) int {
 		}
 		rows = append(rows, []string{
 			ui.StyleBold.Render(g.Peer), g.Owner, fmt.Sprintf("%d/%d", len(g.Players), g.Max),
-			WaveText(g.Wave, g.Phase), ver, fmt.Sprintf("%dms", g.PingMs),
+			WaveText(g.Wave, g.Phase), ver, PingText(g),
 			ui.StyleCyan.Render("td join " + joinTarget(g)),
 		})
 	}
 	p.Raw(ui.Table(rows, "  "))
 	if incompatible {
 		p.Warn("✗ runs another td: host and players must run the same one; run td update on both machines")
+	}
+	if relayed {
+		p.Warn("relayed through DERP: expect extra latency; see td doctor")
 	}
 	return 0
 }

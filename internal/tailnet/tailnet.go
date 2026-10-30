@@ -36,6 +36,8 @@ type Self struct {
 	Name    string   `json:"name"`
 	Tailnet string   `json:"tailnet"`
 	Version string   `json:"version"`
+	// Relay is this machine's home DERP region, like "fra": where its relayed packets go.
+	Relay string `json:"relay,omitempty"`
 }
 
 // Peer is another machine on the tailnet.
@@ -46,6 +48,10 @@ type Peer struct {
 	OS      string   `json:"os"`
 	Online  bool     `json:"online"`
 	Login   string   `json:"login"`
+	// Path is how packets reach the peer right now (PathDirect, PathDERP, PathPeerRelay or
+	// PathIdle), and Via where through: the endpoint, the DERP region or the relay's address.
+	Path string `json:"path,omitempty"`
+	Via  string `json:"via,omitempty"`
 }
 
 // Addr is the peer's first IPv4 tailnet address, or its first address.
@@ -76,11 +82,16 @@ func Binary() (string, error) {
 }
 
 func run(ctx context.Context, args ...string) ([]byte, error) {
+	return runFor(ctx, 8*time.Second, args...)
+}
+
+// runFor is run with its own deadline, for the commands that take longer than a status read.
+func runFor(ctx context.Context, d time.Duration, args ...string) ([]byte, error) {
 	bin, err := Binary()
 	if err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, d)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, bin, args...).Output()
 	if err != nil {
@@ -112,6 +123,14 @@ type nodeJSON struct {
 	OS           string
 	Online       bool
 	UserID       int64
+	// CurAddr is the direct endpoint in use, "" when there is none. Relay is the node's home
+	// DERP region, set whether or not traffic goes through it. PeerRelay is a peer relay's
+	// address when one carries the traffic (newer tailscale only).
+	CurAddr       string
+	Relay         string
+	PeerRelay     string
+	Active        bool
+	LastHandshake time.Time
 }
 
 // Status reads `tailscale status --json`: this machine and its peers.
@@ -121,17 +140,26 @@ func Status(ctx context.Context) (Self, []Peer, error) {
 	if err != nil {
 		return s, nil, err
 	}
-	s.Binary = bin
 	out, err := run(ctx, "status", "--json")
 	if err != nil && len(out) == 0 {
-		return s, nil, err
+		return Self{Binary: bin}, nil, err
 	}
-	var st statusJSON
-	if jerr := json.Unmarshal(out, &st); jerr != nil {
+	s, peers, jerr := parseStatus(out)
+	s.Binary = bin
+	if jerr != nil {
 		if err != nil {
 			return s, nil, err
 		}
 		return s, nil, fmt.Errorf("tailscale status: %v", jerr)
+	}
+	return s, peers, nil
+}
+
+func parseStatus(out []byte) (Self, []Peer, error) {
+	var s Self
+	var st statusJSON
+	if err := json.Unmarshal(out, &st); err != nil {
+		return s, nil, err
 	}
 	s.State = st.BackendState
 	s.Running = st.BackendState == "Running"
@@ -151,11 +179,14 @@ func Status(ctx context.Context) (Self, []Peer, error) {
 		s.Host = st.Self.HostName
 		s.IPs = st.Self.TailscaleIPs
 		s.Login, s.Name = login(st.Self.UserID)
+		s.Relay = st.Self.Relay
 	}
 	var peers []Peer
 	for _, p := range st.Peer {
 		l, _ := login(p.UserID)
-		peers = append(peers, Peer{Host: p.HostName, DNSName: strings.TrimSuffix(p.DNSName, "."), IPs: p.TailscaleIPs, OS: p.OS, Online: p.Online, Login: l})
+		path, via := p.path()
+		peers = append(peers, Peer{Host: p.HostName, DNSName: strings.TrimSuffix(p.DNSName, "."), IPs: p.TailscaleIPs, OS: p.OS, Online: p.Online, Login: l,
+			Path: path, Via: via})
 	}
 	sort.Slice(peers, func(i, j int) bool { return peers[i].Host < peers[j].Host })
 	return s, peers, nil

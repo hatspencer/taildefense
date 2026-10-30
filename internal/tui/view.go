@@ -287,7 +287,12 @@ func (m *Model) joinView(elapsed time.Duration, room int) []string {
 	out := []string{gutter + title, ""}
 
 	rows := make([]string, 0, len(m.games)+1)
-	incompatible := false
+	incompatible, relayed := false, false
+	// Narrower names on an 80-column terminal, so the path still fits beside the ping.
+	cols := struct{ peer, owner, wave, path int }{18, 10, 15, 9}
+	if m.width < 90 {
+		cols.peer, cols.owner, cols.wave, cols.path = 14, 8, 14, 8
+	}
 	for i, g := range m.games {
 		mark := "  "
 		if i == m.jcursor && !m.typing {
@@ -299,10 +304,22 @@ func (m *Model) joinView(elapsed time.Duration, room int) []string {
 			incompatible = true
 		}
 		owner, _, _ := strings.Cut(g.Owner, "@")
+		// The path goes next to the ping, the DERP one in yellow: a relay is the usual
+		// reason a game lags. "local" alone for a game on this machine.
+		ping := pad(fmt.Sprintf("%dms", g.PingMs), 6)
+		if label := tailnet.PathLabel(g.Path, g.Via); g.Path == tailnet.PathLocal {
+			ping = pad("local", 6+1+cols.path)
+		} else {
+			ping += " " + pad(label, cols.path)
+		}
+		if g.Path == tailnet.PathDERP {
+			ping = ui.StyleYellow.Render(ping)
+			relayed = true
+		}
 		rows = append(rows, fmt.Sprintf("%s%s%s  %s  %s  %s  %s  %s", gutter, mark,
-			ui.StyleBold.Render(pad(g.Peer, 18)), pad(owner, 10),
-			pad(fmt.Sprintf("%d/%d", len(g.Players), g.Max), 5), pad(cli.WaveText(g.Wave, g.Phase), 15),
-			pad(fmt.Sprintf("%dms", g.PingMs), 6), ver))
+			ui.StyleBold.Render(pad(g.Peer, cols.peer)), pad(owner, cols.owner),
+			pad(fmt.Sprintf("%d/%d", len(g.Players), g.Max), 5), pad(cli.WaveText(g.Wave, g.Phase), cols.wave),
+			ping, ver))
 	}
 	if m.scanned && len(m.games) == 0 && !m.scanning {
 		rows = append(rows, gutter+"  "+ui.StyleDim.Render("no games on the tailnet yet; host one, or ask a friend to"))
@@ -327,6 +344,9 @@ func (m *Model) joinView(elapsed time.Duration, room int) []string {
 	if incompatible {
 		out = append(out, "", gutter+ui.StyleYellow.Render("✗ another td: host and players must run the same one"),
 			gutter+ui.StyleYellow.Render("  td update on both (u here)"))
+	}
+	if relayed {
+		out = append(out, "", gutter+ui.StyleYellow.Render("DERP: relayed, expect extra lag · Doctor says why"))
 	}
 	if m.notice != "" {
 		out = append(out, "", gutter+m.noticeText())
@@ -576,6 +596,8 @@ func Frame(o Options, width, height int, view string) string {
 		cli.GameOf(netplay.Found{Info: netplay.Info{Proto: netplay.Proto + 1, Version: "fff0000", Host: "attic-server-with-a-long-name", Owner: "carol@example.com",
 			Max: 4, Phase: "build"}, Addr: "100.64.0.12:7787", Peer: "attic-server-with-a-long-name", RTT: 41 * time.Millisecond}),
 	}
+	m.games[0].Path, m.games[0].Via = tailnet.PathDirect, "203.0.113.5:41641"
+	m.games[1].Path, m.games[1].Via = tailnet.PathDERP, "fra"
 	switch view {
 	case FrameJoin:
 		m.screen = screenJoin
