@@ -78,7 +78,7 @@ export class Input {
     window.addEventListener('keydown', (e) => this.down(e));
     window.addEventListener('keyup', (e) => {
       this.keys.delete(e.key);
-      this.steer.delete(e.code);
+      if (this.steer.delete(e.code)) this.steerKeys();
       if (e.key === ' ') this.spaceUp(true);
       ctl.shift = e.shiftKey;
       if (e.key === 'Shift' && this.shiftTap) {
@@ -207,7 +207,9 @@ export class Input {
     if (k === 'Enter') { e.preventDefault(); this.steer.clear(); hud.openChat(); return; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (k.startsWith('Arrow')) { e.preventDefault(); this.keys.add(k); return; }
-    if (STEER[e.code]) { e.preventDefault(); this.steer.add(e.code); return; }
+    // Sent at once rather than on the next animation frame, which can be a whole frame late
+    // (or much later on a throttled page); steerKeys only sends when the angle changed.
+    if (STEER[e.code]) { e.preventDefault(); this.steer.add(e.code); this.steerKeys(); return; }
     // Shift is the grenade. While placing or pinging, Shift held through a click keeps the
     // mode, so there the grenade waits for the key to come up with no click in between.
     if (k === 'Shift') {
@@ -240,7 +242,7 @@ export class Input {
       case 'Z': ctl.setMode({ k: ctl.mode.k === 'ping' ? 'none' : 'ping' }); return;
       case 'H': this.fixAll(); return;
       case 'T': this.nextTurret(); return;
-      case 'R': ctl.send({ op: 'reload' }); return;
+      case 'R': ctl.reload(); return;
       case 'B': hud.buildCard = !hud.buildCard; if (!hud.buildCard) ctl.cancel(); return;
       case 'C': ctl.openArmory(!ctl.armoryOpen); return;
       case 'G': this.holdDrop(true); return;

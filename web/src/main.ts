@@ -151,6 +151,7 @@ async function main(): Promise<void> {
   if (demo) (window as unknown as { tdSound: Sound }).tdSound = sound;
   const toast = (t: string, l: number) => { hud.toast(t, l); if (l === 2) sound.ui('radio_error', 0.45, 0.3); };
   ctl.onToast = toast;
+  ctl.onCue = (c, x, y, key) => { const me = game.me(); if (me) sound.local(c, me, x, y, key); };
   hud.onVolume = (v, save) => { sound.synth.setVolume(v); if (save && !demo) send({ op: 'volume', v }); };
   hud.onMusic = (v, save) => { sound.music.setMusic(v); if (save && !demo) send({ op: 'music', v }); };
   const input = new Input(canvas, ctl, rig, hud);
@@ -194,6 +195,7 @@ async function main(): Promise<void> {
       centredOnHero = false;
       ctl.sel = null;
       ctl.setMode({ k: 'none' });
+      ctl.pending.length = 0;
       hud.buildCard = false;
       // A first game on this machine opens with the first steps; #firstrun shows them anyway.
       if (P.has('firstrun')) hud.showFirstRun(true);
@@ -485,6 +487,9 @@ async function main(): Promise<void> {
     } else { overlays.ring('range', false); overlays.areaPreview(false); }
     // The outlines of what the creeps destroyed, to rebuild between waves.
     overlays.ruins(f);
+    // What was just placed, until its frame comes in.
+    ctl.prunePending(performance.now());
+    overlays.pending(ctl.pending);
     // Selection and hover rings, and a turret's range.
     const ringFor = (p: typeof ctl.sel, name: 'sel' | 'hover') => {
       if (!p) { overlays.ring(name, false); return; }

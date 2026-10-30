@@ -35,7 +35,11 @@ Browser                   local td (web.Session)               host td (netplay.
   spot to walk to (the host finds the A* path), a heading for WASD, a target, a purchase. Every
   rule runs on the host, so there's nothing to cheat with.
 - **The browser only draws.** Your local `td` turns its replica into one compact binary frame per
-  tick and sends it to the page over a localhost WebSocket, so the page keeps no delta state. The page interpolates between frames.
+  tick and sends it to the page over a localhost WebSocket, so the page keeps no delta state. The page
+  draws motion a little in the past (the mean frame interval plus twice the arrival jitter,
+  50-150 ms) from a buffer of the last four frames, so late or bunched frames don't stutter;
+  past the newest it extrapolates up to 100 ms, then waits. The player's own acts (a cast, a
+  build, a reload) get their ring, sound and pending ghost at once; the host still decides.
   The WebSocket is a small stdlib implementation, so the Go side adds no modules for it.
 - **Lots of creeps, cheaply.**
   - **Simulation.** Creeps live in a dense array with stable ids. They path with a single

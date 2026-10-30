@@ -63,6 +63,12 @@ const RAIN = 0.16, WIND = 0.12, NIGHT = 0.05, HUM = 0.12;
 
 interface Shot { x: number; y: number; vol: number; extra?: number; p?: Placed; mine?: boolean }
 
+// The local player's own acts the page sounds the moment they are asked for (see local).
+export type LocalCue = 'grenade' | 'build' | 'reload' | 'medkit' | 'taunt';
+// How long a cue played locally stands in for the one its frame would play, in ms: past it
+// the host most likely refused the act, and a frame showing it after all is sounded as usual.
+const LOCAL_HOLD = 1500;
+
 export class Sound {
   readonly synth: Synth;
   // The music under it all (music.ts), which follows the game from onFrame.
@@ -241,6 +247,38 @@ export class Sound {
     this.synth.duckWorld(3, 0.35);
   }
 
+  // The local player's act, sounded at once instead of when the frame showing it comes in a
+  // round trip later. x, y is where it happens (a build's centre); key tells it from others of
+  // its cue (a build's tile). Marked, so the frame-driven sound of the same act is skipped.
+  private localAt = new Map<string, number>();
+  local(cue: LocalCue, me: Player, x: number, y: number, key: string = cue): void {
+    if (!this.synth.ready) return;
+    const now = performance.now();
+    if (this.localAt.size > 32) for (const [k, at] of this.localAt) if (now - at > LOCAL_HOLD) this.localAt.delete(k);
+    this.localAt.set(key, now);
+    switch (cue) {
+      case 'grenade': this.synth.play('grenade', this.flat(0.6), 0, 1, Prio.Own); break;
+      case 'build': { const p = this.place(x, y, 0.6); if (p) this.synth.play('hammer', p, 0, 1, Prio.Own); break; }
+      case 'reload': {
+        const dry = me.ammo === 0;
+        if (dry) this.synth.play('dry', this.flat(0.8), 0, 1, Prio.Own);
+        this.synth.play('reload' + me.cur, this.flat(1), dry ? this.synth.now + DRY : 0, 1, Prio.Own);
+        break;
+      }
+      case 'medkit': this.synth.play('medkit', this.flat(0.55)); break;
+      case 'taunt': this.synth.play('shout_' + voice(me), this.flat(0.9), 0, 1, Prio.Own); break;
+    }
+  }
+
+  // Whether key was played locally a moment ago, which the frame's sound of it then stands
+  // down for; it is used up either way.
+  private heard(key: string): boolean {
+    const at = this.localAt.get(key);
+    if (at === undefined) return false;
+    this.localAt.delete(key);
+    return performance.now() - at < LOCAL_HOLD;
+  }
+
   onFrame(game: Game): void {
     const wd = game.welcome;
     if (!wd) return;
@@ -329,7 +367,9 @@ export class Sound {
         case BlastKind.Concussion: at('concussion', 1, 1.8); break;
         case BlastKind.Loot: loot = true; at(r <= 1.01 ? 'jackpot' : 'lootFound', 0.7); break;
         case BlastKind.Ambush: at('ambush', 1, 2); break;
-        case BlastKind.Taunt: at('shout_' + this.voiceOf(f.players, f.nPlayers, x, y), 0.9); break;
+        case BlastKind.Taunt:
+          if (!(me && Math.hypot(x - me.x, y - me.y) < 2 && this.heard('taunt'))) at('shout_' + this.voiceOf(f.players, f.nPlayers, x, y), 0.9);
+          break;
         case BlastKind.Lightning: at('thunder', 1.1, 8); break;
         case BlastKind.Revived: at('revived_' + this.voiceOf(f.players, f.nPlayers, x, y), 0.7); break;
         case BlastKind.GuardsWake: if (this.once('alert', 2)) at('alert', 0.75, 1.6); break;
@@ -483,7 +523,7 @@ export class Sound {
   }
 
   private effectSounds(game: Game, t0: number): void {
-    const f = game.cur, seen = new Set<string>();
+    const f = game.cur, seen = new Set<string>(), me = game.me();
     for (let i = 0; i < f.nEffects; i++) {
       const kind = f.eKind[i], x0 = f.eX0[i], y0 = f.eY0[i], x = f.eX[i], y = f.eY[i];
       const key = `${kind}:${Math.round(x0 * 8)}:${Math.round(y0 * 8)}:${Math.round(x * 8)}:${Math.round(y * 8)}`;
@@ -495,7 +535,8 @@ export class Sound {
         if (p) this.synth.play(name, p, t);
       };
       switch (kind) {
-        case EffectKind.Grenade: at('grenade', x0, y0, 0.6); break;
+        // Your own throw was sounded when you threw it.
+        case EffectKind.Grenade: if (!(me && Math.hypot(x0 - me.x, y0 - me.y) < 2 && this.heard('grenade'))) at('grenade', x0, y0, 0.6); break;
         case EffectKind.Napalm: at('ignite', x, y, 0.9, 1.6); break;
         // The jets are timed to be right overhead as the bombs land.
         case EffectKind.AirTarget: at('jets', x, y, 1, 5, t0 + Math.max(0, f.eLeft[i] / 10 - 2.2)); break;
@@ -532,14 +573,14 @@ export class Sound {
       if (alive && p.cur !== this.pCur[id]) this.synth.play('switch', this.flat(0.7), 0, 1, Prio.Own);
       else if (alive && p.cur < 6) {
         // Run dry, the trigger falls on an empty chamber before the hands go to the reload.
-        if (p.flags & PF_RELOADING && !(was & PF_RELOADING)) {
+        if (p.flags & PF_RELOADING && !(was & PF_RELOADING) && !this.heard('reload')) {
           const dry = p.ammo === 0;
           if (dry) this.synth.play('dry', this.flat(0.8), 0, 1, Prio.Own);
           this.synth.play('reload' + p.cur, this.flat(1), dry ? this.synth.now + DRY : 0, 1, Prio.Own);
         }
         if (!(p.flags & PF_RELOADING) && was & PF_RELOADING) this.synth.play('reloaded' + p.cur, this.flat(1), 0, 1, Prio.Own);
       }
-      if (p.heal > 0 && this.pHeal[id] <= 0) this.synth.play('medkit', this.flat(0.55));
+      if (p.heal > 0 && this.pHeal[id] <= 0 && !this.heard('medkit')) this.synth.play('medkit', this.flat(0.55));
       // A kill of your own shooting: a knock, rising a little with each one in quick succession.
       if (alive && p.kills > this.pKills[id] && p.flags & PF_FIRING) {
         const now = performance.now() / 1000;
@@ -568,7 +609,7 @@ export class Sound {
     for (let i = 0; i < f.nStructs; i++) {
       const cx = f.sX[i] + f.sW[i] / 2, cy = f.sY[i] + f.sH[i] / 2;
       const was = i < this.nStructs && this.sAlive[i] && this.sKind[i] === f.sKind[i];
-      if (f.sAlive[i] && !was) { const p = this.place(cx, cy, 0.6); if (p) this.synth.play('hammer', p); }
+      if (f.sAlive[i] && !was) { const p = this.place(cx, cy, 0.6); if (p && !this.heard(`build:${f.sX[i]}:${f.sY[i]}`)) this.synth.play('hammer', p); }
       else if (f.sAlive[i] && level(f.sLevel[i], f.sLv, i) > this.sLevel[i]) { const p = this.place(cx, cy, 0.55); if (p) this.synth.play('upgrade', p); }
       else if (!f.sAlive[i] && i < this.nStructs && this.sAlive[i] && !this.cover.owns(this.sKind[i])) {
         // Sold whole, or knocked down: one that went at a quarter of its health or more was sold.
