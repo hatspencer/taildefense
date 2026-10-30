@@ -309,6 +309,12 @@ func (w *World) CanBuild(p *Player, k StructKind, x, y int) error {
 	return w.canBuild(p, k, x, y, true)
 }
 
+// CanBuildFrom is CanBuild from wherever p stands: whether p could build k at x, y on walking
+// there, for a bot choosing its ground before it goes.
+func (w *World) CanBuildFrom(p *Player, k StructKind, x, y int) error {
+	return w.canBuild(p, k, x, y, false)
+}
+
 // canBuild is CanBuild; near also asks that the player be standing close enough.
 func (w *World) canBuild(p *Player, k StructKind, x, y int, near bool) error {
 	d := Structs[k]

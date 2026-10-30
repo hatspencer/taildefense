@@ -62,6 +62,21 @@ func (w *World) updateFlow() {
 	w.wideDirt = true
 }
 
+// StepIn is the tile a creep of the waves on tile x, y walks to next on its way to the
+// generator, breaking through what stands in the way where that is quicker than going round;
+// ok is false at the generator or where there is no way in. A bot follows it to find where
+// the creeps come in.
+func (w *World) StepIn(x, y int) (nx, ny int, ok bool) {
+	if x < 0 || y < 0 || x >= w.W || y >= w.H {
+		return 0, 0, false
+	}
+	n := w.flow.next[y*w.W+x]
+	if n < 0 {
+		return 0, 0, false
+	}
+	return int(n) % w.W, int(n) / w.W, true
+}
+
 // fieldKind is how a field treats structures.
 type fieldKind uint8
 

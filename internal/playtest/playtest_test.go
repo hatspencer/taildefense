@@ -203,3 +203,52 @@ func TestBotsGetToTheChoppa(t *testing.T) {
 		})
 	}
 }
+
+// Bots defend with frost and rockets on the creeps' way in, never walls, raise what they
+// built rather than sell it, and go exploring with their free time.
+func TestBotsBuildFrostAndRocketsAndExplore(t *testing.T) {
+	const seed, players, waves = 5, 2, 4
+	s := New(seed, game.DiffNormal, players)
+	s.Hold = true
+	bots := []*Bot{NewBot(0, seed), NewBot(1, seed)}
+	if _, err := Play(s, bots, waves, waves*8*60*game.TickRate); err != nil {
+		t.Fatal(err)
+	}
+	w := s.W
+	kinds := map[game.StructKind]int{}
+	raised := 0
+	for i := range w.Structs {
+		st := &w.Structs[i]
+		if !st.Alive || st.Owner < 0 {
+			continue
+		}
+		kinds[st.Kind]++
+		if game.TrackSum(st) > 0 {
+			raised++
+		}
+	}
+	searched := 0
+	for _, st := range w.Sites {
+		if st.Searched && st.Kind.Lootable() {
+			searched++
+		}
+	}
+	t.Logf("frost %d, missile %d, gun %d, wall %d, gate %d, raised %d, sites searched %d", kinds[game.STurretFrost], kinds[game.STurretMissile], kinds[game.STurretGun], kinds[game.SWall], kinds[game.SGate], raised, searched)
+	if kinds[game.SWall]+kinds[game.SGate] > 0 {
+		t.Errorf("the bots built %d walls and %d gates", kinds[game.SWall], kinds[game.SGate])
+	}
+	if kinds[game.STurretFrost] == 0 || kinds[game.STurretMissile] == 0 {
+		t.Errorf("frost %d, missile %d: the bots should build both", kinds[game.STurretFrost], kinds[game.STurretMissile])
+	}
+	for k, n := range kinds {
+		if k != game.STurretFrost && k != game.STurretMissile && k != game.STurretGun && n > 0 {
+			t.Errorf("the bots built %d %s", n, game.Structs[k].Name)
+		}
+	}
+	if raised == 0 {
+		t.Error("no tower was upgraded")
+	}
+	if searched == 0 {
+		t.Error("nobody went exploring: no loot site searched")
+	}
+}

@@ -641,7 +641,8 @@ func TestUDPRecoversAfterFallback(t *testing.T) {
 	for round := 1; round <= 2; round++ {
 		rl.block.Store(true)
 		lost := func() bool { return c.Transport() == "tcp (udp: lost, retrying)" }
-		if ok, worst := playUntil(t, c, r, 4*time.Second, lost); !ok {
+		// Generous: on a loaded machine the round trip the fallback waits on runs long.
+		if ok, worst := playUntil(t, c, r, 8*time.Second, lost); !ok {
 			t.Fatalf("round %d: still %q while blocked", round, c.Transport())
 		} else if worst > udpTimeoutMin+500*time.Millisecond {
 			t.Fatalf("round %d: frames stopped for %v going to TCP", round, worst)

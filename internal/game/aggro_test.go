@@ -154,6 +154,19 @@ func TestADownedSurvivorCanBeRevivedWhereTheyFell(t *testing.T) {
 	if err := w.OrderRevive(a, int(b.ID)); err == nil {
 		t.Error("revived someone standing")
 	}
+	// Asked again and again, as a player pressing E keeps doing, a revive carries on.
+	w.hurtPlayer(b, 1e6)
+	for i := 0; !b.Alive && i < TickRate*6; i++ {
+		if i%5 == 0 {
+			if err := w.OrderRevive(a, int(b.ID)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		w.Step()
+	}
+	if !b.Alive {
+		t.Fatalf("a revive asked for every 5 ticks never finished; channel %.2f", a.Search)
+	}
 	// Left alone, a downed survivor is back at the base when the window closes.
 	w.hurtPlayer(b, 1e6)
 	run(w, int(TickRate*(Difficulties[DiffNormal].Revive+.5)), func() bool { return false })

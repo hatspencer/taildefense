@@ -189,6 +189,14 @@ export class Controller {
     return p && !(p.flags & PF_ALIVE) && !p.aboard ? h.id : -1;
   }
 
+  // Whether E now belongs to a revive: one under way, or a downed teammate right at hand. A
+  // second E then must not send the hero off looting, which would drop the teammate.
+  reviving(): boolean {
+    const me = this.me();
+    if (!me || !(me.flags & PF_ALIVE)) return false;
+    return me.order === Order.Revive || this.nearestUsable(me.x, me.y, true)?.t === 'hero';
+  }
+
   taunt(): void {
     const me = this.me();
     if (!me || !(me.flags & PF_ALIVE)) return;

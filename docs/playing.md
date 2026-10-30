@@ -140,9 +140,15 @@ shrines and the plane are as ever. The crowbar is the plain choice, but it evolv
 
 A host can bring up to three bots (`td host --bots 2`; `td --bots 2` and `td serve --bots 2`
 too). They join as `bot-1`, `bot-2` and `bot-3` once the first person is in, and play as the
-playtests' bots do: they shop, build round the generator, loot, fight, revive whoever is down
-near them and get to the Huey. They ready up as soon as everyone else has, never ping, pause or
+playtests' bots do: they shop; build frost towers beside the way the creeps come in and missile
+batteries behind them (never walls), and spend what is left upgrading and evolving those; fight;
+go exploring for loot and new ground with free time in a break or once a wave is down to its
+last few creeps; revive whoever is down near them, sticking at it until they are up; and get to
+the Huey. They ready up as soon as everyone else has, never ping, pause or
 restart, and count as players: the waves grow with them, and they take their share of the gold.
+
+Pressing E again, or clicking revive twice, during a revive carries on with it rather than
+starting it over, and a second quick E there never sends you off looting.
 
 ## Turrets
 
