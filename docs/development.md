@@ -75,7 +75,8 @@ over since the last frame, the output's peak in dBFS and the compressor's pull i
 leaves the sound engine at `window.tdSound`, whose `synth.plays`, `drops` and `steals` count
 every sound by name, for a browser test to read; a musical cue counts as `cue:<name>`.
 F3's link lines, all in ms: `ping` the last round trip to the host, its average, its p99 over a
-minute and echoes lost; `ack` the last command's time to its ack and the p50 and p99 over 10 s;
+minute, echoes lost and how packets reach the host (`direct`, `DERP fra`, `relay`, `local`);
+`ack` the last command's time to its ack and the p50 and p99 over 10 s;
 `arrv` the gaps between frames reaching td over 10 s (50 when all is well); `host` the host's
 tick spacing p99, the frames it dropped for this player, the keyframes it resent after them and
 the deepest the player's queue got of its depth; `page drop` the frames td dropped for a slow

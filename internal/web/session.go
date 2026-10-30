@@ -28,6 +28,7 @@ import (
 
 	"taildefense/internal/game"
 	"taildefense/internal/netplay"
+	"taildefense/internal/tailnet"
 )
 
 //go:embed all:dist
@@ -69,6 +70,10 @@ type Options struct {
 	SaveMusic func(int) error
 	// Listen overrides where the page is served, for tests.
 	Listen string
+	// PathTo says how packets reach the host's address, for the page's link badge; nil is
+	// tailnet.PathTo, which answers loopback as local without asking tailscale. Tests stand
+	// in for tailscale here.
+	PathTo func(ctx context.Context, ip string) (path, via string, err error)
 }
 
 // Page is where the game is being served, for the terminal to say.
@@ -162,6 +167,14 @@ func Run(ctx context.Context, o Options) (Result, error) {
 	defer status.Stop()
 	echo := time.NewTicker(time.Second)
 	defer echo.Stop()
+	// How packets reach the host. Soon after joining, as the echoes and frames have made
+	// tailscale pick a path by then, and every pathEvery after. The lookup runs the tailscale
+	// CLI, so it goes in a goroutine, one at a time, and the loop only takes its answer.
+	pathT := time.NewTimer(pathFirst)
+	defer pathT.Stop()
+	paths := make(chan *pathMsg, 1)
+	pctx, pcancel := context.WithCancel(ctx)
+	defer pcancel()
 	defer func() {
 		if s.b != nil {
 			close(s.b.out)
@@ -209,6 +222,16 @@ func Run(ctx context.Context, o Options) (Result, error) {
 			if s.b != nil && s.b.ready {
 				s.text(s.b, s.net.msg(time.Now()))
 			}
+		case <-pathT.C:
+			go func() { paths <- lookupPath(pctx, o) }()
+		case p := <-paths:
+			pathT.Reset(pathEvery)
+			if p != nil {
+				s.path = p
+				if s.b != nil && s.b.ready {
+					s.text(s.b, p)
+				}
+			}
 		case <-echo.C:
 			// Time since start, which the host sends back: monotonic, unlike the wall clock.
 			// Then a count, so an echo that never comes back is noticed.
@@ -229,6 +252,47 @@ type session struct {
 	core  point
 	cmds  *cmdLog   // commands relayed, awaiting their acks
 	net   *netStats // for the page's F3 readout
+	path  *pathMsg  // how packets reach the host, last asked; nil until known
+}
+
+const (
+	pathFirst = 2 * time.Second
+	pathEvery = 10 * time.Second
+)
+
+// pathMsg is the page's path message; see web/PROTOCOL.md.
+type pathMsg struct {
+	T    string `json:"t"`
+	Path string `json:"path"`
+	Via  string `json:"via,omitempty"`
+}
+
+// lookupPath asks how packets reach the host at o.Addr, nil when nobody can say, such as
+// with tailscale not installed or a host on a LAN. A MagicDNS name is resolved first; the
+// first of its addresses tailscale knows answers.
+func lookupPath(ctx context.Context, o Options) *pathMsg {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	pathTo := o.PathTo
+	if pathTo == nil {
+		pathTo = tailnet.PathTo
+	}
+	host, _, err := net.SplitHostPort(o.Addr)
+	if err != nil {
+		host = strings.Trim(o.Addr, "[]")
+	}
+	ips := []string{host}
+	if net.ParseIP(host) == nil {
+		if ips, err = net.DefaultResolver.LookupHost(ctx, host); err != nil {
+			return nil
+		}
+	}
+	for _, ip := range ips {
+		if path, via, err := pathTo(ctx, ip); err == nil {
+			return &pathMsg{T: "path", Path: path, Via: via}
+		}
+	}
+	return nil
 }
 
 func (s *session) reset(wel netplay.Welcome) {
@@ -335,6 +399,10 @@ func (s *session) greet() {
 	s.text(b, m)
 	s.send(b, terrainMsg(s.wel.Terrain))
 	b.ready = true
+	// A tab opened later learns the path now rather than in up to pathEvery.
+	if s.path != nil {
+		s.text(b, s.path)
+	}
 	if s.o.Notice != "" {
 		s.text(b, map[string]any{"t": "toast", "level": 2, "text": s.o.Notice})
 	}
