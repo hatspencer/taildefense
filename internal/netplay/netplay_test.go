@@ -162,10 +162,105 @@ func TestPingsReachTheReplica(t *testing.T) {
 }
 
 func TestCommandRoundTrip(t *testing.T) {
-	c := Cmd{Op: OpAbility, A: 2, X: 12.5, Y: 199.25, T: 4000, Text: "hi"}
+	c := Cmd{Op: OpAbility, A: 2, X: 12.5, Y: 199.25, T: 4000, Text: "hi", Seq: 65530}
 	gc, err := decodeCmd(c.encode())
 	if err != nil || gc != c {
 		t.Fatalf("%+v -> %+v (%v)", c, gc, err)
+	}
+	// A command without its seq is cut short, not taken as seq 0.
+	b := c.encode()
+	if _, err := decodeCmd(b[:len(b)-2]); err == nil {
+		t.Fatal("a command with no seq decoded")
+	}
+	a := Ack{Seq: 7, Tick: 123456}
+	if ga, err := DecodeAck(a.encode()); err != nil || ga != a {
+		t.Fatalf("ack %+v -> %+v (%v)", a, ga, err)
+	}
+	st := Stats{Dropped: 3, Resyncs: 2, QMax: 7, QCap: 24, TickP50: 500, TickP99: 520, TickMax: 1400}
+	if gs, err := DecodeStats(st.encode()); err != nil || gs != st {
+		t.Fatalf("stats %+v -> %+v (%v)", st, gs, err)
+	}
+}
+
+func TestWindowQuantiles(t *testing.T) {
+	w := Window{Span: 10 * time.Second}
+	t0 := time.Unix(1000, 0)
+	if _, ok := w.Quantiles(t0, 0.5); ok {
+		t.Fatal("quantiles of nothing")
+	}
+	w.Add(t0, 999) // falls out of the span below
+	for i := 1; i <= 100; i++ {
+		w.Add(t0.Add(time.Duration(i)*100*time.Millisecond), float64(i))
+	}
+	q, _ := w.Quantiles(t0.Add(10050*time.Millisecond), 0.5, 0.99, 1)
+	if q[0] != 50 || q[1] != 99 || q[2] != 100 {
+		t.Fatalf("p50 p99 max = %v, want 50 99 100", q)
+	}
+}
+
+// A command sent with a seq is acked with it, after the frame of the tick it was applied in,
+// and the host's stats for this player follow every 2 s.
+func TestCommandsAreAcked(t *testing.T) {
+	s, err := Listen(ServerConfig{Addrs: []string{"127.0.0.1:0"}, Seed: 3, Version: "test", Host: "box", LocalLogin: "me", LocalName: "me"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	c, wel, err := Dial(ctx, s.Addrs()[0], Hello{Name: "tester", Version: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	r := NewReplica(wel.W, wel.H, wel.Terrain, wel.You, wel.Seed)
+	sent := false
+	var ack *Ack
+	var stats *Stats
+	deadline := time.After(4 * time.Second)
+	for ack == nil || stats == nil {
+		select {
+		case m := <-c.Msgs():
+			if m.Err != nil {
+				t.Fatal(m.Err)
+			}
+			switch m.Type {
+			case MsgFrame:
+				if err := r.Apply(m.Payload); err != nil {
+					t.Fatal(err)
+				}
+				if r.Synced && !sent {
+					_ = c.Send(Cmd{Op: OpStop, Seq: 41})
+					_ = c.Send(Cmd{Op: OpHold, Seq: 42})
+					sent = true
+				}
+			case MsgAck:
+				a, err := DecodeAck(m.Payload)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !sent {
+					t.Fatalf("an ack %+v before any command", a)
+				}
+				if a.Tick != r.Tick {
+					t.Fatalf("ack for tick %d after the frame of tick %d", a.Tick, r.Tick)
+				}
+				if a.Seq == 42 {
+					ack = &a
+				}
+			case MsgStats:
+				st, err := DecodeStats(m.Payload)
+				if err != nil {
+					t.Fatal(err)
+				}
+				stats = &st
+			}
+		case <-deadline:
+			t.Fatalf("after 4s: ack %+v, stats %+v", ack, stats)
+		}
+	}
+	if stats.QCap != 24 || stats.TickP50 < 300 || stats.TickP50 > 2000 || stats.TickMax < stats.TickP99 {
+		t.Errorf("stats %+v: want a 24 deep queue and ticks about 50 ms apart", *stats)
 	}
 }
 
