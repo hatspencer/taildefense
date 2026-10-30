@@ -15,6 +15,7 @@ import { Minimap } from './minimap';
 import { wordmarkURL } from './splash';
 import { Cover } from './cover';
 import { FirstRun, firstRunSeen } from './firstrun';
+import { BladePick } from './pick';
 import { helpHTML } from './help';
 import { Pad, focusFirst, navKey, step } from './nav';
 
@@ -324,6 +325,7 @@ export class Hud {
     this.buildMenu();
     this.over = el('div', 'over hidden', root);
     this.firstRun = new FirstRun(root, () => this.toggleHelp());
+    this.pick = new BladePick(root, ctl);
     this.tip = el('div', 'tip panel hidden', root);
     this.cover = new Cover(el('div', 'cover', root), markURL);
     this.statsEl = el('div', 'stats panel hidden', root);
@@ -382,7 +384,9 @@ export class Hud {
       const evo = me.evo[i] ? w.evolve?.[me.evo[i] - 1] : undefined;
       return `<b class="legend">${esc(w.name)}</b><kbd>${weaponKey(i)}</kbd> <span class="muted">legendary</span><br><span class="muted">melee · reach ${w.range} · special ${esc(w.special)}</span><br>${i === KATANA && dualIn(me.owned, i) ? 'a pair: one in each hand, cutting 70% faster<br>' : ''}${evo ? `<b>${esc(evo.name)}</b>: ${esc(evo.desc)}<br>` : ''}${lv}<br>F: <b>${esc(w.art?.name ?? '')}</b> · ${esc(w.art?.desc ?? '')}<br><span class="muted">ultimate: ${esc(w.ult.name)}</span>`;
     }
-    return `<b>${esc(w.name)}</b><kbd>${weaponKey(i)}</kbd><br><span class="muted">${w.fire} · range ${w.range} · special ${esc(w.special)}</span><br>${i === 0 && me.owned & OWNED_DUAL ? 'dual pistols: twice the rounds a second and the magazine<br>' : ''}${owned ? lv : `not owned · <span class="c">${w.price}g</span> at the armory`}<br><span class="muted">ultimate: ${esc(w.ult.name)}${reloading ? ' · reloading' : ''}</span>`;
+    const evo = me.evo[i] ? w.evolve?.[me.evo[i] - 1] : undefined;
+    const art = w.art ? `${evo ? `<b>${esc(evo.name)}</b>: ${esc(evo.desc)}<br>` : ''}F: <b>${esc(w.art.name)}</b> · ${esc(w.art.desc)}<br>` : '';
+    return `<b>${esc(w.name)}</b><kbd>${weaponKey(i)}</kbd><br><span class="muted">${w.fire} · range ${w.range} · special ${esc(w.special)}</span><br>${i === 0 && me.owned & OWNED_DUAL ? 'dual pistols: twice the rounds a second and the magazine<br>' : ''}${owned ? lv : `not owned · <span class="c">${w.price}g</span> at the armory`}<br>${art}<span class="muted">ultimate: ${esc(w.ult.name)}${reloading ? ' · reloading' : ''}</span>`;
   }
 
   private diffTip(): string {
@@ -474,6 +478,7 @@ export class Hud {
     else if (w.contains(document.activeElement)) (document.activeElement as HTMLElement).blur();
   }
   firstRun: FirstRun;
+  pick: BladePick;
   // The first steps, on a first game on this machine (or always, with force).
   showFirstRun(force = false): void { if (force || !firstRunSeen()) this.firstRun.open(); }
 
@@ -628,6 +633,7 @@ export class Hud {
     this.updateCard();
     this.updateMode();
     this.armory.update();
+    this.pick.update(wd, me ?? undefined);
     if (this.tipFor && this.tipEl && now - this.lastSec > 250) { this.placeTip(this.tipEl); this.lastSec = now; }
     const tick = now - this.lastBoard > 500;
     if (tick) this.lastBoard = now;
@@ -967,9 +973,10 @@ export class Hud {
 
     for (let i = 0; i < WEAPON_SLOTS; i++) {
       const e = this.wslots[i], w2 = wd.weapons[i];
-      // The crowbar is brutal's alone: its slot only shows for whoever carries it.
-      // So are the legendaries, found and never sold.
-      show(e, !!w2 && ((i !== CROWBAR && !legendary(i)) || (me.owned & (1 << i)) !== 0));
+      // The crowbar is brutal's and a blades game's: its slot only shows for whoever carries
+      // it. So are the legendaries, found and never sold; and in a blades game, no gun shows.
+      const gun = wd.mode !== 'blades' && i !== CROWBAR && !legendary(i);
+      show(e, !!w2 && (gun || (me.owned & (1 << i)) !== 0));
       if (!w2) continue;
       setClass(e, 'owned', (me.owned & (1 << i)) !== 0);
       setClass(e, 'cur', me.cur === i);

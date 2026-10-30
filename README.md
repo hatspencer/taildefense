@@ -38,10 +38,10 @@ WebGL 2 where WebGPU isn't available. Any current Chrome, Edge, Firefox or Safar
 
 | command | what it does |
 |---|---|
-| `td` | launcher: host (←/→ picks the difficulty, w the game's length, f turns fog of war on or off, y copies the join command for your friends), join (lists the games on your tailnet), settings, a changelog of the latest commits with yours marked, the doctor's checks, update status. It opens with a short splash (any key skips it, `--no-splash` or `--no-anim` turns it off) |
-| `td host [--port N] [--seed S] [--name NAME] [--difficulty D] [--waves W]` | host a game and play it in the browser |
+| `td` | launcher: host (←/→ picks the difficulty, w the game's length, f turns fog of war on or off, m the mode (standard, or blades: no guns), y copies the join command for your friends), join (lists the games on your tailnet), settings, a changelog of the latest commits with yours marked, the doctor's checks, update status. It opens with a short splash (any key skips it, `--no-splash` or `--no-anim` turns it off) |
+| `td host [--port N] [--seed S] [--name NAME] [--difficulty D] [--waves W] [--mode M]` | host a game and play it in the browser |
 | `td join HOST[:PORT] [--name NAME]` | join a game by tailnet name or address |
-| `td serve [--port N] [--seed S] [--difficulty D] [--waves W]` | headless dedicated host; logs to stdout until interrupted |
+| `td serve [--port N] [--seed S] [--difficulty D] [--waves W] [--mode M]` | headless dedicated host; logs to stdout until interrupted |
 | `td ls [--json] [--port N]` | games running on your tailnet |
 | `td bench [--wave N] [--players P] [--seconds S] [--seed S]` | time a busy wave offline: simulation, encoding, relay |
 | `td frame [--width W] [--height H] [--view menu\|join\|settings\|changelog\|doctor\|help\|splash] [--at S]` | render one launcher frame from demo data, 160×48 unless told otherwise; `--at` is seconds into the splash |
@@ -96,10 +96,10 @@ faces, however the camera is turned, and the camera follows while you walk.
 | E | use what is under the cursor, or else the nearest thing: revive a downed teammate, pick up a dropped weapon, search a loot site, repair a damaged building, shop at the armory (walking there first); on a creep, focus fire on it; tap twice to walk to the nearest loot site in sight and search it; once the evac Huey is down, get aboard |
 | Q | the equipped weapon's ultimate, once its meter is full (fighting and reviving fill it) |
 | right-click | on a creep, focus fire on it |
-| Shift / F / V | grenade (aim, then left-click; Esc cancels), dash and airstrike at the cursor at once (bought at the armory); with a legendary blade in hand, F is its weapon art |
+| Shift / F / V | grenade (aim, then left-click; Esc cancels), dash and airstrike at the cursor at once (bought at the armory); with a legendary blade or the crowbar in hand, F is its weapon art |
 | R | reload (or the reload button) |
 | 1 | use a medkit |
-| 2-7, 0, 8, 9 | equip pistol, shotgun, SMG, rifle, minigun, launcher; 0 the crowbar (on brutal); 8 the katana and 9 the greatsword, once found |
+| 2-7, 0, 8, 9 | equip pistol, shotgun, SMG, rifle, minigun, launcher; 0 the crowbar (on brutal and in blades games); 8 the katana and 9 the greatsword, once found |
 | G (hold) | hold a second to drop the weapon in hand for a teammate, upgrades and all (you keep at least one) |
 | J | taunt: flip them off and shout; every creep around you comes for you for 5 s, sleeping guards too |
 | B | build bar: 1 wall, 2 gate, 3 gun turret, 4 cannon, 5 frost tower, 6 tesla coil, 7 sniper tower, 8 missile battery, 9 0 - = the traps, [ the amplifier pylon; walls and gates keep placing until Esc, Shift keeps a turret placing |

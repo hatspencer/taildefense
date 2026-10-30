@@ -120,13 +120,16 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 		if p.DualKatana {
 			owned |= game.DualKatanaBit
 		}
+		if p.Picking {
+			owned |= game.PickBit
+		}
 		e.u16(owned)
 		for k := range p.Lv {
 			for _, l := range p.Lv[k] {
 				e.u8(l)
 			}
 		}
-		e.u8(p.Evo[game.WKatana] | p.Evo[game.WGreat]<<2)
+		e.u8(p.Evo[game.WKatana] | p.Evo[game.WGreat]<<2 | p.Evo[game.WCrowbar]<<4)
 		for _, g := range p.Gear {
 			e.u8(g)
 		}

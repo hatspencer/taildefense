@@ -21,6 +21,7 @@ var Keys = []KeyHelp{
 	{"← →", "the difficulty to host at", "host"},
 	{"w", "how long: 20, 30 or 40 waves, or endless", "host"},
 	{"f", "fog of war on or off", "host"},
+	{"m", "the mode: standard, or blades (no guns)", "host"},
 	{"y", "copy the command friends join with", "host"},
 	{"r", "look again now (it does every 5 s)", "join"},
 	{"a", "type an address: host, host:port or IP", "join"},

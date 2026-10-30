@@ -47,6 +47,16 @@ button.primary kbd { background: rgba(255, 255, 255, 0.25); border-color: #4a351
 .firstrun .row { display: flex; gap: 10px; flex-wrap: wrap; }
 .firstrun .row button { padding: 7px 14px 8px; }
 
+/* ---------- a blades game's first choice ---------- */
+
+.pick { width: min(860px, calc(100% - 32px)); }
+.pick p { margin: 0 0 12px; }
+.pick .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.pick .card { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; text-align: left; padding: 10px 12px 12px; line-height: 1.35; font-size: 14px; }
+.pick .card .wname { font-size: 18px; color: #f4dc9c; }
+.pick .card.legend .wname { color: #ffb347; }
+.pick .card b { font-weight: 600; }
+
 /* ---------- controls: grouped, in columns ---------- */
 
 .help { width: min(1240px, calc(100% - 32px)); }

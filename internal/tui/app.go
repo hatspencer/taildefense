@@ -559,6 +559,12 @@ func (m *Model) menuKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.cursor < len(items) && items[m.cursor] == itemHost {
 			m.cycleWaves()
 		}
+	case "m":
+		if m.cursor < len(items) && items[m.cursor] == itemHost {
+			key, _ := config.Lookup(config.KeyMode)
+			m.save(key, game.Mode((int(m.prefs.Mode())+1)%int(game.NumModes)).String())
+			m.notice = ""
+		}
 	case "enter", " ":
 		if m.cursor >= len(items) {
 			m.cursor = 0

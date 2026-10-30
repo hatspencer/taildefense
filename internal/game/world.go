@@ -141,6 +141,7 @@ type Player struct {
 	Firing    bool
 	Moving    bool
 	Hurt      float32
+	Picking   bool    // a blades game's survivor who has not chosen their blade yet (PickBlade)
 	Aboard    bool    // got aboard the evac Huey: out of the fight, riding out with it (evac.go)
 	Shield    float32 // seconds left of the shield a survivor put back at the base wears; see spawnShield
 	// A slow (stun.go): seconds the survivor walks at half speed for, and until another can land.
@@ -333,6 +334,8 @@ type World struct {
 	Diff    Difficulty
 	// FogOfWar hides what no survivor or structure can see. The sim ignores it; clients draw it.
 	FogOfWar bool
+	// Mode is the kind of game (mode.go): standard, or blades with no guns.
+	Mode Mode
 	// LastWave is the wave whose end calls the evac Huey and so ends the game (evac.go); 0 for
 	// an endless game, which goes on until the generator falls.
 	LastWave int

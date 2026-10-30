@@ -22,12 +22,16 @@ import (
 //   - two evolutions each, bought once the tracks add up to EvolveAt, as a turret evolves.
 //
 // A second katana, found, goes in the other hand: a pair swings dualKatana times as fast.
+//
+// The crowbar is no legendary, but it is a blade of the same school: Home Run on F, and two
+// evolutions of its own (Bonebreaker, Scrap King), bought the same way.
 
 // Arts: the weapon art running, by the legendary that has it.
 const (
 	ArtNone    uint8 = iota
 	ArtFlash         // the katana's Flash Draw: a drawn stance, then a cut through everything on the way to a point
 	ArtSkyfall       // the greatsword's Skyfall: a leap through the air, coming down on a point
+	ArtHomeRun       // the crowbar's Home Run: wound back, then one swing that hurls what it hits
 )
 
 // ArtDef is a legendary's weapon art.
@@ -39,10 +43,11 @@ type ArtDef struct {
 	Windup float32 // seconds from the key to the cut: the draw, or the leap's flight
 }
 
-// Arts is indexed by WeaponKind; only the legendaries have one.
+// Arts is indexed by WeaponKind; the legendaries and the crowbar have one.
 var Arts = [NumWeapons]ArtDef{
-	WKatana: {Name: "Flash Draw", Desc: "A breath with the blade sheathed, then one drawn cut that carries you through every creep on the way to a point: triple damage, heavy bleed.", Range: 7, Cool: 6, Windup: flashDraw},
-	WGreat:  {Name: "Skyfall", Desc: "Leap to a point, untouchable in the air, and bring the blade down on everything round it: a heavy blow that stuns and throws them back.", Range: 7, Cool: 9, Windup: skyfallFlight},
+	WCrowbar: {Name: "Home Run", Desc: "Wind the bar back over your shoulder, then one swing with everything behind it: triple damage across a wide arc, stunning, hurling what it hits tiles away.", Range: homeReach, Cool: 7, Windup: homeWindup},
+	WKatana:  {Name: "Flash Draw", Desc: "A breath with the blade sheathed, then one drawn cut that carries you through every creep on the way to a point: triple damage, heavy bleed.", Range: 7, Cool: 6, Windup: flashDraw},
+	WGreat:   {Name: "Skyfall", Desc: "Leap to a point, untouchable in the air, and bring the blade down on everything round it: a heavy blow that stuns and throws them back.", Range: 7, Cool: 9, Windup: skyfallFlight},
 }
 
 // LegendEvo is one of a legendary's two evolutions.
@@ -53,6 +58,10 @@ type LegendEvo struct {
 
 // LegendEvos is indexed by WeaponKind, then branch 1 and 2 at 0 and 1.
 var LegendEvos = [NumWeapons][2]LegendEvo{
+	WCrowbar: {
+		{"Bonebreaker", "Every hit staggers twice as long and knocks its creep back, and Home Run swings all the way round you."},
+		{"Scrap King", "Every kill with the bar pays half its bounty again and patches you up for 4% of your health, and Home Run is ready 3 seconds sooner."},
+	},
 	WKatana: {
 		{"Crimson Fang", "Bleed builds 60% faster. Each burst of blood loss heals you and spatters bleed onto every creep near it, so one burst sets off the next."},
 		{"Moonlit Edge", "Every swing looses a crescent of moonlight 5.5 tiles ahead through up to six creeps, and Flash Draw reaches 3 tiles further."},
@@ -117,6 +126,22 @@ const (
 	stormJumps = 3
 	stormHop   = 4
 	stormMul   = .45
+
+	// The crowbar's Home Run: the wind-up, the swing's reach and half-angle, its damage, stun
+	// and throw.
+	homeWindup = .45
+	homeReach  = 3.2
+	homeHalf   = 1.35
+	homeMul    = 3
+	homeStun   = 4
+	homeHurl   = 2.6
+	homeHits   = 10
+	// Bonebreaker: the stun a hit multiplies, the shove; Scrap King: the bounty again, the heal.
+	boneStun  = 2
+	boneShove = .5
+	scrapPay  = .5
+	scrapHeal = .04
+	scrapCool = 3
 )
 
 // Tracers of the legendaries: a swing of each, under its ultimate, the follow-through, Flash
@@ -129,6 +154,8 @@ const (
 	TracerFlash     = 42
 	TracerMoon      = 43
 	TracerFollow    = 44
+	TracerHomeRun   = 45
+	TracerHomeRound = 46 // Bonebreaker's Home Run, all the way round
 )
 
 // Blasts of the legendaries: a creep's blood loss bursting, Skyfall coming down.
@@ -354,9 +381,13 @@ func (w *World) art(p *Player, x, y float32) error {
 	if dist < 1e-3 {
 		ang, dist = p.Aim, 0
 	}
-	// As far along the way as the survivor can go, stopping short of anything solid.
+	// As far along the way as the survivor can go, stopping short of anything solid. Home Run
+	// takes no step: the point only aims it.
 	ex, ey := p.X, p.Y
 	cx, cy := float32(math.Cos(float64(ang))), float32(math.Sin(float64(ang)))
+	if k == WCrowbar {
+		dist = 0
+	}
 	for t := float32(.25); t <= dist; t += .25 {
 		nx, ny := p.X+cx*t, p.Y+cy*t
 		if !CanStand(w, nx, ny) {
@@ -364,13 +395,20 @@ func (w *World) art(p *Player, x, y float32) error {
 		}
 		ex, ey = nx, ny
 	}
-	p.Art = ArtFlash
-	if k == WGreat {
+	switch k {
+	case WKatana:
+		p.Art = ArtFlash
+	case WGreat:
 		p.Art = ArtSkyfall
+	default:
+		p.Art = ArtHomeRun
 	}
 	p.ArtLeft, p.ArtTotal = d.Windup, d.Windup
 	p.artX0, p.artY0, p.artX, p.artY = p.X, p.Y, ex, ey
 	p.ArtCool = d.Cool
+	if k == WCrowbar && p.evo(WCrowbar) == 2 {
+		p.ArtCool -= scrapCool
+	}
 	p.Aim = ang
 	p.Order = Order{Kind: OrderIdle}
 	p.walk.reset()
@@ -398,6 +436,61 @@ func (w *World) stepArt(p *Player) {
 		w.flashDraw(p)
 	case ArtSkyfall:
 		w.skyfall(p)
+	case ArtHomeRun:
+		w.homeRun(p)
+	}
+}
+
+// homeRun is the crowbar's swing with everything behind it: a wide arc in front (all the way
+// round, Bonebreaker's), every creep in it hit hard, stunned and hurled away.
+func (w *World) homeRun(p *Player) {
+	st := w.playerStats(p)
+	half, stun, kind := float32(homeHalf), float32(homeStun), uint8(TracerHomeRun)
+	if p.evo(WCrowbar) == 1 {
+		half, stun, kind = math.Pi, stun*boneStun, TracerHomeRound
+	}
+	hits := w.melee(int8(p.ID), p.X, p.Y, p.Aim, homeReach, half, st.Damage*homeMul, kind, homeHits, stun)
+	hits = append([]int32(nil), hits...)
+	for _, i := range hits {
+		c := &w.Creeps[i]
+		ox, oy := c.X-p.X, c.Y-p.Y
+		if d := sqrt32(ox*ox + oy*oy); d > 1e-3 {
+			w.push(i, ox/d, oy/d, homeHurl)
+		}
+	}
+	w.scrap(p, hits)
+	p.Swings++
+}
+
+// swingCrowbar is the rule of an evolved crowbar's swing, after the hits: Bonebreaker's shove
+// (its longer stun is the swing's own), Scrap King's pay.
+func (w *World) swingCrowbar(p *Player, hits []int32) {
+	switch p.evo(WCrowbar) {
+	case 1:
+		for _, i := range hits {
+			c := &w.Creeps[i]
+			ox, oy := c.X-p.X, c.Y-p.Y
+			if d := sqrt32(ox*ox + oy*oy); d > 1e-3 && c.HP > 0 {
+				w.push(i, ox/d, oy/d, boneShove)
+			}
+		}
+	case 2:
+		w.scrap(p, hits)
+	}
+}
+
+// scrap is Scrap King's pay for the creeps of hits the bar has just killed: half the bounty
+// again, and a patch of health.
+func (w *World) scrap(p *Player, hits []int32) {
+	if p.evo(WCrowbar) != 2 {
+		return
+	}
+	mult := (1 + .04*float32(w.Wave)) * w.diff().Gold
+	for _, i := range hits {
+		if c := &w.Creeps[i]; c.HP <= 0 && c.LastHit == int8(p.ID) {
+			p.Gold += int32(float32(Creeps[c.Kind].Bounty) * mult * scrapPay)
+			p.HP = min(p.MaxHP, p.HP+p.MaxHP*scrapHeal)
+		}
 	}
 }
 
@@ -463,8 +556,8 @@ func (w *World) skyfall(p *Player) {
 // tracks add up to EvolveAt.
 func (w *World) EvolveWeapon(p *Player, k WeaponKind, branch uint8) error {
 	switch {
-	case !k.Legendary():
-		return errors.New("only a legendary blade evolves")
+	case !k.Evolves():
+		return errors.New("only the crowbar and the legendary blades evolve")
 	case branch < 1 || branch > 2:
 		return errors.New("no such evolution")
 	case !p.Weapons[k].Owned:
@@ -479,7 +572,7 @@ func (w *World) EvolveWeapon(p *Player, k WeaponKind, branch uint8) error {
 		sum += int(l)
 	}
 	if sum < EvolveAt {
-		return fmt.Errorf("a legendary evolves once its tracks add up to %d", EvolveAt)
+		return fmt.Errorf("a blade evolves once its tracks add up to %d", EvolveAt)
 	}
 	if err := w.pay(p, LegendEvoCost); err != nil {
 		return err

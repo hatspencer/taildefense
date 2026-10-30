@@ -27,10 +27,11 @@ func openLine(t *testing.T, w *World, n int) (float32, float32) {
 	return 0, 0
 }
 
-// A legendary is found, never sold, and comes with its own art and two evolutions.
+// A legendary is found, never sold, and comes with its own art and two evolutions; of the rest,
+// only the crowbar has them.
 func TestLegendariesAreFoundNotSold(t *testing.T) {
 	for k := WeaponKind(0); k < NumWeapons; k++ {
-		if !k.Legendary() {
+		if !k.Legendary() && k != WCrowbar {
 			if Arts[k].Name != "" {
 				t.Errorf("the %s has a weapon art", Weapons[k].Name)
 			}
@@ -245,5 +246,59 @@ func TestTheShrinesHoldLegendaries(t *testing.T) {
 	w.search(p, si)
 	if p.Weapons[WKatana].Lv == lv {
 		t.Error("no whetstones for one who carries every legendary")
+	}
+}
+
+// The crowbar has an art too: Home Run winds back, then hits a wide arc for triple damage and
+// hurls what it hits; it evolves as the legendaries do.
+func TestTheCrowbarHitsAHomeRun(t *testing.T) {
+	w := newBare(5)
+	w.PhaseLeft = 1e6
+	p := mustJoin(t, w, "ana")
+	x, y := openLine(t, w, 8)
+	p.X, p.Y = x, y
+	p.Weapons[WCrowbar] = WeaponState{Owned: true}
+	p.Cur = WCrowbar
+	if !w.SpawnCreep(CRunner, x+1.5, y) {
+		t.Fatal("no creep")
+	}
+	c := &w.Creeps[len(w.Creeps)-1]
+	id := c.ID
+	c.HP = 1e5
+	if err := w.Cast(p, AbDash, x+5, y); err != nil {
+		t.Fatal(err)
+	}
+	if p.Art != ArtHomeRun {
+		t.Fatal("F with the crowbar in hand is not Home Run")
+	}
+	run(w, TickRate, func() bool { return p.Art == ArtNone })
+	if p.X != x || p.Y != y {
+		t.Error("Home Run took a step")
+	}
+	for i := range w.Creeps {
+		if c := &w.Creeps[i]; c.ID == id && (c.HP >= 1e5 || c.X < x+2) {
+			t.Errorf("the creep took %.0f and stands at %.1f", 1e5-c.HP, c.X-x)
+		}
+	}
+
+	a := &w.Structs[w.Armory]
+	p.X, p.Y = a.CX(), a.CY()+2
+	p.Gold = 1e5
+	p.Weapons[WCrowbar].Lv = [NumTracks]uint8{3, 3, 3, 3}
+	if err := w.EvolveWeapon(p, WCrowbar, 2); err != nil {
+		t.Fatal(err)
+	}
+	// Scrap King: a kill pays again and heals.
+	p.X, p.Y = x, y
+	p.HP = 50
+	w.Creeps = w.Creeps[:0]
+	if !w.SpawnCreep(CBrute, x+1, y) {
+		t.Fatal("no creep")
+	}
+	w.Creeps[0].HP = 1
+	g := p.Gold
+	w.shoot(p, w.playerStats(p), 0)
+	if p.HP <= 50 || p.Gold <= g {
+		t.Errorf("Scrap King: hp %.0f, paid %d more for a brute", p.HP, p.Gold-g)
 	}
 }

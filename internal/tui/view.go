@@ -10,6 +10,7 @@ import (
 
 	"taildefense/internal/cli"
 	"taildefense/internal/config"
+	"taildefense/internal/game"
 	"taildefense/internal/netplay"
 	"taildefense/internal/tailnet"
 	"taildefense/internal/ui"
@@ -204,6 +205,9 @@ func (m *Model) menuView(w int) []string {
 			if m.prefs.Fog() {
 				label += "  fog of war"
 			}
+			if md := m.prefs.Mode(); md != game.ModeStandard {
+				label += "  " + md.String()
+			}
 		}
 		desc := m.itemHint(it)
 		if i == m.cursor {
@@ -236,9 +240,9 @@ func (m *Model) itemHint(it menuItem) string {
 	switch it {
 	case itemHost:
 		if cmd, ok := m.joinCommand(); ok {
-			return "←/→ difficulty · w waves · f fog of war · y copies: " + cmd
+			return "←/→ difficulty · w waves · f fog · m mode · y copies: " + cmd
 		}
-		return fmt.Sprintf("←/→ difficulty · w waves · f fog of war · on port %d, this machine only until tailscale is up", m.prefs.Port())
+		return fmt.Sprintf("←/→ difficulty · w waves · f fog · m mode · on port %d, this machine only until tailscale is up", m.prefs.Port())
 	case itemJoin:
 		return "find games on your tailnet, or type an address"
 	case itemSettings:

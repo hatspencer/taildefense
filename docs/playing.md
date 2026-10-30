@@ -99,17 +99,20 @@ hand instead. Each levels at the armory like any weapon, and each has more to it
   hit. Every third swing in a row is a follow-through that hits harder still and shakes the
   ground round where it lands.
 
-With a legendary in hand, **F is its weapon art** in place of the dash (with any other weapon F is
-still the dash):
+With a legendary or the crowbar in hand, **F is its weapon art** in place of the dash (with any
+other weapon F is still the dash):
 
 - **Flash Draw** (katana): a breath with the blade sheathed, then one drawn cut that carries you
   up to 7 tiles to the cursor, through every creep on the way: triple damage and heavy bleed.
   6 s to come back.
 - **Skyfall** (greatsword): leap to the cursor, untouchable in the air, and come down on
   everything within 3 tiles, stunning and throwing it back. 9 s to come back.
+- **Home Run** (crowbar): wind the bar back over your shoulder, then one swing with everything
+  behind it, 3.2 tiles round in front of you: triple damage, a long stun, and what it hits is
+  hurled tiles away. You don't move. 7 s to come back.
 
-Once a legendary's four tracks add up to 12 levels, the armory offers it two evolutions, as a
-turret has; you pick one, for 1500 gold:
+Once a legendary's (or the crowbar's) four tracks add up to 12 levels, the armory offers it two
+evolutions, as a turret has; you pick one, for 1500 gold:
 
 | blade | evolution | what it does |
 |---|---|---|
@@ -117,6 +120,16 @@ turret has; you pick one, for 1500 gold:
 | Katana | Moonlit Edge | every swing looses a crescent 5.5 tiles out through six creeps; Flash Draw reaches 3 tiles further |
 | Greatsword | Ashen Colossus | every hit sets its creep burning, follow-throughs leave the ground on fire, Skyfall lands in a ring of flame |
 | Greatsword | Stormbreaker | every swing throws lightning on to three more creeps; Skyfall calls a thunderbolt down, wider and stunning longer |
+| Crowbar | Bonebreaker | every hit stuns twice as long and knocks its creep back; Home Run swings all the way round you |
+| Crowbar | Scrap King | every kill with the bar pays half its bounty again and heals you 4%; Home Run comes back 3 s sooner |
+
+### Blades games
+
+A host can pick the blades mode (`td host --mode blades`, or `m` on Host a game in the
+launcher): no guns at all. When you join you choose your blade, the crowbar, the katana or the
+greatsword (1, 2 and 3 pick too); until you do you hold the crowbar. The armory sells no gun and
+no loot gives one; the gas station's counter always has a legendary blade you can take, and the
+shrines and the plane are as ever. The crowbar is the plain choice, but it evolves too.
 
 ## Turrets
 
@@ -345,7 +358,7 @@ running, and going down ends it.
 | Rifle | Railgun: for 10 s every shot goes through everything in its line |
 | Minigun | Overdrive: 10 s faster, tighter and piercing, in red tracers, with no reloads |
 | Rocket launcher | Cluster MIRV: a rocket to the cursor that splits into ten bomblets |
-| Crowbar (brutal) | Berserk: 8 s of double swings that heal you and can't be slowed or stunned |
+| Crowbar (brutal, blades) | Berserk: 8 s of double swings that heal you and can't be slowed or stunned |
 | Katana | Crimson Tempest: 8 s of cutting half again as fast, every swing a sweep of blood 4.5 tiles out through up to eight creeps, bleed building twice as fast |
 | Greatsword | Titan's Wrath: 8 s of every swing a follow-through, reaching further and coming faster; nothing slows, stuns or grabs you |
 
@@ -360,7 +373,8 @@ at the cursor the moment you press the key; point at the ground. The grenade goe
 level hitting harder (120 damage at the first, 400 at the fifth), throwing wider and coming back
 sooner; from level 4 it leaves a fire burning where it lands. After wave 10 the grenade and the
 airstrike hit harder as the creeps get tougher. Dash and airstrike go to level 3. With a
-legendary blade in hand, F is its weapon art instead of the dash, and needs no buying.
+legendary blade or the crowbar in hand, F is its weapon art instead of the dash, and needs no
+buying.
 
 ## Waves
 

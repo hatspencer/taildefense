@@ -169,6 +169,15 @@ const AX = new THREE.Vector3(), MAG = new THREE.Vector3();
 // the gun by IK and each gun is carried its own way. Springs lean the body into a run, kick
 // it back when hit and swing the hair and pack. Poses: walk, run, sprint, dash, reload, the
 // taunt, kneeling to search or revive, and lying downed until someone picks them up.
+// Milliseconds of Home Run's swing, from the wind-up's end to the bar back at rest. At u of it,
+// homeSnap is how far from wound back to swung through (snapped round in three frames, then
+// held), and homeBack how far from swung through back to rest.
+const HOME_SWING = 600;
+const homeSnap = (u: number): number => u < 0.14 ? Math.ceil(u / 0.14 * 3) / 3 : 1;
+const homeBack = (u: number): number => u < 0.5 ? 0 : (u - 0.5) / 0.5;
+// The bar wound back over the shoulder, swung through flat, and at rest: position, rotation.
+const HOME_WOUND = [-0.24, 0.14, -0.16, -0.6, 1.1, 2.3], HOME_THROUGH = [0.26, 0.02, 0.26, 0, -1.5, 0.1], HOME_REST = [0, 0, 0, -0.35, 0, 1.4];
+
 export class Heroes {
   group = new THREE.Group();
   private heroes = new Map<number, Hero>();
@@ -460,7 +469,20 @@ export class Heroes {
           h.swingAt = now;
           if (h.dual) h.alt = !h.alt;
         }
-      } else { h.swings = -1; h.art = Art.None; }
+      } else { h.swings = -1; if (h.weapon !== 6) h.art = Art.None; }
+      // The crowbar's Home Run, timed the same way: hr through the wind-up, hs through the swing
+      // after it, 0..1; -1 when neither.
+      let hr = -1, hs = -1;
+      if (!leg && h.weapon === 6) {
+        const a = alive ? p.art : Art.None;
+        if (a !== h.art) {
+          if (a === Art.HomeRun) h.artStart = now - p.artFrac * ART_TIME[Art.HomeRun] * 1000;
+          else if (h.art === Art.HomeRun && alive) h.artEnd = now;
+          h.art = a;
+        }
+        if (h.art === Art.HomeRun) hr = clamp01((now - h.artStart) / (ART_TIME[Art.HomeRun] * 1000));
+        else if (now - h.artEnd < HOME_SWING) hs = (now - h.artEnd) / HOME_SWING;
+      }
       const artU = leg && h.art !== Art.None ? clamp01((now - h.artStart) / (ART_TIME[h.art] * 1000)) : 0;
       const sky = leg !== null && h.art === Art.Skyfall, drawing = leg !== null && h.art === Art.Flash;
       // Progress through the cut under way, and the moments after an art: -1 when none.
@@ -558,8 +580,8 @@ export class Heroes {
       thR = thR * (1 - lp) - 0.55 * lp; shR = shR * (1 - lp) - 0.7 * lp;
       // A legendary's fighting stance: feet apart, the left forward, knees bent; deep and low
       // for Flash Draw and after a cut has landed, knees tucked up through Skyfall.
-      h.stance = ease(h.stance, leg && (firing || su >= 0 || after >= 0 || h.art !== Art.None) ? 1 : 0, 9, dt);
-      const st = h.stance * (1 - walk * 0.8), low = drawing ? 1 : after >= 0 ? Math.min(1, (1 - after) * 2.5) : 0;
+      h.stance = ease(h.stance, (leg && (firing || su >= 0 || after >= 0 || h.art !== Art.None)) || hr >= 0 || hs >= 0 ? 1 : 0, 9, dt);
+      const st = h.stance * (1 - walk * 0.8), low = drawing ? 1 : after >= 0 ? Math.min(1, (1 - after) * 2.5) : hr >= 0 ? 0.6 * hr : hs >= 0 ? 0.6 * (1 - hs) : 0;
       thL = thL * (1 - st) + (0.55 + 0.4 * low) * st; shL = shL * (1 - st) - (0.55 + 0.7 * low) * st;
       thR = thR * (1 - st) - (0.5 + 0.35 * low) * st; shR = shR * (1 - st) - (0.35 + 0.3 * low) * st;
       if (sky) { thL = 1.3; shL = -1.8; thR = 1.1; shR = -1.6; }
@@ -605,7 +627,9 @@ export class Heroes {
       const jab = Math.max(0, Math.sin(t * 7)) * 0.18;
       const shoutLean = tn * (0.1 + jab * 0.5);
       // A blade's swing turns the shoulders after it and bends the survivor into the cut.
-      const twist = leg ? h.bp[4] * 0.3 * (h.dual ? 0.5 : 1) : 0, bow = leg ? lunge * 0.9 + low * 0.35 : 0;
+      // Home Run coils the shoulders away from the aim, then unwinds them past it.
+      const coil = hr >= 0 ? 0.95 * hr * hr * (3 - 2 * hr) : hs >= 0 ? (0.95 - 2.2 * homeSnap(hs)) * (1 - homeBack(hs)) : 0;
+      const twist = leg ? h.bp[4] * 0.3 * (h.dual ? 0.5 : 1) : coil, bow = leg ? lunge * 0.9 + low * 0.35 : low * 0.3;
       h.torso.rotation.set(0, -(ay2 - Math.sin(ph) * 0.1 * walk) + twist, -cr * 0.2 + flinch * 0.6 + kick * 0.15 - shoutLean - lp * 0.25 - h.sprint * 0.12 - bow);
       h.head.rotation.set(0, -wrapAngle(aim - ay2) * 0.6, -flinch * 0.5 + 0.05 * Math.sin(2 * ph) * walk + cr * 0.35 + (alive ? 0 : 0.3));
       if (h.tail) {
@@ -622,6 +646,20 @@ export class Heroes {
         this.legendPose(h, leg, now, firing, su, after, artU, sp > 0.5 || run > 0.5, dt);
         h.gun.position.set(h.bp[0], h.bp[1], h.bp[2]); h.gun.rotation.set(h.bp[3], h.bp[4], h.bp[5]);
         if (h.dual) { h.gun2.position.set(h.bp2[0], h.bp2[1], h.bp2[2]); h.gun2.rotation.set(h.bp2[3], h.bp2[4], h.bp2[5]); h.gun2.updateMatrix(); }
+      } else if (h.weapon === 6 && hr >= 0) {
+        // Home Run wound back: the bar laid over the shoulder, its head hanging out behind,
+        // shaking once it is all the way back.
+        const e = hr * hr * (3 - 2 * hr), shake = hr > 0.7 ? Math.sin(now * 0.11) * 0.05 : 0;
+        const q = HOME_REST.map((r, j) => r + (HOME_WOUND[j] - r) * e);
+        h.gun.position.set(hold.at[0] + q[0], hold.at[1] + q[1], hold.at[2] + q[2]);
+        h.gun.rotation.set(q[3], q[4], q[5] + shake);
+      } else if (h.weapon === 6 && hs >= 0) {
+        // The swing: round and level in three frames, held out flat where it finished, then
+        // eased back to the shoulder.
+        const s = homeSnap(hs), b = homeBack(hs);
+        const q = HOME_WOUND.map((wv, j) => { const th = wv + (HOME_THROUGH[j] - wv) * s; return th + (HOME_REST[j] - th) * b; });
+        h.gun.position.set(hold.at[0] + q[0], hold.at[1] + q[1], hold.at[2] + q[2]);
+        h.gun.rotation.set(q[3], q[4], q[5]);
       } else if (h.weapon === 6) {
         // The crowbar is held up at the right shoulder, ready, tipped out a little; each swing
         // chops it down and across in front, fast, then lifts it back.

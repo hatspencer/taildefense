@@ -5,6 +5,8 @@
 // legendary blades, found and never sold, come after it: the katana on 8, the greatsword on 9.
 export const WEAPON_SLOTS = 9, RIFLE = 3, CROWBAR = 6, KATANA = 7, GREAT = 8;
 export const legendary = (k: number): boolean => k === KATANA || k === GREAT;
+// The weapons with an art on F and two evolutions: the legendaries and the crowbar.
+export const evolves = (k: number): boolean => k === CROWBAR || legendary(k);
 // The key that takes weapon k in hand.
 export const weaponKey = (k: number): string => k === CROWBAR ? '0' : k === KATANA ? '8' : k === GREAT ? '9' : String(k + 2);
 // How much further a survivor with a rifle in hand sees: the host's rifleSight.
@@ -77,8 +79,9 @@ export const LOB_WINDUP = 0.7;
 // Seconds a survivor a mauler or a goliath threw is in the air (internal/game/grab.go).
 export const THROW_FLIGHT = 0.7;
 // The bits of a survivor's owned weapons that are a second pistol, found, in the other hand,
-// and a second katana (DualBit and DualKatanaBit in internal/game/defs.go).
-export const OWNED_DUAL = 1 << 15, OWNED_DUAL_KATANA = 1 << 14;
+// and a second katana; and a survivor of a blades game yet to pick their blade (DualBit,
+// DualKatanaBit and PickBit in internal/game/defs.go).
+export const OWNED_DUAL = 1 << 15, OWNED_DUAL_KATANA = 1 << 14, OWNED_PICKING = 1 << 13;
 // Whether a survivor who owns these weapons has a hand free for one of kind k: one they do not
 // carry, or a pistol or a katana to pair with theirs.
 export function canTake(owned: number, k: number): boolean {
@@ -96,10 +99,14 @@ export const TRACER_HELI = 34, TRACER_SHARD = 35, TRACER_NAPALM = 36, TRACER_ARC
 // follow-through landing.
 export const TRACER_KATANA = 38, TRACER_GREAT = 39, TRACER_KATANA_ULT = 40, TRACER_GREAT_ULT = 41,
   TRACER_FLASH = 42, TRACER_MOON = 43, TRACER_FOLLOW = 44;
-// A survivor's weapon art under way (Player.art): Flash Draw held sheathed, Skyfall in the air.
-export const enum Art { None = 0, Flash, Skyfall }
-// Seconds each art takes from the key to the cut: legend.go's flashDraw and skyfallFlight.
-export const ART_TIME = [0, 0.3, 0.6];
+// The crowbar's Home Run: the swing, and Bonebreaker's all the way round.
+export const TRACER_HOMERUN = 45, TRACER_HOMERUN_ROUND = 46;
+// A survivor's weapon art under way (Player.art): Flash Draw held sheathed, Skyfall in the air,
+// Home Run wound back.
+export const enum Art { None = 0, Flash, Skyfall, HomeRun }
+// Seconds each art takes from the key to the cut: legend.go's flashDraw, skyfallFlight and
+// homeWindup.
+export const ART_TIME = [0, 0.3, 0.6, 0.45];
 // Added to a weapon's tracer kind for a shot fired under its ultimate.
 export const TRACER_ULT = 8;
 
@@ -154,6 +161,8 @@ export interface Welcome {
   siteKinds: SiteKindDef[]; sites: SiteDef[];
   difficulty: { id: number; name: string }; difficulties: string[]; weathers: WeatherDef[];
   fogOfWar?: boolean;
+  // 'standard', or 'blades': no guns, and each survivor picks one of startBlades to begin with.
+  mode?: string; startBlades?: number[];
   // Night on the harder settings: how far a survivor sees, out past the generator's lights.
   dark?: number;
   // Brutal's night: how far the flashlight reaches along the aim; then only what is lit now shows.
@@ -256,6 +265,8 @@ export type Command =
   | { op: 'buyWeapon' | 'select'; w: number }
   | { op: 'upgrade'; w: number; track: number }
   | { op: 'evolveWeapon'; w: number; branch: number }
+  // A blades game's survivor choosing the blade they start with: one of startBlades.
+  | { op: 'pickBlade'; w: number }
   | { op: 'gear'; g: number }
   | { op: 'buyAbility'; slot: number }
   | { op: 'ready'; on: boolean }
@@ -460,7 +471,7 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
     o += 33;
     p.levels.set(bytes.subarray(o, o + WEAPON_SLOTS * 4)); o += WEAPON_SLOTS * 4;
     const ev = bytes[o]; o += 1;
-    p.evo[KATANA] = ev & 3; p.evo[GREAT] = (ev >> 2) & 3;
+    p.evo[KATANA] = ev & 3; p.evo[GREAT] = (ev >> 2) & 3; p.evo[CROWBAR] = (ev >> 4) & 3;
     p.gear.set(bytes.subarray(o, o + 4)); o += 4;
     p.order = d.getUint8(o); p.channel = d.getUint8(o + 1) / 255; p.revived = d.getUint8(o + 2) / 255;
     p.emote = d.getUint8(o + 3); p.emoteLeft = d.getUint8(o + 4) / 10; p.tauntCool = d.getUint16(o + 5, true) / 10;

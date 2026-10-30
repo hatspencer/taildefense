@@ -522,6 +522,9 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 		if p.Weapons[game.WKatana].Dual {
 			owned |= game.DualKatanaBit
 		}
+		if p.Picking {
+			owned |= game.PickBit
+		}
 		b.u16(owned)
 		for k := range p.Weapons {
 			if p.Weapons[k].Owned {
@@ -530,8 +533,8 @@ func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool
 				}
 			}
 		}
-		// The legendaries' evolutions, two bits each in the order of their kinds.
-		b.u8(p.Weapons[game.WKatana].Evo | p.Weapons[game.WGreat].Evo<<2)
+		// The blades' evolutions, two bits each: the katana, the greatsword, the crowbar.
+		b.u8(p.Weapons[game.WKatana].Evo | p.Weapons[game.WGreat].Evo<<2 | p.Weapons[game.WCrowbar].Evo<<4)
 		for _, g := range p.Gear {
 			b.u8(g)
 		}

@@ -83,9 +83,10 @@ func (w *World) resetPlayer(p *Player) {
 	p.Gold = w.diff().Start
 	p.Weapons = [NumWeapons]WeaponState{}
 	p.Cur = WPistol
-	if w.diff().Melee {
+	if w.diff().Melee || w.Mode == ModeBlades {
 		p.Cur = WCrowbar
 	}
+	p.Picking = w.Mode == ModeBlades
 	p.Weapons[p.Cur] = WeaponState{Owned: true, Ammo: Weapons[p.Cur].Mag}
 	p.Gear = [NumGear]uint8{}
 	p.Medkits, p.Heal = 1, 0
@@ -144,7 +145,7 @@ func (w *World) pay(p *Player, cost int32) error {
 
 // BuyWeapon buys a weapon and switches to it.
 func (w *World) BuyWeapon(p *Player, k WeaponKind) error {
-	if !k.Sold() {
+	if !k.Sold() || !w.allows(k) {
 		return errors.New("the armory does not sell that")
 	}
 	if !w.atArmory(p) {
@@ -574,6 +575,7 @@ func (w *World) Give(p *Player, to int, g int32) error {
 func (w *World) Restart(seed uint64) *World {
 	nw := NewGame(seed, w.Diff)
 	nw.FogOfWar = w.FogOfWar
+	nw.Mode = w.Mode
 	nw.LastWave = w.LastWave
 	for _, p := range w.Players {
 		np := &Player{ID: p.ID, Name: p.Name, Login: p.Login, Connected: p.Connected}

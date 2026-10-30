@@ -67,11 +67,12 @@ export class Armory {
       wd.weapons.forEach((w, wi) => {
         const owned = (me.owned & (1 << wi)) !== 0;
         if ((wi === CROWBAR || w.legend) && !owned) return; // never sold
+        if (this.ctl.game.welcome?.mode === 'blades' && w.fire !== 'melee') return; // no guns
         const tr = el('tr', w.legend ? 'legend' : '', t);
         const n = el('td', '', tr);
         n.innerHTML = w.legend
           ? `<span class="wname">${esc(w.name)}</span> <kbd>${weaponKey(wi)}</kbd><br><span class="muted small">legendary · reach ${w.range} · F: ${esc(w.art?.name ?? '')} · Q: ${esc(w.ult.name)}</span>`
-          : `<span class="wname">${esc(w.name)}</span> <kbd>${weaponKey(wi)}</kbd><br><span class="muted small">${esc(w.fire)} · range ${w.range} · Q: ${esc(w.ult.name)}</span>`;
+          : `<span class="wname">${esc(w.name)}</span> <kbd>${weaponKey(wi)}</kbd><br><span class="muted small">${esc(w.fire)} · range ${w.range}${w.art ? ` · F: ${esc(w.art.name)}` : ''} · Q: ${esc(w.ult.name)}</span>`;
         const act = el('td', '', tr);
         if (!owned) btn(act, `Buy <span class="gold">${fmtGold(w.price)}g</span>`, w.price, true, () => ctl.send({ op: 'buyWeapon', w: wi }), 'primary');
         else if (me.cur === wi) el('span', 'muted', act, 'equipped');
@@ -88,7 +89,7 @@ export class Armory {
             : `<span class="v">${esc(cur)} → ${esc(next)}</span><span class="c">${fmtGold(cost)}g</span> ${pips(lvl, wd.maxLevel)}`;
           btn(td, html, cost, owned && !max, () => ctl.send({ op: 'upgrade', w: wi, track }), 'up');
         }
-        if (w.legend && w.evolve) this.legendEvo(t, w, wi, me, btn);
+        if (w.evolve) this.legendEvo(t, w, wi, me, btn);
       });
     } else if (this.tab === 'gear') {
       const t = el('table', '', b);
@@ -138,8 +139,8 @@ export class Armory {
     }
   }
 
-  // A legendary's evolution row: its two branches once its tracks add up to evolveAt, or the one
-  // it took.
+  // A blade's evolution row (a legendary's or the crowbar's): its two branches once its tracks
+  // add up to evolveAt, or the one it took.
   private legendEvo(t: HTMLElement, w: WeaponDef, wi: number, me: Player,
     btn: (parent: HTMLElement, html: string, cost: number, ok: boolean, onclick: () => void, cls?: string) => HTMLButtonElement): void {
     const at = this.ctl.game.welcome?.tiers?.evolveAt ?? 12, evo = me.evo[wi];

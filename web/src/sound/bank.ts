@@ -542,6 +542,19 @@ function greatsword(sr: number, r: R, follow: boolean): Buf {
   return b.normalize(0.85).fadeOut(0.08);
 }
 
+// Home Run: the bar coming round with everything behind it, a rising rush of air, then the blow
+// landing with a thump and the bar ringing out long like a struck pipe, a crack and grit after.
+function homeRun(sr: number, r: R): Buf {
+  const b = new Buf(sr, 1.2);
+  whoosh(b, r, 0, 0.2, 260, 2400, 1.2, 1.1);
+  const at = 0.17, f = jit(r, 780, 0.04);
+  thud(b, r, at, 150, 55, 0.09, 1, 0.6, 900);
+  ping(b, at, [f, f * 1.39, f * 2.8, f * 0.395, f + 22], 0.4, 0.32);
+  click(b, r, at, 2600, 0.55, 0.003);
+  debris(b, r, at + 0.04, 0.35, 8, 1500, 4500, 0.12);
+  return b.normalize(0.9).fadeOut(0.1);
+}
+
 // Flash Draw: the blade drawn and across in one breath, a tearing hiss the length of the line,
 // a beat of silence, and the cut ringing out long and clear as the line comes apart.
 function flashDraw(sr: number, r: R): Buf {
@@ -2103,6 +2116,7 @@ export const RECIPES: Record<string, [number, Maker, number?]> = {
   greatsword: [3, (sr, r) => greatsword(sr, r, false)],
   followThrough: [2, (sr, r) => greatsword(sr, r, true), LOW],
   flashDraw: [2, flashDraw],
+  homeRun: [2, homeRun],
   bleed: [3, bleed],
   turretGun: [4, gun(TURRET_GUN, (b, r) => { clack(b, r, 0.035 + r() * 0.005, 2100, 0.12, 380); ping(b, 0.04, [1450, 2310], 0.02, 0.05); servo(b, r, 0.07, 0.14, 0.035); })],
   cannon: [3, gun(CANNON, (b, r) => {

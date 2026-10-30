@@ -38,7 +38,7 @@ everything it knows, a terrain message follows).
 ```jsonc
 {
   "t": "welcome",
-  "proto": 25,
+  "proto": 26,
   "version": "a1b2c3d",
   "you": 0,                    // your player id
   "w": 352, "h": 220,          // map size in tiles
@@ -50,6 +50,9 @@ everything it knows, a terrain message follows).
   "difficulty": {"id": 1, "name": "Normal"},   // chosen by the host before hosting
   "difficulties": ["Easy", "Normal", "Hard", "Brutal"],
   "fogOfWar": false,           // the host's FOG setting: the client hides what the team cannot see
+  "mode": "standard",          // the host's MODE: "standard", or "blades" (no guns; the armory and
+                               // loot hand none over, and each survivor picks a blade to start)
+  "startBlades": [6, 7, 8],    // in a blades game, the weapon kinds a survivor picks from (pickBlade)
   "dark": 3,                   // hard and brutal: night, a survivor's sight radius; absent otherwise
   "cone": 11,                  // brutal: the flashlight's reach along the aim (x2 with a rifle); then only what is lit now shows
   "seen": "base64",            // at night, the ground the team has found: a bit per tile (y*w+x), low bit first
@@ -108,7 +111,8 @@ everything it knows, a terrain message follows).
       // A legendary blade (7 katana, 8 greatsword) adds: "legend": true (found, never sold),
       // "art": {"name": "Flash Draw", "desc": "...", "range": 7, "cool": 6}, its weapon art on F
       // in place of the dash while it is in hand, "evolve": [{"name", "desc", "range": 1} × 2],
-      // its two evolutions once its tracks add up to tiers.evolveAt, and "evoCost": 1500.
+      // its two evolutions once its tracks add up to tiers.evolveAt, and "evoCost": 1500. The
+      // crowbar (6) has "art" (Home Run), "evolve" and "evoCost" too, without "legend".
     }
   ],
   "gear": [ {"name": "Armor", "info": "+25 max HP", "costs": [90, 153, 260, 442, 752]} ],
@@ -294,10 +298,11 @@ u8   nPlayers
                       them where they fell
   u32  gold, u32 kills, u32 damage
   u16  owned          bit k set: weapon k owned; bit 15 a second pistol, dual pistols: twice
-                      the pistol's fire rate and magazine; bit 14 a second katana, a pair
+                      the pistol's fire rate and magazine; bit 14 a second katana, a pair;
+                      bit 13 a blades game's survivor yet to pick their blade (pickBlade)
   u8   levels[36]     weapon-major: levels[w*4 + track]
-  u8   evo            the legendaries' evolutions, 0 none or 1..2: bits 0-1 the katana's,
-                      bits 2-3 the greatsword's
+  u8   evo            the blades' evolutions, 0 none or 1..2: bits 0-1 the katana's,
+                      bits 2-3 the greatsword's, bits 4-5 the crowbar's
   u8   gear[4]        Armor, Boots, Vitamins, Scavenger
   u8   order          0 idle, 1 move, 2 attack-move, 3 attack, 4 hold, 5 build, 6 repair,
                       7 loot, 8 revive, 9 steer (walking with WASD), 10 pick up a weapon,
@@ -331,7 +336,8 @@ u8   nPlayers
   u8   heal           deciseconds of a medkit's healing left
   u16  reloading      bit k set: weapon k is reloading, in hand or not
   u8   swings         a legendary's swings, counting up and wrapping: each change is a swing
-  u8   art            bits 6-7 the weapon art under way (0 none, 1 Flash Draw, 2 Skyfall),
+  u8   art            bits 6-7 the weapon art under way (0 none, 1 Flash Draw, 2 Skyfall,
+                      3 Home Run),
                       bits 0-5 how far along it is, 0..63
   u16  artCool        deciseconds until the weapon art can be used again
   u16  downs, revives, built, searched, bosses    this game's tallies, capped at 65535
@@ -396,7 +402,7 @@ u16  nCreeps
 u16  nTracers         shots fired this tick
   u16  x0, y0, x1, y1 q8
   u8   kind           0..6 player weapon kind (6 the crowbar: a swing, the survivor to its
-                      reach), 8 + weapon kind the same under its ultimate (drawn red and wider), 16+structKind turret shot (a missile battery's is a one-tile stub at launch; its missiles fly as 5, rocket, tracers), 32 spitter spit, 35 a hurler's bone, 33 dash (the hero's leap, start to end), 34 the Huey's door gunner, 36 a napalm missile in flight (as 5, burning), 37 an arc web's jump from creep to creep (and from each struck creep to the one two back), 38 a katana's cut and 39 a greatsword's (the survivor to its reach), 40 and 41 the same under their ultimates, 42 Flash Draw's cut (start to end of the survivor's run), 43 Moonlit Edge's crescent, 44 a greatsword's follow-through
+                      reach), 8 + weapon kind the same under its ultimate (drawn red and wider), 16+structKind turret shot (a missile battery's is a one-tile stub at launch; its missiles fly as 5, rocket, tracers), 32 spitter spit, 35 a hurler's bone, 33 dash (the hero's leap, start to end), 34 the Huey's door gunner, 36 a napalm missile in flight (as 5, burning), 37 an arc web's jump from creep to creep (and from each struck creep to the one two back), 38 a katana's cut and 39 a greatsword's (the survivor to its reach), 40 and 41 the same under their ultimates, 42 Flash Draw's cut (start to end of the survivor's run), 43 Moonlit Edge's crescent, 44 a greatsword's follow-through, 45 the crowbar's Home Run (the survivor to its reach) and 46 Bonebreaker's, all the way round
                       (x0,y0 is the Huey over the ground; it fires from the air)
 u16  nBlasts          explosions and pulses this tick
   u16  x, y q8
@@ -487,7 +493,8 @@ integers. The host checks everything; a refusal comes back as a `toast` with lev
                                              // stands in the gateway; it swings once per gate.cool s
 {"op": "payIn"}                              // put tiers.step gold into the generator's next tier
 {"op": "evolve",  "s": 7, "track": 1}        // evolve turret 7 into its branch 1 or 2 (structs[k].evolve)
-{"op": "evolveWeapon", "w": 7, "branch": 2}  // at the armory: evolve legendary 7 into its branch 1 or 2 (weapons[w].evolve)
+{"op": "evolveWeapon", "w": 7, "branch": 2}  // at the armory: evolve blade 7 (a legendary or the crowbar) into its branch 1 or 2 (weapons[w].evolve)
+{"op": "pickBlade", "w": 7}                   // a blades game: the blade to start with, one of startBlades, once
 {"op": "overload"}                           // the generator's Overload, once a wave from tier tiers.overload
 {"op": "ready",   "on": true}                // ready for the next wave (all ready: starts in 3 s)
 {"op": "restart"}                            // a new map, only once the game is over

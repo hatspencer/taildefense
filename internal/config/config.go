@@ -43,6 +43,7 @@ const (
 	KeyDifficulty = "DIFFICULTY"
 	KeyFog        = "FOG"
 	KeyWaves      = "WAVES"
+	KeyMode       = "MODE"
 	KeyVolume     = "VOLUME"
 	KeyMusic      = "MUSIC"
 )
@@ -104,6 +105,8 @@ var Keys = []Key{
 		Parse: parseOnOff, Default: func() string { return "off" }, Bool: true},
 	{Name: KeyWaves, Env: "TAILDEFENSE_WAVES", Help: "how long the games you host are: 20, 30 or 40 waves, then the evac; or endless",
 		Parse: parseWaves, Default: func() string { return FormatWaves(game.DefaultLastWave) }},
+	{Name: KeyMode, Env: "TAILDEFENSE_MODE", Help: "the kind of game you host: standard, or blades (no guns; everyone picks a crowbar, katana or greatsword)",
+		Parse: parseMode, Default: func() string { return game.ModeStandard.String() }},
 	{Name: KeyVolume, Env: "TAILDEFENSE_VOLUME", Help: "sound in the game, 0 to 100; 0 turns it off",
 		Parse: parseVolume, Default: func() string { return strconv.Itoa(DefaultVolume) }},
 	{Name: KeyMusic, Env: "TAILDEFENSE_MUSIC", Help: "music in the game, 0 to 100 of the volume; 0 turns it off",
@@ -290,6 +293,12 @@ func (p *Prefs) Difficulty() game.Difficulty {
 // Fog is whether games are hosted with fog of war.
 func (p *Prefs) Fog() bool { return ParseOnOff(p.Get(KeyFog).Value, false) }
 
+// Mode is the kind of game hosted: standard, or blades.
+func (p *Prefs) Mode() game.Mode {
+	m, _ := game.ParseMode(p.Get(KeyMode).Value)
+	return m
+}
+
 // Waves is the last wave of the games hosted, the one that ends with the evac; 0 is endless.
 func (p *Prefs) Waves() int {
 	n, err := ParseWaves(p.Get(KeyWaves).Value)
@@ -472,6 +481,14 @@ func parseDifficulty(s string) (string, error) {
 		return "", err
 	}
 	return strings.ToLower(d.String()), nil
+}
+
+func parseMode(s string) (string, error) {
+	m, err := game.ParseMode(s)
+	if err != nil {
+		return "", err
+	}
+	return m.String(), nil
 }
 
 // ParseWaves reads a game length: 20, 30, 40 or endless (0 reads as endless too).
