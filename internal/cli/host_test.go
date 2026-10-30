@@ -16,6 +16,7 @@ import (
 	"taildefense/internal/config"
 	"taildefense/internal/netplay"
 	"taildefense/internal/tailnet"
+	"taildefense/internal/ui"
 	"taildefense/internal/version"
 )
 
@@ -23,7 +24,7 @@ func upTailnet(context.Context) (tailnet.Self, []tailnet.Peer, error) {
 	return tailnet.Self{
 		Running: true, State: "Running", DNSName: "box.tail1234.ts.net", Host: "Box-Laptop",
 		IPs: []string{"100.64.0.7", "fd7a:115c:a1e0::7"}, Login: "ada@example.com", Name: "Ada Lovelace",
-	}, []tailnet.Peer{{Host: "pal", IPs: []string{"100.64.0.9"}, Online: true}, {Host: "gone", IPs: []string{"100.64.0.10"}}}, nil
+	}, []tailnet.Peer{{Host: "pal", IPs: []string{"100.64.0.9"}, Online: true, Path: tailnet.PathDirect, Via: "203.0.113.5:41641"}, {Host: "gone", IPs: []string{"100.64.0.10"}}}, nil
 }
 
 func downTailnet(context.Context) (tailnet.Self, []tailnet.Peer, error) {
@@ -151,14 +152,20 @@ func TestLsJSONShape(t *testing.T) {
 		t.Fatalf("games %v", games)
 	}
 	g0 := games[0].(map[string]any)
-	want := []string{"addr", "compatible", "host", "max", "owner", "peer", "phase", "pingMs", "players", "proto", "version", "wave"}
+	want := []string{"addr", "compatible", "host", "max", "owner", "path", "peer", "phase", "pingMs", "players", "proto", "version", "via", "wave"}
 	if got := keys(g0); !reflect.DeepEqual(got, want) {
 		t.Errorf("game keys %v, want %v", got, want)
 	}
-	if g0["compatible"] != true || g0["pingMs"] != float64(12) {
+	if g0["compatible"] != true || g0["pingMs"] != float64(12) || g0["path"] != "direct" || g0["via"] != "203.0.113.5:41641" {
 		t.Errorf("game 0: %v", g0)
 	}
 	g1 := games[1].(map[string]any)
+	if g1["path"] != "local" {
+		t.Errorf("a game on loopback is local: %v", g1)
+	}
+	if g2 := games[2].(map[string]any); g2["path"] != "local" {
+		t.Errorf("a game on this machine's tailnet address is local: %v", g2)
+	}
 	if g1["compatible"] != false {
 		t.Errorf("another protocol must be incompatible: %v", g1)
 	}
@@ -267,5 +274,58 @@ func TestHostPassesTheBotsOn(t *testing.T) {
 		if _, err := hostConfig(context.Background(), noTailscale, HostOptions{Port: 9000, Bots: n}); err == nil || !strings.Contains(err.Error(), "--bots") {
 			t.Errorf("%d bots: %v", n, err)
 		}
+	}
+}
+
+func TestLsTableShowsPath(t *testing.T) {
+	isolate(t)
+	calls := 0
+	// The first read has the peer idle; the second, after the probe, has it on DERP.
+	tailnetStatus = func(ctx context.Context) (tailnet.Self, []tailnet.Peer, error) {
+		calls++
+		self, peers, err := upTailnet(ctx)
+		peers[0].Path, peers[0].Via = tailnet.PathIdle, ""
+		if calls > 1 {
+			peers[0].Path, peers[0].Via = tailnet.PathDERP, "fra"
+		}
+		return self, peers, err
+	}
+	discover = func(context.Context, tailnet.Self, []tailnet.Peer, int) []netplay.Found {
+		return []netplay.Found{{Info: netplay.Info{Proto: netplay.Proto, Version: version.Current(), Host: "pal", Max: 4},
+			Addr: "100.64.0.9:7787", Peer: "pal", RTT: 61 * time.Millisecond}}
+	}
+	t.Cleanup(func() { tailnetStatus, discover = tailnet.Status, netplay.Discover })
+	var b bytes.Buffer
+	Ls(&b, LsOptions{})
+	if out := b.String(); !strings.Contains(out, "61ms DERP fra") || !strings.Contains(out, "relayed through DERP") {
+		t.Errorf("status read %d times:\n%s", calls, out)
+	}
+}
+
+func TestDoctorConnectivityWarnsOnly(t *testing.T) {
+	isolate(t)
+	yes, no := true, false
+	tailnetNetcheck = func(context.Context) (tailnet.NetReport, error) {
+		return tailnet.NetReport{UDP: true, MappingVariesByDestIP: &yes, UPnP: &no, PreferredDERP: 4,
+			RegionLatency: map[int]time.Duration{4: 21 * time.Millisecond}}, nil
+	}
+	tailnetStatus = func(ctx context.Context) (tailnet.Self, []tailnet.Peer, error) {
+		self, peers, err := upTailnet(ctx)
+		self.Relay = "fra"
+		peers[0].Path, peers[0].Via = tailnet.PathDERP, "nyc"
+		return self, peers, err
+	}
+	t.Cleanup(func() { tailnetStatus, tailnetNetcheck = tailnet.Status, tailnet.Netcheck })
+	var b bytes.Buffer
+	p := ui.New(&b)
+	checkConnectivity(p)
+	out := b.String()
+	for _, want := range []string{"hard NAT", "forward UDP 41641", "nearest DERP relay fra, 21ms", "pal (DERP nyc)"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
+	if p.Failures() != 0 {
+		t.Errorf("connectivity must never fail the doctor:\n%s", out)
 	}
 }
