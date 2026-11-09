@@ -413,6 +413,7 @@ type World struct {
 	Overloaded bool
 	pylons     []int32 // standing amplifier pylons, found afresh each tick
 	noArmor    bool    // the shot being dealt ignores armour
+	mastery    float32 // while a legendary blade's swing or art is dealt: its mastery (legend.go)
 	Core       int     // structure index of the generator
 	Armory     int
 	CoreX      float32

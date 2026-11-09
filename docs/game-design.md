@@ -767,6 +767,24 @@ melee a way to play, and give the far sites something only they hold (`internal/
   beat later; the greatsword's third swing is an overhead into the ground; Skyfall is a lift, a
   somersault and a slam. The scene keys them off the frame's swing counter, so every client sees
   the same swing.
+- **Mastery makes a full blade the strongest thing a survivor can hold.** Maulers and goliaths
+  charge, slam and grab, and a melee fighter has to stand in reach of them, so they used to kill
+  one: a blade's stun on them (0.15 s on a mauler, 0.08 s on a goliath, then 0.5 s before
+  another) did nothing about either. Mastery counts every track level, 5 for the evolution and 5
+  for a second katana, over 25 (up to 1.2 for a full pair), and at 1 it adds 60% damage (by its
+  square, so the early levels change little), six times a hit's stun, takes 80% off the gap
+  before the next stun, 35% off every blow on its wielder, and 88% off the art's cooldown (a
+  tenth of it the least: Flash Draw 0.7 s, Skyfall 1.1 s). A stun of 0.5 s or more from a
+  mastered blade stops a slam winding up and makes a grab let go: a mauler from 0.4 mastery
+  with a katana (a level or two with the greatsword, whose stagger is long already), a goliath
+  only from a full katana or greatsword. Flash Draw and Skyfall stun by the same six times more,
+  and Skyfall lands 1.4 tiles wider at 1. The reward is for
+  the survivor who walked to the shrines and put the gold in, and late, when those two come.
+  Turrets and guns get none of it, so the base still needs its towers.
+- **The greatsword's shockwave.** Slow swings left a crowd time to close in, so every swing shakes
+  the ground where it lands, 2.2 tiles round for 30% of the swing with a stun and a push, growing
+  with mastery to 5 tiles, 70%, a far longer stun and a hard push; the follow-through's quake
+  grows the same way. It is what makes the slow blade the crowd answer it was meant to be.
 - **The crowbar joins the school.** Once a blades game made the crowbar a choice rather than a
   fallback, it needed the same shape: Home Run on F (0.45 s wound back, then 3.2 tiles round in
   front at triple damage, four times the stun, every creep hurled 2.6 tiles; 7 s), and two

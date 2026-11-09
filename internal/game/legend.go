@@ -23,6 +23,14 @@ import (
 //
 // A second katana, found, goes in the other hand: a pair swings dualKatana times as fast.
 //
+// Mastery: the further a katana or a greatsword is taken (every track level, its evolution, and
+// for the katana a second one in the other hand), the more it does, little at first and a great
+// deal at the top: it hits harder, stuns longer and can stun the same creep again sooner, takes
+// some of every blow off its wielder, and has its art back far sooner. A stun of breakStun or
+// more from it stops a slam that is winding up and makes a creep let go of whoever it holds, so
+// a mastered blade stands up to a mauler or a goliath instead of being thrown. The greatsword,
+// slow, also sends a shockwave out from where every swing lands, wider and harder with mastery.
+//
 // The crowbar is no legendary, but it is a blade of the same school: Home Run on F, and two
 // evolutions of its own (Bonebreaker, Scrap King), bought the same way.
 
@@ -142,6 +150,38 @@ const (
 	scrapPay  = .5
 	scrapHeal = .04
 	scrapCool = 3
+
+	// Mastery (Mastery): the levels an evolution and a second katana count as; the levels that
+	// make it 1, and the most a pair can have.
+	masteryEvo  = 5
+	masteryDual = 5
+	masteryFull = int(NumTracks)*MaxLevel + masteryEvo
+	masteryMax  = float32(masteryFull+masteryDual) / float32(masteryFull)
+	// What it does at 1: the share more damage (by its square, so mostly near the top); the
+	// times a hit's stun it adds; the share of the stun gap it takes away; the share of each
+	// blow on its wielder it takes; the share of the art's cooldown it takes, and the least
+	// share of it left.
+	masteryHit     = .6
+	masteryStun    = 6
+	masteryGap     = .8
+	masteryGuard   = .35
+	masteryCool    = .88
+	masteryCoolMin = .1
+	// breakStun is the seconds of a mastered blade's stun on a creep that stop its slam winding
+	// up and make it let go of a survivor it holds.
+	breakStun = .5
+
+	// The greatsword's shockwave from where every swing lands: its reach, its share of the
+	// swing's damage, its push and stun, each and what mastery at 1 adds; the follow-through's
+	// quake grows by followGrow tiles at 1.
+	shockReach      = 2.2
+	shockReachLevel = 2.8
+	shockMul        = .3
+	shockMulLevel   = .4
+	shockPush       = .5
+	shockPushLevel  = .9
+	shockStun       = 1.2
+	followGrow      = 2.4
 )
 
 // Tracers of the legendaries: a swing of each, under its ultimate, the follow-through, Flash
@@ -173,11 +213,67 @@ func (p *Player) unstoppable() bool {
 // evo is the evolution of the legendary k p carries, 0 for none.
 func (p *Player) evo(k WeaponKind) uint8 { return p.Weapons[k].Evo }
 
+// Mastery is how far legendary blade k has been taken in ws: its track levels, its evolution
+// and a second katana, from 0 for one just found to 1 for one fully bought and evolved, and up
+// to masteryMax for a pair of them. Every other weapon has none.
+func (ws *WeaponState) Mastery(k WeaponKind) float32 {
+	if k != WKatana && k != WGreat {
+		return 0
+	}
+	n := 0
+	for _, l := range ws.Lv {
+		n += int(l)
+	}
+	if ws.Evo != 0 {
+		n += masteryEvo
+	}
+	if ws.Dual && k == WKatana {
+		n += masteryDual
+	}
+	return float32(n) / float32(masteryFull)
+}
+
+// mastery is the mastery of the blade in p's hands, 0 for anything else.
+func (p *Player) mastery() float32 { return p.Weapons[p.Cur].Mastery(p.Cur) }
+
+// ArtCooldown is the seconds before the art of legendary k, as ws holds it, can be used again.
+func ArtCooldown(k WeaponKind, ws *WeaponState) float32 {
+	return Arts[k].Cool * max(1-masteryCool*ws.Mastery(k), masteryCoolMin)
+}
+
+// bladeStunGap is the seconds after a stun from a blade of mastery m before the creep can be
+// stunned again.
+func bladeStunGap(m float32) float32 { return stunGap * max(1-masteryGap*m, 0) }
+
+// breakHold stops creep i's slam winding up, its ring gone, and makes it let go of a survivor
+// it holds: a mastered blade's stun landing on it.
+func (w *World) breakHold(i int32) {
+	c := &w.Creeps[i]
+	if sd := &slams[c.Kind]; sd.radius > 0 && c.slam > sd.every-sd.windup {
+		c.slam = sd.every - sd.windup
+		// Its ring, set down where it stands (a stunned creep does not move). Never called
+		// while the effects run: only a blade's swing or art sets w.mastery.
+		for k, e := range w.Effects {
+			if e.Kind == EffSlam && e.Lv == uint8(c.Kind) && e.X0 == c.X && e.Y0 == c.Y {
+				w.Effects = append(w.Effects[:k], w.Effects[k+1:]...)
+				break
+			}
+		}
+		w.note(1, "the %s's slam is broken", Creeps[c.Kind].Name)
+	}
+	if c.grip > 0 {
+		c.grip, c.grab = 0, grabs[c.Kind].every
+		w.note(1, "the %s is stunned and lets go", Creeps[c.Kind].Name)
+	}
+}
+
 // swingLegend is a swing of the legendary in p's hands: the cut itself, then its rules.
 func (w *World) swingLegend(p *Player, st Stats, ang float32, ult bool) {
 	owner := int8(p.ID)
 	k := p.Cur
 	p.Swings++
+	w.mastery = st.Mastery
+	defer func() { w.mastery = 0 }()
 	dmg, kind := st.Damage, uint8(TracerKatana)
 	follow := false
 	if k == WGreat {
@@ -236,10 +332,14 @@ func (w *World) swingLegend(p *Player, st Stats, ang float32, ult bool) {
 		if evo == 2 && len(hits) > 0 {
 			w.storm(p, hits[0], dmg*stormMul)
 		}
+		// Where the blade comes down, the ground shakes: every swing a shockwave, the
+		// follow-through a harder, wider one.
+		m := st.Mastery
+		qx, qy := p.X+dx*st.Range*.7, p.Y+dy*st.Range*.7
+		w.quake(owner, qx, qy, shockReach+shockReachLevel*m, dmg*(shockMul+shockMulLevel*m),
+			shockStun+masteryStun*m, shockPush+shockPushLevel*m)
 		if follow {
-			// The ground shakes round where the blade comes down.
-			qx, qy := p.X+dx*st.Range*.7, p.Y+dy*st.Range*.7
-			w.quake(owner, qx, qy, followQuake, dmg*.5, 1.5)
+			w.quake(owner, qx, qy, followQuake+followGrow*m, dmg*.5, 1.5+masteryStun*m, .6+shockPushLevel*m)
 			if evo == 1 {
 				w.Effects = append(w.Effects, Effect{Kind: EffNapalm, X0: qx, Y0: qy, X: qx, Y: qy, R: 2,
 					Left: ashFire, Total: ashFire, Damage: ashBurn * 1.5 * lateScale(w.Wave), Owner: owner})
@@ -249,8 +349,8 @@ func (w *World) swingLegend(p *Player, st Stats, ang float32, ult bool) {
 }
 
 // quake is a blow of the ground round x, y: everything within r takes dmg, less at the edge,
-// stunned stun times as long as a hit, and is thrown back from it.
-func (w *World) quake(owner int8, x, y, r, dmg, stun float32) {
+// stunned stun times as long as a hit, and is thrown push back from it.
+func (w *World) quake(owner int8, x, y, r, dmg, stun, push float32) {
 	cands := w.near[:0]
 	w.grid.each(x, y, r, func(i int32) bool {
 		c := &w.Creeps[i]
@@ -265,7 +365,7 @@ func (w *World) quake(owner int8, x, y, r, dmg, stun float32) {
 		d := sqrt32(dx*dx + dy*dy)
 		w.hit(i, dmg*(1-.5*d/r), owner, stun)
 		if d > 1e-3 {
-			w.push(i, dx/d, dy/d, .6)
+			w.push(i, dx/d, dy/d, push)
 		}
 	}
 	w.near = cands[:0]
@@ -405,7 +505,7 @@ func (w *World) art(p *Player, x, y float32) error {
 	}
 	p.ArtLeft, p.ArtTotal = d.Windup, d.Windup
 	p.artX0, p.artY0, p.artX, p.artY = p.X, p.Y, ex, ey
-	p.ArtCool = d.Cool
+	p.ArtCool = ArtCooldown(k, &p.Weapons[k])
 	if k == WCrowbar && p.evo(WCrowbar) == 2 {
 		p.ArtCool -= scrapCool
 	}
@@ -429,8 +529,8 @@ func (w *World) stepArt(p *Player) {
 	}
 	art := p.Art
 	p.Art, p.ArtLeft = ArtNone, 0
-	w.shooter = int8(p.ID)
-	defer func() { w.shooter = -1 }()
+	w.shooter, w.mastery = int8(p.ID), p.mastery()
+	defer func() { w.shooter, w.mastery = -1, 0 }()
 	switch art {
 	case ArtFlash:
 		w.flashDraw(p)
@@ -521,7 +621,7 @@ func (w *World) flashDraw(p *Player) {
 	w.near = cands[:0]
 	hits := append([]int32(nil), cands...)
 	for _, i := range hits {
-		w.hit(i, st.Damage*flashMul, int8(p.ID), 2)
+		w.hit(i, st.Damage*flashMul, int8(p.ID), 2+masteryStun*st.Mastery)
 		w.bleed(i, flashBleed, p)
 	}
 	w.tracer(x0, y0, x1, y1, TracerFlash)
@@ -533,13 +633,13 @@ func (w *World) flashDraw(p *Player) {
 func (w *World) skyfall(p *Player) {
 	st := w.playerStats(p)
 	p.X, p.Y = p.artX, p.artY
-	r, stun := float32(skyfallRadius), float32(skyfallStun)
+	r, stun := skyfallRadius+shockReachLevel*st.Mastery*.5, skyfallStun+masteryStun*st.Mastery
 	evo := p.evo(WGreat)
 	if evo == 2 {
 		r++
 		stun *= 2
 	}
-	w.quake(int8(p.ID), p.X, p.Y, r, st.Damage*skyfallMul, stun)
+	w.quake(int8(p.ID), p.X, p.Y, r, st.Damage*skyfallMul, stun, .6+shockPushLevel*st.Mastery)
 	w.pumpsIn(p.X, p.Y, r, int8(p.ID), pumpChain)
 	w.Blasts = append(w.Blasts, Blast{p.X, p.Y, r, BlastSkyfall})
 	if evo == 2 {

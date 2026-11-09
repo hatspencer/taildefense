@@ -70,10 +70,11 @@ func (p *Player) tickSlow() {
 }
 
 // stun stops creep c for a moment, mul times as long as a hit does (longer for a shotgun's
-// load), unless it was stunned too lately.
-func (c *Creep) stun(mul float32) {
+// load), unless it was stunned too lately; it can be stunned again gap seconds after. It
+// returns the seconds it is stopped for, 0 if the stun did not land.
+func (c *Creep) stun(mul, gap float32) float32 {
 	if c.stunLeft > 0 || c.stunCool > 0 {
-		return
+		return 0
 	}
 	t := float32(stunFor)
 	switch c.Kind {
@@ -83,7 +84,8 @@ func (c *Creep) stun(mul float32) {
 		t = .08
 	}
 	t *= mul
-	c.stunLeft, c.stunCool = t, t+stunGap
+	c.stunLeft, c.stunCool = t, t+gap
+	return t
 }
 
 // slowed is the share of its pace a slowed creep keeps.

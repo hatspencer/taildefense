@@ -102,17 +102,35 @@ hand instead. Each levels at the armory like any weapon, and each has more to it
 - **Katana:** quick cuts through up to five creeps that build up blood loss. When a creep's fills,
   it bursts for a sixth of its health (less on a boss). Its special track builds bleed faster.
 - **Greatsword:** slow, wide, heavy blows through up to eight that stagger and shove what they
-  hit. Every third swing in a row is a follow-through that hits harder still and shakes the
-  ground round where it lands.
+  hit. Every swing sends a shockwave out from where the blade lands, about 2 tiles round, that
+  hurts, stuns and pushes back. Every third swing in a row is a follow-through that hits harder
+  still and shakes the ground further.
+
+**Mastery.** The further you take a katana or a greatsword, the more it does: every track level
+counts, its evolution counts as five more, and a second katana as five more again. A little at
+first and a great deal at the top, it:
+
+- hits harder (up to 60% at full, 86% for a full pair of katanas);
+- stuns longer, and can stun the same creep again sooner, so a full pair of katanas keeps a
+  mauler or even a goliath nearly still;
+- breaks a slam: a long enough stun on a creep winding one up stops it, ring and all; and a creep
+  holding someone lets go. A katana just found can't do this to a mauler; four tenths of the way
+  it can, and a full katana or greatsword can to a goliath. The greatsword's stagger breaks a
+  mauler's after a level or two;
+- takes up to a third of every blow off you while it is in hand;
+- brings its art back sooner: a full katana's Flash Draw in under a second, a full greatsword's
+  Skyfall in about one;
+- for the greatsword, widens its shockwave to 5 tiles and makes it hit, stun and push far harder,
+  and lands Skyfall over 4.4 tiles.
 
 With a legendary or the crowbar in hand, **F is its weapon art** in place of the dash (with any
 other weapon F is still the dash):
 
 - **Flash Draw** (katana): a breath with the blade sheathed, then one drawn cut that carries you
   up to 7 tiles to the cursor, through every creep on the way: triple damage and heavy bleed.
-  6 s to come back.
+  6 s to come back, less with mastery.
 - **Skyfall** (greatsword): leap to the cursor, untouchable in the air, and come down on
-  everything within 3 tiles, stunning and throwing it back. 9 s to come back.
+  everything within 3 tiles, stunning and throwing it back. 9 s to come back, less with mastery.
 - **Home Run** (crowbar): wind the bar back over your shoulder, then one swing with everything
   behind it, 3.2 tiles round in front of you: triple damage, a long stun, and what it hits is
   hurled tiles away. You don't move. 7 s to come back.
