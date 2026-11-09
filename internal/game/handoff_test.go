@@ -28,7 +28,7 @@ func TestADroppedWeaponGoesToATeammateUpgradesAndAll(t *testing.T) {
 		t.Fatalf("never picked up: order %d at %.1f,%.1f, the rifle at %.1f,%.1f", b.Order.Kind, b.X, b.Y, g.X, g.Y)
 	}
 	ws := b.Weapons[WRifle]
-	if !ws.Owned || ws.Lv != lv || ws.Ammo != 4 || b.Cur != WRifle {
+	if !ws.Owned || ws.Lv != lv || ws.Ammo != 4 || b.Cur == WRifle {
 		t.Fatalf("picked up %+v, in hand %d", ws, b.Cur)
 	}
 	if err := w.OrderPickup(a, g.ID); err == nil {
@@ -40,6 +40,7 @@ func TestPickingUpTakesAFifthOfASecond(t *testing.T) {
 	w := newBare(8)
 	a, _ := w.Join("ana", "ana@example")
 	b, _ := w.Join("bo", "bo@example")
+	b.Cur = WPistol
 	a.Weapons[WSMG] = WeaponState{Owned: true, Ammo: 10}
 	if err := w.DropWeapon(a, WSMG); err != nil {
 		t.Fatal(err)
@@ -57,8 +58,11 @@ func TestPickingUpTakesAFifthOfASecond(t *testing.T) {
 	if want := int(gunPickup * TickRate); ticks < want || ticks > want+1 {
 		t.Fatalf("the pickup took %d ticks, want about %d", ticks, want)
 	}
-	if !b.Weapons[WSMG].Owned || b.Cur != WSMG {
-		t.Fatal("the pickup did not put the SMG in bo's hands")
+	if !b.Weapons[WSMG].Owned {
+		t.Fatal("the pickup did not give bo the SMG")
+	}
+	if b.Cur == WSMG {
+		t.Fatal("the pickup put the SMG in bo's hands; switching to it is bo's to do")
 	}
 	if err := w.OrderPickup(b, g.ID); err == nil {
 		t.Fatal("the same weapon twice")

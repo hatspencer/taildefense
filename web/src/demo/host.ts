@@ -961,7 +961,6 @@ export class DemoHost implements Transport {
         if (p.channel >= 1) {
           this.guns.splice(this.guns.indexOf(g), 1);
           p.owned |= 1 << g.kind; p.levels.set(g.lv, g.kind * 4);
-          p.cur = g.kind; p.ammo = this.mag(p); p.reloadLeft = 0;
           const whose = g.by === p.id ? 'their' : `${this.players[g.by]?.name ?? 'someone'}'s`;
           this.notes.push({ level: 0, text: `${p.name} picked up ${whose} ${this.welcome.weapons[g.kind].name}` });
           p.order = Order.Idle; p.channel = 0;

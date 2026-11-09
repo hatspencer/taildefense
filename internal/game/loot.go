@@ -453,7 +453,8 @@ func (w *World) unowned(p *Player, most int32) WeaponKind {
 	return c[w.rng.IntN(len(c))]
 }
 
-// giveWeapon hands over weapon k with levels on one random track, and equips it. A pistol
+// giveWeapon hands over weapon k with levels on one random track, without putting it in p's
+// hands: they switch to it themselves. A pistol
 // to one who carries one is a second pistol for the other hand, as upgraded as the first.
 func (w *World) giveWeapon(p *Player, k WeaponKind, levels uint8) (string, bool) {
 	if k == WPistol && w.allows(k) && p.Weapons[k].Owned && !p.Weapons[k].Dual {
@@ -472,18 +473,16 @@ func (w *World) giveWeapon(p *Player, k WeaponKind, levels uint8) (string, bool)
 	}
 	ws.Ammo = WeaponStats(k, ws.Lv).Mag
 	p.Weapons[k] = ws
-	p.Cur = k
 	return article(Weapons[k].Name) + note, true
 }
 
-// dualPistols puts a second pistol in p's other hand, loaded, and the pair in their hands.
+// dualPistols puts a second pistol in p's other hand, loaded.
 func (w *World) dualPistols(p *Player) {
 	ws := &p.Weapons[WPistol]
 	ws.Dual = true
 	if ws.Reload <= 0 {
 		ws.Ammo = ws.Stats(WPistol).Mag
 	}
-	p.Cur = WPistol
 }
 
 // giveUpgrade raises a random unmaxed track of weapon k by up to n levels.

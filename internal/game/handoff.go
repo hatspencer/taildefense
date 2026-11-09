@@ -178,14 +178,14 @@ func (w *World) canTake(p *Player, k WeaponKind) bool {
 	return !ws.Owned || (k == WPistol || k == WKatana) && !ws.Dual
 }
 
-// pickUp hands weapon gi on the ground to p, upgrades and all, and puts it in their hands. A
-// pistol to one who carries one goes in the other hand, the pair as upgraded as theirs.
+// pickUp hands weapon gi on the ground to p, upgrades and all. What they hold stays in their
+// hands: they switch to it themselves. A pistol to one who carries one goes in the other hand,
+// the pair as upgraded as theirs.
 func (w *World) pickUp(p *Player, gi int) {
 	g := w.Guns[gi]
 	w.Guns = append(w.Guns[:gi], w.Guns[gi+1:]...)
 	if p.Weapons[g.Kind].Owned && g.Kind == WKatana {
 		p.Weapons[WKatana].Dual = true
-		p.Cur = WKatana
 		w.note(0, "%s picked up a second katana: a pair, one in each hand", p.Name)
 		return
 	}
@@ -199,7 +199,6 @@ func (w *World) pickUp(p *Player, gi int) {
 		ws.Reload = tunedTimer(WeaponStats(g.Kind, g.Lv).Reload)
 	}
 	p.Weapons[g.Kind] = ws
-	p.Cur = g.Kind
 	whose := "their"
 	if g.By != p.ID && int(g.By) < len(w.Players) {
 		whose = w.Players[g.By].Name + "'s"
