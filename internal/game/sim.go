@@ -732,6 +732,9 @@ func (w *World) hurtPlayer(p *Player, dmg float32) {
 	if p.Shield > 0 || p.Art == ArtSkyfall {
 		return // in the air, a Skyfall leaps over every blow
 	}
+	if p.Alive {
+		dmg *= 1 - masteryGuard*min(p.mastery(), 1) // a mastered blade in hand takes some of it
+	}
 	p.Tally.Taken += float64(min(dmg, max(p.HP, 0)))
 	p.HP -= dmg
 	p.Hurt = .25
@@ -1198,7 +1201,14 @@ func (w *World) hit(i int32, dmg float32, owner int8, stun float32) {
 	c.HP -= d
 	w.provoke(c)
 	if owner >= 0 && !w.turretFire && !w.burning {
-		c.stun(stun)
+		if w.mastery > 0 {
+			// A mastered blade's: stunning again sooner, and a long one breaks a slam or a grab.
+			if w.Creeps[i].stun(stun, bladeStunGap(w.mastery)) >= breakStun {
+				w.breakHold(i)
+			}
+		} else {
+			c.stun(stun, stunGap)
+		}
 	}
 	if owner >= 0 {
 		c.LastHit, c.Shared = owner, w.turretFire || w.trap

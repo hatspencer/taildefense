@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import type { CameraRig } from './camera';
-import { canTake, dualIn, KATANA, OWNED_DUAL_KATANA, EvacStage, K_ARMORY, lootable, stickyKind, repairCost, walled, type Command, Order, PF_ALIVE, PF_ARMORY, PF_CONNECTED, OWNED_DUAL, PF_READY, PF_RELOADING, Phase, PingKind, SiteKind, siteX, siteY, Tile, K_GATE } from './protocol';
+import { artCooldown, canTake, dualIn, KATANA, OWNED_DUAL_KATANA, EvacStage, K_ARMORY, lootable, stickyKind, repairCost, walled, type Command, Order, PF_ALIVE, PF_ARMORY, PF_CONNECTED, OWNED_DUAL, PF_READY, PF_RELOADING, Phase, PingKind, SiteKind, siteX, siteY, Tile, K_GATE } from './protocol';
 import type { Effects } from './scene/effects';
 import type { LocalCue } from './sound/sound';
 import type { Game } from './state';
@@ -517,7 +517,7 @@ export class Controller {
       // A legendary in hand: F is its weapon art, always there, on its own cooldown. Moonlit
       // Edge draws 3 tiles further.
       const range = art.range + (me.cur === KATANA && me.evo[KATANA] === 2 ? 3 : 0);
-      return { name: art.name, desc: art.desc, key: a.key || KEYS[slot], range, radius: me.cur === KATANA ? 0 : 3, cool: art.cool, target: 'point',
+      return { name: art.name, desc: art.desc, key: a.key || KEYS[slot], range, radius: me.cur === KATANA ? 0 : 3, cool: artCooldown(me, me.cur, art.cool), target: 'point',
         level: 1, maxLevel: 1, left: me.artCool, nextCost: 0, charge: 0, running: 0 };
     }
     const lvl = me.abLevel[slot];

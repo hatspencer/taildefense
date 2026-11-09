@@ -250,6 +250,12 @@ func (ws *WeaponState) Stats(k WeaponKind) Stats {
 	if ws.Dual && k == WKatana {
 		s.Rate *= dualKatana
 	}
+	if m := ws.Mastery(k); m > 0 {
+		// A blade taken far hits harder, most of it near the top, and stops what it hits longer.
+		s.Mastery = m
+		s.Damage *= 1 + masteryHit*m*m
+		s.Stun += masteryStun * m
+	}
 	return s
 }
 
@@ -265,6 +271,7 @@ type Stats struct {
 	Stun                                             float32 // times a hit's stun
 	Shove                                            float32 // how far each pellet pushes, before the creep's size
 	Bleed                                            float32 // a katana: the blood loss each cut builds (legend.go)
+	Mastery                                          float32 // a legendary blade: how far it has been taken, 0..masteryMax (legend.go)
 	Mag                                              int16
 	Pellets, Pierce                                  int
 	Hits                                             int // melee: creeps one swing goes through
