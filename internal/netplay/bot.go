@@ -31,6 +31,7 @@ type Bot struct {
 	eager      bool            // readies up as soon as it is done
 	gun        uint16          // the weapon on the ground it last went for
 	noGun      map[uint16]bool // weapons on the ground it could not get to
+	owned      uint32          // the weapons it carried when it last looked, a bit a kind
 }
 
 // NewBot is a bot for player id.
@@ -66,6 +67,21 @@ func (b *Bot) Act(w *game.World, do func(Cmd)) {
 	if p.HP < p.MaxHP*.4 && p.Medkits > 0 && p.Heal == 0 {
 		do(Cmd{Op: OpMedkit})
 	}
+	// A weapon found or picked up is not put in hand for anyone; a bot switches to it, as a
+	// person would.
+	var owned uint32
+	for k := range game.NumWeapons {
+		if p.Weapons[k].Owned {
+			owned |= 1 << k
+		}
+	}
+	for k := range game.NumWeapons {
+		if b.owned != 0 && owned&^b.owned&(1<<k) != 0 && p.Cur != k {
+			do(Cmd{Op: OpSelect, A: uint8(k)})
+			break
+		}
+	}
+	b.owned = owned
 	// A revive under way is all the bot does until it is done: any other order, or the revive
 	// asked for again, would start its count over and nobody would ever get up. Only being
 	// near death itself breaks it off.

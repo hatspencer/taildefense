@@ -229,8 +229,14 @@ func TestTheShrinesHoldLegendaries(t *testing.T) {
 	si := w.shrineIdx()[0]
 	p.Weapons[WGreat] = WeaponState{Owned: true}
 	w.search(p, si)
-	if !p.Weapons[WKatana].Owned || p.Cur != WKatana {
+	if !p.Weapons[WKatana].Owned {
 		t.Fatal("the altar gave no katana to one who carries the greatsword")
+	}
+	if p.Cur == WKatana {
+		t.Fatal("the altar put the katana in hand; switching to it is the player's to do")
+	}
+	if err := w.Select(p, WKatana); err != nil {
+		t.Fatal(err)
 	}
 	if n := w.Notes[len(w.Notes)-1].Text; !strings.Contains(n, "legendary") {
 		t.Errorf("the altar's note: %q", n)

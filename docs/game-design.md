@@ -517,6 +517,10 @@ the Overload killing every small creep at waves 10 to 30 but no brute.
   walk over by accident. Dropping is the reverse: G held for a second, so a stray tap mid-fight
   doesn't throw a gun away. A survivor keeps at least one weapon, a kind they already carry can't
   be picked up (one of each, as in the armory), and at most 32 lie about at once.
+- **A weapon found is not put in hand.** Picking one up, or finding one in loot or on an altar,
+  adds it to what you carry and leaves the weapon you hold where it is; you switch to it
+  yourself. A gun swapped in mid-fight, maybe empty or the wrong one for the range, was a
+  surprise the player hadn't chosen. Bots switch to a weapon they get, as a person would.
 
 ### Ruined houses
 

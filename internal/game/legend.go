@@ -597,8 +597,8 @@ func (w *World) legendFor(p *Player) WeaponKind {
 	return c[w.rng.IntN(len(c))]
 }
 
-// giveLegend hands p a legendary they can take, and puts it in their hands; a second katana
-// goes in the other hand.
+// giveLegend hands p a legendary they can take, without putting it in their hands; a second
+// katana goes in the other hand.
 func (w *World) giveLegend(p *Player) (string, bool) {
 	k := w.legendFor(p)
 	if k == NumWeapons {
@@ -606,11 +606,9 @@ func (w *World) giveLegend(p *Player) (string, bool) {
 	}
 	if p.Weapons[k].Owned {
 		p.Weapons[k].Dual = true
-		p.Cur = k
 		return "a second katana: a pair, one in each hand", true
 	}
 	p.Weapons[k] = WeaponState{Owned: true, Ammo: Weapons[k].Mag}
-	p.Cur = k
 	return "the legendary " + Weapons[k].Name, true
 }
 
