@@ -91,6 +91,21 @@ export function canTake(owned: number, k: number): boolean {
 export function dualIn(owned: number, k: number): boolean {
   return (k === 0 && (owned & OWNED_DUAL) !== 0) || (k === KATANA && (owned & OWNED_DUAL_KATANA) !== 0);
 }
+// How far a survivor has taken legendary blade k, as td's WeaponState.Mastery (legend.go):
+// its track levels, 5 for an evolution and 5 more for a second katana, over 25.
+export function mastery(p: Player, k: number): number {
+  if (k !== KATANA && k !== GREAT) return 0;
+  let n = 0;
+  for (let t = 0; t < 4; t++) n += p.levels[k * 4 + t];
+  if (p.evo[k]) n += 5;
+  if (dualIn(p.owned, k)) n += 5;
+  return n / 25;
+}
+// The seconds of the art of blade k's cooldown, base seconds cool before mastery, as td's
+// ArtCooldown.
+export function artCooldown(p: Player, k: number, cool: number): number {
+  return cool * Math.max(1 - 0.88 * mastery(p, k), 0.1);
+}
 // The door gunner's shots, from the Huey in the air; a hurler's bone; a napalm missile in
 // flight; an arc web's jump from creep to creep.
 export const TRACER_HELI = 34, TRACER_SHARD = 35, TRACER_NAPALM = 36, TRACER_ARC = 37;
