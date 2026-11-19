@@ -378,6 +378,7 @@ export class Sound {
         case BlastKind.Bile: at('bile', 0.9, 1.6); break;
         case BlastKind.Bleed: at('bleed', 0.7, 1.4); break;
         case BlastKind.Skyfall: at('slam', 1.1, 2); break;
+        case BlastKind.Crit: if (this.once('crit', 0.06)) at('moonCut', 0.6, 1.4, 1.5); break;
       }
     }
 

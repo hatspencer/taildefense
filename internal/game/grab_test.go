@@ -87,6 +87,37 @@ func TestAStepBackDodgesTheGrab(t *testing.T) {
 	}
 }
 
+// Hurt enough while it reaches, a mauler flinches and drops its arms; a blow before it reaches
+// puts the reach off.
+func TestHurtingAMaulerStopsItsReach(t *testing.T) {
+	w := newBare(4)
+	p := mustJoin(t, w, "ana")
+	x, y := openRow(w, 14)
+	if x == 0 || !w.SpawnCreep(CMauler, x+11, y) {
+		t.Fatal("no ground or no creep")
+	}
+	c, d := &w.Creeps[0], &Creeps[CMauler]
+	c.HP, c.MaxHP = 1e4, 1e4
+	p.X, p.Y = c.X+d.Radius+PlayerRadius+.3, y
+	w.noArmor = true
+	w.damage(0, 1, int8(p.ID))
+	if w.creepGrab(c, d, p) || c.lunge > 0 {
+		t.Fatal("reached at once after a blow")
+	}
+	c.grab = 0
+	if !w.creepGrab(c, d, p) || c.lunge <= 0 {
+		t.Fatal("did not reach")
+	}
+	w.damage(0, grabs[CMauler].flinch*c.MaxHP+1, int8(p.ID))
+	w.noArmor = false
+	for i := 0; i < TickRate && c.lunge > 0; i++ {
+		w.creepGrab(c, d, p)
+	}
+	if p.held || c.grab <= 0 {
+		t.Fatalf("held %v after it was hurt reaching, may reach again in %.2fs", p.held, c.grab)
+	}
+}
+
 // Back on their feet from a stun, a survivor has a moment before another stun or a grab can
 // take them, so a crowd of maulers can't chain them down.
 func TestNoStunLandsOnASurvivorJustUp(t *testing.T) {

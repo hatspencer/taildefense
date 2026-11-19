@@ -787,10 +787,19 @@ melee a way to play, and give the far sites something only they hold (`internal/
   few maulers about one slam or throw ran into the next until they were dead. Now a mauler or a
   goliath stops and reaches first (0.4 s and 0.5 s, the creep's windup pose), and its hands
   close only on whoever is still in reach; a miss leaves it 1.5 s (1.2 s) before it reaches
-  again, and a mastered blade's breaking stun cancels the reach. A survivor back up from any
+  again, and a mastered blade's breaking stun cancels the reach, as does 5% of a mauler's health
+  (2% of a goliath's) dealt while it reaches. Every non-turret blow from a survivor puts its
+  next reach off 0.35 s, so a fighter trading blows with it gets the first word (turrets don't,
+  or a mauler at the walls would never grab). A survivor back up from any
   stun has 1.5 s before another stun or a grab lands (still hurt by what hits them), the time
   to get out of the crowd. Flash Draw is unstoppable while drawn, as Skyfall is in the air,
   so with its short cooldown at mastery it is the katana's way out of a ring.
+- **Melee crits.** The blades needed a reason to keep buying levels past the ones that shaped
+  them, and a rhythm to read. Every hit of a melee weapon or its art may crit: 5% just found,
+  1.2% per track level, 6% for the evolution and 5% for a second katana (40% for a full pair),
+  for 1.8 times the damage plus 0.035 per level (2.5 at full) and twice the stun, which feeds
+  breaking slams and grabs. Rolled per creep on the world's seeded generator, and only while a
+  melee swing or art is dealt, so guns and turrets never draw on it.
 - **The greatsword's shockwave.** Slow swings left a crowd time to close in, so every swing shakes
   the ground where it lands, 2.2 tiles round for 30% of the swing with a stun and a push, growing
   with mastery to 5 tiles, 70%, a far longer stun and a hard push; the follow-through's quake

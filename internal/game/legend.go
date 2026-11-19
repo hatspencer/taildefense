@@ -203,6 +203,7 @@ const (
 const (
 	BlastBleed   = 17
 	BlastSkyfall = 18
+	BlastCrit    = 19 // a melee hit landing critical, on the creep (crit.go)
 )
 
 // unstoppable reports whether nothing slows, stuns or grabs p: Berserk, Titan's Wrath, in the
@@ -533,8 +534,9 @@ func (w *World) stepArt(p *Player) {
 	}
 	art := p.Art
 	p.Art, p.ArtLeft = ArtNone, 0
-	w.shooter, w.mastery = int8(p.ID), p.mastery()
-	defer func() { w.shooter, w.mastery = -1, 0 }()
+	st := w.playerStats(p)
+	w.shooter, w.mastery, w.crit, w.critMul = int8(p.ID), p.mastery(), st.Crit, st.CritMul
+	defer func() { w.shooter, w.mastery, w.crit, w.critMul = -1, 0, 0, 0 }()
 	switch art {
 	case ArtFlash:
 		w.flashDraw(p)

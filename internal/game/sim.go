@@ -909,6 +909,8 @@ func (w *World) shoot(p *Player, st Stats, ang float32) {
 	}
 	switch Weapons[p.Cur].Fire {
 	case FireMelee:
+		w.crit, w.critMul = st.Crit, st.CritMul
+		defer func() { w.crit, w.critMul = 0, 0 }()
 		if p.Cur.Legendary() {
 			w.swingLegend(p, st, ang, ult)
 			break
@@ -1186,6 +1188,11 @@ func (w *World) hit(i int32, dmg float32, owner int8, stun float32) {
 	if c.HP <= 0 || owner >= 0 && w.hidden(c) {
 		return
 	}
+	crit := w.crit > 0 && owner >= 0 && !w.dotting && !w.burning && w.rng.Float32() < w.crit
+	if crit {
+		dmg, stun = dmg*w.critMul, stun*critStun
+		w.Blasts = append(w.Blasts, Blast{c.X, c.Y, Creeps[c.Kind].Radius, BlastCrit})
+	}
 	d := dmg
 	if !w.noArmor {
 		a := c.armor()
@@ -1200,6 +1207,9 @@ func (w *World) hit(i int32, dmg float32, owner int8, stun float32) {
 	dealt := min(d, c.HP) // what the creep had left: overkill charges nothing
 	c.HP -= d
 	w.provoke(c)
+	if owner >= 0 && !w.turretFire && !w.burning && !w.dotting {
+		c.flinch()
+	}
 	if owner >= 0 && !w.turretFire && !w.burning {
 		if w.mastery > 0 {
 			// A mastered blade's: stunning again sooner, and a long one breaks a slam or a grab.

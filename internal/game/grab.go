@@ -4,7 +4,8 @@ import "math"
 
 // The grab: a mauler or a goliath that gets close enough to a survivor stops and reaches for
 // them, arms out (lunge seconds, the dodge: a step back out of reach and its hands close on
-// nothing), and if it gets its hands on them picks them up, holds them overhead a moment and
+// nothing; and enough damage on it while it reaches makes it flinch and drop its arms, and
+// any blow from a survivor puts its next reach off a moment), and if it gets its hands on them picks them up, holds them overhead a moment and
 // hurls them away behind it, back the way it came and into whatever follows it. Whoever is caught can do nothing; the team can,
 // as enough damage on the creep while it holds them makes it let go. The throw ends in a fall
 // that hurts and stuns, or sooner against a wall, which hurts the same. Both are faster than
@@ -13,26 +14,30 @@ import "math"
 
 // grabDef is a kind's grab.
 type grabDef struct {
-	reach float32 // tiles past its radius and the survivor's that it reaches to grab
-	lunge float32 // seconds it reaches, arms out, before its hands close
-	miss  float32 // seconds after its hands close on nothing before it can reach again
-	hold  float32 // seconds it holds them up before the throw
-	throw float32 // tiles thrown
-	hurt  float32 // the fall
-	stun  float32 // seconds stunned where they land
-	every float32 // seconds after a throw before it can grab again
-	free  float32 // the share of its max health that, shot off it while it holds, frees them
+	reach  float32 // tiles past its radius and the survivor's that it reaches to grab
+	lunge  float32 // seconds it reaches, arms out, before its hands close
+	miss   float32 // seconds after its hands close on nothing before it can reach again
+	flinch float32 // the share of its max health that, dealt while it reaches, stops the reach
+	hold   float32 // seconds it holds them up before the throw
+	throw  float32 // tiles thrown
+	hurt   float32 // the fall
+	stun   float32 // seconds stunned where they land
+	every  float32 // seconds after a throw before it can grab again
+	free   float32 // the share of its max health that, shot off it while it holds, frees them
 }
 
 // grabs is indexed by creep kind; a zero reach is a kind that does not grab.
 var grabs = [NumCreepKinds]grabDef{
-	CMauler:  {reach: .6, lunge: .4, miss: 1.5, hold: .9, throw: 7, hurt: 35, stun: 1.2, every: 6, free: .12},
-	CGoliath: {reach: .8, lunge: .5, miss: 1.2, hold: 1.1, throw: 10, hurt: 55, stun: 1.8, every: 5, free: .06},
+	CMauler:  {reach: .6, lunge: .4, miss: 1.5, flinch: .05, hold: .9, throw: 7, hurt: 35, stun: 1.2, every: 6, free: .12},
+	CGoliath: {reach: .8, lunge: .5, miss: 1.2, flinch: .02, hold: 1.1, throw: 10, hurt: 55, stun: 1.8, every: 5, free: .06},
 }
 
 // throwFlight is the seconds a thrown survivor is in the air, whatever the distance; the
 // page arcs them over it (THROW_FLIGHT in web/src/protocol.ts).
 const throwFlight = .7
+
+// grabFlinch is the seconds a blow from a survivor puts off a grabber's next reach.
+const grabFlinch = .35
 
 // creepGrab runs the grab of c going after tp, and reports whether it took the creep's tick:
 // it stands while it has someone in its hands.
@@ -65,6 +70,11 @@ func (w *World) creepGrab(c *Creep, d *CreepDef, tp *Player) bool {
 	}
 	if c.lunge > 0 {
 		// Reaching, arms out; then its hands close on whoever is still in reach.
+		if c.HP < c.gripHP-gd.flinch*c.MaxHP {
+			// Hurt enough while it reached: it flinches and drops its arms.
+			c.lunge, c.grab = 0, gd.miss
+			return true
+		}
 		c.Swing = SwingWindup
 		if c.lunge -= Dt; c.lunge > 0 {
 			return true
@@ -87,7 +97,7 @@ func (w *World) creepGrab(c *Creep, d *CreepDef, tp *Player) bool {
 	if !w.grabbable(c, d, tp) {
 		return false
 	}
-	c.lunge, c.lungeAt = gd.lunge, tp.ID+1
+	c.lunge, c.lungeAt, c.gripHP = gd.lunge, tp.ID+1, c.HP
 	c.Face = float32(math.Atan2(float64(tp.Y-c.Y), float64(tp.X-c.X)))
 	c.Swing = SwingWindup
 	return true
