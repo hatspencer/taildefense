@@ -63,7 +63,7 @@ type Creep struct {
 	// A mauler or a goliath (grab.go): the survivor in its hands, their id + 1, 0 none; the
 	// seconds it holds them before the throw; its health when it grabbed them; and the
 	// seconds until it can grab again; reaching for one, the seconds before its hands close
-	// and the survivor reached for, their id + 1.
+	// and the survivor reached for, their id + 1 (gripHP its health when it began to reach).
 	grip         uint8
 	hold, gripHP float32
 	grab         float32
@@ -418,6 +418,8 @@ type World struct {
 	pylons     []int32 // standing amplifier pylons, found afresh each tick
 	noArmor    bool    // the shot being dealt ignores armour
 	mastery    float32 // while a legendary blade's swing or art is dealt: its mastery (legend.go)
+	crit       float32 // while a melee swing or art is dealt: the chance a hit is critical (crit.go)
+	critMul    float32 // and what a critical hit's damage is multiplied by
 	Core       int     // structure index of the generator
 	Armory     int
 	CoreX      float32

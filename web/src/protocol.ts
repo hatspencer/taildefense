@@ -41,7 +41,7 @@ export const AX_ARMOURED = 1, AX_HASTY = 2, AX_SAPPERS = 4, AX_SPLITTERS = 8;
 export const COMPASS = ['east', 'southeast', 'south', 'southwest', 'west', 'northwest', 'north', 'northeast'];
 
 export const enum Order { Idle = 0, Move, AMove, Attack, Hold, Build, Repair, Loot, Revive, Steer, Pickup, Board, Gate }
-export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake, Bell, Bile, Landed, Flame, Overload, Napalm, Bleed, Skyfall }
+export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake, Bell, Bile, Landed, Flame, Overload, Napalm, Bleed, Skyfall, Crit }
 export const enum Weather { Clear = 0, Fog, Rain, Storm, Snow, Drizzle, Thunder, HeavySnow }
 // How much each weather counts as rain (internal/game/weather.go wetness).
 export const WET = [0, 0, 1, 1, 0, 0.3, 0.5, 0];
