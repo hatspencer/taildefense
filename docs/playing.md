@@ -91,6 +91,12 @@ before the crowd arrives, not after; the SMG fires full from the first round. A 
 near you hurts you too, up to 15 health a rocket, so switch guns when creeps reach you. The
 crowbar hits up to four creeps a swing.
 
+**Critical hits.** Every hit of the crowbar, the katana or the greatsword (and their weapon
+arts) may land critical, with a white-gold flash on the creep: 1.8 times the damage and twice
+the stun. One just found crits 5% of the time; every level bought on it adds 1.2% and raises the
+damage towards 2.5 times, its evolution adds 6% and a second katana 5%, so a full pair of
+katanas crits two hits in five. Guns and turrets never crit.
+
 ### Legendary blades
 
 Two blades are never sold: the katana (8) and the greatsword (9). They are found, and only where
@@ -357,7 +363,9 @@ a few swarmers behind, and every quarter of her life you shoot away spills a bro
 
 Maulers and the goliath, the third boss, charge, and their slams stun longest. Worse, get within
 arm's reach and they reach for you: they stop and put their arms out for a moment (under half a
-second) first. Step back out of reach then and their hands close on nothing; stay, and you are
+second) first. Step back out of reach then and their hands close on nothing, and hit them hard
+enough while they reach and they flinch and drop their arms; any blow you land puts their next
+reach off a moment. Stay, and you are
 held up, helpless, then thrown far behind them into the crowd, and the fall hurts and stuns you.
 Back on your feet after any stun you have a second and a half before another stun or a grab can
 take you, so get clear while it lasts. If a teammate is caught, shoot whatever holds them: enough

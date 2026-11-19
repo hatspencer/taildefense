@@ -256,6 +256,9 @@ func (ws *WeaponState) Stats(k WeaponKind) Stats {
 		s.Damage *= 1 + masteryHit*m*m
 		s.Stun += masteryStun * m
 	}
+	if Weapons[k].Fire == FireMelee {
+		s.Crit, s.CritMul = ws.crit(k)
+	}
 	return s
 }
 
@@ -272,6 +275,7 @@ type Stats struct {
 	Shove                                            float32 // how far each pellet pushes, before the creep's size
 	Bleed                                            float32 // a katana: the blood loss each cut builds (legend.go)
 	Mastery                                          float32 // a legendary blade: how far it has been taken, 0..masteryMax (legend.go)
+	Crit, CritMul                                    float32 // melee: the chance a hit is critical and its damage then (crit.go)
 	Mag                                              int16
 	Pellets, Pierce                                  int
 	Hits                                             int // melee: creeps one swing goes through

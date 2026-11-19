@@ -576,6 +576,21 @@ export class Effects {
         this.decals.add(t + 0.3, x, 0.068, y, 0, 0, 0, 20, 0x5a0610, 0.5, 0.9, 0, 1, 0.8);
         return;
       }
+      case BlastKind.Crit: {
+        // A critical hit: a hot white-gold flash on the creep, a cross of sparks through it
+        // and a burst of embers.
+        const h = 0.6 + r * 0.5;
+        this.glow.add(t, x, h, y, 0, 0, 0, 0.14, 0xfff4c0, r * 1.6, r * 0.6, 0, 1, 1, 1.6);
+        for (let j = 0; j < 2; j++) {
+          const a = Math.random() * 3.14, c = Math.cos(a) * (0.8 + r * 0.6), s = Math.sin(a) * (0.8 + r * 0.6);
+          this.streaks.add(t, x - c, h + 0.2 - j * 0.4, y - s, x + c, h - 0.2 + j * 0.4, y + s, 0.16, 0xffe080, 0.1, 0, 0, 0.5, 1, 1.8);
+        }
+        for (let j = 0; j < 8; j++) {
+          const a = Math.random() * 6.28, sp = 2 + Math.random() * 3;
+          this.glow.add(t, x, h, y, Math.cos(a) * sp, 1 + Math.random() * 3, Math.sin(a) * sp, 0.3 + Math.random() * 0.2, 0xffc040, 0.14, 0.04, 8, 1, 1, 1.4);
+        }
+        return;
+      }
       case BlastKind.Skyfall: {
         // Skyfall coming down: a white flash, a shockwave rolling out past the reach, rock
         // thrown up, dust after it, and a crater.

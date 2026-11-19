@@ -419,7 +419,8 @@ u16  nBlasts          explosions and pulses this tick
                       down on the helipad, 14 a flame vent bursting, 15 the generator's Overload
                       (at the generator, r its reach), 16 a napalm missile bursting (the
                       ground burns a moment where it lands), 17 a creep's blood loss bursting,
-                      18 Skyfall landing (r its reach)
+                      18 Skyfall landing (r its reach), 19 a melee hit landing critical (on the
+                      creep, r its radius)
 u16  nDeaths          creeps that died this tick
   u16  x, y q8
   u8   kind
