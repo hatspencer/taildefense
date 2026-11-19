@@ -393,6 +393,7 @@ u16  nCreeps
                       16 going for a structure (a turret or wall caught its eye),
                       32 asleep (a guard resting at its site),
                       64 winding up a blow (it lands in the creep kind's windup seconds or less),
+                      on a burster its fuse lit (it blows up, blast kind 0, when it lands),
                       128 striking (the blow lands this tick)
   u8   target         for flag 8: the hunted survivor's player id; else, while attacking a
                       structure, 128 + the angle to it in 127ths of a turn (0 = +x, towards +y);

@@ -93,6 +93,7 @@ const (
 	CHound   // a dead dog: in packs, faster than a survivor, leaps to bite
 	CMauler  // a brute that charges, slams to stun and throws whoever it catches
 	CGoliath // the third boss: charges, slams to stun longest and throws whoever it catches furthest
+	CBurster // a sprinter wired with a charge: it runs a survivor down, lights its fuse and blows up
 	NumCreepKinds
 )
 
@@ -130,6 +131,7 @@ var Creeps = [NumCreepKinds]CreepDef{
 	CHound:   {Name: "hound", HP: 20, Speed: 5, Damage: 4.5, Rate: 2, Radius: .38, Reach: 1.1, Bounty: 2, Cost: .8, Size: 1, MinWave: 5, Aggro: 13, Windup: .22, Sprint: .5},
 	CMauler:  {Name: "mauler", HP: 420, Speed: 2.6, Damage: 38, Rate: .8, Radius: 1, Reach: .7, Armor: 5, Bounty: 30, Cost: 10, Size: 2, MinWave: 12, Aggro: 7, Windup: .5, Sprint: 1},
 	CGoliath: {Name: "goliath", HP: 3600, Speed: 1.7, Damage: 95, Rate: .7, Radius: 1.5, Reach: .9, Armor: 9, Bounty: 300, Cost: 60, Size: 3, MinWave: 10, Aggro: 10, Windup: .6, Sprint: 1},
+	CBurster: {Name: "burster", HP: 30, Speed: 3.4, Damage: 45, Rate: 1, Radius: .42, Reach: .45, Bounty: 5, Cost: 1.6, Size: 1, MinWave: 7, Aggro: 12, Windup: burstFuse, Sprint: 1},
 }
 
 // HPScale is how much tougher creeps are on wave w.
