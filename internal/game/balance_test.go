@@ -337,12 +337,14 @@ type piece struct {
 }
 
 // laneWave is laneN creeps sampled evenly from wave's plan, bosses left out (they have their
-// own table): the wave's mix, at the bench's size.
+// own table): the wave's mix, at the bench's size. Bursters are left out too: they come on top
+// of the wave, and the lane moves its creeps itself, so one would only be a runner that never
+// lights its fuse.
 func laneWave(wave int) []CreepKind {
 	w := New(3)
 	var all []CreepKind
 	for _, s := range w.plan(wave, 1) {
-		if !s.Kind.Boss() {
+		if !s.Kind.Boss() && s.Kind != CBurster {
 			all = append(all, s.Kind)
 		}
 	}

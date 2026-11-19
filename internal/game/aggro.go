@@ -39,8 +39,8 @@ func ReviveInfo() (reach, time, hp float32) { return reviveReach, reviveTime, re
 // thinks (every two seconds or so), to go for a structure or a survivor on its own. A hurler
 // never sieges: from its reach it would outrange the turrets.
 var (
-	siegeChance = [NumCreepKinds]float32{CWalker: .08, CRunner: .04, CSwarmer: .03, CBrute: .3, CSpitter: .2, CBoss: .25, CMother: .2, CHound: .02, CMauler: .25, CGoliath: .2}
-	huntChance  = [NumCreepKinds]float32{CWalker: .05, CRunner: .12, CSwarmer: .06, CBrute: .03, CSpitter: .05, CBoss: .05, CHurler: .1, CMother: .08, CHound: .15, CMauler: .06, CGoliath: .06}
+	siegeChance = [NumCreepKinds]float32{CWalker: .08, CRunner: .04, CSwarmer: .03, CBrute: .3, CSpitter: .2, CBoss: .25, CMother: .2, CHound: .02, CMauler: .25, CGoliath: .2, CBurster: .02}
+	huntChance  = [NumCreepKinds]float32{CWalker: .05, CRunner: .12, CSwarmer: .06, CBrute: .03, CSpitter: .05, CBoss: .05, CHurler: .1, CMother: .08, CHound: .15, CMauler: .06, CGoliath: .06, CBurster: .2}
 )
 
 // Taunt pulls every creep within reach onto the player, sleeping guards too.
