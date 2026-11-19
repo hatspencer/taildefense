@@ -98,7 +98,10 @@ func TestAMasteredBladeBreaksAGrab(t *testing.T) {
 	w, p, c := masteryRig(t, WKatana, fullBlade(true))
 	q := mustJoin(t, w, "bo")
 	q.X, q.Y = c.X+1.4, c.Y
-	if !w.creepGrab(c, &Creeps[CMauler], q) || !q.held {
+	for i := 0; i < TickRate && !q.held; i++ {
+		w.creepGrab(c, &Creeps[CMauler], q)
+	}
+	if !q.held {
 		t.Fatal("the mauler did not grab")
 	}
 	w.swingLegend(p, w.playerStats(p), 0, false)
@@ -148,5 +151,26 @@ func TestAMasteredBladeGuards(t *testing.T) {
 	w.hurtPlayer(p, 100)
 	if got, want := 1000-p.HP, float32(100*(1-masteryGuard)); math.Abs(float64(got-want)) > .01 {
 		t.Errorf("took %.1f of 100, want %.1f", got, want)
+	}
+}
+
+// A mastered blade in hand gets its wielder up sooner from a slam, and drawing Flash Draw
+// nothing stuns or grabs them.
+func TestAMasteredBladeKeepsItsFooting(t *testing.T) {
+	for _, ws := range []WeaponState{{Owned: true}, fullBlade(false)} {
+		w := newBare(17)
+		p := mustJoin(t, w, "ana")
+		p.Weapons[WKatana] = ws
+		p.Cur = WKatana
+		p.stun(3)
+		if want := 3 * (1 - masteryFoot*ws.Mastery(WKatana)); math.Abs(float64(p.stunLeft-want)) > 1e-4 {
+			t.Errorf("mastery %.2f: stunned %.2fs, want %.2fs", ws.Mastery(WKatana), p.stunLeft, want)
+		}
+	}
+	w := newBare(17)
+	p := mustJoin(t, w, "ana")
+	p.Art = ArtFlash
+	if p.stun(1); p.stunLeft > 0 {
+		t.Error("stunned drawing Flash Draw")
 	}
 }

@@ -2,9 +2,10 @@ package game
 
 import "math"
 
-// The grab: a mauler or a goliath that gets its hands on a survivor, close enough to reach
-// them, picks them up, holds them overhead a moment and hurls them away behind it, back the
-// way it came and into whatever follows it. Whoever is caught can do nothing; the team can,
+// The grab: a mauler or a goliath that gets close enough to a survivor stops and reaches for
+// them, arms out (lunge seconds, the dodge: a step back out of reach and its hands close on
+// nothing), and if it gets its hands on them picks them up, holds them overhead a moment and
+// hurls them away behind it, back the way it came and into whatever follows it. Whoever is caught can do nothing; the team can,
 // as enough damage on the creep while it holds them makes it let go. The throw ends in a fall
 // that hurts and stuns, or sooner against a wall, which hurts the same. Both are faster than
 // the brute and the abomination, and charge (sprint.go) to close in, so keeping clear of them
@@ -13,6 +14,8 @@ import "math"
 // grabDef is a kind's grab.
 type grabDef struct {
 	reach float32 // tiles past its radius and the survivor's that it reaches to grab
+	lunge float32 // seconds it reaches, arms out, before its hands close
+	miss  float32 // seconds after its hands close on nothing before it can reach again
 	hold  float32 // seconds it holds them up before the throw
 	throw float32 // tiles thrown
 	hurt  float32 // the fall
@@ -23,8 +26,8 @@ type grabDef struct {
 
 // grabs is indexed by creep kind; a zero reach is a kind that does not grab.
 var grabs = [NumCreepKinds]grabDef{
-	CMauler:  {reach: .6, hold: .9, throw: 7, hurt: 35, stun: 1.2, every: 6, free: .12},
-	CGoliath: {reach: .8, hold: 1.1, throw: 10, hurt: 55, stun: 1.8, every: 5, free: .06},
+	CMauler:  {reach: .6, lunge: .4, miss: 1.5, hold: .9, throw: 7, hurt: 35, stun: 1.2, every: 6, free: .12},
+	CGoliath: {reach: .8, lunge: .5, miss: 1.2, hold: 1.1, throw: 10, hurt: 55, stun: 1.8, every: 5, free: .06},
 }
 
 // throwFlight is the seconds a thrown survivor is in the air, whatever the distance; the
@@ -60,28 +63,55 @@ func (w *World) creepGrab(c *Creep, d *CreepDef, tp *Player) bool {
 		p.flyHurt, p.flyStun = gd.hurt, gd.stun
 		return true
 	}
+	if c.lunge > 0 {
+		// Reaching, arms out; then its hands close on whoever is still in reach.
+		c.Swing = SwingWindup
+		if c.lunge -= Dt; c.lunge > 0 {
+			return true
+		}
+		if i := int(c.lungeAt) - 1; i < len(w.Players) && w.grabbable(c, d, w.Players[i]) {
+			w.grabHold(c, d, w.Players[i])
+		} else {
+			c.grab = gd.miss
+		}
+		return true
+	}
 	if c.grab > 0 {
 		c.grab -= Dt
-		return false
-	}
-	if tp == nil || tp.held || tp.fly > 0 || tp.Shield > 0 || tp.unstoppable() {
 		return false
 	}
 	// Not in the middle of a slam.
 	if sd := &slams[c.Kind]; sd.radius > 0 && c.slam > sd.every-sd.windup {
 		return false
 	}
-	dx, dy := tp.X-c.X, tp.Y-c.Y
-	if r := d.Radius + PlayerRadius + gd.reach; dx*dx+dy*dy > r*r {
+	if !w.grabbable(c, d, tp) {
 		return false
 	}
-	c.grip, c.hold, c.gripHP = tp.ID+1, gd.hold, c.HP
-	c.Face = float32(math.Atan2(float64(dy), float64(dx)))
+	c.lunge, c.lungeAt = gd.lunge, tp.ID+1
+	c.Face = float32(math.Atan2(float64(tp.Y-c.Y), float64(tp.X-c.X)))
+	c.Swing = SwingWindup
+	return true
+}
+
+// grabbable reports whether c can get its hands on tp: in its reach, on their feet, and
+// neither shielded, unstoppable nor just back up from a stun.
+func (w *World) grabbable(c *Creep, d *CreepDef, tp *Player) bool {
+	if tp == nil || !tp.Alive || tp.held || tp.fly > 0 || tp.Shield > 0 || tp.unstoppable() || tp.steady > 0 {
+		return false
+	}
+	dx, dy := tp.X-c.X, tp.Y-c.Y
+	r := d.Radius + PlayerRadius + grabs[c.Kind].reach
+	return dx*dx+dy*dy <= r*r
+}
+
+// grabHold has c pick tp up.
+func (w *World) grabHold(c *Creep, d *CreepDef, tp *Player) {
+	c.grip, c.hold, c.gripHP = tp.ID+1, grabs[c.Kind].hold, c.HP
+	c.Face = float32(math.Atan2(float64(tp.Y-c.Y), float64(tp.X-c.X)))
 	c.Swing = SwingWindup
 	tp.held, tp.holder = true, c.ID
 	tp.walk.reset()
 	w.note(2, "a %s has %s  ·  shoot it to make it let go", d.Name, tp.Name)
-	return true
 }
 
 // stepHeld runs a survivor in a creep's hands or thrown through the air for one tick. One

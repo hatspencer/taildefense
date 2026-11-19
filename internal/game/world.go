@@ -62,10 +62,13 @@ type Creep struct {
 	jam float32
 	// A mauler or a goliath (grab.go): the survivor in its hands, their id + 1, 0 none; the
 	// seconds it holds them before the throw; its health when it grabbed them; and the
-	// seconds until it can grab again.
+	// seconds until it can grab again; reaching for one, the seconds before its hands close
+	// and the survivor reached for, their id + 1.
 	grip         uint8
 	hold, gripHP float32
 	grab         float32
+	lunge        float32
+	lungeAt      uint8
 	// Patience with a maze (maze.go): the ground walked inside the build ring, how much it will
 	// walk before it frenzies (0 until it first comes in), and whether it has.
 	trek, trekMax float32
@@ -147,6 +150,7 @@ type Player struct {
 	// A slow (stun.go): seconds the survivor walks at half speed for, and until another can land.
 	slowLeft, slowCool float32
 	stunLeft           float32 // seconds a slam keeps the survivor stopped
+	steady             float32 // seconds left on their feet again after a stun: no stun or grab lands
 	// Caught by a mauler or a goliath (grab.go): held in the hands of the creep holder, or
 	// thrown, fly seconds from landing at flyX, flyY tiles a second, to take flyHurt and be
 	// stunned flyStun seconds where they come down.

@@ -39,13 +39,20 @@ func (p *Player) slow(t float32) {
 }
 
 // A slam stuns a survivor (slam.go): they stand where it threw them, neither moving nor
-// firing, their order waiting for them. A second slam while stunned stuns them no longer.
+// firing, their order waiting for them. Back on their feet, they have steadyFor seconds
+// before another stun or a grab can take them, so a crowd of maulers can't keep one down from
+// stun to stun; a mastered blade in hand gets them up sooner (masteryFoot).
 
-// stun stops survivor p for t seconds, unless they are stopped for longer already.
+// steadyFor is the seconds after a stun ends before another can land.
+const steadyFor = 1.5
+
+// stun stops survivor p for t seconds, unless they are stopped already or only just got up.
 func (p *Player) stun(t float32) {
-	if p.Alive && p.Shield <= 0 && !p.unstoppable() {
-		p.stunLeft = max(p.stunLeft, t)
+	if !p.Alive || p.Shield > 0 || p.unstoppable() || p.stunLeft > 0 || p.steady > 0 {
+		return
 	}
+	p.stunLeft = t * (1 - masteryFoot*min(p.mastery(), 1))
+	p.steady = p.stunLeft + steadyFor
 }
 
 // Stunned reports whether survivor p is stopped: by a slam or a fall, or held or thrown by a
@@ -66,6 +73,9 @@ func (p *Player) tickSlow() {
 	}
 	if p.stunLeft > 0 {
 		p.stunLeft -= Dt
+	}
+	if p.steady > 0 {
+		p.steady -= Dt
 	}
 }
 

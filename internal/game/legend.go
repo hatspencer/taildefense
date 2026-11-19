@@ -159,12 +159,13 @@ const (
 	masteryMax  = float32(masteryFull+masteryDual) / float32(masteryFull)
 	// What it does at 1: the share more damage (by its square, so mostly near the top); the
 	// times a hit's stun it adds; the share of the stun gap it takes away; the share of each
-	// blow on its wielder it takes; the share of the art's cooldown it takes, and the least
-	// share of it left.
+	// blow on its wielder it takes; the share of a stun on its wielder it takes; the share of
+	// the art's cooldown it takes, and the least share of it left.
 	masteryHit     = .6
 	masteryStun    = 6
 	masteryGap     = .8
 	masteryGuard   = .35
+	masteryFoot    = .6
 	masteryCool    = .88
 	masteryCoolMin = .1
 	// breakStun is the seconds of a mastered blade's stun on a creep that stop its slam winding
@@ -204,10 +205,10 @@ const (
 	BlastSkyfall = 18
 )
 
-// unstoppable reports whether nothing slows, stuns or grabs p: Berserk, Titan's Wrath, or in
-// the air in a Skyfall.
+// unstoppable reports whether nothing slows, stuns or grabs p: Berserk, Titan's Wrath, in the
+// air in a Skyfall, or drawing a Flash Draw (the katana's way out of a ring or a reach).
 func (p *Player) unstoppable() bool {
-	return p.ulting(WCrowbar) || p.ulting(WGreat) || p.Art == ArtSkyfall
+	return p.ulting(WCrowbar) || p.ulting(WGreat) || p.Art == ArtSkyfall || p.Art == ArtFlash
 }
 
 // evo is the evolution of the legendary k p carries, 0 for none.
@@ -264,6 +265,9 @@ func (w *World) breakHold(i int32) {
 	if c.grip > 0 {
 		c.grip, c.grab = 0, grabs[c.Kind].every
 		w.note(1, "the %s is stunned and lets go", Creeps[c.Kind].Name)
+	}
+	if c.lunge > 0 {
+		c.lunge, c.grab = 0, grabs[c.Kind].miss
 	}
 }
 

@@ -109,7 +109,7 @@ func TestSlamsStunSurvivorsTheBossLongest(t *testing.T) {
 	p.MaxHP = 1000
 	// stopped is how many ticks a survivor holding a key stands still after a slam of kind k.
 	stopped := func(k CreepKind) int {
-		p.X, p.Y, p.HP, p.stunLeft = w.CoreX+.5, w.CoreY+6, p.MaxHP, 0
+		p.X, p.Y, p.HP, p.stunLeft, p.steady = w.CoreX+.5, w.CoreY+6, p.MaxHP, 0, 0
 		w.slamLands(&Effect{Kind: EffSlam, X: p.X - 1, Y: p.Y, R: slams[k].radius, Damage: slams[k].hurt, Lv: uint8(k)})
 		if p.HP > p.MaxHP-slams[k].hurt*.5 {
 			t.Fatalf("%v's slam hurt only %.0f", k, p.MaxHP-p.HP)
