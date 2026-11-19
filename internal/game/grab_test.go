@@ -64,6 +64,58 @@ func TestShootingTheGrabberFreesTheSurvivor(t *testing.T) {
 	}
 }
 
+// A mauler reaching for a survivor stands, arms out, a moment before its hands close: one who
+// steps back out of reach in that moment is not caught, and it waits before it reaches again.
+func TestAStepBackDodgesTheGrab(t *testing.T) {
+	w := newBare(4)
+	p := mustJoin(t, w, "ana")
+	x, y := openRow(w, 14)
+	if x == 0 || !w.SpawnCreep(CMauler, x+11, y) {
+		t.Fatal("no ground or no creep")
+	}
+	c, d := &w.Creeps[0], &Creeps[CMauler]
+	p.X, p.Y = c.X+d.Radius+PlayerRadius+.3, y
+	if !w.creepGrab(c, d, p) || p.held || c.lunge <= 0 {
+		t.Fatalf("did not reach first: held %v lunge %.2f", p.held, c.lunge)
+	}
+	p.X += 2
+	for i := 0; i < TickRate && c.lunge > 0; i++ {
+		w.creepGrab(c, d, p)
+	}
+	if p.held || c.grab <= 0 {
+		t.Fatalf("held %v, may reach again in %.2fs", p.held, c.grab)
+	}
+}
+
+// Back on their feet from a stun, a survivor has a moment before another stun or a grab can
+// take them, so a crowd of maulers can't chain them down.
+func TestNoStunLandsOnASurvivorJustUp(t *testing.T) {
+	w := newBare(4)
+	p := mustJoin(t, w, "ana")
+	p.stun(1)
+	for i := 0; i < TickRate && p.stunLeft > 0; i++ {
+		p.tickSlow()
+	}
+	if p.stun(1); p.stunLeft > 0 {
+		t.Fatal("stunned again the moment they were up")
+	}
+	x, y := openRow(w, 14)
+	if x == 0 || !w.SpawnCreep(CMauler, x+11, y) {
+		t.Fatal("no ground or no creep")
+	}
+	c, d := &w.Creeps[0], &Creeps[CMauler]
+	p.X, p.Y = c.X+d.Radius+PlayerRadius+.3, y
+	if w.creepGrab(c, d, p) {
+		t.Fatal("reached for a survivor just up")
+	}
+	for i := 0; i < 2*TickRate*steadyFor && p.steady > 0; i++ {
+		p.tickSlow()
+	}
+	if p.stun(1); p.stunLeft <= 0 {
+		t.Fatal("never stunned again")
+	}
+}
+
 // A hound chasing a survivor outruns one walking, even in the best boots, but not one
 // sprinting, unless it is in a burst.
 func TestHoundsOutrunAWalkingSurvivor(t *testing.T) {

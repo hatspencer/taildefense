@@ -117,8 +117,8 @@ it here along with the code.
   armour 9, faster on the march than the other two (1.7 to their 1), and every one of them
   charges: in bursts it runs down even a sprinting survivor, like a sprinter. It slams (9.5
   tiles, 120 at the middle) and its slam stuns longest of anything, 4.2 s. Whoever gets within
-  arm's reach is caught: held up for 1.1 s, then thrown 10 tiles behind it, back the way it came
-  and into whatever follows it, and the fall takes 55 and stuns 1.8 s. A throw that meets a wall
+  arm's reach is caught, unless they step back while it reaches (0.5 s): held up for 1.1 s,
+  then thrown 10 tiles behind it, back the way it came and into whatever follows it, and the fall takes 55 and stuns 1.8 s. A throw that meets a wall
   ends there, hurting the same. The team can break the hold: 6% of its health shot off it while
   it holds someone makes it let go. It grabs again 5 s after a throw. The goliath exists
   because the other bosses can be kited: the abomination is slow and the broodmother keeps her
@@ -777,10 +777,20 @@ melee a way to play, and give the far sites something only they hold (`internal/
   tenth of it the least: Flash Draw 0.7 s, Skyfall 1.1 s). A stun of 0.5 s or more from a
   mastered blade stops a slam winding up and makes a grab let go: a mauler from 0.4 mastery
   with a katana (a level or two with the greatsword, whose stagger is long already), a goliath
-  only from a full katana or greatsword. Flash Draw and Skyfall stun by the same six times more,
+  only from a full katana or greatsword. It also takes 60% off a stun on its wielder at 1.
+  Flash Draw and Skyfall stun by the same six times more,
   and Skyfall lands 1.4 tiles wider at 1. The reward is for
   the survivor who walked to the shrines and put the gold in, and late, when those two come.
   Turrets and guns get none of it, so the base still needs its towers.
+- **A grab can be dodged, and stuns don't chain.** A melee fighter stands in arm's reach by
+  trade, and the grab used to close the instant one was in it, with nothing to see, and with a
+  few maulers about one slam or throw ran into the next until they were dead. Now a mauler or a
+  goliath stops and reaches first (0.4 s and 0.5 s, the creep's windup pose), and its hands
+  close only on whoever is still in reach; a miss leaves it 1.5 s (1.2 s) before it reaches
+  again, and a mastered blade's breaking stun cancels the reach. A survivor back up from any
+  stun has 1.5 s before another stun or a grab lands (still hurt by what hits them), the time
+  to get out of the crowd. Flash Draw is unstoppable while drawn, as Skyfall is in the air,
+  so with its short cooldown at mastery it is the katana's way out of a ring.
 - **The greatsword's shockwave.** Slow swings left a crowd time to close in, so every swing shakes
   the ground where it lands, 2.2 tiles round for 30% of the swing with a stun and a push, growing
   with mastery to 5 tiles, 70%, a far longer stun and a hard push; the follow-through's quake
