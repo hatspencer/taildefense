@@ -740,6 +740,8 @@ function creepVoice(b: Buf, r: R, at: number, kind: number, scale = 1): void {
     case 9: v(jit(r, 1, 0.15), jit(r, 75, 0.08), 58, V.aa, V.uh, 0.8, 0.1, 1.1, 0, 3.2); break;
     // The goliath the deepest throat there is, slow and rolling.
     case 10: v(jit(r, 1.8, 0.1), jit(r, 36, 0.06), 30, V.oh, V.uh, 0.9, 0.12, 1.25, 7, 3.6); break;
+    // The burster a runner's shriek gone shrill and wheezing, rising as it comes.
+    case 11: v(jit(r, 0.45, 0.2), jit(r, 360, 0.12), 470, V.aa, V.ee, 0.7, 0.14, 0.75, 18, 2.4); break;
     default: v(jit(r, 1.2, 0.2), jit(r, 92, 0.12), 72, r() < 0.5 ? V.uh : V.er, V.aa, 0.38, 0.07, 0.9); break;
   }
 }
@@ -1408,6 +1410,17 @@ function heart(sr: number, r: R): Buf {
 
 // A big one drawing itself up to strike: a breath in, rising into a growl. The ear's warning
 // of what is about to land, at night before the eye's.
+// A burster's fuse lit: a sharp click, then the sputtering hiss of the fuse running down, an
+// electronic beep quickening over it.
+function burstFuse(sr: number, r: R): Buf {
+  const b = new Buf(sr, 0.55);
+  click(b, r, 0, 2600, 0.6, 0.003, 1400);
+  hiss(b, r, 0.02, 0.48, 0.5);
+  for (let i = 0; i < 12; i++) click(b, r, 0.03 + r() * 0.45, 3000 + r() * 2500, 0.25, 0.0015);
+  for (const t of [0.04, 0.2, 0.31, 0.38, 0.43]) ping(b, t, [2200, 4400], 0.03, 0.35);
+  return b.normalize(0.85).fadeOut(0.02);
+}
+
 function windup(sr: number, r: R): Buf {
   const b = new Buf(sr, 0.6);
   whoosh(b, r, 0, 0.35, 500, 1400, 0.4, 1.5);
@@ -2183,6 +2196,7 @@ export const RECIPES: Record<string, [number, Maker, number?]> = {
   ultReady: [1, ultReady],
   heart: [1, heart, LOW],
   windup: [4, windup, LOW],
+  burstFuse: [3, burstFuse],
 };
 // Every gun's tail, <name>Tail: its report, echoes and mechanism without the shot, what a
 // recording of the shot is layered over (samples.ts).
@@ -2206,7 +2220,7 @@ const TRIM: Record<string, number> = {
   radio_chat: 5, radio_here: 4, radio_danger: 5, radio_loot: 4, radio_defend: 3, radio_good: 4, radio_bad: 4, radio_error: 4, beep: 3,
 };
 for (const k of ['chat', 'here', 'danger', 'loot', 'defend', 'good', 'bad', 'error']) RECIPES['radio_' + k] = [1, (sr, r) => radio(sr, r, k)];
-for (let k = 0; k < 11; k++) {
+for (let k = 0; k < 12; k++) {
   RECIPES['groan' + k] = [k === 5 || k === 7 || k === 10 ? 3 : 4, (sr, r) => { const b = new Buf(sr, 2.2); creepVoice(b, r, 0, k); return b.normalize(0.8).fadeOut(); }, LOW];
   RECIPES['death' + k] = [BIG.has(k) ? 2 : 4, (sr, r) => creepDeath(sr, r, k), BIG.has(k) ? LOW : undefined];
 }

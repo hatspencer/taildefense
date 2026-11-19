@@ -332,6 +332,41 @@ function broodmother(): CreepRig {
   }, { stride: 1.6, bob: 0.07, drop: 0.2, turn: 2.2, flinch: 0.15 });
 }
 
+// A runner wired with a charge: a vest of taped bricks strapped round its chest, wires looped
+// up to a detonator in its fist, a red light on the front. It runs bent low; lit, it stands up
+// straight, arms flung wide, and throws its head back.
+function burster(): CreepRig {
+  const p: RigPart[] = [];
+  const VEST = 0x3a4030, BRICK = 0x6a6a4a, TAPE = 0x8a8478, WIRE = 0xb8281c, LIGHT = 0xff3010, DET = 0x1e1e20;
+  legs(p, 0.56, 0.29, 0.1, 0.14, 0.12);
+  p.push(rp(-1, B(0.25, 0.13, 0.32, PANTS, 0, 0.57)));
+  p.push(rp(J.CHEST, B(0.24, 0.36, 0.36, SHIRT, 0, 0.82)));
+  p.push(rp(J.CHEST, B(0.22, 0.1, 0.44, SHIRT, 0, 0.99)));
+  // The vest: a band of bricks front and back, taped round, wires over the shoulder.
+  p.push(rp(J.CHEST, B(0.3, 0.26, 0.42, VEST, 0, 0.8)));
+  for (const z of [-0.13, 0, 0.13]) {
+    p.push(rp(J.CHEST, B(0.06, 0.18, 0.11, BRICK, 0.16, 0.8, z)));
+    p.push(rp(J.CHEST, B(0.06, 0.18, 0.11, BRICK, -0.16, 0.8, z)));
+  }
+  p.push(rp(J.CHEST, B(0.33, 0.04, 0.45, TAPE, 0, 0.84)));
+  p.push(rp(J.CHEST, B(0.04, 0.05, 0.05, LIGHT, 0.2, 0.92, 0.05)));
+  p.push(rp(J.CHEST, B(0.03, 0.26, 0.03, WIRE, 0.12, 0.98, 0.17, 0.4, 0, 0)));
+  p.push(rp(J.CHEST, B(0.03, 0.03, 0.2, WIRE, 0.17, 0.7, 0.12)));
+  head(p, J.HEAD, 0.02, 1.06, 0.95);
+  arms(p, 1.0, 0.77, 0.26, 0.11, 0.09, SHIRT);
+  // The detonator in its right fist.
+  p.push(rp(J.FARM_R, B(0.08, 0.12, 0.06, DET, 0.04, 0.43, -0.26)));
+  p.push(rp(J.FARM_R, B(0.03, 0.03, 0.03, LIGHT, 0.04, 0.5, -0.26)));
+  return rig(p, {
+    [J.CHEST]: { p: [0, 0.6, 0], walk: [0, 0, 0.06, -0.55], flex: [0, 0, 0.22, 0.02], wind: [0.3, 0, 0, 0], strike: [0.5, 0, 0, 0], die: [-0.4, 0, 0.3, 0], misc: [0.4, 0.3, 0, 0] },
+    [J.HEAD]: { p: [0.02, 1.07, 0], walk: [0.05, 0, 0.05, 0.4], flex: [0, 0, 0, 0.06], wind: [0.6, 0, 0, 0], strike: [0.3, 0, 0, 0], die: [-0.6, -0.3, 0, 0], misc: [0.5, 0.3, 0, 0] },
+    [J.UARM_L]: { p: [0, 1.0, 0.26], walk: [0.6, Math.PI, 0, -0.7], wind: [0.2, -1.4, 0, 0], strike: [0.2, -1.6, 0, 0], die: [-0.6, -0.4, 0, 0], misc: [-0.3, 1.6, 1, 1] },
+    [J.FARM_L]: { p: [0, 0.77, 0.26], walk: [0.3, Math.PI + 0.6, 0, 1.0], wind: [0.2, 0, 0, 0], strike: [0.1, 0, 0, 0], die: [-0.8, 0, 0, 0], misc: [0, 1, 1, 1] },
+    [J.THIGH_L]: { p: [0, 0.56, 0.1], walk: [0.8, 0, 0, 0.05], wind: [0.1, 0, 0, 0], strike: [0, 0, 0, 0], die: [1.3, 0, 0, 0], misc: [0, 0.6, 1, 2] },
+    [J.SHIN_L]: { p: [0, 0.29, 0.1], walk: [0, 0, 0, -0.1], flex: [-1.5, Math.PI / 2, 0, 0], wind: [-0.2, 0, 0, 0], strike: [0, 0, 0, 0], die: [-2.0, 0, 0, 0], misc: [0, 0.4, 1, 2] },
+  }, { stride: 1.6, bob: 0.08, drop: 0.24, turn: 12, flinch: 1.1 });
+}
+
 // A dead dog, mangy and gaunt, ribs through the hide, the lips gone from its teeth; it runs
 // flat out in a gallop, crouches, and leaps at the throat.
 function hound(): CreepRig {
@@ -475,6 +510,7 @@ export function creepRig(kind: number, name: string): CreepRig {
   if (name === 'goliath') return goliath();
   if (name === 'mauler') return mauler();
   if (name === 'hound') return hound();
+  if (name === 'burster') return burster();
   switch (kind) {
     case 1: return runner();
     case 2: return swarmer();

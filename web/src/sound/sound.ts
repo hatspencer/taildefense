@@ -42,6 +42,8 @@ const CROWD0 = 6, CROWD1 = 30;
 // Creep kinds that throw rather than strike: their blows are tracers.
 const THROWS = new Set([4, 6]);
 const BIG = new Set([3, 5, 7, 9, 10]);
+// The burster, whose fuse is heard lighting.
+const BURSTER = 11;
 // A tick, in seconds, set from the welcome's tick rate on every frame: the events of one frame
 // are spread over it so fast fire is a stream, not a burst every tick.
 let TICK = 0.05;
@@ -492,6 +494,12 @@ export class Sound {
     for (let i = 0; i < f.nCreeps; i++) {
       const id = f.cId[i], wind = f.cFlags[i] & CF_WINDUP ? 1 : 0, was = this.cWind[id];
       this.cWind[id] = wind;
+      if (wind && !was && f.cKind[i] === BURSTER) {
+        // A burster lighting its fuse is heard every time: it is the warning to run.
+        const p = this.place(f.cX[i], f.cY[i], 0.9);
+        if (p) this.synth.play('burstFuse', p, t0);
+        continue;
+      }
       if (!wind || was || !BIG.has(f.cKind[i])) continue;
       const d = Math.hypot(f.cX[i] - this.lx, f.cY[i] - this.ly);
       if (d < hear && d < bd) { bd = d; best = i; }

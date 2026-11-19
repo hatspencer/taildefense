@@ -259,7 +259,7 @@ func cost(k CreepKind, wave int) float32 {
 }
 
 // groupSize is the range of a group's size per kind.
-var groupSize = [NumCreepKinds][2]int{CWalker: {4, 12}, CRunner: {3, 8}, CSwarmer: {12, 30}, CBrute: {1, 2}, CSpitter: {2, 4}, CBoss: {1, 1}, CHurler: {1, 3}, CMother: {1, 1}, CHound: {4, 8}, CMauler: {1, 1}, CGoliath: {1, 1}}
+var groupSize = [NumCreepKinds][2]int{CWalker: {4, 12}, CRunner: {3, 8}, CSwarmer: {12, 30}, CBrute: {1, 2}, CSpitter: {2, 4}, CBoss: {1, 1}, CHurler: {1, 3}, CMother: {1, 1}, CHound: {4, 8}, CMauler: {1, 1}, CGoliath: {1, 1}, CBurster: {2, 5}}
 
 // plan lays out every spawn of a wave: groups of one kind at one place on one of the wave's
 // fronts, spread over the wave's opening seconds.
@@ -333,6 +333,11 @@ func (w *World) plan(wave, players int) []Spawn {
 			}
 		}
 	}
+	// The bursters come on top, drawn last, so the rest of the wave is what it was without them.
+	var burst float32
+	if wave >= Creeps[CBurster].MinWave && !swarm {
+		burst = budget * burstShare
+	}
 	for budget > 0 {
 		r := w.rng.Float32() * total
 		k := CWalker
@@ -349,6 +354,14 @@ func (w *World) plan(wave, players int) []Spawn {
 		for j := 0; j < n && budget > 0; j++ {
 			add(k, t, sp, j)
 			budget -= cost(k, wave)
+		}
+	}
+	for lo, hi := groupSize[CBurster][0], groupSize[CBurster][1]; burst > 0; {
+		n := lo + w.rng.IntN(hi-lo+1)
+		sp, t := at(), w.rng.Float32()*dur
+		for j := 0; j < n && burst > 0; j++ {
+			add(CBurster, t, sp, j)
+			burst -= cost(CBurster, wave)
 		}
 	}
 	sort.Slice(q, func(i, j int) bool { return q[i].At < q[j].At })
@@ -437,7 +450,7 @@ func (w *World) stepCreeps() {
 		// a structure goes for it, and the rest follow the field to the generator.
 		tp := w.creepTarget(c, d)
 		w.rally(c, tp)
-		if w.creepGrab(c, d, tp) || w.bossSlam(c, tp) || w.motherLob(c, tp) {
+		if w.creepGrab(c, d, tp) || w.bossSlam(c, tp) || w.motherLob(c, tp) || w.fuse(c, d, tp) {
 			continue
 		}
 		var mx, my float32
@@ -702,6 +715,10 @@ func (w *World) creepFree(x, y float32) (bool, int) {
 func (w *World) attackStruct(c *Creep, d *CreepDef, si int) {
 	s := &w.Structs[si]
 	if !c.swing(d, s.CX(), s.CY()) {
+		return
+	}
+	if c.Kind == CBurster {
+		w.burst(c, -1)
 		return
 	}
 	if !s.Alive || s.Kind == SArmory {

@@ -180,6 +180,8 @@ export class Creeps {
   // Over a sapper a blinking charge, over a splitter a swollen green pustule: what the wave's
   // affixes made of it.
   private tags: THREE.InstancedMesh;
+  // The burster's kind, which wears a charge whatever its wave's affixes: -1 if the host has none.
+  private burster = -1;
 
   // Per creep id.
   private phase = new Float32Array(MAX_CREEPS);
@@ -245,6 +247,7 @@ export class Creeps {
     this.group.add(this.tags);
     this.nPrev = 0; this.nCorpse = 0; this.headCorpse = 0;
     this.lastT.fill(-1e9);
+    this.burster = defs.findIndex((d) => d.name === 'burster');
     defs.forEach((d, i) => {
       const cap = MAX_CREEPS + CORPSES;
       const r = creepRig(i, d.name);
@@ -404,9 +407,12 @@ export class Creeps {
       fx[o + 20] = 0; fx[o + 21] = 1; fx[o + 22] = 0; fx[o + 23] = 0;
       fx[o + 24] = x; fx[o + 25] = 0; fx[o + 26] = y; fx[o + 27] = this.yaw[id];
       const cx = f.cFx[i];
-      if (cx & (CX_SAPPER | CX_SPLITTER) && nt < MARKS) {
-        const sap = (cx & CX_SAPPER) !== 0, blink = sap ? (Math.sin(sec * 10 + id) > 0 ? 1 : 0.35) : 0.8;
-        writeMatrix(ta, nt * 16, x, km.top + 0.35, y, sec * 2 + id, 1);
+      const lit = kind === this.burster;
+      if ((cx & (CX_SAPPER | CX_SPLITTER) || lit) && nt < MARKS) {
+        // A burster's charge blinks slowly as it runs, and fast and swelling once its fuse is lit.
+        const fuse = lit && fl & (CF_WINDUP | CF_STRIKE);
+        const sap = lit || (cx & CX_SAPPER) !== 0, blink = sap ? (Math.sin(sec * (fuse ? 40 : lit ? 5 : 10) + id) > 0 ? 1 : 0.35) : 0.8;
+        writeMatrix(ta, nt * 16, x, km.top + 0.35, y, sec * 2 + id, fuse ? 1.6 : 1);
         tc[nt * 3] = (sap ? 1 : 0.55) * blink; tc[nt * 3 + 1] = (sap ? 0.25 : 0.9) * blink; tc[nt * 3 + 2] = (sap ? 0.1 : 0.2) * blink;
         nt++;
       }

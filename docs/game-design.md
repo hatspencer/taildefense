@@ -135,6 +135,20 @@ it here along with the code.
   outrun a pack; you turn and shoot it. From wave 5 one wandering pack in six is hounds, and an
   ambush may bring some. They're there to make the open ground between the sites dangerous in
   a way walkers can't: walkers you walk away from.
+- **Bursters** are runners wired with a charge: from wave 7 in groups of two to five, 8% of
+  the wave's budget on top of it (none on the swarm waves), 30 health, every one a sprinter, and they hunt from 12 tiles. One that
+  reaches a survivor stops and lights its fuse: 0.45 s of the charge blinking fast and a hiss,
+  then it blows up where it stands, whoever stayed. The blast does 45 at its heart, half at its
+  edge 2.4 tiles out, slows, and stuns 0.6 s within 1.2 tiles; it takes 90 off every structure
+  in reach but the armory, sets off fuel pumps, and leaves 1.8 tiles of ground burning 4 s at
+  22 a second (more in late waves) to the creeps that cross it, paid to the team like a trap.
+  Shot down first, a burster only falls, for its bounty; blown up, it pays none. It is the
+  sprinter you can't simply outlast: it has to be shot on the way in or dodged once lit, and
+  standing the fuse still is the dodge. A stun holds the fuse, as it holds any blow. The fire
+  is its other side: a survivor who keeps their head drags the pack after it through the flames.
+  They come on top of the wave, drawn after its other groups, so the rest of a wave is what it
+  was before them; the turret bench's lane leaves them out, since it moves its creeps itself
+  and one there would only be a runner.
 - **Affixes make one wave unlike the last.** From wave 4 every wave but the boss waves comes
   with an affix, and from wave 15 with two, never all the last wave's again:
   - *Armoured*: every creep shrugs off 3 more of each hit. The gun turret's small rounds feel it
@@ -496,7 +510,7 @@ the Overload killing every small creep at waves 10 to 30 but no brute.
   Each hit is light but slows the survivor longest of any blow, pinning them for the rest of
   the crowd. They hunt survivors and never siege the base, which their reach would let them
   shell from beyond the turrets.
-- **Sprinters.** Some runners, swarmers, walkers and hounds, and every mauler and goliath, sprint once they have a survivor to chase:
+- **Sprinters.** Some runners, swarmers, walkers and hounds, and every burster, mauler and goliath, sprint once they have a survivor to chase:
   faster than even a sprinting survivor for about three and a half seconds, then four seconds
   at the usual chase. You can't simply run from a pull; you have to outlast it.
 - **The call.** Every tenth wave, partway in, every wanderer left rushes the generator as part of

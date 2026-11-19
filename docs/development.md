@@ -99,7 +99,7 @@ change); `host` the host's tick spacing p99, the frames it dropped for this play
 the deepest the player's queue got of its depth; `page drop` the frames td dropped for a slow
 page (with four waiting it drops the oldest, so the page goes on from the newest). The demo has no link: those lines show `-`.
 `#lab` is the animation bench: every creep kind walking, idle, attacking, hit, burning, asleep
-and dying, beside the survivors' poses; `#lab=0`…`#lab=10` looks at one creep row, `#lab=h` at the
+and dying, beside the survivors' poses; `#lab=0`…`#lab=11` looks at one creep row, `#lab=h` at the
 survivors (`#lab=h0`…`#lab=h17` at one of them), `#lab=legend` at the legendary blades (the
 katana's combo, a pair of katanas, Flash Draw, the greatsword's combo with its follow-through,
 Skyfall, and the evolved blades), `#lab=crowbar` at the crowbar's Home Run (plain and
