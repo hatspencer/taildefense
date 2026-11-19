@@ -117,7 +117,8 @@ first and a great deal at the top, it:
   holding someone lets go. A katana just found can't do this to a mauler; four tenths of the way
   it can, and a full katana or greatsword can to a goliath. The greatsword's stagger breaks a
   mauler's after a level or two;
-- takes up to a third of every blow off you while it is in hand;
+- takes up to a third of every blow off you while it is in hand, and gets you up from a slam or
+  a fall far sooner (up to 60% less stun);
 - brings its art back sooner: a full katana's Flash Draw in under a second, a full greatsword's
   Skyfall in about one;
 - for the greatsword, widens its shockwave to 5 tiles and makes it hit, stun and push far harder,
@@ -128,7 +129,8 @@ other weapon F is still the dash):
 
 - **Flash Draw** (katana): a breath with the blade sheathed, then one drawn cut that carries you
   up to 7 tiles to the cursor, through every creep on the way: triple damage and heavy bleed.
-  6 s to come back, less with mastery.
+  Nothing stuns or grabs you while you draw it, so it is the way out of a slam's ring or a
+  mauler's reach. 6 s to come back, less with mastery.
 - **Skyfall** (greatsword): leap to the cursor, untouchable in the air, and come down on
   everything within 3 tiles, stunning and throwing it back. 9 s to come back, less with mastery.
 - **Home Run** (crowbar): wind the bar back over your shoulder, then one swing with everything
@@ -354,8 +356,11 @@ at where you stand. Keep moving when the ring shows under you; a sac leaves a po
 a few swarmers behind, and every quarter of her life you shoot away spills a brood of them.
 
 Maulers and the goliath, the third boss, charge, and their slams stun longest. Worse, get within
-arm's reach and they catch you: held up, helpless, then thrown far behind them into the crowd,
-and the fall hurts and stuns you. If a teammate is caught, shoot whatever holds them: enough
+arm's reach and they reach for you: they stop and put their arms out for a moment (under half a
+second) first. Step back out of reach then and their hands close on nothing; stay, and you are
+held up, helpless, then thrown far behind them into the crowd, and the fall hurts and stuns you.
+Back on your feet after any stun you have a second and a half before another stun or a grab can
+take you, so get clear while it lasts. If a teammate is caught, shoot whatever holds them: enough
 damage makes it let go. The evac Huey's door gunner does the same, firing first at anything
 holding a survivor.
 

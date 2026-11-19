@@ -784,7 +784,7 @@ func (w *World) respawn(p *Player) {
 	p.X, p.Y = w.standNear(w.CoreX+.5, w.CoreY+3.8)
 	p.Order = Order{}
 	p.Search, p.Revived = 0, 0
-	p.slowLeft, p.slowCool, p.stunLeft = 0, 0, 0
+	p.slowLeft, p.slowCool, p.stunLeft, p.steady = 0, 0, 0, 0
 	p.held, p.fly = false, 0
 	p.Art, p.ArtLeft, p.ArtCool = ArtNone, 0, 0
 	p.walk.reset()
