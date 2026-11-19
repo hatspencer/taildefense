@@ -1,5 +1,7 @@
 # taildefense
 
+![Wave 7 of the demo: thousands of creeps against the walls of the base, turrets and survivors firing](docs/hero.gif)
+
 Co-op wave defense played in your browser over your tailnet, inspired by Warcraft III tower
 defense maps. The game is 3D, seen from a tilted camera you can rotate. You and your friends hold
 a walled base around a generator. Between waves you shop at the armory, upgrade weapons and
