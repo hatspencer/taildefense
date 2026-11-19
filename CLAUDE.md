@@ -7,6 +7,8 @@ three.js browser client embedded from `internal/web/dist`.
   the PATH. `./build.sh check` before committing.
 - A change to how the game plays fails the golden game; rewrite it with `./build.sh golden` only
   when the change is meant, so the diff shows it.
+- Commits and pull requests carry no attribution lines: no `Co-Authored-By`, no
+  `Claude-Session`, no "Generated with" footer or session link.
 - Where things are written down:
   - `README.md`: what td is, setup, dependencies, commands, keys, the architecture picture. Keep
     it short; longer text goes in `docs/`.
