@@ -8,21 +8,23 @@ import (
 // Creep is one enemy. Creeps live in World.Creeps, a dense slice; ID is stable for the
 // creep's life and is what the wire uses.
 type Creep struct {
-	X, Y      float32
-	HP, MaxHP float32
-	Cool      float32 // seconds until the next attack
-	Slow      float32 // seconds of slow left
-	slowBy    float32 // the share of its pace the slow takes (chill)
-	Aff       Affix   // its wave's affixes it carries: armoured, hasty, a sapper's charge, a splitter
-	Mark      float32 // seconds left of a spotter's mark: everything hits it harder (evolve.go)
-	Burn      float32 // seconds of burning left
-	Bleed     float32 // blood loss a katana has built up, bursting at bleedFull (legend.go)
-	BurnDPS   float32
-	ID        uint16
-	Kind      CreepKind
-	LastHit   int8 // player who last damaged it, -1 none, for the bounty
-	Shared    bool // that hit was their turret's or a trap's, so the whole team shares the bounty
-	Hit       uint8
+	X, Y       float32
+	HP, MaxHP  float32
+	Cool       float32 // seconds until the next attack
+	Slow       float32 // seconds of slow left
+	slowBy     float32 // the share of its pace the slow takes (chill)
+	Aff        Affix   // its wave's affixes it carries: armoured, hasty, a sapper's charge, a splitter
+	Mark       float32 // seconds left of a spotter's mark: everything hits it harder (evolve.go)
+	Burn       float32 // seconds of burning left
+	Bleed      float32 // blood loss a katana has built up, bursting at bleedFull (legend.go)
+	Sunder     uint8   // a greatsword's sunder on it: armour stripped, every hit harder (greatsword.go)
+	sunderLeft float32 // seconds before the sunder falls off
+	BurnDPS    float32
+	ID         uint16
+	Kind       CreepKind
+	LastHit    int8 // player who last damaged it, -1 none, for the bounty
+	Shared     bool // that hit was their turret's or a trap's, so the whole team shares the bounty
+	Hit        uint8
 
 	// Aggro: a creep hunts a survivor it was pulled, taunted or provoked by, or goes for a
 	// structure that caught its eye, instead of following the field to the generator.
@@ -101,14 +103,15 @@ func (s *Structure) CY() float32 { return float32(s.Y) + float32(s.H)/2 }
 
 // WeaponState is one weapon in a player's loadout.
 type WeaponState struct {
-	Owned  bool
-	Dual   bool // the pistol or the katana only: a second one, found, in the other hand
-	Lv     [NumTracks]uint8
-	Ammo   int16
-	Reload float32 // seconds of reload left, 0 when ready
-	Cool   float32 // seconds until the next shot
-	Spin   float32 // the minigun only: how far its barrels are spun up, 0 to 1 (orders.go)
-	Evo    uint8   // a legendary's evolution, 1 or 2 (LegendEvos), 0 none
+	Owned   bool
+	Dual    bool // the pistol or the katana: a second one, found, in the other hand; the greatsword: tempered with a second one
+	Lv      [NumTracks]uint8
+	Ammo    int16
+	Reload  float32 // seconds of reload left, 0 when ready
+	Cool    float32 // seconds until the next shot
+	Spin    float32 // the minigun only: how far its barrels are spun up, 0 to 1 (orders.go)
+	Evo     uint8   // a legendary's evolution, 1 or 2 (LegendEvos), 0 none
+	Breaker bool    // the greatsword only: Worldsplitter ends in Worldbreaker (greatsword.go)
 }
 
 // AbilityState is one of a player's ability slots.
@@ -252,6 +255,7 @@ const (
 	EffBile                            // a broodmother's sac, from X0, Y0: rearing for lobWindup, then in the air; it bursts on X, Y within R when Left runs out
 	EffAcid                            // a pool of acid where a sac burst, eating at survivors and structures
 	EffSpit                            // a spitter's glob in flight from X0, Y0 to where its mark stood, X, Y; it splashes within R when Left runs out
+	EffFissure                         // Worldsplitter's fissure from X0, Y0 to X, Y, R either side, erupting until Left runs out (greatsword.go)
 )
 
 // Effect is something that lasts more than a tick: a grenade in the air, a pool of napalm.
@@ -420,7 +424,9 @@ type World struct {
 	mastery    float32 // while a legendary blade's swing or art is dealt: its mastery (legend.go)
 	crit       float32 // while a melee swing or art is dealt: the chance a hit is critical (crit.go)
 	critMul    float32 // and what a critical hit's damage is multiplied by
-	Core       int     // structure index of the generator
+	sunder     uint8   // while a greatsword's blow is dealt: the sunder each hit adds, and its most (greatsword.go)
+	sunderCap  uint8
+	Core       int // structure index of the generator
 	Armory     int
 	CoreX      float32
 	CoreY      float32
@@ -463,6 +469,7 @@ type World struct {
 	hitBuf     []hitCand
 	swingHits  []int32 // the creeps the last melee swing hit (melee)
 	near       []int32 // the legendaries' gathering of creeps round a point (legend.go)
+	arcDone    []int32 // the creeps a chain of lightning has struck (legend.go)
 	shrineList []int   // the shrines' site indices, for as many sites as shrinesFor
 	shrinesFor int
 	byID       []int32 // creep id -> index in Creeps, valid for creeps alive at the tick's start

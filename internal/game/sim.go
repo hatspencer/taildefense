@@ -409,6 +409,7 @@ func (w *World) stepCreeps() {
 			c.Mark -= Dt
 		}
 		c.stepBleed()
+		c.stepSunder()
 		if c.Burn > 0 {
 			c.Burn -= Dt
 			c.HP -= c.BurnDPS * w.burnMul() * Dt
@@ -746,8 +747,8 @@ func (w *World) attackStruct(c *Creep, d *CreepDef, si int) {
 }
 
 func (w *World) hurtPlayer(p *Player, dmg float32) {
-	if p.Shield > 0 || p.Art == ArtSkyfall {
-		return // in the air, a Skyfall leaps over every blow
+	if p.Shield > 0 || p.Art == ArtSkyfall || p.Art == ArtSplit {
+		return // in the air, a Skyfall leaps over every blow; nothing touches the one raising Worldsplitter
 	}
 	if p.Alive {
 		dmg *= 1 - masteryGuard*min(p.mastery(), 1) // a mastered blade in hand takes some of it
@@ -1212,7 +1213,7 @@ func (w *World) hit(i int32, dmg float32, owner int8, stun float32) {
 	}
 	d := dmg
 	if !w.noArmor {
-		a := c.armor()
+		a := c.armor() * c.sunderArmor()
 		if w.dotting {
 			a *= dotArmor
 		}
@@ -1220,6 +1221,10 @@ func (w *World) hit(i int32, dmg float32, owner int8, stun float32) {
 	}
 	if c.Mark > 0 {
 		d *= 1 + markBonus
+	}
+	d *= c.sundered()
+	if w.sunder > 0 && owner >= 0 {
+		w.sunderHit(c)
 	}
 	dealt := min(d, c.HP) // what the creep had left: overkill charges nothing
 	c.HP -= d

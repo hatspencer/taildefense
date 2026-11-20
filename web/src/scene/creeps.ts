@@ -4,7 +4,7 @@ import {
   positionGeometry, select, sin, smoothstep, step, time, uniform, uniformArray, vec3, vertexColor,
 } from 'three/tsl';
 import {
-  CF_ASLEEP, CF_BURNING, CX_FRENZY, CX_SAPPER, CX_SPLITTER, CF_HUNTING, CF_SIEGE, CF_SLOWED, CF_STRIKE, CF_WINDUP, type CreepDef, MAX_CREEPS, PF_ALIVE,
+  CF_ASLEEP, CF_BURNING, CX_FRENZY, CX_SAPPER, CX_SPLITTER, CX_SUNDER, CF_HUNTING, CF_SIEGE, CF_SLOWED, CF_STRIKE, CF_WINDUP, type CreepDef, MAX_CREEPS, PF_ALIVE,
 } from '../protocol';
 import type { Game } from '../state';
 import { type CreepRig, creepRig } from './creepModels';
@@ -31,7 +31,7 @@ const HAIRS = [0x2e2620, 0x16120f, 0x4e3220, 0x8e8a82, 0xa88a52, 0x6a2e1a, 0x2e2
 //   mo  asleep, hunting you, at a structure, which arm leads
 //   at  winding up, striking, flinching, head tilt
 //   va  limp, arms hanging rather than reaching, an arm gone, trousers
-//   de  dying 0..1, falls forward (1) or back (-1), sunk, thrown
+//   de  dying 0..1, falls forward (1) or back (-1), sunk, thrown (the living: sundered)
 //   pl  x, y, z, heading
 const STRIDE = 28;
 // The "z"s over sleeping guards.
@@ -154,12 +154,20 @@ function material(r: CreepRig, scale: number, buf: THREE.InstancedInterleavedBuf
   // Hunting you: a red cast so you see what you pulled; asleep, or dead, a little darker.
   col = mix(col, col.mul(vec3(1.5, 0.45, 0.4)).add(vec3(0.08, 0, 0)), mo.y.mul(0.6));
   col = col.mul(float(1).sub(mo.x.mul(0.18)).sub(dieJ.mul(0.2)));
+  // Sundered by a greatsword: the hide darkened and split, cracks glowing ember-orange through
+  // it. Only the living: a corpse's de.w is how it was thrown.
+  const sunder = de.w.mul(float(1).sub(step(0.0001, die)));
+  const g = positionGeometry;
+  const seam = abs(sin(g.x.mul(29).add(sin(g.y.mul(21)).mul(2.2)).add(g.z.mul(17))));
+  const cracks = float(1).sub(smoothstep(0.03, 0.12, seam)).mul(step(0.1, sin(g.y.mul(11).add(g.x.mul(5)).add(g.z.mul(3))))).mul(sunder);
+  col = mix(col, col.mul(0.55), sunder.mul(0.5));
   mat.colorNode = col;
   const flicker = sin(time.mul(23).add(an.x.mul(7))).mul(0.25).add(0.75);
   setEmissive(mat, vec3(0.9, 0.3, 0.05).mul(st.x.mul(flicker).mul(0.45))
     .add(vec3(1, 0.9, 0.7).mul(st.z.mul(0.3)))
     .add(vec3(0.5, 0.45, 0.2).mul(st.w.mul(uHover)))
-    .add(vec3(0.35, 0.02, 0).mul(mo.y.mul(sin(time.mul(9)).mul(0.3).add(0.7)))));
+    .add(vec3(0.35, 0.02, 0).mul(mo.y.mul(sin(time.mul(9)).mul(0.3).add(0.7))))
+    .add(vec3(1, 0.42, 0.08).mul(cracks.mul(sin(time.mul(6)).mul(0.2).add(0.8)))));
   return mat;
 }
 
@@ -404,7 +412,7 @@ export class Creeps {
       fx[o + 14] = flinch;
       fx[o + 15] = (hash(id, 7) - 0.5) * 0.6;
       this.variety(fx, o, id, kind);
-      fx[o + 20] = 0; fx[o + 21] = 1; fx[o + 22] = 0; fx[o + 23] = 0;
+      fx[o + 20] = 0; fx[o + 21] = 1; fx[o + 22] = 0; fx[o + 23] = f.cFx[i] & CX_SUNDER ? 1 : 0;
       fx[o + 24] = x; fx[o + 25] = 0; fx[o + 26] = y; fx[o + 27] = this.yaw[id];
       const cx = f.cFx[i];
       const lit = kind === this.burster;

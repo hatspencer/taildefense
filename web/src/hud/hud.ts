@@ -1,6 +1,6 @@
 import { Vector3 } from 'three/webgpu';
 import type { ConnState } from '../net';
-import { CROWBAR, OWNED_DUAL, KATANA, dualIn, legendary, weaponKey, EvacStage, K_ARMORY, K_CORE, stickyKind, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, type Player, TTrack, TURRET_TRACKS, type Welcome, repairCost, sellValue, turretRange, WEAPON_SLOTS, K_GATE, COMPASS, CX_ARMOURED, CX_FRENZY, CX_HASTY, CX_SAPPER, CX_SPLITTER } from '../protocol';
+import { CROWBAR, OWNED_DUAL, KATANA, dualIn, legendary, weaponKey, EvacStage, K_ARMORY, K_CORE, stickyKind, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, type Player, TTrack, TURRET_TRACKS, type Welcome, repairCost, sellValue, turretRange, WEAPON_SLOTS, K_GATE, COMPASS, CX_ARMOURED, CX_FRENZY, CX_HASTY, CX_SAPPER, CX_SPLITTER, CX_SUNDER, GREAT, OWNED_BREAKER, tempered } from '../protocol';
 import { type Controller, KEYS } from '../controller';
 import { cssHex, playerColor } from '../scene/util';
 import { Armory } from './armory';
@@ -387,7 +387,7 @@ export class Hud {
     const lv = [0, 1, 2, 3].map((t) => `${wd!.tracks[t]} ${me.levels[i * 4 + t]}`).join(' · ');
     if (w.legend) {
       const evo = me.evo[i] ? w.evolve?.[me.evo[i] - 1] : undefined;
-      return `<b class="legend">${esc(w.name)}</b><kbd>${weaponKey(i)}</kbd> <span class="muted">legendary</span><br><span class="muted">melee · reach ${w.range} · special ${esc(w.special)}</span><br>${i === KATANA && dualIn(me.owned, i) ? 'a pair: one in each hand, cutting 70% faster<br>' : ''}${evo ? `<b>${esc(evo.name)}</b>: ${esc(evo.desc)}<br>` : ''}${lv}<br>F: <b>${esc(w.art?.name ?? '')}</b> · ${esc(w.art?.desc ?? '')}<br><span class="muted">ultimate: ${esc(w.ult.name)}</span>`;
+      return `<b class="legend">${esc(w.name)}</b><kbd>${weaponKey(i)}</kbd> <span class="muted">legendary</span><br><span class="muted">melee · reach ${w.range} · special ${esc(w.special)}</span><br>${i === KATANA && dualIn(me.owned, i) ? 'a pair: one in each hand, cutting 70% faster<br>' : ''}${i === GREAT && tempered(me.owned) ? 'tempered: a second greatsword forged into it<br>' : ''}${evo ? `<b>${esc(evo.name)}</b>: ${esc(evo.desc)}<br>` : ''}${lv}<br>F: <b>${esc(w.art?.name ?? '')}</b> · ${esc(w.art?.desc ?? '')}<br><span class="muted">ultimate: ${esc(w.ult.name)}</span>${i === GREAT && me.owned & OWNED_BREAKER && w.breaker ? `<br><b>${esc(w.breaker.name)}</b>: ${esc(w.breaker.desc)}` : ''}`;
     }
     const evo = me.evo[i] ? w.evolve?.[me.evo[i] - 1] : undefined;
     const art = w.art ? `${evo ? `<b>${esc(evo.name)}</b>: ${esc(evo.desc)}<br>` : ''}F: <b>${esc(w.art.name)}</b> · ${esc(w.art.desc)}<br>` : '';
@@ -999,7 +999,7 @@ export class Hud {
       setClass(e, 'owned', (me.owned & (1 << i)) !== 0);
       setClass(e, 'cur', me.cur === i);
       setClass(e, 'reloading', (me.reloading & (1 << i)) !== 0);
-      setText(e.children[1] as HTMLElement, dualIn(me.owned, i) ? `${w2.short}×2` : me.evo[i] ? `${w2.short}✦` : w2.short);
+      setText(e.children[1] as HTMLElement, dualIn(me.owned, i) ? `${w2.short}×2` : i === GREAT && tempered(me.owned) ? `${w2.short}+` : me.evo[i] ? `${w2.short}✦` : w2.short);
     }
     setClass(this.med, 'owned', me.medkits > 0);
     setClass(this.med, 'cur', me.heal > 0);
@@ -1192,7 +1192,7 @@ export class Hud {
       if (d && i >= 0) {
         const fl = f.cFlags[i];
         el('div', 'sub', c, `HP ~${Math.round(f.cHp[i] / 255 * 100)}% · base HP ${d.hp} · speed ${d.speed}${d.ranged ? ' · ranged' : ''}`);
-        el('div', 'sub', c, `bounty ${d.bounty}g${fl & 1 ? ' · burning' : ''}${fl & 2 ? ' · slowed' : ''}${fl & 4 ? ' · loot guard' : ''}${fl & 32 ? ' · asleep' : ''}${f.cFx[i] & CX_FRENZY ? ' · frenzied' : ''}${f.cFx[i] & CX_SAPPER ? ' · sapper' : ''}${f.cFx[i] & CX_SPLITTER ? ' · splitter' : ''}${f.cFx[i] & CX_ARMOURED ? ' · armoured' : ''}${f.cFx[i] & CX_HASTY ? ' · hasty' : ''}`);
+        el('div', 'sub', c, `bounty ${d.bounty}g${fl & 1 ? ' · burning' : ''}${fl & 2 ? ' · slowed' : ''}${fl & 4 ? ' · loot guard' : ''}${fl & 32 ? ' · asleep' : ''}${f.cFx[i] & CX_FRENZY ? ' · frenzied' : ''}${f.cFx[i] & CX_SAPPER ? ' · sapper' : ''}${f.cFx[i] & CX_SPLITTER ? ' · splitter' : ''}${f.cFx[i] & CX_ARMOURED ? ' · armoured' : ''}${f.cFx[i] & CX_HASTY ? ' · hasty' : ''}${f.cFx[i] & CX_SUNDER ? ' · sundered' : ''}`);
         const btns = el('div', 'btns', c);
         const at = el('button', 'primary', btns, 'Attack');
         at.onclick = () => ctl.send({ op: 'attack', id: s.id });

@@ -1,5 +1,5 @@
 import {
-  Art, EffectKind, TRACER_HELI, ART_TIME, BlastKind, CROWBAR, GREAT, TRACER_HOMERUN, TRACER_HOMERUN_ROUND, K_TESLA, KATANA, OWNED_DUAL, OWNED_DUAL_KATANA, TRACER_FLASH, TRACER_FOLLOW, TRACER_GREAT,
+  Art, ART_TIME, BlastKind, CROWBAR, EffectKind, FISSURE_EVERY, GREAT, OWNED_BREAKER, OWNED_TEMPERED, TRACER_HELI, TRACER_SPLIT, TRACER_HOMERUN, TRACER_HOMERUN_ROUND, K_TESLA, KATANA, OWNED_DUAL, OWNED_DUAL_KATANA, TRACER_FLASH, TRACER_FOLLOW, TRACER_GREAT,
   TRACER_KATANA, TRACER_MOON, THROW_FLIGHT, TRACER_ARC, TRACER_NAPALM, CF_ASLEEP, CF_BURNING, CF_GUARD, CF_STRIKE, CF_WINDUP, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_FIRING, PF_HURT, PF_MOVING, PF_RELOADING, Player,
 } from './protocol';
 import type { Game } from './state';
@@ -10,8 +10,10 @@ import type { Game } from './state';
 // sprinting, kneeling to search and to revive, reloading, taunting and down, firing dual
 // pistols, and caught and thrown by a mauler, each at its own health so the HUD's portraits
 // show every state; then the legendaries: the katana's combo, a pair of katanas, Flash Draw,
-// the greatsword's combo, Skyfall, the evolved blades (Moonlit Edge, Titan's Wrath), and the
-// crowbar's Home Run, plain and Bonebreaker's. Past them, the turret evolutions' shots ('fx'): a napalm missile flying
+// the greatsword's combo, Skyfall, the evolved blades (Moonlit Edge, the greatsword's
+// follow-through), the crowbar's Home Run, plain and Bonebreaker's, and Worldsplitter: a
+// tempered greatsword raised and brought down, the fissure it opens erupting, and Worldbreaker
+// detonating it as it closes. Past them, the turret evolutions' shots ('fx'): a napalm missile flying
 // and bursting, and an arc web striking a knot of points. Past those ('huey'), a supply Huey
 // hovering with its door gunner sweeping the ground around it. It takes the demo's world over after
 // its first frame and stops it, then poses everything itself.
@@ -26,9 +28,12 @@ export class Lab {
   private last = 0;
   // Player poses, by player slot.
   private poses = ['circle', 'sprint', 'loot', 'revive', 'reload', 'taunt', 'down', 'shoot', 'dual', 'thrown',
-    'katana', 'katanas', 'flash', 'great', 'skyfall', 'evolved', 'homerun', 'bonebreaker'];
+    'katana', 'katanas', 'flash', 'great', 'skyfall', 'evolved', 'homerun', 'bonebreaker', 'worldsplitter'];
   // The swing counter each legendary pose last showed, to cut a tracer when it moves.
   private swung: number[] = [];
+  // Worldsplitter's moments already sent (the cut, each burst, the detonation), by name, with
+  // the cycle they were sent in.
+  private split = new Map<string, number>();
 
   // gun, when 0 or more, puts that weapon in every survivor's hands (#lab=h&gun=6).
   constructor(private game: Game, cx: number, cy: number, private gun = -1) {
@@ -37,12 +42,14 @@ export class Lab {
   }
 
   // Where to look: the whole bench, or one creep row (0..10), or the survivors ('h'), or one
-  // of them ('h0'..'h17'), or the crowbar's Home Run ('crowbar'), or the turret shots ('fx').
+  // of them ('h0'..'h18'), or the crowbar's Home Run ('crowbar'), or Worldsplitter
+  // ('worldsplitter'), or the turret shots ('fx').
   center(at = ''): [number, number] {
     if (at === 'fx') return [this.fx() + 4.5, this.y0 + 2.5];
     if (at === 'huey') return [this.fx() + 22, this.y0 - 2]; // north of it, as the Huey is up in the air
     if (/^h\d+$/.test(at)) return this.spot(Number(at.slice(1)));
     if (at === 'crowbar') { const [x, y] = this.spot(16); return [x + 1.7, y]; }
+    if (at === 'worldsplitter') { const [x, y] = this.spot(18); return [x + 5, y]; }
     if (at === 'h') return [this.x0 + COLS.length * DX + 4.2, this.y0 + 1.5 * DY];
     if (at === 'legend') return [this.x0 + COLS.length * DX + 4.2, this.y0 + 6 * DY];
     if (at !== '' && !Number.isNaN(Number(at))) return [this.x0 + 3 * DX, this.y0 + Number(at) * DY];
@@ -50,9 +57,11 @@ export class Lab {
   }
 
   // Where survivor pose i stands: two to a row beside the creeps, and the crowbar's two (16 and
-  // 17) out in the open to the right, clear of the trees further down.
+  // 17) out in the open to the right, clear of the trees further down, and Worldsplitter's (18)
+  // below them, its fissure running off to the right.
   private spot(i: number): [number, number] {
     const hx = this.x0 + COLS.length * DX + 2.5;
+    if (i === 18) return [hx + 7.5, this.y0 + 4 * DY];
     if (i >= 16) return [hx + 7.5 + (i % 2) * 3.4, this.y0 + 2 * DY];
     return [hx + (i % 2) * 3.4, this.y0 + Math.floor(i / 2) * DY];
   }
@@ -104,7 +113,7 @@ export class Lab {
       }
     }
     f.nCreeps = n;
-    f.nBlasts = 0; f.nTracers = 0; f.nDeaths = 0;
+    f.nBlasts = 0; f.nTracers = 0; f.nDeaths = 0; f.nEffects = 0;
 
     // The survivors, to the right of the creeps.
     while (f.players.length < this.poses.length) f.players.push(new Player());
@@ -112,7 +121,7 @@ export class Lab {
     for (let i = 0; i < this.poses.length; i++) {
       const p = f.players[i], pose = this.poses[i];
       // Health varies so the portraits show their wounds; the sprinter has a medkit working.
-      p.id = i; p.look = (i * 2654435761) >>> 0; p.cur = this.gun >= 0 ? this.gun : i % 6; p.hp = [80, 50, 55, 80, 22, 80, 0, 45, 70, 35, 90, 75, 60, 85, 65, 95, 70, 88][i]; p.maxHp = 100;
+      p.id = i; p.look = (i * 2654435761) >>> 0; p.cur = this.gun >= 0 ? this.gun : i % 6; p.hp = [80, 50, 55, 80, 22, 80, 0, 45, 70, 35, 90, 75, 60, 85, 65, 95, 70, 88, 100][i]; p.maxHp = 100;
       p.heal = pose === 'sprint' ? 5 : 0;
       p.flags = PF_CONNECTED | PF_ALIVE; p.order = Order.Idle; p.channel = 0; p.emote = Emote.None; p.emoteLeft = 0; p.sprinting = false;
       p.held = false; p.airborne = false; p.stunned = false; p.owned = 0;
@@ -177,6 +186,7 @@ export class Lab {
       }
       return [x, y, aim];
     }
+    if (pose === 'worldsplitter') return this.worldsplitter(p, t, x, y, fresh);
     const great = pose === 'great' || pose === 'skyfall';
     p.cur = great ? GREAT : KATANA;
     p.owned = (1 << p.cur) | (pose === 'katanas' ? OWNED_DUAL_KATANA : 0);
@@ -213,6 +223,46 @@ export class Lab {
     return [x, y, aim];
   }
 
+  // Worldsplitter every 7 seconds with a tempered greatsword that has Worldbreaker: raised, then
+  // the cut along 12 tiles to the right, the fissure open 4 s and erupting every half second,
+  // and Worldbreaker's shockwave and charges as it closes.
+  private worldsplitter(p: Player, t: number, x: number, y: number, fresh: boolean): [number, number, number] {
+    const f = this.game.cur, len = 12, half = 1.5, open = 4;
+    p.cur = GREAT; p.owned = (1 << GREAT) | OWNED_TEMPERED | OWNED_BREAKER; p.evo[GREAT] = 1;
+    const period = 7, cycle = Math.floor(t / period), go = (t % period) - 1, d = ART_TIME[Art.Split];
+    p.swings = (cycle + (go >= d ? 1 : 0)) & 255;
+    if (go >= 0 && go < d) { p.art = Art.Split; p.artFrac = go / d; }
+    const once = (key: string) => {
+      if (!fresh || this.split.get(key) === cycle) return false;
+      this.split.set(key, cycle);
+      return true;
+    };
+    const tracer = (x0: number, y0: number, x1: number, y1: number, k: number) => {
+      const j = f.nTracers++;
+      f.tX0[j] = x0; f.tY0[j] = y0; f.tX1[j] = x1; f.tY1[j] = y1; f.tKind[j] = k;
+    };
+    const blast = (bx: number, by: number, r: number, k: number) => {
+      const j = f.nBlasts++;
+      f.bX[j] = bx; f.bY[j] = by; f.bR[j] = r; f.bKind[j] = k;
+    };
+    const since = go - d;
+    if (since >= 0 && once('cut')) tracer(x, y, x + len, y, TRACER_SPLIT);
+    if (since >= 0 && since < open) {
+      const e = f.nEffects++;
+      f.eKind[e] = EffectKind.Fissure; f.eX0[e] = x; f.eY0[e] = y; f.eX[e] = x + len; f.eY[e] = y; f.eR[e] = half;
+      f.eLeft[e] = Math.ceil((open - since) * 10); f.eTotal[e] = open * 10;
+      const burst = Math.floor(since / FISSURE_EVERY);
+      if (burst > 0 && once(`burst${burst}`)) for (let k = 0; k < 3; k++) blast(x + Math.random() * len, y, half, BlastKind.Erupt);
+    }
+    if (since >= open && once('breaker')) {
+      for (const u of [0, 0.5, 1]) blast(x + len * u, y, 6, BlastKind.Breaker);
+      // The charges leaping from creep to creep, here between points either side of the line.
+      const pts = Array.from({ length: 9 }, (_, k) => [x + 0.5 + k * 1.4, y + (k % 2 ? 1 : -1) * (1 + Math.random() * 3.5)]);
+      for (let k = 1; k < pts.length; k++) tracer(pts[k - 1][0], pts[k - 1][1], pts[k][0], pts[k][1], TRACER_ARC);
+    }
+    return [x, y, 0];
+  }
+
   // The turret evolutions' shots for one frame: a napalm missile 18 tiles a second over nine
   // tiles, bursting at the end, every 1.4 s; and every 1.2 s a tesla coil's arc web through
   // six points, each jump linked to the point two back.
@@ -245,9 +295,9 @@ export class Lab {
   // side and round under its nose and tail.
   private huey(t: number, fresh: boolean): void {
     const f = this.game.cur, x = this.fx() + 22, y = this.y0 + 2.5;
-    f.nEffects = 1;
-    f.eKind[0] = EffectKind.Drop; f.eX0[0] = x - 1; f.eY0[0] = y; f.eX[0] = x; f.eY[0] = y; f.eR[0] = 0;
-    f.eLeft[0] = 30; f.eTotal[0] = 250;
+    const e = f.nEffects++;
+    f.eKind[e] = EffectKind.Drop; f.eX0[e] = x - 1; f.eY0[e] = y; f.eX[e] = x; f.eY[e] = y; f.eR[e] = 0;
+    f.eLeft[e] = 30; f.eTotal[e] = 250;
     const lap = t % 9;
     if (!fresh || this.tick % 2 || lap > 7) return;
     const a = -2.6 + lap * 0.75, r = 6 + Math.sin(t * 1.7) * 2.5;

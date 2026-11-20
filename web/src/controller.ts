@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import type { CameraRig } from './camera';
-import { artCooldown, canTake, dualIn, KATANA, OWNED_DUAL_KATANA, EvacStage, K_ARMORY, lootable, stickyKind, repairCost, walled, type Command, Order, PF_ALIVE, PF_ARMORY, PF_CONNECTED, OWNED_DUAL, PF_READY, PF_RELOADING, Phase, PingKind, SiteKind, siteX, siteY, Tile, K_GATE } from './protocol';
+import { artCooldown, canTake, dualIn, GREAT, KATANA, OWNED_WEAPONS, EvacStage, K_ARMORY, lootable, stickyKind, repairCost, walled, type Command, Order, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, PingKind, SiteKind, siteX, siteY, Tile, K_GATE } from './protocol';
 import type { Effects } from './scene/effects';
 import type { LocalCue } from './sound/sound';
 import type { Game } from './state';
@@ -250,14 +250,14 @@ export class Controller {
     const lv = g.lv.some((l) => l > 0) ? ' ' + g.lv.join('/') : '';
     const by = this.game.cur.player(g.by)?.name;
     const take = !me || canTake(me.owned, g.kind);
-    return `${name}${lv}${by ? ` · ${by}'s` : ''} · ${!take ? 'you carry one' : me && me.owned & (1 << g.kind) ? `pick up: dual ${g.kind === KATANA ? 'katanas' : 'pistols'}` : 'pick up'}`;
+    return `${name}${lv}${by ? ` · ${by}'s` : ''} · ${!take ? 'you carry one' : me && me.owned & (1 << g.kind) ? g.kind === GREAT ? 'pick up: temper your greatsword' : `pick up: dual ${g.kind === KATANA ? 'katanas' : 'pistols'}` : 'pick up'}`;
   }
 
   // Why G can't drop the weapon in hand, said before the hold starts rather than after it
   // fills; '' when it can. The host checks again.
   dropRefusal(): string {
     const me = this.me();
-    if (me && !(me.owned & ~(1 << me.cur) & ~OWNED_DUAL & ~OWNED_DUAL_KATANA) && !dualIn(me.owned, me.cur)) return `the ${this.game.welcome?.weapons[me.cur]?.name ?? 'weapon'} is the only weapon you have`;
+    if (me && !(me.owned & OWNED_WEAPONS & ~(1 << me.cur)) && !dualIn(me.owned, me.cur)) return `the ${this.game.welcome?.weapons[me.cur]?.name ?? 'weapon'} is the only weapon you have`;
     return '';
   }
 

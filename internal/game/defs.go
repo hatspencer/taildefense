@@ -228,11 +228,15 @@ func (k WeaponKind) Evolves() bool { return k < NumWeapons && LegendEvos[k][0].N
 func (k WeaponKind) Sold() bool { return k < NumWeapons && k != WCrowbar && !Weapons[k].Legend }
 
 // DualBit marks, in a frame's word of owned weapons, a survivor with a second pistol,
-// DualKatanaBit one with a second katana, and PickBit one of a blades game yet to pick a blade.
+// DualKatanaBit one with a second katana, PickBit one of a blades game yet to pick a blade,
+// TemperedBit one whose greatsword is tempered, and BreakerBit one whose greatsword has
+// Worldbreaker.
 const (
 	DualBit       = 1 << 15
 	DualKatanaBit = 1 << 14
 	PickBit       = 1 << 13
+	TemperedBit   = 1 << 12
+	BreakerBit    = 1 << 11
 )
 
 // Dual is the stats of a pair of pistols: each as the survivor upgraded it, both firing, so

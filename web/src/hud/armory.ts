@@ -1,5 +1,5 @@
 import type { Controller } from '../controller';
-import { CROWBAR, PF_ARMORY, Phase, weaponKey, type Player, type WeaponDef } from '../protocol';
+import { CROWBAR, GREAT, OWNED_BREAKER, PF_ARMORY, Phase, tempered, weaponKey, type Player, type WeaponDef } from '../protocol';
 import { el, esc, fmtGold, show } from './dom';
 
 type Tab = 'weapons' | 'gear' | 'abilities';
@@ -71,7 +71,7 @@ export class Armory {
         const tr = el('tr', w.legend ? 'legend' : '', t);
         const n = el('td', '', tr);
         n.innerHTML = w.legend
-          ? `<span class="wname">${esc(w.name)}</span> <kbd>${weaponKey(wi)}</kbd><br><span class="muted small">legendary · reach ${w.range} · F: ${esc(w.art?.name ?? '')} · Q: ${esc(w.ult.name)}</span>`
+          ? `<span class="wname">${esc(w.name)}</span> <kbd>${weaponKey(wi)}</kbd>${wi === GREAT && tempered(me.owned) ? ' <span class="legend small">tempered</span>' : ''}<br><span class="muted small">legendary · reach ${w.range} · F: ${esc(w.art?.name ?? '')} · Q: ${esc(w.ult.name)}</span>`
           : `<span class="wname">${esc(w.name)}</span> <kbd>${weaponKey(wi)}</kbd><br><span class="muted small">${esc(w.fire)} · range ${w.range}${w.art ? ` · F: ${esc(w.art.name)}` : ''} · Q: ${esc(w.ult.name)}</span>`;
         const act = el('td', '', tr);
         if (!owned) btn(act, `Buy <span class="gold">${fmtGold(w.price)}g</span>`, w.price, true, () => ctl.send({ op: 'buyWeapon', w: wi }), 'primary');
@@ -90,6 +90,7 @@ export class Armory {
           btn(td, html, cost, owned && !max, () => ctl.send({ op: 'upgrade', w: wi, track }), 'up');
         }
         if (w.evolve) this.legendEvo(t, w, wi, me, btn);
+        if (w.breaker && me.evo[wi]) this.breaker(t, w, wi, me, btn);
       });
     } else if (this.tab === 'gear') {
       const t = el('table', '', b);
@@ -161,5 +162,25 @@ export class Armory {
         () => this.ctl.send({ op: 'evolveWeapon', w: wi, branch: k + 1 }), 'up evolve');
     });
     if (sum < at) el('div', 'muted small', td, `Evolves once its tracks add up to ${at} (${sum} now).`);
+  }
+
+  // The greatsword's Worldbreaker, once it has evolved: bought once, for a blade with every track
+  // at the top (evolveWeapon's branch 3).
+  private breaker(t: HTMLElement, w: WeaponDef, wi: number, me: Player,
+    btn: (parent: HTMLElement, html: string, cost: number, ok: boolean, onclick: () => void, cls?: string) => HTMLButtonElement): void {
+    const b = w.breaker!, wd = this.ctl.game.welcome, maxLevel = wd?.maxLevel ?? 5, owned = (me.owned & OWNED_BREAKER) !== 0;
+    const tr = el('tr', 'legend evo', t);
+    el('td', 'muted small', tr, owned ? 'owned' : 'one buy');
+    const td = el('td', '', tr);
+    td.colSpan = 1 + (wd?.tracks.length ?? 4);
+    if (owned) {
+      td.innerHTML = `<b class="legend">${esc(b.name)}</b> <span class="muted small">${esc(b.desc)}</span>`;
+      return;
+    }
+    let full = true;
+    for (let k = 0; k < 4; k++) if (me.levels[wi * 4 + k] < maxLevel) full = false;
+    btn(td, `<b>${esc(b.name)}</b> <span class="c">${fmtGold(b.cost)}g</span><br><span class="muted small">${esc(b.desc)}</span>`, b.cost, full,
+      () => this.ctl.send({ op: 'evolveWeapon', w: wi, branch: 3 }), 'up evolve');
+    if (!full) el('div', 'muted small', td, 'Needs every track at the top.');
   }
 }

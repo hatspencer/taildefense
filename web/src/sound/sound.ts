@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import {
-  BlastKind, CF_ASLEEP, CF_WINDUP, MAX_CREEPS, CF_STRIKE, EffectKind, Phase, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_FIRING, PF_HURT,
-  PF_RELOADING, PingKind, TRACER_ARC, TRACER_FOLLOW, TRACER_HELI, TRACER_HOMERUN, TRACER_HOMERUN_ROUND, TRACER_KATANA, TRACER_MOON, TRACER_NAPALM, TRACER_SHARD, TRACER_ULT, type Player, TURRET_TRACKS, WET, Weather,
+  Art, BlastKind, CF_ASLEEP, CF_WINDUP, MAX_CREEPS, CF_STRIKE, EffectKind, Phase, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_FIRING, PF_HURT,
+  PF_RELOADING, PingKind, TRACER_ARC, TRACER_FOLLOW, TRACER_HELI, TRACER_HOMERUN, TRACER_HOMERUN_ROUND, TRACER_KATANA, TRACER_MOON, TRACER_NAPALM, TRACER_SHARD, TRACER_SPLIT, TRACER_ULT, type Player, TURRET_TRACKS, WET, Weather,
 } from '../protocol';
 import { K_CANNON, K_CORE, K_GUN, K_MISSILE, K_SNIPER, K_TESLA } from '../scene/structs';
 import type { Game } from '../state';
@@ -27,7 +27,7 @@ const TURRET: Record<number, string> = { [K_GUN]: 'turretGun', [K_CANNON]: 'cann
 // How loud each is at the listener, and how many of it one tick may play.
 const LOUD: Record<string, number> = {
   pistol: 0.9, shotgun: 0.87, smg: 0.6, rifle: 1.15, railgun: 1.15, minigun: 0.7, rocket: 0.8, missile: 0.65, crowbar: 0.7,
-  katana: 0.7, moonCut: 0.6, greatsword: 0.85, followThrough: 0.95, flashDraw: 0.95, homeRun: 0.95,
+  katana: 0.7, moonCut: 0.6, greatsword: 0.85, followThrough: 0.95, flashDraw: 0.95, homeRun: 0.95, worldsplit: 1.2,
   turretGun: 0.5, cannon: 0.95, tesla: 0.45, sniper: 0.95, pod: 0.7, doorGun: 0.7,
   spit: 0.5, boneThrow: 0.5, boneLand: 0.45, dash: 0.6,
   gatling: 0.45, penetrator: 0.55, mortar: 0.9, antiMat: 1,
@@ -84,7 +84,7 @@ export class Sound {
   // The last frame's state that changes are read against.
   private phase = -1; private secs = -1; private coreHp = -1;
   private pFlags = new Uint8Array(256); private pCur = new Uint8Array(256); private pHeal = new Float32Array(256);
-  private pStun = new Uint8Array(256); private pBuys = new Int32Array(256); private pUps = new Int32Array(256);
+  private pStun = new Uint8Array(256); private pArt = new Uint8Array(256); private pBuys = new Int32Array(256); private pUps = new Int32Array(256);
   private sAlive = new Uint8Array(256); private sKind = new Uint8Array(256); private sLevel = new Int32Array(256);
   private sHpFrac = new Float32Array(256); private nStructs = 0;
   private effects = new Map<string, { kind: number; x: number; y: number; x0: number; y0: number }>();
@@ -322,6 +322,7 @@ export class Sound {
       if (k === TRACER_HELI) add('doorGun', x0, y0);
       else if (k === TRACER_SHARD) { add('boneThrow', x0, y0); add('boneLand', x1, y1, 0.2 + Math.hypot(x1 - x0, y1 - y0) * 0.01); }
       else if (k === 33) add('dash', x0, y0);
+      else if (k === TRACER_SPLIT) add('worldsplit', x0, y0);
       else if (k === TRACER_HOMERUN || k === TRACER_HOMERUN_ROUND) add('homeRun', x0, y0, undefined, alive && Math.abs(x0 - me!.x) < 1.2 && Math.abs(y0 - me!.y) < 1.2);
       else if (k >= TRACER_KATANA && k <= TRACER_FOLLOW) {
         const mine = alive && Math.abs(x0 - me!.x) < 1.2 && Math.abs(y0 - me!.y) < 1.2;
@@ -380,6 +381,9 @@ export class Sound {
         case BlastKind.Bile: at('bile', 0.9, 1.6); break;
         case BlastKind.Bleed: at('bleed', 0.7, 1.4); break;
         case BlastKind.Skyfall: at('slam', 1.1, 2); break;
+        // The fissure's bursts come three at a time every half second: one of them is heard.
+        case BlastKind.Erupt: if (this.once('erupt', 0.2)) at('erupt', 0.5, 1.4, 0.9 + Math.random() * 0.2); break;
+        case BlastKind.Breaker: if (this.once('worldbreak', 0.5)) at('worldbreak', 1.3, 4); break;
         case BlastKind.Crit: if (this.once('crit', 0.06)) at('moonCut', 0.6, 1.4, 1.5); break;
       }
     }
@@ -577,6 +581,8 @@ export class Sound {
         const q = here(0.75); if (q) this.synth.play('hurt_' + g, q, 0, 1, mine ? Prio.Own : undefined);
       }
       if (was & PF_ALIVE && !(p.flags & PF_ALIVE)) { const q = here(0.9); if (q) this.synth.play('down_' + g, q, 0, 1, mine ? Prio.Cue : undefined); }
+      // Worldsplitter raised: the ground groaning under the blade.
+      if (p.art === Art.Split && this.pArt[id] !== Art.Split) { const q = here(0.9); if (q) this.synth.play('splitRaise', q, 0, 1, mine ? Prio.Own : undefined); }
       if (!mine) continue;
       // Yours only: the gun in your hands, the kit on your back, the money in your pocket.
       const alive = (p.flags & PF_ALIVE) !== 0;
@@ -665,7 +671,7 @@ export class Sound {
     this.phase = f.phase;
     for (let i = 0; i < f.nPlayers; i++) {
       const p = f.players[i], id = p.id;
-      this.pFlags[id] = p.flags; this.pCur[id] = p.cur; this.pHeal[id] = p.heal; this.pStun[id] = p.stunned ? 1 : 0;
+      this.pFlags[id] = p.flags; this.pCur[id] = p.cur; this.pHeal[id] = p.heal; this.pStun[id] = p.stunned ? 1 : 0; this.pArt[id] = p.art;
       this.pBuys[id] = purchases(p); this.pUps[id] = upgrades(p); this.pKills[id] = p.kills; this.pUlt[id] = p.ult;
     }
     this.nStructs = f.nStructs;

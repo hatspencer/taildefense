@@ -759,8 +759,8 @@ melee a way to play, and give the far sites something only they hold (`internal/
 - **Found, never sold.** The katana and the greatsword are not in the armory's list until
   carried. The gas station's counter and the plane's hold have one 30% of the time, and the
   shrines (below) always do. Gold can buy everything else; these are the reason to walk to the
-  edge of the map. A survivor who carries both, and a pair of katanas, gets whetstones (levels on
-  the blade in hand) from an altar instead, so a shrine is never wasted.
+  edge of the map. A survivor who carries both, a pair of katanas and a tempered greatsword gets
+  whetstones (levels on the blade in hand) from an altar instead, so a shrine is never wasted.
 - **Better than the crowbar level for level, and each its own rule.** The bench holds both at 1.4
   times a crowbar's damage a second on a brute at levels 0, 2 and max. The katana is fast and
   narrow and builds blood loss, which bursts for 16% of a creep's health (5% of a boss's) plus 30:
@@ -775,7 +775,7 @@ melee a way to play, and give the far sites something only they hold (`internal/
   landing for 2.4 times the damage within 3 tiles with six times the stun, 9 s) is a way into
   one. Tying the art to the blade in hand rather than a slot keeps the dash for everyone else,
   costs no armory gold, and makes switching to the blade a decision. Q stays each weapon's
-  ultimate: Crimson Tempest and Titan's Wrath.
+  ultimate: Crimson Tempest and Worldsplitter (below).
 - **Two evolutions, as a turret's.** Once the four tracks add up to 12 levels, 1500 gold picks one
   of two for good: Crimson Fang (bleed that chains and heals) or Moonlit Edge (reach); Ashen
   Colossus (fire) or Stormbreaker (lightning). The same rule as the turrets', so it reads at once.
@@ -821,8 +821,9 @@ melee a way to play, and give the far sites something only they hold (`internal/
   melee swing or art is dealt, so guns and turrets never draw on it.
 - **The greatsword's shockwave.** Slow swings left a crowd time to close in, so every swing shakes
   the ground where it lands, 2.2 tiles round for 30% of the swing with a stun and a push, growing
-  with mastery to 5 tiles, 70%, a far longer stun and a hard push; the follow-through's quake
-  grows the same way. It is what makes the slow blade the crowd answer it was meant to be.
+  with mastery to 5 tiles and 120%; the follow-through's quake grows the same way. It is what
+  makes the slow blade the crowd answer it was meant to be. (See below for why a mastered one
+  pulls rather than pushes.)
 - **The crowbar joins the school.** Once a blades game made the crowbar a choice rather than a
   fallback, it needed the same shape: Home Run on F (0.45 s wound back, then 3.2 tiles round in
   front at triple damage, four times the stun, every creep hurled 2.6 tiles; 7 s), and two
@@ -830,6 +831,65 @@ melee a way to play, and give the far sites something only they hold (`internal/
   round) and Scrap King (economy: half the bounty again and 4% health a kill, Home Run 3 s
   sooner). The legendaries hit harder; the crowbar's answer is to keep a crowd off you and to pay
   for the base. Holding a crowbar on brutal now means F is Home Run, not the dash.
+
+### The greatsword, reworked
+
+Once the katana's mastery, pair and crits made it the strongest thing a survivor could hold, the
+greatsword lost at everything, its own job included. On the wave 25 bench, both fully bought and
+evolved, a pair of katanas killed a goliath in 3.1 s and the greatsword in 22; even against the
+army the katana was ahead. Its damage was flat while the katana's bursts take a share of a
+creep's health, its mastery stopped at 1 where a pair's goes to 1.2, and Titan's Wrath was about
+twice the damage for 8 s. The aim: the crowd blade by a distance, and near the katana on a boss.
+
+- **Sunder** (`internal/game/greatsword.go`). Every blow the greatsword deals cracks what it lands
+  on: a stack strips a fifth of the armour and makes every hit on it 8% harder, anyone's, turrets'
+  too, up to 5 stacks and 9 at mastery 1 (+72%), held 5 s after the last blow; a follow-through
+  adds two, Skyfall three, Worldsplitter fills it. The katana eats a big creep from inside; the
+  greatsword cracks it open for the whole base, which suits the blade that stands at the front.
+- **The follow-through cleaves**: 3% of each creep's health, 10% at mastery 1 (a boss 1% to 8%).
+  It is the greatsword's share-of-health answer to the katana's bursts, on its slow rhythm.
+- **Tempered.** A second greatsword can't be held in the other hand, so it is forged into the
+  first and counts as the katana's second does: mastery to 1.2, crits to 40%. The altar, the
+  station and the plane's hold offer it as they offer a second katana.
+- **A mastered blow pulls.** The bench showed the old hard push throwing the crowd out of reach
+  and stunning it there, so a fully bought greatsword swung 4 times in the 8 s an army took to
+  arrive. The shockwave's push now turns into a pull with mastery (half a tile out at 0, a tile
+  in at 1, never past the point), and its stun fades to the edge, so the crowd lands in the next
+  swing's arc. The plain swing's shove fades out the same way. Skyfall still throws: it is the
+  way into a crowd, and out.
+- **Worldsplitter replaces Titan's Wrath.** An ultimate should be a moment, and the greatsword's
+  is the ground breaking: 0.8 s raised, untouchable, then a cut 12 tiles long and 3 wide, five
+  swings' worth and a quarter of each creep's health (a boss 8%), sundered to the full, stunned
+  long; then the fissure erupts every half second for 4 s, holding whatever walks onto it. The
+  ultimate runs till it closes, so nothing stops the wielder and nothing it deals fills the meter
+  again. It is a point cast, aimed like the MIRV, which also lets bots use it.
+- **Worldbreaker**, bought once at the armory for 3000 once every track is full and it has
+  evolved: the closing fissure goes off 6 tiles either side, and every creep it catches carries a
+  Tesla charge that leaps on 5 times (a creep the blow killed still passes its charge on).
+  Stormbreaker's leap 7 times and harder, 9 times beside a Tesla coil within 5 tiles of the
+  survivor, which ties the blade to the base it defends; Ashen Colossus's set every creep they
+  strike burning. Gated at the top, it is the payoff for walking to the shrines and putting the
+  gold in. It goes through `evolveWeapon` as branch 3, a third thing the armory evolves.
+
+Wave 25, the bench (survivors don't move; creeps walk in): seconds to kill a goliath, and to clear
+the army and the heavy mix starting 3 tiles off; Worldsplitter on two armies scattered over a
+14 by 10 field ahead:
+
+| | goliath | army | heavy |
+|---|---|---|---|
+| katana pair, Crimson Fang | 3.1 | 0.2 | 1.4 |
+| greatsword before, evolved | 22.0 | not run | not run |
+| greatsword now, evolved | 5.6 | 1.4 | 1.4 |
+| greatsword now, tempered | 4.6 | 1.4 | 0.7 |
+
+| Worldsplitter | killed at the cut | at the close |
+|---|---|---|
+| without Worldbreaker | 14 of 62 | 15 of 62 |
+| with Worldbreaker | 14 of 62 | 62 of 62 |
+
+On its own, with Worldbreaker and Stormbreaker, it takes three quarters of a goliath's health.
+The charge from 16 tiles is bound by the creeps' walk in (the greatsword kills each group as it
+arrives), so it is left out. Crimson Fang's 0.2 s on the army is its bursts setting each other off.
 
 ### Blades games
 

@@ -21,10 +21,11 @@ import (
 //   - an ultimate on Q, as every weapon has;
 //   - two evolutions each, bought once the tracks add up to EvolveAt, as a turret evolves.
 //
-// A second katana, found, goes in the other hand: a pair swings dualKatana times as fast.
+// A second katana, found, goes in the other hand: a pair swings dualKatana times as fast. A
+// second greatsword is forged into the first, a tempered one (greatsword.go).
 //
 // Mastery: the further a katana or a greatsword is taken (every track level, its evolution, and
-// for the katana a second one in the other hand), the more it does, little at first and a great
+// a second one: for the katana in the other hand, for the greatsword forged into it), the more it does, little at first and a great
 // deal at the top: it hits harder, stuns longer and can stun the same creep again sooner, takes
 // some of every blow off its wielder, and has its art back far sooner. A stun of breakStun or
 // more from it stops a slam that is winding up and makes a creep let go of whoever it holds, so
@@ -40,6 +41,7 @@ const (
 	ArtFlash         // the katana's Flash Draw: a drawn stance, then a cut through everything on the way to a point
 	ArtSkyfall       // the greatsword's Skyfall: a leap through the air, coming down on a point
 	ArtHomeRun       // the crowbar's Home Run: wound back, then one swing that hurls what it hits
+	ArtSplit         // the greatsword's Worldsplitter, its ultimate: the blade raised, then brought down to split the ground (greatsword.go)
 )
 
 // ArtDef is a legendary's weapon art.
@@ -115,7 +117,8 @@ const (
 	skyfallFlight = .6  // seconds in the air
 	skyfallMul    = 2.4 // times the greatsword's damage the landing deals at its heart
 	skyfallRadius = 3
-	skyfallStun   = 6 // times a hit's stun
+	skyfallStun   = 6  // times a hit's stun
+	skyfallThrow  = .9 // tiles more Skyfall throws them back at mastery 1
 
 	// Crimson Fang: the share of their health a burst gives back, the bleed it spatters, how far.
 	fangHeal   = .06
@@ -178,10 +181,11 @@ const (
 	shockReach      = 2.2
 	shockReachLevel = 2.8
 	shockMul        = .3
-	shockMulLevel   = .4
+	shockMulLevel   = .9
 	shockPush       = .5
-	shockPushLevel  = .9
+	shockPull       = 1.5 // mastered, the blow drags the crowd in instead: at 1, a pull of shockPull-shockPush
 	shockStun       = 1.2
+	shockStunLevel  = 1.5
 	followGrow      = 2.4
 )
 
@@ -206,10 +210,11 @@ const (
 	BlastCrit    = 19 // a melee hit landing critical, on the creep (crit.go)
 )
 
-// unstoppable reports whether nothing slows, stuns or grabs p: Berserk, Titan's Wrath, in the
-// air in a Skyfall, or drawing a Flash Draw (the katana's way out of a ring or a reach).
+// unstoppable reports whether nothing slows, stuns or grabs p: Berserk, Worldsplitter from its
+// windup to the end of its eruption, in the air in a Skyfall, or drawing a Flash Draw (the
+// katana's way out of a ring or a reach).
 func (p *Player) unstoppable() bool {
-	return p.ulting(WCrowbar) || p.ulting(WGreat) || p.Art == ArtSkyfall || p.Art == ArtFlash
+	return p.ulting(WCrowbar) || p.ulting(WGreat) || p.Art == ArtSkyfall || p.Art == ArtFlash || p.Art == ArtSplit
 }
 
 // evo is the evolution of the legendary k p carries, 0 for none.
@@ -229,8 +234,8 @@ func (ws *WeaponState) Mastery(k WeaponKind) float32 {
 	if ws.Evo != 0 {
 		n += masteryEvo
 	}
-	if ws.Dual && k == WKatana {
-		n += masteryDual
+	if ws.Dual {
+		n += masteryDual // a second katana, or a greatsword tempered with a second one
 	}
 	return float32(n) / float32(masteryFull)
 }
@@ -282,16 +287,20 @@ func (w *World) swingLegend(p *Player, st Stats, ang float32, ult bool) {
 	dmg, kind := st.Damage, uint8(TracerKatana)
 	follow := false
 	if k == WGreat {
+		ult = false // Worldsplitter is a cut of its own, not a way of swinging
+		w.sunder, w.sunderCap = 1, sunderCap(st.Mastery)
+		defer func() { w.sunder = 0 }()
 		kind = TracerGreat
 		if p.chainLeft <= 0 {
 			p.chain = 0
 		}
 		p.chain++
 		p.chainLeft = followLapse
-		follow = ult || p.chain%followEvery == 0
+		follow = p.chain%followEvery == 0
 		if follow {
 			dmg *= followMul
 			kind = TracerFollow
+			w.sunder = followSunder
 		}
 	}
 	if ult {
@@ -301,6 +310,13 @@ func (w *World) swingLegend(p *Player, st Stats, ang float32, ult bool) {
 		}
 	}
 	hits := w.melee(owner, p.X, p.Y, ang, st.Range, st.Spread, dmg, kind, st.Hits, st.Stun)
+	if follow {
+		// The follow-through cleaves: a share of what each creep it caught can take.
+		hits = append([]int32(nil), hits...)
+		for _, i := range hits {
+			w.hit(i, w.cleave(i, st.Mastery), owner, 0)
+		}
+	}
 	dx, dy := float32(math.Cos(float64(ang))), float32(math.Sin(float64(ang)))
 	evo := p.evo(k)
 	switch k {
@@ -324,10 +340,10 @@ func (w *World) swingLegend(p *Player, st Stats, ang float32, ult bool) {
 	case WGreat:
 		for _, i := range hits {
 			c := &w.Creeps[i]
-			if st.Shove > 0 {
+			if shove := st.Shove * max(1-st.Mastery, 0); shove > 0 {
 				ox, oy := c.X-p.X, c.Y-p.Y
 				if d := sqrt32(ox*ox + oy*oy); d > 1e-3 {
-					w.push(i, ox/d, oy/d, st.Shove)
+					w.push(i, ox/d, oy/d, shove)
 				}
 			}
 			if evo == 1 {
@@ -335,16 +351,16 @@ func (w *World) swingLegend(p *Player, st Stats, ang float32, ult bool) {
 			}
 		}
 		if evo == 2 && len(hits) > 0 {
-			w.storm(p, hits[0], dmg*stormMul)
+			w.arc(owner, hits[0], dmg*stormMul, stormJumps, stormHop, 0)
 		}
 		// Where the blade comes down, the ground shakes: every swing a shockwave, the
 		// follow-through a harder, wider one.
 		m := st.Mastery
 		qx, qy := p.X+dx*st.Range*.7, p.Y+dy*st.Range*.7
 		w.quake(owner, qx, qy, shockReach+shockReachLevel*m, dmg*(shockMul+shockMulLevel*m),
-			shockStun+masteryStun*m, shockPush+shockPushLevel*m)
+			shockStun+shockStunLevel*m, shockPush-shockPull*m)
 		if follow {
-			w.quake(owner, qx, qy, followQuake+followGrow*m, dmg*.5, 1.5+masteryStun*m, .6+shockPushLevel*m)
+			w.quake(owner, qx, qy, followQuake+followGrow*m, dmg*.5, 1.5+shockStunLevel*m, .6-shockPull*m)
 			if evo == 1 {
 				w.Effects = append(w.Effects, Effect{Kind: EffNapalm, X0: qx, Y0: qy, X: qx, Y: qy, R: 2,
 					Left: ashFire, Total: ashFire, Damage: ashBurn * 1.5 * lateScale(w.Wave), Owner: owner})
@@ -354,7 +370,8 @@ func (w *World) swingLegend(p *Player, st Stats, ang float32, ult bool) {
 }
 
 // quake is a blow of the ground round x, y: everything within r takes dmg, less at the edge,
-// stunned stun times as long as a hit, and is thrown push back from it.
+// stunned stun times as long as a hit, and is thrown push back from it, or for a push below 0
+// dragged that far in towards it, never past it.
 func (w *World) quake(owner int8, x, y, r, dmg, stun, push float32) {
 	cands := w.near[:0]
 	w.grid.each(x, y, r, func(i int32) bool {
@@ -368,24 +385,25 @@ func (w *World) quake(owner int8, x, y, r, dmg, stun, push float32) {
 		c := &w.Creeps[i]
 		dx, dy := c.X-x, c.Y-y
 		d := sqrt32(dx*dx + dy*dy)
-		w.hit(i, dmg*(1-.5*d/r), owner, stun)
+		w.hit(i, dmg*(1-.5*d/r), owner, stun*(1-.7*d/r))
 		if d > 1e-3 {
-			w.push(i, dx/d, dy/d, push)
+			w.push(i, dx/d, dy/d, max(push, -d*.8))
 		}
 	}
 	w.near = cands[:0]
 }
 
-// storm throws Stormbreaker's lightning from creep first to the nearest creeps round it.
-func (w *World) storm(p *Player, first int32, dmg float32) {
-	owner := int8(p.ID)
+// arc throws lightning from creep first to the nearest creep round it within hop, and on from
+// that one, jumps times, never twice to the same creep: Stormbreaker's, and Worldbreaker's
+// charges. Each creep it strikes is set burning at burn a second, if any.
+func (w *World) arc(owner int8, first int32, dmg float32, jumps int, hop, burn float32) {
 	from := first
-	done := w.near[:0]
+	done := w.arcDone[:0]
 	done = append(done, first)
-	for j := 0; j < stormJumps; j++ {
+	for j := 0; j < jumps; j++ {
 		c := &w.Creeps[from]
-		best, bi := float32(stormHop*stormHop), int32(-1)
-		w.grid.each(c.X, c.Y, stormHop, func(i int32) bool {
+		best, bi := hop*hop, int32(-1)
+		w.grid.each(c.X, c.Y, hop, func(i int32) bool {
 			o := &w.Creeps[i]
 			if o.HP <= 0 || w.hidden(o) {
 				return true
@@ -406,10 +424,13 @@ func (w *World) storm(p *Player, first int32, dmg float32) {
 		o := &w.Creeps[bi]
 		w.tracer(c.X, c.Y, o.X, o.Y, TracerArc)
 		w.damage(bi, dmg, owner)
+		if burn > 0 {
+			w.ignite(bi, burn)
+		}
 		done = append(done, bi)
 		from = bi
 	}
-	w.near = done[:0]
+	w.arcDone = done[:0]
 }
 
 // bleed builds blood loss on creep i from p's cut; when it fills, it bursts.
@@ -472,7 +493,7 @@ func (w *World) art(p *Player, x, y float32) error {
 	k := p.Cur
 	d := &Arts[k]
 	if p.Art != ArtNone {
-		return fmt.Errorf("%s is under way", d.Name)
+		return fmt.Errorf("%s is under way", artName(p.Art))
 	}
 	if p.ArtCool > 0 {
 		return fmt.Errorf("%s is ready in %.0fs", d.Name, math.Ceil(float64(p.ArtCool)))
@@ -521,7 +542,7 @@ func (w *World) art(p *Player, x, y float32) error {
 }
 
 // stepArt carries a weapon art on a tick: Flash Draw holds its stance, then cuts; Skyfall flies,
-// then lands.
+// then lands; Worldsplitter is raised, then comes down.
 func (w *World) stepArt(p *Player) {
 	p.Moving, p.Firing = false, false
 	p.ArtLeft -= Dt
@@ -544,6 +565,8 @@ func (w *World) stepArt(p *Player) {
 		w.skyfall(p)
 	case ArtHomeRun:
 		w.homeRun(p)
+	case ArtSplit:
+		w.worldsplit(p)
 	}
 }
 
@@ -645,7 +668,9 @@ func (w *World) skyfall(p *Player) {
 		r++
 		stun *= 2
 	}
-	w.quake(int8(p.ID), p.X, p.Y, r, st.Damage*skyfallMul, stun, .6+shockPushLevel*st.Mastery)
+	w.sunder, w.sunderCap = skyfallSunder, sunderCap(st.Mastery)
+	defer func() { w.sunder = 0 }()
+	w.quake(int8(p.ID), p.X, p.Y, r, st.Damage*skyfallMul, stun, .6+skyfallThrow*st.Mastery)
 	w.pumpsIn(p.X, p.Y, r, int8(p.ID), pumpChain)
 	w.Blasts = append(w.Blasts, Blast{p.X, p.Y, r, BlastSkyfall})
 	if evo == 2 {
@@ -664,6 +689,8 @@ func (w *World) EvolveWeapon(p *Player, k WeaponKind, branch uint8) error {
 	switch {
 	case !k.Evolves():
 		return errors.New("only the crowbar and the legendary blades evolve")
+	case branch == breakerBranch && k == WGreat:
+		return w.buyBreaker(p)
 	case branch < 1 || branch > 2:
 		return errors.New("no such evolution")
 	case !p.Weapons[k].Owned:
@@ -688,8 +715,8 @@ func (w *World) EvolveWeapon(p *Player, k WeaponKind, branch uint8) error {
 	return nil
 }
 
-// legendFor is a legendary p could be given: one they do not carry, or a second katana for one
-// who carries one; NumWeapons when there is none.
+// legendFor is a legendary p could be given: one they do not carry, a second katana for one
+// who carries one, or a second greatsword to temper theirs with; NumWeapons when there is none.
 func (w *World) legendFor(p *Player) WeaponKind {
 	var c []WeaponKind
 	for k := WeaponKind(0); k < NumWeapons; k++ {
@@ -712,6 +739,9 @@ func (w *World) giveLegend(p *Player) (string, bool) {
 	}
 	if p.Weapons[k].Owned {
 		p.Weapons[k].Dual = true
+		if k == WGreat {
+			return temperedNote, true
+		}
 		return "a second katana: a pair, one in each hand", true
 	}
 	p.Weapons[k] = WeaponState{Owned: true, Ammo: Weapons[k].Mag}

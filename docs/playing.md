@@ -102,21 +102,26 @@ katanas crits two hits in five. Guns and turrets never crit.
 Two blades are never sold: the katana (8) and the greatsword (9). They are found, and only where
 the map is most dangerous: now and then on the gas station's counter or in the plane's hold, and
 always on the altar of a shrine (see below). A second katana goes in your other hand, and the pair
-cuts 1.7 times as fast; once you carry everything there is, an altar sharpens the blade in your
-hand instead. Each levels at the armory like any weapon, and each has more to it than a swing:
+cuts 1.7 times as fast; a second greatsword is forged into the first, a **tempered** greatsword
+(still one blade, counted as a second katana is for mastery and crits). Once you carry everything
+there is, an altar sharpens the blade in your hand instead. Each levels at the armory like any weapon, and each has more to it than a swing:
 
 - **Katana:** quick cuts through up to five creeps that build up blood loss. When a creep's fills,
   it bursts for a sixth of its health (less on a boss). Its special track builds bleed faster.
 - **Greatsword:** slow, wide, heavy blows through up to eight that stagger and shove what they
   hit. Every swing sends a shockwave out from where the blade lands, about 2 tiles round, that
   hurts, stuns and pushes back. Every third swing in a row is a follow-through that hits harder
-  still and shakes the ground further.
+  still, shakes the ground further and cleaves a share of each creep's health (3%, up to 10% with
+  mastery; a boss 1% to 8%). Every blow **sunders** what it lands on: each stack strips a fifth of
+  its armour and makes every hit on it 8% harder, yours, your team's and the turrets', up to 5
+  stacks (9 with mastery, +72%), for 5 s after the last blow. Creeps shown cracked are sundered.
 
 **Mastery.** The further you take a katana or a greatsword, the more it does: every track level
-counts, its evolution counts as five more, and a second katana as five more again. A little at
+counts, its evolution counts as five more, and a second katana (or a tempered greatsword) as five
+more again. A little at
 first and a great deal at the top, it:
 
-- hits harder (up to 60% at full, 86% for a full pair of katanas);
+- hits harder (up to 60% at full, 86% for a full pair of katanas or a tempered greatsword);
 - stuns longer, and can stun the same creep again sooner, so a full pair of katanas keeps a
   mauler or even a goliath nearly still;
 - breaks a slam: a long enough stun on a creep winding one up stops it, ring and all; and a creep
@@ -127,7 +132,8 @@ first and a great deal at the top, it:
   a fall far sooner (up to 60% less stun);
 - brings its art back sooner: a full katana's Flash Draw in under a second, a full greatsword's
   Skyfall in about one;
-- for the greatsword, widens its shockwave to 5 tiles and makes it hit, stun and push far harder,
+- for the greatsword, widens its shockwave to 5 tiles and makes it hit and stun far harder, and
+  turns its push into a pull: a mastered blow drags the crowd into the crater for the next one;
   and lands Skyfall over 4.4 tiles.
 
 With a legendary or the crowbar in hand, **F is its weapon art** in place of the dash (with any
@@ -154,6 +160,13 @@ evolutions, as a turret has; you pick one, for 1500 gold:
 | Greatsword | Stormbreaker | every swing throws lightning on to three more creeps; Skyfall calls a thunderbolt down, wider and stunning longer |
 | Crowbar | Bonebreaker | every hit stuns twice as long and knocks its creep back; Home Run swings all the way round you |
 | Crowbar | Scrap King | every kill with the bar pays half its bounty again and heals you 4%; Home Run comes back 3 s sooner |
+
+A greatsword with every track full and an evolution can take one more thing at the armory,
+**Worldbreaker** (3000 gold, once): its ultimate's fissure no longer just closes, it goes off in a
+shockwave 6 tiles either side of the line, and every creep the shockwave catches carries a Tesla
+charge that leaps on from creep to creep, 5 times. With Stormbreaker they leap 7 times and hit
+harder, 9 times while you stand within 5 tiles of a Tesla coil (anyone's); with Ashen Colossus
+every creep a charge strikes is set burning.
 
 ### Blades games
 
@@ -415,7 +428,7 @@ running, and going down ends it.
 | Rocket launcher | Cluster MIRV: a rocket to the cursor that splits into ten bomblets |
 | Crowbar (brutal, blades) | Berserk: 8 s of double swings that heal you and can't be slowed or stunned |
 | Katana | Crimson Tempest: 8 s of cutting half again as fast, every swing a sweep of blood 4.5 tiles out through up to eight creeps, bleed building twice as fast |
-| Greatsword | Titan's Wrath: 8 s of every swing a follow-through, reaching further and coming faster; nothing slows, stuns or grabs you |
+| Greatsword | Worldsplitter: raise the blade 0.8 s, untouchable, then split the ground 12 tiles towards the cursor: everything within 1.5 tiles of the line takes five swings' worth and a quarter of its health (a boss 8%), is sundered to the full and stunned; the fissure erupts every half second for 4 s, holding what walks onto it. Nothing slows, stuns or grabs you till it closes. With Worldbreaker it ends in a shockwave and leaping charges |
 
 No ultimate spends ammo while it runs.
 

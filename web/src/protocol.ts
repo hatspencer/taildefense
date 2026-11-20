@@ -34,14 +34,17 @@ export const enum EvacStage { None = 0, Inbound, Landed, Departing, Gone }
 export const PF_CONNECTED = 1, PF_ALIVE = 2, PF_FIRING = 4, PF_READY = 8, PF_RELOADING = 16,
   PF_HURT = 32, PF_ARMORY = 64, PF_MOVING = 128;
 export const CF_BURNING = 1, CF_SLOWED = 2, CF_GUARD = 4, CF_HUNTING = 8, CF_SIEGE = 16, CF_ASLEEP = 32, CF_WINDUP = 64, CF_STRIKE = 128;
-// A creep's second flags byte, cFx: frenzied, then its wave's affixes it carries.
-export const CX_FRENZY = 1, CX_ARMOURED = 2, CX_HASTY = 4, CX_SAPPER = 8, CX_SPLITTER = 16;
+// A creep's second flags byte, cFx: frenzied, then its wave's affixes it carries, then a
+// greatsword's Sunder on it (a stack or more).
+export const CX_FRENZY = 1, CX_ARMOURED = 2, CX_HASTY = 4, CX_SAPPER = 8, CX_SPLITTER = 16, CX_SUNDER = 32;
 // A wave's affixes, as the welcome's affixes names them.
 export const AX_ARMOURED = 1, AX_HASTY = 2, AX_SAPPERS = 4, AX_SPLITTERS = 8;
 export const COMPASS = ['east', 'southeast', 'south', 'southwest', 'west', 'northwest', 'north', 'northeast'];
 
 export const enum Order { Idle = 0, Move, AMove, Attack, Hold, Build, Repair, Loot, Revive, Steer, Pickup, Board, Gate }
-export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake, Bell, Bile, Landed, Flame, Overload, Napalm, Bleed, Skyfall, Crit }
+export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake, Bell, Bile, Landed, Flame, Overload, Napalm, Bleed, Skyfall, Crit,
+  // Worldsplitter's fissure erupting (a burst along its line), and Worldbreaker detonating it.
+  Erupt, Breaker }
 export const enum Weather { Clear = 0, Fog, Rain, Storm, Snow, Drizzle, Thunder, HeavySnow }
 // How much each weather counts as rain (internal/game/weather.go wetness).
 export const WET = [0, 0, 1, 1, 0, 0.3, 0.5, 0];
@@ -74,31 +77,42 @@ export function lootable(k: number): boolean { return k !== SiteKind.Pump && k !
 // Bile: a broodmother's sac, rearing back from (x0, y0) for LOB_WINDUP seconds, then in the
 // air; it bursts within r of (x, y) when left runs out. Acid: the pool it leaves. Spit: a
 // spitter's glob flying from (x0, y0) to where its mark stood, (x, y), splashing within r there.
-export const enum EffectKind { Grenade = 1, Napalm = 2, AirTarget = 3, Drop = 4, Slam = 5, Bile = 6, Acid = 7, Spit = 8 }
+// Fissure: Worldsplitter's crack in the ground from (x0, y0) to (x, y), r either side of the
+// line, erupting every FISSURE_EVERY seconds until left runs out.
+export const enum EffectKind { Grenade = 1, Napalm = 2, AirTarget = 3, Drop = 4, Slam = 5, Bile = 6, Acid = 7, Spit = 8, Fissure = 9 }
+export const FISSURE_EVERY = 0.5;
 export const LOB_WINDUP = 0.7;
 // Seconds a survivor a mauler or a goliath threw is in the air (internal/game/grab.go).
 export const THROW_FLIGHT = 0.7;
 // The bits of a survivor's owned weapons that are a second pistol, found, in the other hand,
-// and a second katana; and a survivor of a blades game yet to pick their blade (DualBit,
-// DualKatanaBit and PickBit in internal/game/defs.go).
-export const OWNED_DUAL = 1 << 15, OWNED_DUAL_KATANA = 1 << 14, OWNED_PICKING = 1 << 13;
+// and a second katana; a survivor of a blades game yet to pick their blade; a greatsword
+// tempered with a second one, and one with Worldbreaker (DualBit, DualKatanaBit, PickBit,
+// TemperedBit and BreakerBit in internal/game/defs.go).
+export const OWNED_DUAL = 1 << 15, OWNED_DUAL_KATANA = 1 << 14, OWNED_PICKING = 1 << 13,
+  OWNED_TEMPERED = 1 << 12, OWNED_BREAKER = 1 << 11;
+// The bits of the owned word that are weapons carried.
+export const OWNED_WEAPONS = (1 << WEAPON_SLOTS) - 1;
 // Whether a survivor who owns these weapons has a hand free for one of kind k: one they do not
-// carry, or a pistol or a katana to pair with theirs.
+// carry, a pistol or a katana to pair with theirs, or a greatsword to temper theirs with.
 export function canTake(owned: number, k: number): boolean {
-  return !(owned & (1 << k)) || (k === 0 && !(owned & OWNED_DUAL)) || (k === KATANA && !(owned & OWNED_DUAL_KATANA));
+  return !(owned & (1 << k)) || (k === 0 && !(owned & OWNED_DUAL)) || (k === KATANA && !(owned & OWNED_DUAL_KATANA)) ||
+    (k === GREAT && !(owned & OWNED_TEMPERED));
 }
+// Whether a survivor's greatsword is tempered with a second one: it counts as a pair does.
+export const tempered = (owned: number): boolean => (owned & OWNED_TEMPERED) !== 0;
 // Whether the weapon of kind k a survivor holds is a pair.
 export function dualIn(owned: number, k: number): boolean {
   return (k === 0 && (owned & OWNED_DUAL) !== 0) || (k === KATANA && (owned & OWNED_DUAL_KATANA) !== 0);
 }
 // How far a survivor has taken legendary blade k, as td's WeaponState.Mastery (legend.go):
-// its track levels, 5 for an evolution and 5 more for a second katana, over 25.
+// its track levels, 5 for an evolution and 5 more for a second katana or a tempered greatsword,
+// over 25.
 export function mastery(p: Player, k: number): number {
   if (k !== KATANA && k !== GREAT) return 0;
   let n = 0;
   for (let t = 0; t < 4; t++) n += p.levels[k * 4 + t];
   if (p.evo[k]) n += 5;
-  if (dualIn(p.owned, k)) n += 5;
+  if (dualIn(p.owned, k) || (k === GREAT && tempered(p.owned))) n += 5;
   return n / 25;
 }
 // The seconds of the art of blade k's cooldown, base seconds cool before mastery, as td's
@@ -116,12 +130,14 @@ export const TRACER_KATANA = 38, TRACER_GREAT = 39, TRACER_KATANA_ULT = 40, TRAC
   TRACER_FLASH = 42, TRACER_MOON = 43, TRACER_FOLLOW = 44;
 // The crowbar's Home Run: the swing, and Bonebreaker's all the way round.
 export const TRACER_HOMERUN = 45, TRACER_HOMERUN_ROUND = 46;
+// Worldsplitter's cut: from the survivor to the far end of the fissure, as the blade comes down.
+export const TRACER_SPLIT = 47;
 // A survivor's weapon art under way (Player.art): Flash Draw held sheathed, Skyfall in the air,
-// Home Run wound back.
-export const enum Art { None = 0, Flash, Skyfall, HomeRun }
+// Home Run wound back, and the greatsword raised for Worldsplitter (its ultimate).
+export const enum Art { None = 0, Flash, Skyfall, HomeRun, Split }
 // Seconds each art takes from the key to the cut: legend.go's flashDraw, skyfallFlight and
-// homeWindup.
-export const ART_TIME = [0, 0.3, 0.6, 0.45];
+// homeWindup, and greatsword.go's splitWindup.
+export const ART_TIME = [0, 0.3, 0.6, 0.45, 0.8];
 // Added to a weapon's tracer kind for a shot fired under its ultimate.
 export const TRACER_ULT = 8;
 
@@ -135,6 +151,9 @@ export interface WeaponDef {
   // A legendary blade: found, never sold; its weapon art on F, and two evolutions for evoCost.
   legend?: boolean; art?: { name: string; desc: string; range: number; cool: number };
   evolve?: { name: string; desc: string }[]; evoCost?: number;
+  // The greatsword's Worldbreaker: bought once at the armory (evolveWeapon branch 3) for one
+  // with every track at the top and evolved.
+  breaker?: { name: string; desc: string; cost: number };
 }
 export interface GearDef { name: string; info: string; costs: number[] }
 export interface AbilityDef {
@@ -517,7 +536,7 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
       p.abLevel[a] = d.getUint8(o); p.abCool[a] = d.getUint16(o + 1, true) / 10; o += 3;
     }
     p.medkits = d.getUint8(o); p.heal = d.getUint8(o + 1) / 10; p.reloading = d.getUint16(o + 2, true);
-    p.swings = bytes[o + 4]; const art = bytes[o + 5]; p.art = art >> 6; p.artFrac = (art & 63) / 63; p.artCool = d.getUint16(o + 6, true) / 10; p.slow = bytes[o + 8] / 100; o += 9;
+    p.swings = bytes[o + 4]; const art = bytes[o + 5]; p.art = art >> 5; p.artFrac = (art & 31) / 31; p.artCool = d.getUint16(o + 6, true) / 10; p.slow = bytes[o + 8] / 100; o += 9;
     p.downs = d.getUint16(o, true); p.revives = d.getUint16(o + 2, true); p.built = d.getUint16(o + 4, true);
     p.searched = d.getUint16(o + 6, true); p.bosses = d.getUint16(o + 8, true);
     p.taken = d.getUint32(o + 10, true); p.turret = d.getUint32(o + 14, true); o += 18;

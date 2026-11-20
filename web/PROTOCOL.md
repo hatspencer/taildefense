@@ -39,7 +39,7 @@ everything it knows, a terrain message follows).
 ```jsonc
 {
   "t": "welcome",
-  "proto": 28,
+  "proto": 29,
   "version": "a1b2c3d",
   "you": 0,                    // your player id
   "w": 352, "h": 220,          // map size in tiles
@@ -113,7 +113,9 @@ everything it knows, a terrain message follows).
       // "art": {"name": "Flash Draw", "desc": "...", "range": 7, "cool": 6}, its weapon art on F
       // in place of the dash while it is in hand, "evolve": [{"name", "desc", "range": 1} × 2],
       // its two evolutions once its tracks add up to tiers.evolveAt, and "evoCost": 1500. The
-      // crowbar (6) has "art" (Home Run), "evolve" and "evoCost" too, without "legend".
+      // crowbar (6) has "art" (Home Run), "evolve" and "evoCost" too, without "legend". The
+      // greatsword has "breaker": {"name": "Worldbreaker", "desc": "...", "cost": 3000}, bought
+      // once with evolveWeapon branch 3 when every track is full and it has evolved.
     }
   ],
   "gear": [ {"name": "Armor", "info": "+25 max HP", "costs": [90, 153, 260, 442, 752]} ],
@@ -300,7 +302,9 @@ u8   nPlayers
   u32  gold, u32 kills, u32 damage
   u16  owned          bit k set: weapon k owned; bit 15 a second pistol, dual pistols: twice
                       the pistol's fire rate and magazine; bit 14 a second katana, a pair;
-                      bit 13 a blades game's survivor yet to pick their blade (pickBlade)
+                      bit 13 a blades game's survivor yet to pick their blade (pickBlade);
+                      bit 12 a tempered greatsword (a second one forged into it); bit 11 the
+                      greatsword has Worldbreaker
   u8   levels[36]     weapon-major: levels[w*4 + track]
   u8   evo            the blades' evolutions, 0 none or 1..2: bits 0-1 the katana's,
                       bits 2-3 the greatsword's, bits 4-5 the crowbar's
@@ -337,9 +341,10 @@ u8   nPlayers
   u8   heal           deciseconds of a medkit's healing left
   u16  reloading      bit k set: weapon k is reloading, in hand or not
   u8   swings         a legendary's swings, counting up and wrapping: each change is a swing
-  u8   art            bits 6-7 the weapon art under way (0 none, 1 Flash Draw, 2 Skyfall,
-                      3 Home Run),
-                      bits 0-5 how far along it is, 0..63
+  u8   art            bits 5-7 the weapon art under way (0 none, 1 Flash Draw, 2 Skyfall,
+                      3 Home Run, 4 Worldsplitter raised: the greatsword's ultimate, 0.8 s
+                      before the blade comes down),
+                      bits 0-4 how far along it is, 0..31
   u16  artCool        deciseconds until the weapon art can be used again
   u8   slow           centiseconds left walking at half speed after a creep's blow (the
                       page's own walk prediction needs it)
@@ -401,12 +406,13 @@ u16  nCreeps
   u8   fx             more flags: 1 frenzied (it lost patience with the maze: faster, and it
                       breaks through whatever is in its way), 2 armoured, 4 hasty, 8 a sapper
                       (walks straight for the walls and blows up against one), 16 a splitter
-                      (bursts into swarmers when it dies)
+                      (bursts into swarmers when it dies), 32 sundered (a greatsword's blows
+                      have cracked it: less armour, every hit harder)
 
 u16  nTracers         shots fired this tick
   u16  x0, y0, x1, y1 q8
   u8   kind           0..6 player weapon kind (6 the crowbar: a swing, the survivor to its
-                      reach), 8 + weapon kind the same under its ultimate (drawn red and wider), 16+structKind turret shot (a missile battery's is a one-tile stub at launch; its missiles fly as 5, rocket, tracers), 32 spitter spit, 35 a hurler's bone, 33 dash (the hero's leap, start to end), 34 the Huey's door gunner, 36 a napalm missile in flight (as 5, burning), 37 an arc web's jump from creep to creep (and from each struck creep to the one two back), 38 a katana's cut and 39 a greatsword's (the survivor to its reach), 40 and 41 the same under their ultimates, 42 Flash Draw's cut (start to end of the survivor's run), 43 Moonlit Edge's crescent, 44 a greatsword's follow-through, 45 the crowbar's Home Run (the survivor to its reach) and 46 Bonebreaker's, all the way round
+                      reach), 8 + weapon kind the same under its ultimate (drawn red and wider), 16+structKind turret shot (a missile battery's is a one-tile stub at launch; its missiles fly as 5, rocket, tracers), 32 spitter spit, 35 a hurler's bone, 33 dash (the hero's leap, start to end), 34 the Huey's door gunner, 36 a napalm missile in flight (as 5, burning), 37 an arc web's jump from creep to creep (and from each struck creep to the one two back), 38 a katana's cut and 39 a greatsword's (the survivor to its reach), 40 and 41 the same under their ultimates, 42 Flash Draw's cut (start to end of the survivor's run), 43 Moonlit Edge's crescent, 44 a greatsword's follow-through, 45 the crowbar's Home Run (the survivor to its reach) and 46 Bonebreaker's, all the way round, 47 Worldsplitter's cut (the survivor to the end of the fissure)
                       (x0,y0 is the Huey over the ground; it fires from the air)
 u16  nBlasts          explosions and pulses this tick
   u16  x, y q8
@@ -421,7 +427,10 @@ u16  nBlasts          explosions and pulses this tick
                       (at the generator, r its reach), 16 a napalm missile bursting (the
                       ground burns a moment where it lands), 17 a creep's blood loss bursting,
                       18 Skyfall landing (r its reach), 19 a melee hit landing critical (on the
-                      creep, r its radius)
+                      creep, r its radius), 20 a burst of Worldsplitter's fissure erupting (three
+                      a burst along the line, r its half width), 21 Worldbreaker going off (at the
+                      fissure's start, middle and end, r its reach either side; its charges
+                      leap as tracers 37)
 u16  nDeaths          creeps that died this tick
   u16  x, y q8
   u8   kind
@@ -433,7 +442,8 @@ u16  nEffects         lasting effects, the full current list every frame
                       6 a broodmother's sac of bile: she rears back at x0,y0 for its first 0.7 s,
                       then it arcs to x,y and bursts within r when it ends, 7 a pool of acid,
                       8 a spitter's glob flying from x0,y0 to where its mark stood, x,y; it
-                      splashes within r there when it ends
+                      splashes within r there when it ends, 9 Worldsplitter's fissure from x0,y0
+                      to x,y, r either side of the line, erupting every 0.5 s until it ends
   u16  x0, y0, x, y q8
   u8   r              radius * 8
   u8   left           deciseconds left
@@ -548,7 +558,7 @@ fall on its clock. The demo host acks numbered commands too.
                                              // stands in the gateway; it swings once per gate.cool s
 {"op": "payIn"}                              // put tiers.step gold into the generator's next tier
 {"op": "evolve",  "s": 7, "track": 1}        // evolve turret 7 into its branch 1 or 2 (structs[k].evolve)
-{"op": "evolveWeapon", "w": 7, "branch": 2}  // at the armory: evolve blade 7 (a legendary or the crowbar) into its branch 1 or 2 (weapons[w].evolve)
+{"op": "evolveWeapon", "w": 7, "branch": 2}  // at the armory: evolve blade 7 (a legendary or the crowbar) into its branch 1 or 2 (weapons[w].evolve); branch 3 on the greatsword (8) buys its Worldbreaker (weapons[8].breaker)
 {"op": "pickBlade", "w": 7}                   // a blades game: the blade to start with, one of startBlades, once
 {"op": "overload"}                           // the generator's Overload, once a wave from tier tiers.overload
 {"op": "ready",   "on": true}                // ready for the next wave (all ready: starts in 3 s)
