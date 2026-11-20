@@ -967,6 +967,18 @@ A survivor put back at the base is shielded for 5 seconds, drawn blinking: no ha
 lands, but they can shoot. Without it a swarm on the nexus killed them again as they stood up,
 over and over. A revive gives no shield: the reviver chose the moment.
 
+On hard and brutal a team wipe ends the game: every survivor still in the game down at once,
+and the generator falls (`teamDown` in `internal/game/sim.go`, the difficulty's `Wipe`). There
+a downed survivor's countdown was only a pause, so a team could all go down to a wave and
+stand up again at the base for nothing; the respawn should cost, and the harder modes are where
+it should cost most. Easy and normal keep the respawn as the safety net. The evac is spared:
+whoever got aboard gets away, and those left behind are left behind already. A survivor who has
+left doesn't count, so one player dropping out doesn't hold the game up or end it.
+The bots play to it: the last one standing, with creeps on it or round the downed, breaks
+off any revive and holds at the generator until the countdowns put the others back
+(`holdOut` in `internal/netplay/bot.go`). Without that they walked one after another into the
+crowd that had downed the first, and lost every hard and brutal game by the fourth wave.
+
 ## Weather
 
 The weather changes between waves and is the same for everyone. Fog shortens everyone's range,
