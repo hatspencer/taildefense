@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { float, mix, sin, time, uniform, vertexColor } from 'three/tsl';
 import type { Frame } from '../protocol';
 import type { Structs } from './structs';
-import { setEmissive, writeMatrix } from './util';
+import { writeMatrix } from './util';
 
 const ROUTE_DOTS = 4096;
 
@@ -35,7 +35,7 @@ export class Overlays {
     this.discGeo = new THREE.CircleGeometry(1, 48); this.discGeo.rotateX(-Math.PI / 2);
     this.ghostMat = new THREE.MeshLambertNodeMaterial({ transparent: true, depthWrite: false });
     this.ghostMat.colorNode = mix(vertexColor().rgb, this.ghostColor, 0.5);
-    setEmissive(this.ghostMat, this.ghostColor.mul(0.3));
+    this.ghostMat.emissiveNode = this.ghostColor.mul(0.3);
     this.ghostMat.opacityNode = sin(time.mul(6)).mul(0.08).add(0.68);
     const footMat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false });
     footMat.colorNode = this.ghostColor;
@@ -148,7 +148,7 @@ export class Overlays {
         this.pendingMat = new THREE.MeshLambertNodeMaterial({ transparent: true, depthWrite: false });
         const c = uniform(new THREE.Color(0x40ff70));
         this.pendingMat.colorNode = mix(vertexColor().rgb, c, 0.35);
-        setEmissive(this.pendingMat, c.mul(0.2));
+        this.pendingMat.emissiveNode = c.mul(0.2);
         this.pendingMat.opacityNode = sin(time.mul(14)).mul(0.1).add(0.55);
       }
       const g = this.structs.ghost(p.kind, this.pendingMat);

@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { color, float, fract, max, mix, positionLocal, sin, step, time, uniform, vertexColor, vec3 } from 'three/tsl';
 import { K_ARMORY, K_CANNON, K_CORE, K_FROST, K_GATE, K_GUN, K_MINE, K_MISSILE, K_SNIPER, K_SPIKES, K_PYLON, K_TAR, K_TESLA, K_VENT, K_WALL, type StructDef, TURRET_TRACKS } from '../protocol';
 import type { Game } from '../state';
-import { box, concat, cone, cyl, dodeca, ico, merge, octa, part, playerColor, setEmissive, torus, writeMatrix, type Part } from './util';
+import { box, concat, cone, cyl, dodeca, ico, merge, octa, part, playerColor, torus, writeMatrix, type Part } from './util';
 
 export { K_ARMORY, K_CANNON, K_CORE, K_FROST, K_GATE, K_GUN, K_MISSILE, K_SNIPER, K_TESLA, K_WALL };
 
@@ -12,7 +12,7 @@ const hl = uniform(0).onObjectUpdate((frame) => (frame.object?.userData.hl as nu
 export function litMaterial(): THREE.MeshLambertNodeMaterial {
   const m = new THREE.MeshLambertNodeMaterial();
   m.colorNode = vertexColor().rgb;
-  setEmissive(m, vec3(0.32, 0.3, 0.18).mul(hl));
+  m.emissiveNode = vec3(0.32, 0.3, 0.18).mul(hl);
   return m;
 }
 
