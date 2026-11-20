@@ -523,7 +523,12 @@ the Overload killing every small creep at waves 10 to 30 but no brute.
   base, onto open ground a survivor can walk to. It's the long break's lure: worth the walk, out
   where the creeps are. The door gunner's minigun thins them on the way in. Opening it takes 2.5 s of
   standing by it unhurt, and it pays the whole team (gold, full medkits) plus a rare find for the
-  opener. Up to three wait unopened. The surfboards on the Huey's side are for Kilgore.
+  opener. Up to three wait unopened. The surfboards on the Huey's side are for Kilgore, and
+  the door gunner, sitting in the open doorway with his legs out over the skid in a red
+  headband, aviators and crossed belts of brass, a cigar going, is for Tropic Thunder. He is
+  drawn where the top-down camera can see him, out past the roof's edge, and his minigun sits
+  on an arm out from the doorframe and turns to what it fires at, his arms on its grips and his
+  tracers leaving from its muzzle, so the shots read as his.
 - **Weapons change hands.** A survivor can drop a weapon they carry and a teammate pick it up,
   every upgrade track as it was, its magazine too. Gold is personal, so this is one way a team
   pools it: one player buys and upgrades a rifle, another uses it. Picking up takes 0.2 s, a token

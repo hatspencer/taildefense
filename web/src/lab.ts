@@ -1,5 +1,5 @@
 import {
-  Art, ART_TIME, BlastKind, CROWBAR, GREAT, TRACER_HOMERUN, TRACER_HOMERUN_ROUND, K_TESLA, KATANA, OWNED_DUAL, OWNED_DUAL_KATANA, TRACER_FLASH, TRACER_FOLLOW, TRACER_GREAT,
+  Art, EffectKind, TRACER_HELI, ART_TIME, BlastKind, CROWBAR, GREAT, TRACER_HOMERUN, TRACER_HOMERUN_ROUND, K_TESLA, KATANA, OWNED_DUAL, OWNED_DUAL_KATANA, TRACER_FLASH, TRACER_FOLLOW, TRACER_GREAT,
   TRACER_KATANA, TRACER_MOON, THROW_FLIGHT, TRACER_ARC, TRACER_NAPALM, CF_ASLEEP, CF_BURNING, CF_GUARD, CF_STRIKE, CF_WINDUP, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_FIRING, PF_HURT, PF_MOVING, PF_RELOADING, Player,
 } from './protocol';
 import type { Game } from './state';
@@ -12,7 +12,8 @@ import type { Game } from './state';
 // show every state; then the legendaries: the katana's combo, a pair of katanas, Flash Draw,
 // the greatsword's combo, Skyfall, the evolved blades (Moonlit Edge, Titan's Wrath), and the
 // crowbar's Home Run, plain and Bonebreaker's. Past them, the turret evolutions' shots ('fx'): a napalm missile flying
-// and bursting, and an arc web striking a knot of points. It takes the demo's world over after
+// and bursting, and an arc web striking a knot of points. Past those ('huey'), a supply Huey
+// hovering with its door gunner sweeping the ground around it. It takes the demo's world over after
 // its first frame and stops it, then poses everything itself.
 
 const COLS = ['walk', 'idle', 'attack', 'hit', 'burn', 'sleep', 'die'] as const;
@@ -39,6 +40,7 @@ export class Lab {
   // of them ('h0'..'h17'), or the crowbar's Home Run ('crowbar'), or the turret shots ('fx').
   center(at = ''): [number, number] {
     if (at === 'fx') return [this.fx() + 4.5, this.y0 + 2.5];
+    if (at === 'huey') return [this.fx() + 22, this.y0 - 2]; // north of it, as the Huey is up in the air
     if (/^h\d+$/.test(at)) return this.spot(Number(at.slice(1)));
     if (at === 'crowbar') { const [x, y] = this.spot(16); return [x + 1.7, y]; }
     if (at === 'h') return [this.x0 + COLS.length * DX + 4.2, this.y0 + 1.5 * DY];
@@ -152,6 +154,7 @@ export class Lab {
       p.x = x; p.y = y; p.aim = aim;
     }
     if (fresh) this.shots();
+    this.huey(t, fresh);
     return fresh;
   }
 
@@ -235,5 +238,20 @@ export class Lab {
       }
       blast(pts[pts.length - 1][0], pts[pts.length - 1][1], 0.8, BlastKind.Tesla);
     }
+  }
+
+  // A supply Huey held in its hover, its door gunner firing every other frame at a mark that
+  // walks round it (a pause in each lap, to see the gun go back to rest), out on its right
+  // side and round under its nose and tail.
+  private huey(t: number, fresh: boolean): void {
+    const f = this.game.cur, x = this.fx() + 22, y = this.y0 + 2.5;
+    f.nEffects = 1;
+    f.eKind[0] = EffectKind.Drop; f.eX0[0] = x - 1; f.eY0[0] = y; f.eX[0] = x; f.eY[0] = y; f.eR[0] = 0;
+    f.eLeft[0] = 30; f.eTotal[0] = 250;
+    const lap = t % 9;
+    if (!fresh || this.tick % 2 || lap > 7) return;
+    const a = -2.6 + lap * 0.75, r = 6 + Math.sin(t * 1.7) * 2.5;
+    const i = f.nTracers++;
+    f.tX0[i] = x; f.tY0[i] = y; f.tX1[i] = x + Math.cos(a) * r; f.tY1[i] = y + Math.sin(a) * r; f.tKind[i] = TRACER_HELI;
   }
 }
