@@ -6,3 +6,5 @@
 !/internal/web/dist/.keep
 /web/node_modules/
 /screenshots/
+/.claude/worktrees/
+/.playwright-mcp/
