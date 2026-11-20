@@ -628,25 +628,7 @@ func (w *World) scrap(p *Player, hits []int32) {
 func (w *World) flashDraw(p *Player) {
 	st := w.playerStats(p)
 	x0, y0, x1, y1 := p.X, p.Y, p.artX, p.artY
-	lx, ly := x1-x0, y1-y0
-	l2 := lx*lx + ly*ly
-	cands := w.near[:0]
-	mx, my := (x0+x1)/2, (y0+y1)/2
-	w.grid.each(mx, my, sqrt32(l2)/2+flashWidth+1, func(i int32) bool {
-		c := &w.Creeps[i]
-		if c.HP <= 0 || w.hidden(c) {
-			return true
-		}
-		u := float32(0)
-		if l2 > 0 {
-			u = clampf(((c.X-x0)*lx+(c.Y-y0)*ly)/l2, 0, 1)
-		}
-		dx, dy := c.X-(x0+lx*u), c.Y-(y0+ly*u)
-		if r := flashWidth + Creeps[c.Kind].Radius; dx*dx+dy*dy <= r*r {
-			cands = append(cands, i)
-		}
-		return true
-	})
+	cands := w.inLine(w.near[:0], x0, y0, x1, y1, flashWidth)
 	w.near = cands[:0]
 	hits := append([]int32(nil), cands...)
 	for _, i := range hits {
@@ -816,31 +798,8 @@ func shrines(t []Tile, w, h int, rng *rand.Rand, road []bool, houses []ruin) []r
 			if clash {
 				continue
 			}
-			score, reached := 0, 0
-			for dy := -r; dy <= r; dy++ {
-				for dx := -r; dx <= r; dx++ {
-					i := (y+dy)*w + x + dx
-					if open[i] && (abs(dx) == r || abs(dy) == r) {
-						reached++
-					}
-					switch {
-					case road[i]:
-						score += 4
-					case t[i] == TWater:
-						score += 6
-					case t[i].Solid():
-						score++
-					}
-				}
-			}
-			if reached < 8 {
-				continue
-			}
-			if score = score*64 + rng.IntN(64); score < bestScore {
-				fx, fy := sign(w/2-x), 0
-				if abs(h/2-y)*w > abs(w/2-x)*h {
-					fx, fy = 0, sign(h/2-y)
-				}
+			if score, ok := siteScore(t, w, open, road, rng, x, y, r); ok && score < bestScore {
+				fx, fy := faceMiddle(w, h, x, y)
 				best, bestScore = pick{x, y, fx, fy}, score
 			}
 		}

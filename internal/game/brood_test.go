@@ -15,17 +15,25 @@ func openRow(w *World, n int) (float32, float32) {
 	return 0, 0
 }
 
-func TestTheBroodmotherLobsBileThatBurnsAndHatches(t *testing.T) {
-	w := newBare(4)
+// stoodOut sets up a bare world mid-wave with no creep due, and a survivor "ana" who neither
+// shoots nor dies; it finds open ground with a clear run of n tiles east of x, y for the test
+// to stage on.
+func stoodOut(t *testing.T, n int) (w *World, p *Player, x, y float32) {
+	t.Helper()
+	w = newBare(4)
 	w.Phase = PhaseWave
 	w.Queue = []Spawn{{At: 1e9}}
-	p, _ := w.Join("ana", "ana@example")
+	p = mustJoin(t, w, "ana")
 	p.MaxHP, p.HP = 1e4, 1e4
 	p.Weapons[p.Cur].Ammo, p.Weapons[p.Cur].Reload = 0, 1e9
-	x, y := openRow(w, 10)
-	if x == 0 {
+	if x, y = openRow(w, n); x == 0 {
 		t.Fatal("no open ground")
 	}
+	return w, p, x, y
+}
+
+func TestTheBroodmotherLobsBileThatBurnsAndHatches(t *testing.T) {
+	w, p, x, y := stoodOut(t, 10)
 	if !w.SpawnCreep(CMother, x, y) {
 		t.Fatal("no broodmother")
 	}

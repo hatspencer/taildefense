@@ -160,12 +160,11 @@ func (w *World) raiseSplit(p *Player, x, y float32) {
 	p.walk.reset()
 }
 
-// inLine gathers the creeps within half of the line from x0, y0 to x1, y1 (and their own
-// size), into a slice of their own.
-func (w *World) inLine(x0, y0, x1, y1, half float32) []int32 {
+// inLine appends to out the creeps within half of the line from x0, y0 to x1, y1 (and their
+// own size), so a caller can gather into a fresh slice (nil) or a reused scratch one.
+func (w *World) inLine(out []int32, x0, y0, x1, y1, half float32) []int32 {
 	lx, ly := x1-x0, y1-y0
 	l2 := lx*lx + ly*ly
-	var out []int32
 	w.grid.each((x0+x1)/2, (y0+y1)/2, sqrt32(l2)/2+half+1, func(i int32) bool {
 		c := &w.Creeps[i]
 		if c.HP <= 0 || w.hidden(c) {
@@ -220,7 +219,7 @@ func (w *World) worldsplit(p *Player) {
 	x0, y0, x1, y1 := p.X, p.Y, p.artX, p.artY
 	w.sunder, w.sunderCap = sunderCap(st.Mastery)+1, sunderCap(st.Mastery)
 	defer func() { w.sunder = 0 }()
-	for _, i := range w.inLine(x0, y0, x1, y1, splitHalf) {
+	for _, i := range w.inLine(nil, x0, y0, x1, y1, splitHalf) {
 		w.hit(i, st.Damage*splitMul+w.healthShare(i, splitCut, splitBoss), owner, splitStun)
 	}
 	w.tracer(x0, y0, x1, y1, TracerSplit)
@@ -250,7 +249,7 @@ func (w *World) stepFissure(e *Effect) {
 		w.crit, w.critMul = p.Weapons[WGreat].crit(WGreat)
 		defer func() { w.mastery, w.sunder, w.crit, w.critMul = 0, 0, 0, 0 }()
 	}
-	for _, i := range w.inLine(e.X0, e.Y0, e.X, e.Y, e.R) {
+	for _, i := range w.inLine(nil, e.X0, e.Y0, e.X, e.Y, e.R) {
 		w.hit(i, e.Damage*splitBurstMul+w.healthShare(i, splitBurstShare, splitBurstBoss), e.Owner, splitBurstStun)
 	}
 	for k := 0; k < 3; k++ {
@@ -276,7 +275,7 @@ func (w *World) worldbreak(e *Effect, p *Player) {
 			jumps = breakerCoilJump
 		}
 	}
-	caught := w.inLine(e.X0, e.Y0, e.X, e.Y, breakerReach)
+	caught := w.inLine(nil, e.X0, e.Y0, e.X, e.Y, breakerReach)
 	mx, my := (e.X0+e.X)/2, (e.Y0+e.Y)/2
 	for _, i := range caught {
 		c := &w.Creeps[i]
