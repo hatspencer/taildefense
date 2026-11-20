@@ -64,6 +64,43 @@ func churchAt(cx, cy, fx, fy, lx, ly int) (int, int) {
 	return cx + ox*sx + oy*fx, cy + ox*sy + oy*fy
 }
 
+// siteScore weighs a landmark's square of radius r round x, y, the church's or a shrine's,
+// lower being better: roads, water and anything standing count against it, and ok is false
+// when fewer than 8 tiles of its rim are open to the middle. Only a site that is ok draws its
+// tie-break from rng, so the maps stay what they were.
+func siteScore(t []Tile, w int, open, road []bool, rng *rand.Rand, x, y, r int) (score int, ok bool) {
+	reached := 0
+	for dy := -r; dy <= r; dy++ {
+		for dx := -r; dx <= r; dx++ {
+			i := (y+dy)*w + x + dx
+			if open[i] && (abs(dx) == r || abs(dy) == r) {
+				reached++
+			}
+			switch {
+			case road[i]:
+				score += 4
+			case t[i] == TWater:
+				score += 6
+			case t[i].Solid():
+				score++
+			}
+		}
+	}
+	if reached < 8 {
+		return 0, false
+	}
+	return score*64 + rng.IntN(64), true
+}
+
+// faceMiddle is the way from x, y towards the middle of a w by h map along its longer leg,
+// the way a landmark there turns its front.
+func faceMiddle(w, h, x, y int) (fx, fy int) {
+	if abs(h/2-y)*w > abs(w/2-x)*h {
+		return 0, sign(h/2 - y)
+	}
+	return sign(w/2 - x), 0
+}
+
 // church raises the church somewhere out on the outskirts, clear of the other landmarks and
 // open to the rest of the map, its tower towards the middle. Houses in its yard are flattened.
 func church(t []Tile, w, h int, rng *rand.Rand, road []bool, houses []ruin) []ruin {
@@ -86,31 +123,8 @@ func church(t []Tile, w, h int, rng *rand.Rand, road []bool, houses []ruin) []ru
 		if clash {
 			continue
 		}
-		score, reached := 0, 0
-		for dy := -r; dy <= r; dy++ {
-			for dx := -r; dx <= r; dx++ {
-				i := (y+dy)*w + x + dx
-				if open[i] && (abs(dx) == r || abs(dy) == r) {
-					reached++
-				}
-				switch {
-				case road[i]:
-					score += 4
-				case t[i] == TWater:
-					score += 6
-				case t[i].Solid():
-					score++
-				}
-			}
-		}
-		if reached < 8 {
-			continue
-		}
-		if score = score*64 + rng.IntN(64); score < bestScore {
-			fx, fy := sign(w/2-x), 0
-			if abs(h/2-y)*w > abs(w/2-x)*h {
-				fx, fy = 0, sign(h/2-y)
-			}
+		if score, ok := siteScore(t, w, open, road, rng, x, y, r); ok && score < bestScore {
+			fx, fy := faceMiddle(w, h, x, y)
 			best, bestScore = pick{x, y, fx, fy}, score
 		}
 	}

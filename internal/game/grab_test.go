@@ -6,16 +6,7 @@ import "testing"
 // neither shoots nor dies, and steps until it has them.
 func grabbed(t *testing.T, k CreepKind) (*World, *Player, *Creep, float32) {
 	t.Helper()
-	w := newBare(4)
-	w.Phase = PhaseWave
-	w.Queue = []Spawn{{At: 1e9}}
-	p := mustJoin(t, w, "ana")
-	p.MaxHP, p.HP = 1e4, 1e4
-	p.Weapons[p.Cur].Ammo, p.Weapons[p.Cur].Reload = 0, 1e9
-	x, y := openRow(w, 14)
-	if x == 0 {
-		t.Fatal("no open ground")
-	}
+	w, p, x, y := stoodOut(t, 14)
 	cx := x + 11
 	if !w.SpawnCreep(k, cx, y) {
 		t.Fatal("no creep")

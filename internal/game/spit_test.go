@@ -7,16 +7,7 @@ import "testing"
 // the spit took off them.
 func spitAt(t *testing.T, moving bool) float32 {
 	t.Helper()
-	w := newBare(4)
-	w.Phase = PhaseWave
-	w.Queue = []Spawn{{At: 1e9}}
-	p, _ := w.Join("ana", "ana@example")
-	p.MaxHP, p.HP = 1e4, 1e4
-	p.Weapons[p.Cur].Ammo, p.Weapons[p.Cur].Reload = 0, 1e9
-	x, y := openRow(w, 10)
-	if x == 0 {
-		t.Fatal("no open ground")
-	}
+	w, p, x, y := stoodOut(t, 10)
 	if !w.SpawnCreep(CSpitter, x, y) {
 		t.Fatal("no spitter")
 	}
