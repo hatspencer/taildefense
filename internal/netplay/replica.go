@@ -68,6 +68,7 @@ type PlayerView struct {
 	Owned                                      [game.NumWeapons]bool
 	Dual                                       bool                   // a second pistol, in the other hand
 	DualKatana                                 bool                   // a second katana
+	Tempered, Breaker                          bool                   // the greatsword tempered, and with Worldbreaker
 	Evo                                        [game.NumWeapons]uint8 // a legendary's evolution
 	Lv                                         [game.NumWeapons][game.NumTracks]uint8
 	Gear                                       [game.NumGear]uint8
@@ -588,7 +589,7 @@ func (p *PlayerView) group(d *dec, g int) {
 		p.Ult = float32(d.u8()) / 255
 		p.Swings = d.u8()
 		art := d.u8()
-		p.Art, p.ArtFrac = art>>6, float32(art&63)/63
+		p.Art, p.ArtFrac = art>>5, float32(art&31)/31
 		p.ArtCool = float32(d.u16()) / 10
 	case pgTimers:
 		p.Emote = d.u8()
@@ -625,6 +626,8 @@ func (p *PlayerView) group(d *dec, g int) {
 		owned := d.u16()
 		p.Dual = owned&game.DualBit != 0
 		p.DualKatana = owned&game.DualKatanaBit != 0
+		p.Tempered = owned&game.TemperedBit != 0
+		p.Breaker = owned&game.BreakerBit != 0
 		p.Picking = owned&game.PickBit != 0
 		p.Owned = [game.NumWeapons]bool{}
 		p.Lv = [game.NumWeapons][game.NumTracks]uint8{}

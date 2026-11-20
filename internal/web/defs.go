@@ -45,6 +45,14 @@ type weaponDef struct {
 	Art     *artDef    `json:"art,omitempty"`    // a legendary's weapon art, on F
 	Evolve  []evoDef   `json:"evolve,omitempty"` // a legendary's two evolutions
 	EvoCost int32      `json:"evoCost,omitempty"`
+	Breaker *buyDef    `json:"breaker,omitempty"` // the greatsword's Worldbreaker, bought once at the armory
+}
+
+// buyDef is a one-off buy at the armory: its name, what it does, its gold.
+type buyDef struct {
+	Name string `json:"name"`
+	Desc string `json:"desc"`
+	Cost int32  `json:"cost"`
 }
 
 // artDef is a legendary's weapon art.
@@ -282,6 +290,9 @@ func welcome(wel netplay.Welcome, core point, host, hint string, hosting bool) w
 			wd.Legend, wd.Art, wd.EvoCost = d.Legend, &artDef{a.Name, a.Desc, a.Range, a.Cool}, game.LegendEvoCost
 			for _, e := range game.LegendEvos[k] {
 				wd.Evolve = append(wd.Evolve, evoDef{Name: e.Name, Desc: e.Desc, Range: 1})
+			}
+			if wk == game.WGreat {
+				wd.Breaker = &buyDef{game.BreakerName, game.BreakerDesc, game.BreakerCost}
 			}
 		}
 		m.Weapons = append(m.Weapons, wd)

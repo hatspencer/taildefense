@@ -41,8 +41,8 @@ func TestABladesGameHasNoGuns(t *testing.T) {
 	for i := range w.Sites {
 		if w.Sites[i].Kind == SiteStation {
 			w.search(p, i)
-			if !p.Weapons[WKatana].Owned {
-				t.Error("the gas station gave no katana in a blades game")
+			if !p.Weapons[WKatana].Owned && !p.Weapons[WGreat].Dual {
+				t.Error("the gas station gave no legendary in a blades game")
 			}
 			break
 		}

@@ -31,7 +31,7 @@ import (
 // Proto is the wire protocol version. A host refuses a client with a different one and names
 // both versions, so the fix (td update) is obvious. Beyond the protocol, a host only lets in a
 // player running the same td (SameVersion).
-const Proto = 28
+const Proto = 29
 
 // DefaultPort is where a host listens.
 const DefaultPort = 7787

@@ -542,6 +542,81 @@ function greatsword(sr: number, r: R, follow: boolean): Buf {
   return b.normalize(0.85).fadeOut(0.08);
 }
 
+// Worldsplitter raised: the slab hauled up overhead, a rush of air rising with it, and under it
+// the ground already groaning, a rumble swelling to the top; a thin ring off the edge at the end.
+function splitRaise(sr: number, r: R): Buf {
+  const b = new Buf(sr, 1);
+  whoosh(b, r, 0, 0.3, 200, 900, 0.8, 0.8);
+  const lp = new LP1(sr), lp2 = new LP1(sr), comp = Math.sqrt(sr / (2 * 120));
+  let ph = 0;
+  for (let i = 0; i < b.len; i++) {
+    const t = i / sr, u = Math.min(1, t / 0.8);
+    ph += TAU * (38 + 26 * u) / sr;
+    const e = u * u * (t > 0.8 ? Math.exp(-(t - 0.8) / 0.05) : 1);
+    b.d[i] += (Math.sin(ph) * 0.6 + lp2.run(lp.run(r() * 2 - 1, 120), 120) * comp) * e * 0.7;
+  }
+  roar(b, r, 0.3, 0.6, 600, 1400, 0.4, 0.3, 0.25);
+  const f = jit(r, 1250, 0.04);
+  ping(b, 0.62, [f, f * 1.5, f * 2.7], 0.2, 0.12);
+  return b.normalize(0.75).fadeOut(0.05);
+}
+
+// Worldsplitter coming down: the blade into the ground with everything behind it, a slam felt
+// more than heard, the earth tearing open down the line, rock thrown up and falling for a while.
+function worldsplit(sr: number, r: R): Buf {
+  const b = new Buf(sr, 2.4);
+  whoosh(b, r, 0, 0.12, 400, 1800, 0.8, 0.9);
+  const at = 0.08;
+  thud(b, r, at, 70, 22, 0.32, 1.5, 0.5, 400);
+  thud(b, r, at, 160, 50, 0.08, 0.8, 0.6, 900);
+  click(b, r, at, 1800, 0.7, 0.004);
+  const f = jit(r, 260, 0.05);
+  ping(b, at, [f, f * 1.41, f * 2.2], 0.25, 0.2);
+  // The tear running out along the fissure: rubble roaring, darkening as it gets further off.
+  roar(b, r, at + 0.02, 1.4, 2400, 150, 0.01, 0.35, 0.9, 2);
+  crackle(b, r, at + 0.03, 0.5, 120, 600, 2200, 0.35);
+  debris(b, r, at + 0.25, 1.6, 30, 900, 3800, 0.18);
+  return b.normalize(0.95).fadeOut(0.2);
+}
+
+// A burst of the fissure: a deep cough out of the ground, a spatter of rock and a hiss of heat.
+// Short and soft: three go off every half second for four seconds.
+function erupt(sr: number, r: R): Buf {
+  const b = new Buf(sr, 0.7);
+  thud(b, r, 0, jit(r, 75, 0.15), 30, 0.09, 0.9, 0.7, 450);
+  roar(b, r, 0.01, 0.4, 1600, 300, 0.01, 0.12, 0.5, 1.5);
+  roar(b, r, 0.02, 0.5, 5000, 2500, 0.02, 0.15, 0.08);
+  debris(b, r, 0.12, 0.4, 6, 900, 3000, 0.12);
+  return b.normalize(0.7).fadeOut(0.06);
+}
+
+// Worldbreaker: the line going off at once, a thunderclap ripping into a boom with the ground
+// heaving under it, and the charges' electric crackle chattering off through the crowd.
+function worldbreak(sr: number, r: R): Buf {
+  const b = new Buf(sr, 3);
+  const clap = 0.08;
+  for (let t = 0; t < clap;) {
+    const u = t / clap;
+    click(b, r, t, 1500 + r() * 3500, (0.15 + 0.7 * u * u) * (0.5 + r()), 0.0008 + r() * 0.002);
+    t += (0.3 + r() * 1.4) / (80 + 1600 * u * u);
+  }
+  roar(b, r, clap, 0.4, 6000, 600, 0.0005, 0.05, 1.1, 3);
+  thud(b, r, clap, 65, 22, 0.4, 1.5, 0.5, 300);
+  roar(b, r, clap, 2.2, 1400, 120, 0.004, 0.5, 0.8, 2);
+  // The charges leaping: sharp electric snaps, thick at first, scattering off.
+  crackle(b, r, clap + 0.05, 1.6, 90, 2500, 7000, 0.5);
+  const buzz = new SVF(sr);
+  let ph = 0;
+  for (let i = Math.floor((clap + 0.05) * sr); i < b.len; i++) {
+    const t = i / sr - clap - 0.05;
+    ph += 110 / sr; ph -= Math.floor(ph);
+    buzz.run((ph < 0.5 ? 1 : -1) + (r() * 2 - 1) * 0.8, 1500 + r() * 1500, 2);
+    b.d[i] += buzz.band * ad(t, 0.01, 0.35) * (r() < 0.02 ? 2 : 0.4) * 0.35;
+  }
+  debris(b, r, clap + 0.2, 1.5, 20, 900, 3500, 0.15);
+  return b.normalize(0.95).fadeOut(0.3);
+}
+
 // Home Run: the bar coming round with everything behind it, a rising rush of air, then the blow
 // landing with a thump and the bar ringing out long like a struck pipe, a crack and grit after.
 function homeRun(sr: number, r: R): Buf {
@@ -2130,6 +2205,10 @@ export const RECIPES: Record<string, [number, Maker, number?]> = {
   followThrough: [2, (sr, r) => greatsword(sr, r, true), LOW],
   flashDraw: [2, flashDraw],
   homeRun: [2, homeRun],
+  splitRaise: [2, splitRaise, LOW],
+  worldsplit: [2, worldsplit, LOW],
+  erupt: [4, erupt, LOW],
+  worldbreak: [2, worldbreak, LOW],
   bleed: [3, bleed],
   turretGun: [4, gun(TURRET_GUN, (b, r) => { clack(b, r, 0.035 + r() * 0.005, 2100, 0.12, 380); ping(b, 0.04, [1450, 2310], 0.02, 0.05); servo(b, r, 0.07, 0.14, 0.035); })],
   cannon: [3, gun(CANNON, (b, r) => {

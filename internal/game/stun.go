@@ -86,16 +86,36 @@ func (c *Creep) stun(mul, gap float32) float32 {
 	if c.stunLeft > 0 || c.stunCool > 0 {
 		return 0
 	}
-	t := float32(stunFor)
-	switch c.Kind {
-	case CBrute, CMauler:
-		t = .15
-	case CBoss, CMother, CGoliath:
-		t = .08
-	}
-	t *= mul
+	t := c.stunFor() * mul
 	c.stunLeft, c.stunCool = t, t+gap
 	return t
+}
+
+// stagger is a greatsword's blow stopping creep c: a stun as stun gives it, and on a creep
+// already stopped it renews the stun to the blow's length, where any other hit does nothing, so
+// a blade that swings slower than the katana but hits as hard keeps what it strikes held. It
+// returns the seconds it is stopped for from now, 0 if the blow neither stunned nor renewed.
+func (c *Creep) stagger(mul, gap float32) float32 {
+	if c.stunLeft <= 0 {
+		return c.stun(mul, gap)
+	}
+	t := c.stunFor() * mul
+	if t <= c.stunLeft {
+		return 0
+	}
+	c.stunLeft, c.stunCool = t, t+gap
+	return t
+}
+
+// stunFor is the seconds a hit stops c: the big ones shake it off quicker.
+func (c *Creep) stunFor() float32 {
+	switch c.Kind {
+	case CBrute, CMauler:
+		return .15
+	case CBoss, CMother, CGoliath:
+		return .08
+	}
+	return stunFor
 }
 
 // slowed is the share of its pace a slowed creep keeps.

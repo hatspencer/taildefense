@@ -70,7 +70,7 @@ var Ultimates = [NumWeapons]UltDef{
 	WLauncher: {Name: "Cluster MIRV", Desc: "One rocket to a point that splits over it into ten bomblets, each hitting like a rocket.", Range: 24, Radius: mirvRadius},
 	WCrowbar:  {Name: "Berserk", Desc: "8 seconds of swinging twice as fast, every hit healing you, shrugging off slows and stuns.", Time: 8},
 	WKatana:   {Name: "Crimson Tempest", Desc: "8 seconds of cutting half again as fast, every swing a sweep of blood 4.5 tiles out through up to eight creeps, building bleed twice as fast.", Time: 8},
-	WGreat:    {Name: "Titan's Wrath", Desc: "8 seconds of every swing a follow-through, reaching further and coming faster, and nothing slows, stuns or grabs you.", Time: 8},
+	WGreat:    {Name: "Worldsplitter", Desc: "Raise the blade, untouchable, and bring it down to split the ground 12 tiles ahead: a crushing blow and a share of every creep's health, sundered to the full and stunned 3 seconds, then the fissure erupts for 4. Nothing stops you till it closes.", Time: splitWindup + splitErupt + splitTail, Range: splitLen},
 }
 
 // The ultimate's charge comes from the damage a survivor deals with their own hands, and from
@@ -126,13 +126,10 @@ const (
 // Berserk heals this share of the damage each hit deals.
 const berserkLeech = .3
 
-// Crimson Tempest's swings come tempestRate times as fast and reach tempestReach; Titan's
-// Wrath's wrathRate times as fast and wrathReach further.
+// Crimson Tempest's swings come tempestRate times as fast and reach tempestReach.
 const (
 	tempestRate  = 1.5
 	tempestReach = 4.5
-	wrathRate    = 1.3
-	wrathReach   = .8
 )
 
 // AbilityRange is how far a slot reaches for this player right now.
@@ -186,9 +183,6 @@ func (w *World) playerStats(p *Player) Stats {
 			st.Range = max(st.Range, tempestReach)
 			st.Spread = max(st.Spread, 1)
 			st.Hits = max(st.Hits, 8)
-		case WGreat:
-			st.Rate *= wrathRate
-			st.Range += wrathReach
 		}
 	}
 	return st
@@ -224,6 +218,9 @@ func (w *World) Cast(p *Player, slot int, x, y float32) error {
 		}
 		if p.Ult < 1 {
 			return fmt.Errorf("%s is charging (%.0f%%)", Ultimates[p.Cur].Name, math.Floor(float64(p.Ult*100)))
+		}
+		if p.Art != ArtNone {
+			return fmt.Errorf("%s is under way", artName(p.Art))
 		}
 	} else if a.Cool > 0 {
 		return fmt.Errorf("%s is ready in %.0fs", Abilities[slot].Name, math.Ceil(float64(a.Cool)))
@@ -276,6 +273,9 @@ func (w *World) ultimate(p *Player, x, y float32) {
 	}
 	p.Buff, p.BuffLeft = p.Cur, Ultimates[p.Cur].Time
 	w.note(1, "%s: %s!", p.Name, Ultimates[p.Cur].Name)
+	if p.Cur == WGreat {
+		w.raiseSplit(p, x, y)
+	}
 }
 
 // deadEye is Dead Eye's volley, once the marking is done: one shot at every creep the survivor
@@ -389,6 +389,8 @@ func (w *World) stepEffects() {
 			if e.Left <= 0 {
 				w.spitLands(&e)
 			}
+		case EffFissure:
+			w.stepFissure(&e)
 		case EffAirstrike:
 			if e.Left <= 0 {
 				w.explode(e.X, e.Y, e.R, e.Damage, e.Owner, 4)
