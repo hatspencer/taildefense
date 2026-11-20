@@ -55,7 +55,16 @@ export function ending(wd: Welcome, f: Frame): string {
   }
   const wave = f.wave;
   const ax = (wd.affixes ?? []).filter((_, i) => f.affix & (1 << i));
-  const head = `Wave ${wave}${ax.length ? ` (${ax.join(', ')})` : ''} broke through.`;
+  // Every survivor down at the end: on hard and brutal that is what ends it (sim.go teamDown).
+  let n0 = 0, up = 0;
+  for (let i = 0; i < f.nPlayers; i++) {
+    const p = f.players[i];
+    if (!(p.flags & PF_CONNECTED)) continue;
+    n0++;
+    if (p.flags & PF_ALIVE) up++;
+  }
+  const wiped = n0 > 0 && up === 0;
+  const head = `Wave ${wave}${ax.length ? ` (${ax.join(', ')})` : ''} broke through${wiped ? ` with ${n0 === 1 ? 'the survivor' : `all ${n0} survivors`} down` : ''}.`;
   const n = new Map<number, number>();
   const cx = wd.core.x, cy = wd.core.y;
   for (let i = 0; i < f.nCreeps; i++) {

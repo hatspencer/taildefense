@@ -85,6 +85,11 @@ func (b *Bot) Act(w *game.World, do func(Cmd)) {
 	// A revive under way is all the bot does until it is done: any other order, or the revive
 	// asked for again, would start its count over and nobody would ever get up. Only being
 	// near death itself breaks it off.
+	// The last one standing on hard or brutal is all that keeps the game going: it falls back
+	// to the generator to outlast the countdowns rather than die reviving under fire.
+	if b.holdOut(w, p, do) {
+		return
+	}
 	if p.Order.Kind == game.OrderRevive && p.HP > p.MaxHP*.3 {
 		return
 	}
@@ -671,6 +676,52 @@ func (b *Bot) mates(w *game.World, p *game.Player, do func(Cmd)) bool {
 	}
 	if d2(p.X, p.Y, m.X, m.Y) > 5*5 && p.Order.Kind != game.OrderAttackMove {
 		do(Cmd{Op: OpAttackMove, X: m.X + b.jitter(3), Y: m.Y + b.jitter(3)})
+	}
+	return true
+}
+
+// Where the last survivor standing looks for trouble: creeps within holdR of it or of a
+// downed teammate it might revive keep it back at the generator, within holdHome of it.
+const (
+	holdR    = 12
+	holdHome = 6
+)
+
+// holdOut is the last survivor standing, where every survivor down ends the game (hard and
+// brutal): with creeps on it or round the teammates it would revive, it breaks off any revive
+// and falls back to the generator, holding there and shooting what comes, until the countdowns put the others
+// back at the base. It reports whether it took charge of the bot.
+func (b *Bot) holdOut(w *game.World, p *game.Player, do func(Cmd)) bool {
+	if !game.Difficulties[w.Diff].Wipe || w.Phase == game.PhaseEvac {
+		return false
+	}
+	down, danger := 0, b.nearest(w, p, holdR) >= 0
+	for i, m := range w.Players {
+		if i == int(b.ID) || !m.Connected {
+			continue
+		}
+		if m.Alive {
+			return false
+		}
+		down++
+		if !danger && b.nearestTo(w, m.X, m.Y, holdR) >= 0 {
+			danger = true
+		}
+	}
+	if down == 0 || !danger {
+		return false
+	}
+	if d2(p.X, p.Y, w.CoreX, w.CoreY) > holdHome*holdHome {
+		if p.Order.Kind != game.OrderMove {
+			do(Cmd{Op: OpMove, X: w.CoreX + b.jitter(2), Y: w.CoreY + b.jitter(2)})
+		}
+		return true
+	}
+	if p.Order.Kind != game.OrderHold {
+		do(Cmd{Op: OpHold})
+	}
+	if ws := &p.Weapons[p.Cur]; ws.Ammo == 0 && ws.Reload == 0 {
+		do(Cmd{Op: OpReload})
 	}
 	return true
 }

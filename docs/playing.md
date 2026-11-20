@@ -406,6 +406,10 @@ next to you for a few seconds, and a hit starts it over. If nobody does, you're 
 when the countdown runs out, blinking: for 5 seconds nothing can hurt, slow or stun you, and
 you can shoot.
 
+On hard and brutal, don't all go down together: if every survivor in the game is down at once,
+there is nobody left to hold the base, the generator falls and the game is over. Only the evac
+is spared, where whoever is aboard still gets away.
+
 ## Weather
 
 The weather changes between waves and is the same for everyone. Fog shortens everyone's range

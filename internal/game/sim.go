@@ -775,6 +775,27 @@ func (w *World) hurtPlayer(p *Player, dmg float32) {
 	}
 }
 
+// teamDown reports whether, on a difficulty that ends a game that way (hard and brutal),
+// every survivor in the game is down at once: nobody is left standing to revive the rest,
+// so the generator falls and the game is over. Not in the evac, where the Huey is the way
+// out and those aboard still get away; a survivor who has left is not counted.
+func (w *World) teamDown() bool {
+	if !w.diff().Wipe || w.Phase == PhaseEvac || w.Phase == PhaseOver {
+		return false
+	}
+	n := 0
+	for _, p := range w.Players {
+		if !p.Connected {
+			continue
+		}
+		if p.Alive {
+			return false
+		}
+		n++
+	}
+	return n > 0
+}
+
 // ---- players ---------------------------------------------------------------------------
 
 // standNear is the nearest place to x, y a survivor fits, so one put back at the base is never
@@ -1651,6 +1672,10 @@ func (w *World) reap() {
 		if split {
 			w.split(x, y)
 		}
+	}
+	if w.teamDown() {
+		w.Structs[w.Core].HP = 0
+		w.note(2, "everyone is down  ·  with nobody to hold it, the generator falls")
 	}
 	for i := range w.Structs {
 		s := &w.Structs[i]
