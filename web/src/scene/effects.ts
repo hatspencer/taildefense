@@ -173,6 +173,10 @@ export class Effects {
   private spheres: FxPool; private rings: FxPool; private decals: FxPool; private stars: FxPool; private dust: FxPool;
   // How dark it is (dusk, heavy weather), 0..1: muzzle flashes grow with it.
   dark = 0;
+  // Where the door gunner's rounds leave from, the muzzle of the Huey nearest a map point
+  // (the Helis set it), so its tracers come out of the gun.
+  heliMuzzle: ((x: number, y: number, out: THREE.Vector3) => THREE.Vector3 | null) | null = null;
+  private muzzleAt = new THREE.Vector3();
   private lights: THREE.PointLight[] = [];
   private lightLeft = new Float32Array(LIGHTS);
   private lightPeak = new Float32Array(LIGHTS);
@@ -245,8 +249,10 @@ export class Effects {
       const x0 = f.tX0[i], y0 = f.tY0[i], x1 = f.tX1[i], y1 = f.tY1[i];
       const dist = Math.hypot(x1 - x0, y1 - y0);
       if (k === TRACER_HELI) {
-        // The Huey's door gunner, firing down from the hover.
-        this.streaks.add(t, x0, 6.2, y0, x1, 0.55, y1, 0.12 + dist * 0.006, 0xffd27a, 0.08, 0, 0, 0.4, 1, 1.4);
+        // The Huey's door gunner, firing down from the hover, out of the gun's muzzle.
+        const m = this.heliMuzzle?.(x0, y0, this.muzzleAt);
+        if (m) this.streaks.add(t, m.x, m.y, m.z, x1, 0.55, y1, 0.12 + dist * 0.006, 0xffd27a, 0.08, 0, 0, 0.4, 1, 1.4);
+        else this.streaks.add(t, x0, 6.2, y0, x1, 0.55, y1, 0.12 + dist * 0.006, 0xffd27a, 0.08, 0, 0, 0.4, 1, 1.4);
         if (i % 3 === 0) this.glow.add(t + 0.1, x1, 0.55, y1, (Math.random() - 0.5) * 3, 2, (Math.random() - 0.5) * 3, 0.18, 0xffd27a, 0.18, 0.05, 9);
         continue;
       }
