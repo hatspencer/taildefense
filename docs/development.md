@@ -104,7 +104,8 @@ survivors (`#lab=h0`…`#lab=h17` at one of them), `#lab=legend` at the legendar
 katana's combo, a pair of katanas, Flash Draw, the greatsword's combo with its follow-through,
 Skyfall, and the evolved blades), `#lab=crowbar` at the crowbar's Home Run (plain and
 Bonebreaker's, out in the open past the others), `#lab=fx` at the turret evolutions' shots (a napalm missile
-bursting, an arc web), and `&dist=11` brings the camera in.
+bursting, an arc web), `#lab=huey` at a supply Huey hovering with its door gunner sweeping round it
+(with a pause each lap, to see the gun go back to rest), and `&dist=11` brings the camera in.
 `#lab=sound` puts the sound bench over it: every recipe in the bank and every set of recordings,
 clicked (or Enter) to play as the game does, or the recipe, the recording or both alone (s, r, b),
 at the level the game plays it and the volume on its slider. Recordings come in through
