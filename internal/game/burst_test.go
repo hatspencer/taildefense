@@ -6,16 +6,7 @@ import "testing"
 // tiles off, and steps until its fuse is lit.
 func lit(t *testing.T) (*World, *Player, *Creep) {
 	t.Helper()
-	w := newBare(4)
-	w.Phase = PhaseWave
-	w.Queue = []Spawn{{At: 1e9}}
-	p := mustJoin(t, w, "ana")
-	p.MaxHP, p.HP = 1e4, 1e4
-	p.Weapons[p.Cur].Ammo, p.Weapons[p.Cur].Reload = 0, 1e9
-	x, y := openRow(w, 14)
-	if x == 0 {
-		t.Fatal("no open ground")
-	}
+	w, p, x, y := stoodOut(t, 14)
 	if !w.SpawnCreep(CBurster, x+4, y) {
 		t.Fatal("no creep")
 	}
