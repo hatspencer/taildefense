@@ -256,3 +256,62 @@ func TestAFullGreatswordIsTheCrowdBlade(t *testing.T) {
 		t.Errorf("a full greatsword took %.1f s on the heavy mix and %.1f s on the army", heavy, army)
 	}
 }
+
+// heldShare is the share of the time the creeps of a block of n of kind stand stunned while
+// the survivor swings the blade k, all tracks at l, at them for 20 s.
+func heldShare(k WeaponKind, l, evo uint8, dual bool, kind CreepKind, n int) float64 {
+	a := newArena(25)
+	w, p := a.w, a.p
+	ws := &p.Weapons[k]
+	ws.Owned, ws.Lv, ws.Evo, ws.Dual = true, lv(l, l, l, l), evo, dual
+	p.Cur = k
+	at := func(j int) (float32, float32) {
+		return a.ox + 1.2 + float32(j%4)*.8, a.oy + float32(j/4-n/8)*.8
+	}
+	for j := range n {
+		x, y := at(j)
+		w.SpawnCreep(kind, x, y)
+	}
+	every := 1 / w.playerStats(p).Rate
+	next, held, all := float32(0), 0, 0
+	for range 20 * TickRate {
+		w.Tick++
+		for j := range w.Creeps {
+			c := &w.Creeps[j]
+			c.HP, c.MaxHP = 1e9, 1e9 // bleed and cleave take shares of it: only stuns are measured
+			c.X, c.Y = at(j)
+		}
+		w.grid.build(w.Creeps)
+		if next -= Dt; next <= 0 {
+			w.swingLegend(p, w.playerStats(p), 0, false)
+			next += every
+		}
+		for j := range w.Creeps {
+			w.Creeps[j].stepSunder()
+			if w.Creeps[j].stunned() {
+				held++
+			}
+			all++
+		}
+	}
+	return float64(held) / float64(all)
+}
+
+// The greatsword stuns more than the katana: each blow for longer, and one landing on a creep
+// already stopped renews it, so its slower swing still keeps what it strikes held, a goliath
+// alone or a crowd.
+func TestTheGreatswordStunsMoreThanTheKatana(t *testing.T) {
+	for _, kind := range []CreepKind{CWalker, CBrute, CGoliath} {
+		for _, n := range []int{1, 16} {
+			g := heldShare(WGreat, MaxLevel, 1, false, kind, n)
+			k := heldShare(WKatana, MaxLevel, 1, true, kind, n)
+			t.Logf("%-8s x%-2d held: greatsword %3.0f%%, pair of katanas %3.0f%%", Creeps[kind].Name, n, g*100, k*100)
+			if g <= k {
+				t.Errorf("%d %s held %.0f%% of the time by a greatsword, %.0f%% by a pair of katanas", n, Creeps[kind].Name, g*100, k*100)
+			}
+		}
+	}
+	if g := heldShare(WGreat, MaxLevel, 1, false, CGoliath, 1); g < .95 {
+		t.Errorf("a full greatsword holds a goliath %.0f%% of the time", g*100)
+	}
+}

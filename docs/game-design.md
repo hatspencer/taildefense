@@ -857,6 +857,17 @@ twice the damage for 8 s. The aim: the crowd blade by a distance, and near the k
   in at 1, never past the point), and its stun fades to the edge, so the crowd lands in the next
   swing's arc. The plain swing's shove fades out the same way. Skyfall still throws: it is the
   way into a crowd, and out.
+- **Its blows renew a stun.** Each greatsword blow already stunned longer than a katana cut
+  (11 times a hit's stun fully bought, against 7), yet the katana held things better: a stun can't
+  land on a creep already stopped, and at 4.3 swings a second the katana re-stuns the moment one
+  ends, where the greatsword's 1.4 left gaps. Held still over 20 s on the wave 25 bench, a full
+  pair of katanas kept a lone goliath stunned 89% of the time, the greatsword 63%. Now a greatsword
+  blow on a stunned creep renews the stun to the blow's length (`Creep.stagger`); any other hit
+  still does nothing to it. Its 0.88 s on a goliath outlasts the 0.71 s between swings, so a full
+  greatsword holds one alone all the time, a walker or a brute too, and 65 to 84% of a block of
+  16 against the pair's 53 to 70%. A boss held down by one survivor is the price of the
+  heavy blade, and the reason to bring it; the gap after a stun still keeps the fast guns from
+  doing the same.
 - **Worldsplitter replaces Titan's Wrath.** An ultimate should be a moment, and the greatsword's
   is the ground breaking: 0.8 s raised, untouchable, then a cut 12 tiles long and 3 wide, five
   swings' worth and a quarter of each creep's health (a boss 8%), sundered to the full, stunned

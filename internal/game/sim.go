@@ -1233,7 +1233,13 @@ func (w *World) hit(i int32, dmg float32, owner int8, stun float32) {
 		c.flinch()
 	}
 	if owner >= 0 && !w.turretFire && !w.burning {
-		if w.mastery > 0 {
+		if w.sunder > 0 {
+			// A greatsword's blow renews a stun already on: what it keeps striking stays held,
+			// and mastered, a long one breaks a slam or a grab.
+			if c.stagger(stun, bladeStunGap(w.mastery)) >= breakStun && w.mastery > 0 {
+				w.breakHold(i)
+			}
+		} else if w.mastery > 0 {
 			// A mastered blade's: stunning again sooner, and a long one breaks a slam or a grab.
 			if w.Creeps[i].stun(stun, bladeStunGap(w.mastery)) >= breakStun {
 				w.breakHold(i)

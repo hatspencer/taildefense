@@ -109,7 +109,9 @@ there is, an altar sharpens the blade in your hand instead. Each levels at the a
 - **Katana:** quick cuts through up to five creeps that build up blood loss. When a creep's fills,
   it bursts for a sixth of its health (less on a boss). Its special track builds bleed faster.
 - **Greatsword:** slow, wide, heavy blows through up to eight that stagger and shove what they
-  hit. Every swing sends a shockwave out from where the blade lands, about 2 tiles round, that
+  hit. It stuns longer than any blade, and a blow landing on a creep already stunned renews the
+  stun, so whatever you keep swinging at stays held, a goliath included once the blade is
+  fully bought. Every swing sends a shockwave out from where the blade lands, about 2 tiles round, that
   hurts, stuns and pushes back. Every third swing in a row is a follow-through that hits harder
   still, shakes the ground further and cleaves a share of each creep's health (3%, up to 10% with
   mastery; a boss 1% to 8%). Every blow **sunders** what it lands on: each stack strips a fifth of
