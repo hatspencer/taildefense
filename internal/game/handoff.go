@@ -28,9 +28,11 @@ type Gun struct {
 	Kind WeaponKind
 	Lv   [NumTracks]uint8
 	Evo  uint8 // a legendary's evolution
-	Ammo int16 // rounds left in the magazine
-	X, Y float32
-	By   uint8 // who dropped it
+	// A greatsword's temper and its Worldbreaker go with it.
+	Tempered, Breaker bool
+	Ammo              int16 // rounds left in the magazine
+	X, Y              float32
+	By                uint8 // who dropped it
 }
 
 // gunIndex finds a weapon on the ground by id, or -1.
@@ -90,7 +92,8 @@ func (w *World) DropWeapon(p *Player, k WeaponKind) error {
 		w.note(0, "%s dropped one of their %ss%s", p.Name, strings.ToLower(Weapons[k].Name), levelsNote(ws.Lv))
 		return nil
 	}
-	w.Guns = append(w.Guns, Gun{ID: w.gunSerial, Kind: k, Lv: ws.Lv, Evo: ws.Evo, Ammo: max(ws.Ammo, 0), X: x, Y: y, By: p.ID})
+	w.Guns = append(w.Guns, Gun{ID: w.gunSerial, Kind: k, Lv: ws.Lv, Evo: ws.Evo, Ammo: max(ws.Ammo, 0), X: x, Y: y, By: p.ID,
+		Tempered: k == WGreat && ws.Dual, Breaker: ws.Breaker})
 	p.Weapons[k] = WeaponState{}
 	if p.Cur == k {
 		p.Cur = other
@@ -169,13 +172,13 @@ func (w *World) actPickup(p *Player, o *Order, walk func() bool) bool {
 func (w *World) CanTake(p *Player, k WeaponKind) bool { return w.canTake(p, k) }
 
 // canTake reports whether p has a hand free for a weapon of kind k: one they do not carry,
-// or a pistol or a katana to pair with theirs.
+// a pistol or a katana to pair with theirs, or a greatsword to temper theirs with.
 func (w *World) canTake(p *Player, k WeaponKind) bool {
 	ws := &p.Weapons[k]
 	if !w.allows(k) {
 		return false
 	}
-	return !ws.Owned || (k == WPistol || k == WKatana) && !ws.Dual
+	return !ws.Owned || (k == WPistol || k == WKatana || k == WGreat) && !ws.Dual
 }
 
 // pickUp hands weapon gi on the ground to p, upgrades and all. What they hold stays in their
@@ -184,6 +187,13 @@ func (w *World) canTake(p *Player, k WeaponKind) bool {
 func (w *World) pickUp(p *Player, gi int) {
 	g := w.Guns[gi]
 	w.Guns = append(w.Guns[:gi], w.Guns[gi+1:]...)
+	if p.Weapons[g.Kind].Owned && g.Kind == WGreat {
+		// Two greatswords are not wielded: the second is forged into the first.
+		ws := &p.Weapons[WGreat]
+		ws.Dual, ws.Breaker = true, ws.Breaker || g.Breaker
+		w.note(0, "%s picked up a second greatsword: %s", p.Name, temperedNote)
+		return
+	}
 	if p.Weapons[g.Kind].Owned && g.Kind == WKatana {
 		p.Weapons[WKatana].Dual = true
 		w.note(0, "%s picked up a second katana: a pair, one in each hand", p.Name)
@@ -194,7 +204,7 @@ func (w *World) pickUp(p *Player, gi int) {
 		w.note(0, "%s picked up a second pistol: dual pistols", p.Name)
 		return
 	}
-	ws := WeaponState{Owned: true, Lv: g.Lv, Evo: g.Evo, Ammo: g.Ammo}
+	ws := WeaponState{Owned: true, Lv: g.Lv, Evo: g.Evo, Ammo: g.Ammo, Dual: g.Tempered, Breaker: g.Breaker}
 	if ws.Ammo <= 0 {
 		ws.Reload = tunedTimer(WeaponStats(g.Kind, g.Lv).Reload)
 	}

@@ -3,7 +3,7 @@ package game
 // Critical hits: a swing of the crowbar, the katana or the greatsword, and their arts, may
 // land critical, hitting the creep critMul times as hard and stunning it critStun times as
 // long. The chance and the multiplier grow with every level bought on the blade, its
-// evolution and a second katana, so a blade taken far crits often and hard. Guns, turrets and
+// evolution and a second katana (or a tempered greatsword), so a blade taken far crits often and hard. Guns, turrets and
 // damage over time never crit.
 
 const (
@@ -27,8 +27,8 @@ func (ws *WeaponState) crit(k WeaponKind) (chance, mul float32) {
 	if ws.Evo != 0 {
 		chance += critEvo
 	}
-	if ws.Dual && k == WKatana {
-		chance += critDual
+	if ws.Dual {
+		chance += critDual // a second katana, or a greatsword tempered with a second one
 	}
 	return chance, critMulBase + critMulLevel*float32(n)
 }

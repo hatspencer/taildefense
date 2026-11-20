@@ -42,6 +42,7 @@ const (
 // More creep flags, in a second byte.
 const (
 	fxFrenzy = 1 << 0 // lost its patience with the maze: faster, tearing through walls
+	fxSunder = 1 << 5 // a greatsword's sunder on it (past the affixes)
 	// Its wave's affixes it carries, game.Affix shifted up past fxFrenzy.
 	fxAffixShift = 1
 )
@@ -145,6 +146,9 @@ func creepFx(c *game.Creep) uint8 {
 	var f uint8
 	if c.Frenzy {
 		f |= fxFrenzy
+	}
+	if c.Sunder > 0 {
+		f |= fxSunder
 	}
 	return f | uint8(c.Aff)<<fxAffixShift
 }
@@ -651,12 +655,12 @@ func playerGroup(b *enc, g int, w *game.World, p *game.Player) {
 		}
 		b.u16(reloading)
 		b.u8(uint8(min(max(p.Ult, 0), 1) * 255))
-		// A legendary's swings so far, its weapon art (the art in the top two bits, how far
+		// A legendary's swings so far, its weapon art (the art in the top three bits, how far
 		// through it below) and the seconds until the art is ready.
 		b.u8(p.Swings)
-		art := p.Art << 6
+		art := p.Art << 5
 		if p.Art != game.ArtNone && p.ArtTotal > 0 {
-			art |= uint8(min(max(1-p.ArtLeft/p.ArtTotal, 0), 1) * 63)
+			art |= uint8(min(max(1-p.ArtLeft/p.ArtTotal, 0), 1) * 31)
 		}
 		b.u8(art)
 		b.u16(uint16(min(math.Ceil(float64(p.ArtCool*10)), 65535)))
@@ -725,6 +729,12 @@ func playerGroup(b *enc, g int, w *game.World, p *game.Player) {
 		}
 		if p.Weapons[game.WKatana].Dual {
 			owned |= game.DualKatanaBit
+		}
+		if p.Weapons[game.WGreat].Dual {
+			owned |= game.TemperedBit
+		}
+		if p.Weapons[game.WGreat].Breaker {
+			owned |= game.BreakerBit
 		}
 		if p.Picking {
 			owned |= game.PickBit

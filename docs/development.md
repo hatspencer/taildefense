@@ -102,7 +102,7 @@ page (with four waiting it drops the oldest, so the page goes on from the newest
 and dying, beside the survivors' poses; `#lab=0`…`#lab=11` looks at one creep row, `#lab=h` at the
 survivors (`#lab=h0`…`#lab=h17` at one of them), `#lab=legend` at the legendary blades (the
 katana's combo, a pair of katanas, Flash Draw, the greatsword's combo with its follow-through,
-Skyfall, and the evolved blades), `#lab=crowbar` at the crowbar's Home Run (plain and
+Skyfall, Worldsplitter and Worldbreaker, and the evolved blades), `#lab=crowbar` at the crowbar's Home Run (plain and
 Bonebreaker's, out in the open past the others), `#lab=fx` at the turret evolutions' shots (a napalm missile
 bursting, an arc web), `#lab=huey` at a supply Huey hovering with its door gunner sweeping round it
 (with a pause each lap, to see the gun go back to rest), and `&dist=11` brings the camera in.

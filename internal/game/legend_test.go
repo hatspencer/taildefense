@@ -229,8 +229,14 @@ func TestTheShrinesHoldLegendaries(t *testing.T) {
 	si := w.shrineIdx()[0]
 	p.Weapons[WGreat] = WeaponState{Owned: true}
 	w.search(p, si)
-	if !p.Weapons[WKatana].Owned {
-		t.Fatal("the altar gave no katana to one who carries the greatsword")
+	for !p.Weapons[WKatana].Owned {
+		// The altar gives a katana or a second greatsword to temper the first; take the temper
+		// back and kneel again until it is the katana.
+		if !p.Weapons[WGreat].Dual {
+			t.Fatal("the altar gave neither a katana nor a temper to one who carries the greatsword")
+		}
+		p.Weapons[WGreat].Dual = false
+		w.search(p, si)
 	}
 	if p.Cur == WKatana {
 		t.Fatal("the altar put the katana in hand; switching to it is the player's to do")

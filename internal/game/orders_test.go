@@ -185,7 +185,7 @@ func TestAbilities(t *testing.T) {
 	for k := WeaponKind(0); k < NumWeapons; k++ {
 		p.Weapons[k].Owned = true
 		p.Cur = k
-		p.BuffLeft, p.Ult = 0, .5
+		p.BuffLeft, p.Ult, p.Art = 0, .5, ArtNone
 		if w.Cast(p, AbUltimate, p.X+4, p.Y) == nil {
 			t.Fatalf("%s cast half charged", Ultimates[k].Name)
 		}
@@ -198,7 +198,7 @@ func TestAbilities(t *testing.T) {
 		}
 		w.Step()
 	}
-	p.BuffLeft = 0
+	p.BuffLeft, p.Art = 0, ArtNone
 
 	// A dash stops at walls.
 	core := &w.Structs[w.Core]
