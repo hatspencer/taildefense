@@ -99,9 +99,3 @@ export function writeMatrix(a: Float32Array, o: number, x: number, y: number, z:
 
 // The rotation.y that makes a +x-facing model face heading (as writeMatrix does).
 export function yaw(heading: number): number { return -heading; }
-
-// NodeMaterial honours emissiveNode on every lit material; the typings only declare it on
-// MeshStandardNodeMaterial.
-export function setEmissive(mat: THREE.NodeMaterial, node: THREE.Node): void {
-  (mat as unknown as { emissiveNode: THREE.Node }).emissiveNode = node;
-}
