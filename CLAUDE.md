@@ -9,6 +9,16 @@ three.js browser client embedded from `internal/web/dist`.
   when the change is meant, so the diff shows it.
 - Commits and pull requests carry no attribution lines: no `Co-Authored-By`, no
   `Claude-Session`, no "Generated with" footer or session link.
+- `main` takes changes only through pull requests: the remote refuses a direct push. Push a
+  branch. `gh` is not installed here; give the branch name and GitHub's compare link instead.
+- In a worktree, set `TAILDEFENSE_GOCACHE` to the main checkout's `.gocache` for `./build.sh`,
+  or every worktree compiles from cold.
+- Subagents in `.claude/agents/`, each on the cheapest model that does the job:
+  - `implementer` (Opus, medium effort): one scoped change from a written brief, checked and
+    committed on a branch. Give it its own worktree.
+  - `checker` (Haiku): runs `./build.sh check` or a long run and returns only what failed.
+  - `browser-check` (Sonnet): looks at the client through the Playwright MCP, keeps the
+    screenshots in `screenshots/` and returns what it saw.
 - Where things are written down:
   - `README.md`: what td is, setup, dependencies, commands, keys, the architecture picture. Keep
     it short; longer text goes in `docs/`.
