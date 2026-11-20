@@ -2,5 +2,19 @@
   "attribution": {
     "commit": "",
     "pr": ""
+  },
+  "permissions": {
+    "allow": [
+      "Bash(./build.sh check:*)",
+      "Bash(./build.sh test:*)",
+      "Bash(./build.sh build:*)",
+      "Bash(./build.sh web:*)",
+      "Bash(./build.sh golden:*)",
+      "Bash(./build.sh fmt:*)",
+      "Bash(./build.sh tidy:*)",
+      "Bash(./build.sh soak:*)",
+      "Bash(./build.sh fuzz:*)",
+      "Bash(./build.sh netsim:*)"
+    ]
   }
 }
