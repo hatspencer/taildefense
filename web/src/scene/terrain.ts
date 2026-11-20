@@ -3,7 +3,7 @@ import { color, dot, floor, fract, mix, normalWorld, positionWorld, sin, smooths
 import { Ruin, SiteKind, Tile, type SiteDef } from '../protocol';
 import { indexed } from './rig';
 import { SHRINE_PLAN, shrineTile } from './shrine';
-import { box, cone, cyl, dodeca, merge, part, setEmissive, writeMatrix } from './util';
+import { box, cone, cyl, dodeca, merge, part, writeMatrix } from './util';
 import { uSnow, uWet } from './weather';
 
 function hash(x: number, y: number, s = 0): number {
@@ -250,7 +250,7 @@ export class Terrain {
     const wave = sin(p.x.mul(1.7).add(time.mul(1.3))).mul(sin(p.z.mul(1.3).sub(time.mul(1.1)))).mul(0.5).add(0.5);
     const ripple = sin(p.x.add(p.z).mul(4.0).add(time.mul(2.5))).mul(0.5).add(0.5);
     mat.colorNode = mix(color(0x23383a), color(0x41605a), wave.mul(0.7).add(ripple.mul(0.3)));
-    setEmissive(mat, vec3(0.02, 0.035, 0.03).mul(ripple));
+    mat.emissiveNode = vec3(0.02, 0.035, 0.03).mul(ripple);
     mat.opacityNode = float(0.8);
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(w / 2, WATER_Y, h / 2);

@@ -9,10 +9,10 @@
     "check": "tsc --noEmit -p . && node test/predict.mts && node test/detail.mts"
   },
   "dependencies": {
-    "@types/three": "0.186.0",
+    "@types/three": "0.187.0",
     "camera-controls": "3.1.2",
     "esbuild": "0.28.2",
-    "three": "0.186.1",
+    "three": "0.187.0",
     "typescript": "7.0.2"
   }
 }
