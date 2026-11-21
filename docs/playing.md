@@ -445,7 +445,9 @@ grenade: its range rings your hero and its blast follows the cursor (grey out of
 left-click throws it, and Esc, a right-click or Shift again puts it away. It works with the build
 bar open too; while placing or pinging, a tap of Shift aims it and Shift held through a click keeps
 placing. Dash and airstrike cast
-at the cursor the moment you press the key; point at the ground. The grenade goes to level 5, each
+at the cursor the moment you press the key; point at the ground. A small reticle lies on the
+ground under the cursor wherever it points on the map, drawn over creeps and roofs, so you can
+see the spot a dash, a weapon art or an airstrike will go. The grenade goes to level 5, each
 level hitting harder (120 damage at the first, 400 at the fifth), throwing wider and coming back
 sooner; from level 4 it leaves a fire burning where it lands. After wave 10 the grenade and the
 airstrike hit harder as the creeps get tougher. Dash and airstrike go to level 3. With a
