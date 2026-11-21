@@ -277,12 +277,16 @@ type udpFrames struct {
 	seq        uint32
 	delta, key func() []byte
 	dDgs, kDgs [][]byte
+	// dDone and kDone mark a form built, nil included: a unit too large to fragment is not
+	// packed again for the next player.
+	dDone, kDone bool
 }
 
 func (u *udpFrames) deltaDgs() [][]byte {
-	if u.dDgs != nil {
+	if u.dDone {
 		return u.dDgs
 	}
+	u.dDone = true
 	s := u.s
 	cur := seqFrame{u.seq, u.delta()}
 	frames := []seqFrame{cur}
@@ -310,10 +314,18 @@ func (u *udpFrames) deltaDgs() [][]byte {
 }
 
 func (u *udpFrames) keyDgs() [][]byte {
-	if u.kDgs == nil {
+	if !u.kDone {
+		u.kDone = true
 		u.kDgs = fragment(u.s.epoch, u.seq, u.s.packer.pack([]seqFrame{{u.seq, u.key()}}))
 	}
 	return u.kDgs
+}
+
+// keyOverTCP says whether a keyframe in these datagrams goes over TCP for this tick: one of
+// many datagrams is lost if any one is, and one too large to fragment at all (nil) cannot go
+// by UDP. Either way the player stays on UDP for the deltas after it.
+func keyOverTCP(dgs [][]byte) bool {
+	return len(dgs) == 0 || len(dgs) > udpKeyFrags
 }
 
 // sendUDP sends a player its frame of this tick as datagrams; false if it cannot go that way.
