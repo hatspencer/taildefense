@@ -14,6 +14,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"taildefense/internal/game"
 	"taildefense/internal/tailnet"
@@ -753,7 +754,7 @@ func Exec(w *game.World, pl *game.Player, c Cmd) (string, error) {
 			msg = fmt.Sprintf("gave %s %d gold", w.Players[c.A].Name, c.T)
 		}
 	case OpChat:
-		if t := strings.TrimSpace(c.Text); t != "" {
+		if t := ChatLine(c.Text); t != "" {
 			w.Notes = append(w.Notes, game.Note{Text: pl.Name + ": " + t, Level: game.NoteChat})
 		}
 	}
@@ -983,6 +984,23 @@ type Cmd struct {
 	T        uint16
 	Text     string
 	Seq      uint16
+}
+
+// MaxChat is the most bytes of a chat line the host keeps.
+const MaxChat = 200
+
+// ChatLine is a chat line as the host keeps it: valid UTF-8, trimmed, and at most MaxChat
+// bytes, cut at a rune boundary.
+func ChatLine(s string) string {
+	s = strings.TrimSpace(strings.ToValidUTF8(s, ""))
+	if len(s) <= MaxChat {
+		return s
+	}
+	n := MaxChat
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
+	}
+	return strings.TrimSpace(s[:n])
 }
 
 func (c Cmd) encode() []byte {

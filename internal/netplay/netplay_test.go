@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"taildefense/internal/game"
 )
@@ -230,6 +231,34 @@ func TestPingsReachTheReplica(t *testing.T) {
 	_, _, _, _, g := r.Drain()
 	if len(g) != 1 || g[0].X != 40.5 || g[0].Y != 33.25 || g[0].Kind != game.PingLoot || g[0].Player != w.Players[0].ID {
 		t.Fatalf("pings %+v", g)
+	}
+}
+
+// A chat line is kept to MaxChat bytes of valid UTF-8, cut at a rune boundary.
+func TestAChatLineIsBounded(t *testing.T) {
+	long := strings.Repeat("é", 150) // 300 bytes, every rune two
+	if got := ChatLine(" " + long + " "); len(got) > MaxChat || !utf8.ValidString(got) || got != strings.Repeat("é", 100) {
+		t.Fatalf("%d bytes, valid %v", len(got), utf8.ValidString(got))
+	}
+	odd := "a" + long // the 200th byte is the first half of an é
+	if got := ChatLine(odd); got != "a"+strings.Repeat("é", 99) {
+		t.Fatalf("cut to %d bytes, valid %v", len(got), utf8.ValidString(got))
+	}
+	if got := ChatLine("hi \xff there"); got != "hi  there" {
+		t.Fatalf("invalid UTF-8 kept: %q", got)
+	}
+	w := game.New(21)
+	pl, _ := w.Join("ana", "ana@example")
+	n := len(w.Notes)
+	if _, err := Exec(w, pl, Cmd{Op: OpChat, Text: strings.Repeat("€\xfe", 1<<20)}); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.Notes) != n+1 {
+		t.Fatalf("%d notes for one chat line", len(w.Notes)-n)
+	}
+	note := w.Notes[n].Text
+	if len(note) > len("ana: ")+MaxChat || !utf8.ValidString(note) || !strings.HasPrefix(note, "ana: €") {
+		t.Fatalf("a long chat line kept as %d bytes, valid %v", len(note), utf8.ValidString(note))
 	}
 }
 
