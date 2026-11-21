@@ -18,11 +18,12 @@ import (
 //     as the katana's second does for mastery and crits, so a full greatsword reaches a full
 //     pair's 1.2.
 //   - Worldsplitter, its ultimate: the blade raised a moment, the survivor untouchable, then
-//     brought down to split the ground in a line ahead. Everything in the line takes a crushing
-//     blow and a share of its health, sundered to the full and stunned; then the fissure erupts
-//     in bursts until it closes. Nothing stops the survivor till then.
+//     slammed into the ground at their feet. The shockwave goes out every way: everything in
+//     reach takes a crushing blow and a share of its health, a little less at the edge, is
+//     sundered to the full, stunned and, if it lives, thrown back. The ground cracked round the
+//     blade erupts in bursts until it closes. Nothing stops the survivor till then.
 //   - Worldbreaker, bought once at the armory for a greatsword fully upgraded and evolved: as
-//     the fissure closes the whole line detonates in a shockwave, and every creep the shockwave
+//     the cracks close the ground detonates in a wider shockwave, and every creep it
 //     catches carries a charge that leaps from creep to creep. Stormbreaker's leap further, more
 //     still beside a Tesla coil; Ashen Colossus's set what they strike burning.
 
@@ -44,36 +45,39 @@ const (
 	cleaveBoss      = .01
 	cleaveBossLevel = .07
 
-	// Worldsplitter: the seconds the blade is raised, the fissure's length and how far either
-	// side of its line it reaches; the blow, as times the swing and a share of the creep's
-	// health (a boss's); its stun, as times a hit's.
+	// Worldsplitter: the seconds the blade is raised; the shockwave's reach round the survivor;
+	// the blow, as times the swing and a share of the creep's health (a boss's), and what is
+	// left of it at the edge; its stun, as times a hit's; how far it throws a creep it does not
+	// kill (less at the edge, and a boss stands firm); the reach of the cracked ground.
 	splitWindup = .8
-	splitLen    = 12
-	splitHalf   = 1.5
+	splitReach  = 7
 	splitMul    = 5
 	splitCut    = .25
 	splitBoss   = .08
+	splitEdge   = .7
 	splitStun   = 30
+	splitPush   = 4
+	splitCrack  = 4
 	// The eruption: seconds it lasts, a burst every splitEvery, each times the swing and a share
-	// of the creep's health, and its stun as times a hit's: what walks onto the fissure is held
-	// there, thrown up by the bursts.
+	// of the creep's health, and its stun as times a hit's: what walks back onto the cracked
+	// ground is held there, thrown up by the bursts.
 	splitErupt      = 4
 	splitEvery      = .5
 	splitBurstMul   = .8
 	splitBurstShare = .03
 	splitBurstBoss  = .01
 	splitBurstStun  = 6
-	// splitTail is how long the ultimate runs past the fissure closing, so nothing Worldbreaker
+	// splitTail is how long the ultimate runs past the cracks closing, so nothing Worldbreaker
 	// deals fills the meter again.
 	splitTail = .2
 
-	// Worldbreaker: its price; the shockwave's reach either side of the line, its blow as times
+	// Worldbreaker: its price; the shockwave's reach round the blade, its blow as times
 	// the swing and a share of the creep's health (a boss's), its stun and throw; the charges,
 	// their jumps (Stormbreaker's, and beside a Tesla coil within breakerCoil tiles), how far
 	// each leaps, and each strike as times the swing; Ashen Colossus's burn on what they strike.
 	BreakerCost     = 3000
 	breakerBranch   = 3 // evolveWeapon's branch for it
-	breakerReach    = 6
+	breakerReach    = 10
 	breakerMul      = 4
 	breakerShare    = .1
 	breakerBoss     = .03
@@ -89,19 +93,21 @@ const (
 	breakerBurn     = 30
 )
 
-// Blasts of the greatsword's ultimate: a burst of the fissure erupting, Worldbreaker going off.
+// Blasts of the greatsword's ultimate: a burst of the cracked ground erupting, Worldbreaker
+// going off.
 const (
 	BlastErupt   = 20
 	BlastBreaker = 21
 )
 
-// TracerSplit is Worldsplitter's cut, from the survivor to the end of the fissure.
+// TracerSplit is Worldsplitter's slam, from the survivor out to the shockwave's reach the way
+// they face: the blade bites just ahead of them along it.
 const TracerSplit = 47
 
 // Worldbreaker as the armory offers it.
 const (
 	BreakerName = "Worldbreaker"
-	BreakerDesc = "Worldsplitter's fissure closes in a shockwave 6 tiles either side of the line, and every creep it catches carries a Tesla charge that leaps 5 times from creep to creep: 7 with Stormbreaker, 9 beside a Tesla coil; with Ashen Colossus each leap sets its creep burning. Needs every track full and an evolution."
+	BreakerDesc = "Worldsplitter's cracked ground closes in a shockwave 10 tiles round the blade, and every creep it catches carries a Tesla charge that leaps 5 times from creep to creep: 7 with Stormbreaker, 9 beside a Tesla coil; with Ashen Colossus each leap sets its creep burning. Needs every track full and an evolution."
 )
 
 // temperedNote is what a survivor is told when a second greatsword is forged into theirs.
@@ -146,7 +152,7 @@ func (w *World) cleave(i int32, m float32) float32 {
 	return w.healthShare(i, cleave+cleaveLevel*m, cleaveBoss+cleaveBossLevel*m)
 }
 
-// raiseSplit starts Worldsplitter towards x, y: the blade raised, the line it will split.
+// raiseSplit starts Worldsplitter facing x, y: the blade raised over the survivor.
 func (w *World) raiseSplit(p *Player, x, y float32) {
 	ang := p.Aim
 	if dx, dy := x-p.X, y-p.Y; dx*dx+dy*dy > 1e-4 {
@@ -155,7 +161,6 @@ func (w *World) raiseSplit(p *Player, x, y float32) {
 	p.Aim = ang
 	p.Art, p.ArtLeft, p.ArtTotal = ArtSplit, splitWindup, splitWindup
 	p.artX0, p.artY0 = p.X, p.Y
-	p.artX, p.artY = p.X+cos32(ang)*splitLen, p.Y+sin32(ang)*splitLen
 	p.Order = Order{Kind: OrderIdle}
 	p.walk.reset()
 }
@@ -183,18 +188,6 @@ func (w *World) inLine(out []int32, x0, y0, x1, y1, half float32) []int32 {
 	return out
 }
 
-// awayFrom throws creep i d tiles straight out from the line from x0, y0 to x1, y1.
-func (w *World) awayFrom(i int32, x0, y0, x1, y1, d float32) {
-	c := &w.Creeps[i]
-	lx, ly := x1-x0, y1-y0
-	l := sqrt32(lx*lx+ly*ly) + 1e-6
-	nx, ny := -ly/l, lx/l
-	if (c.X-x0)*nx+(c.Y-y0)*ny < 0 {
-		nx, ny = -nx, -ny
-	}
-	w.push(i, nx, ny, d)
-}
-
 // artName is the name of art a.
 func artName(a uint8) string {
 	switch a {
@@ -210,31 +203,54 @@ func artName(a uint8) string {
 	return ""
 }
 
-// worldsplit brings Worldsplitter down: the cut along its line, and the fissure left open. It is
-// the greatsword's whatever was taken in hand while it was raised.
+// worldsplit slams Worldsplitter into the ground: the shockwave out every way, and the cracks
+// left open round the blade. It is the greatsword's whatever was taken in hand while it was
+// raised.
 func (w *World) worldsplit(p *Player) {
 	st := p.Weapons[WGreat].Stats(WGreat)
 	w.mastery, w.crit, w.critMul = st.Mastery, st.Crit, st.CritMul
 	owner := int8(p.ID)
-	x0, y0, x1, y1 := p.X, p.Y, p.artX, p.artY
+	x, y := p.X, p.Y
 	w.sunder, w.sunderCap = sunderCap(st.Mastery)+1, sunderCap(st.Mastery)
 	defer func() { w.sunder = 0 }()
-	for _, i := range w.inLine(nil, x0, y0, x1, y1, splitHalf) {
-		w.hit(i, st.Damage*splitMul+w.healthShare(i, splitCut, splitBoss), owner, splitStun)
-	}
-	w.tracer(x0, y0, x1, y1, TracerSplit)
-	w.pumpsIn((x0+x1)/2, (y0+y1)/2, splitHalf, owner, pumpChain)
+	w.shockwave(owner, x, y, splitReach, func(i int32) float32 {
+		return st.Damage*splitMul + w.healthShare(i, splitCut, splitBoss)
+	}, splitEdge, splitStun, splitPush)
+	w.tracer(x, y, x+cos32(p.Aim)*splitReach, y+sin32(p.Aim)*splitReach, TracerSplit)
+	w.pumpsIn(x, y, splitReach, owner, pumpChain)
 	var lv uint8
 	if p.Weapons[WGreat].Breaker {
 		lv = 1
 	}
 	lv |= p.evo(WGreat) << 1
-	w.Effects = append(w.Effects, Effect{Kind: EffFissure, X0: x0, Y0: y0, X: x1, Y: y1, R: splitHalf,
+	w.Effects = append(w.Effects, Effect{Kind: EffFissure, X0: x, Y0: y, X: x, Y: y, R: splitCrack,
 		Left: splitErupt, Total: splitErupt, Damage: st.Damage, Owner: owner, Lv: lv})
 	p.Swings++
 }
 
-// stepFissure is a tick of the fissure: a burst every splitEvery, and Worldbreaker as it closes.
+// shockwave is the ground going out every way from x, y to r: each creep in reach takes
+// dmg(i), down to edge of it at r, is stunned stun times as long as a hit, and, if it lives,
+// is thrown push straight out from x, y, half that at r.
+func (w *World) shockwave(owner int8, x, y, r float32, dmg func(i int32) float32, edge, stun, push float32) {
+	for _, i := range w.inLine(nil, x, y, x, y, r) {
+		c := &w.Creeps[i]
+		dx, dy := c.X-x, c.Y-y
+		d := sqrt32(dx*dx + dy*dy)
+		u := min(d/r, 1)
+		w.hit(i, dmg(i)*(1-(1-edge)*u), owner, stun)
+		if c.HP <= 0 {
+			continue
+		}
+		if d < 1e-3 {
+			a := w.rng.Float32() * 2 * math.Pi
+			dx, dy, d = cos32(a), sin32(a), 1
+		}
+		w.push(i, dx/d, dy/d, push*(1-.5*u))
+	}
+}
+
+// stepFissure is a tick of the cracked ground: a burst every splitEvery, and Worldbreaker as it
+// closes.
 func (w *World) stepFissure(e *Effect) {
 	if int((e.Left+Dt)/splitEvery) == int(e.Left/splitEvery) && e.Left > 0 {
 		return
@@ -252,17 +268,17 @@ func (w *World) stepFissure(e *Effect) {
 	for _, i := range w.inLine(nil, e.X0, e.Y0, e.X, e.Y, e.R) {
 		w.hit(i, e.Damage*splitBurstMul+w.healthShare(i, splitBurstShare, splitBurstBoss), e.Owner, splitBurstStun)
 	}
-	for k := 0; k < 3; k++ {
-		u := w.rng.Float32()
-		w.Blasts = append(w.Blasts, Blast{e.X0 + (e.X-e.X0)*u, e.Y0 + (e.Y-e.Y0)*u, e.R, BlastErupt})
+	for k := 0; k < 4; k++ {
+		a, d := w.rng.Float32()*2*math.Pi, e.R*(.3+.7*w.rng.Float32())
+		w.Blasts = append(w.Blasts, Blast{e.X + cos32(a)*d, e.Y + sin32(a)*d, 1.5, BlastErupt})
 	}
 	if e.Left <= 0 && e.Lv&1 != 0 {
 		w.worldbreak(e, p)
 	}
 }
 
-// worldbreak is the fissure closing in Worldbreaker: the line goes off in a shockwave, and every
-// creep it catches carries a charge that leaps on from creep to creep.
+// worldbreak is the cracked ground closing in Worldbreaker: it goes off in a shockwave round the
+// blade, and every creep it catches carries a charge that leaps on from creep to creep.
 func (w *World) worldbreak(e *Effect, p *Player) {
 	evo := e.Lv >> 1
 	jumps, zap, burn := breakerJumps, float32(breakerZap), float32(0)
@@ -275,18 +291,10 @@ func (w *World) worldbreak(e *Effect, p *Player) {
 			jumps = breakerCoilJump
 		}
 	}
-	caught := w.inLine(nil, e.X0, e.Y0, e.X, e.Y, breakerReach)
-	mx, my := (e.X0+e.X)/2, (e.Y0+e.Y)/2
-	for _, i := range caught {
-		c := &w.Creeps[i]
-		lx, ly := e.X-e.X0, e.Y-e.Y0
-		l2 := lx*lx + ly*ly + 1e-6
-		u := clampf(((c.X-e.X0)*lx+(c.Y-e.Y0)*ly)/l2, 0, 1)
-		dx, dy := c.X-(e.X0+lx*u), c.Y-(e.Y0+ly*u)
-		edge := sqrt32(dx*dx+dy*dy) / breakerReach
-		w.hit(i, (e.Damage*breakerMul+w.healthShare(i, breakerShare, breakerBoss))*(1-.4*min(edge, 1)), e.Owner, breakerStun)
-		w.awayFrom(i, e.X0, e.Y0, e.X, e.Y, breakerPush)
-	}
+	caught := w.inLine(nil, e.X, e.Y, e.X, e.Y, breakerReach)
+	w.shockwave(e.Owner, e.X, e.Y, breakerReach, func(i int32) float32 {
+		return e.Damage*breakerMul + w.healthShare(i, breakerShare, breakerBoss)
+	}, .6, breakerStun, breakerPush)
 	w.sunder = 0 // the charges' strikes are lightning, not the blade
 	for _, i := range caught {
 		if w.Creeps[i].HP > 0 {
@@ -298,10 +306,8 @@ func (w *World) worldbreak(e *Effect, p *Player) {
 			w.arc(e.Owner, a, e.Damage*zap, jumps-1, breakerHop, burn)
 		}
 	}
-	for _, u := range []float32{0, .5, 1} {
-		w.Blasts = append(w.Blasts, Blast{e.X0 + (e.X-e.X0)*u, e.Y0 + (e.Y-e.Y0)*u, breakerReach, BlastBreaker})
-	}
-	w.pumpsIn(mx, my, breakerReach, e.Owner, pumpChain)
+	w.Blasts = append(w.Blasts, Blast{e.X, e.Y, breakerReach, BlastBreaker})
+	w.pumpsIn(e.X, e.Y, breakerReach, e.Owner, pumpChain)
 	w.note(1, "Worldbreaker!")
 }
 

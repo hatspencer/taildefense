@@ -70,7 +70,7 @@ var Ultimates = [NumWeapons]UltDef{
 	WLauncher: {Name: "Cluster MIRV", Desc: "One rocket to a point that splits over it into ten bomblets, each hitting like a rocket.", Range: 24, Radius: mirvRadius},
 	WCrowbar:  {Name: "Berserk", Desc: "8 seconds of swinging twice as fast, every hit healing you, shrugging off slows and stuns.", Time: 8},
 	WKatana:   {Name: "Crimson Tempest", Desc: "8 seconds of cutting half again as fast, every swing a sweep of blood 4.5 tiles out through up to eight creeps, building bleed twice as fast.", Time: 8},
-	WGreat:    {Name: "Worldsplitter", Desc: "Raise the blade, untouchable, and bring it down to split the ground 12 tiles ahead: a crushing blow and a share of every creep's health, sundered to the full and stunned 3 seconds, then the fissure erupts for 4. Nothing stops you till it closes.", Time: splitWindup + splitErupt + splitTail, Range: splitLen},
+	WGreat:    {Name: "Worldsplitter", Desc: "Raise the blade, untouchable, and slam it into the ground: a shockwave 7 tiles every way round you, a crushing blow and a share of every creep's health, sundered to the full, stunned for seconds and thrown back if it lives; then the cracked ground round the blade erupts for 4. Nothing stops you till it closes.", Time: splitWindup + splitErupt + splitTail},
 }
 
 // The ultimate's charge comes from the damage a survivor deals with their own hands, and from
