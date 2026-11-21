@@ -27,6 +27,8 @@ export class Overlays {
   private ruinsAt = new Map<number, { kind: number; x: number; y: number; g: THREE.Group }>();
   // The creeps' way in through the maze: a dot on each tile of it.
   private dots: THREE.InstancedMesh;
+  // The reticle on the ground under the cursor: where a dash or a weapon art goes.
+  private reticle = new THREE.Group();
 
   constructor(scene: THREE.Scene, private structs: Structs) {
     scene.add(this.group);
@@ -62,6 +64,43 @@ export class Overlays {
     this.dots.renderOrder = 5;
     this.dots.frustumCulled = false;
     this.group.add(this.dots);
+    // Drawn over everything, so a creep or a roof never hides the spot aimed at; a dark band
+    // under a bright one keeps it plain on sand and snow alike.
+    const reticleMat = (hex: number, opacity: number) => {
+      const m = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, depthTest: false, color: hex });
+      m.opacityNode = sin(time.mul(5)).mul(0.08).add(opacity);
+      return m;
+    };
+    const shape = (pad: number) => {
+      const ring = new THREE.RingGeometry(0.3 - pad, 0.36 + pad, 40);
+      const parts: THREE.BufferGeometry[] = [ring];
+      for (let i = 0; i < 4; i++) {
+        const t = new THREE.PlaneGeometry(0.07 + 2 * pad, 0.2 + 2 * pad);
+        t.translate(0, 0.5, 0); t.rotateZ(i * Math.PI / 2);
+        parts.push(t);
+      }
+      parts.push(new THREE.CircleGeometry(0.06 + pad, 16));
+      return parts;
+    };
+    for (const [pad, mat, order] of [[0.035, reticleMat(0x000000, 0.45), 20], [0, reticleMat(0xfff0c0, 0.85), 21]] as const) {
+      for (const g of shape(pad)) {
+        g.rotateX(-Math.PI / 2);
+        const m = new THREE.Mesh(g, mat);
+        m.renderOrder = order;
+        m.frustumCulled = false;
+        this.reticle.add(m);
+      }
+    }
+    this.reticle.visible = false;
+    this.group.add(this.reticle);
+  }
+
+  // The cursor's spot on the ground, about the same size on screen however far the camera is.
+  cursor(on: boolean, x = 0, z = 0, dist = 22): void {
+    this.reticle.visible = on;
+    if (!on) return;
+    this.reticle.position.set(x, 0.12, z);
+    this.reticle.scale.setScalar(Math.min(2.5, Math.max(0.6, dist / 22)));
   }
 
   // Draws the ways in, each a list of tile indices that at(i) turns into tile x, y; none hides them.
