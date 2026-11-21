@@ -827,8 +827,8 @@ func (s *Server) tick() {
 	for _, p := range s.peers {
 		s.checkUDP(p, now)
 		key := p.needKey
-		// A keyframe of many datagrams is lost if any one is, so a big one goes over TCP.
-		if p.udpOn && !(key && (p.keyTCP || len(uf.keyDgs()) > udpKeyFrags)) {
+		// A big keyframe goes over TCP for this tick; the player stays on UDP.
+		if p.udpOn && !(key && (p.keyTCP || keyOverTCP(uf.keyDgs()))) {
 			dgs := uf.deltaDgs()
 			if key {
 				dgs = uf.keyDgs()

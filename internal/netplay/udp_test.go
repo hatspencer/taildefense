@@ -765,3 +765,35 @@ func TestUDPFollowsANewPort(t *testing.T) {
 		t.Fatalf("%d fallbacks for a new port", n)
 	}
 }
+
+// A keyframe of more datagrams than udpKeyFrags goes over TCP, and so does one too large to
+// fragment at all, without counting the player a fallback; a form too large is built once.
+func TestABigKeyframeGoesOverTCP(t *testing.T) {
+	if keyOverTCP(make([][]byte, 1)) || keyOverTCP(make([][]byte, udpKeyFrags)) {
+		t.Fatal("a small keyframe went over TCP")
+	}
+	if !keyOverTCP(make([][]byte, udpKeyFrags+1)) {
+		t.Fatal("a keyframe of many datagrams went over UDP")
+	}
+	if !keyOverTCP(nil) {
+		t.Fatal("a keyframe too large to fragment went over UDP")
+	}
+	// Random bytes do not compress: this is more than maxFrags datagrams' worth.
+	rng := rand.New(rand.NewPCG(7, 8))
+	big := make([]byte, (maxFrags+8)*fragData)
+	for i := range big {
+		big[i] = byte(rng.Uint32())
+	}
+	keys, deltas := 0, 0
+	uf := udpFrames{s: &Server{}, seq: 1,
+		delta: func() []byte { deltas++; return big },
+		key:   func() []byte { keys++; return big }}
+	for range 3 {
+		if uf.keyDgs() != nil || uf.deltaDgs() != nil {
+			t.Fatal("a unit too large to fragment was fragmented")
+		}
+	}
+	if keys != 1 || deltas != 1 {
+		t.Fatalf("a form too large was built %d (key) and %d (delta) times, not once", keys, deltas)
+	}
+}
