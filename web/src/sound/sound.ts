@@ -381,7 +381,7 @@ export class Sound {
         case BlastKind.Bile: at('bile', 0.9, 1.6); break;
         case BlastKind.Bleed: at('bleed', 0.7, 1.4); break;
         case BlastKind.Skyfall: at('slam', 1.1, 2); break;
-        // The fissure's bursts come three at a time every half second: one of them is heard.
+        // The cracked ground's bursts come four at a time every half second: one of them is heard.
         case BlastKind.Erupt: if (this.once('erupt', 0.2)) at('erupt', 0.5, 1.4, 0.9 + Math.random() * 0.2); break;
         case BlastKind.Breaker: if (this.once('worldbreak', 0.5)) at('worldbreak', 1.3, 4); break;
         case BlastKind.Crit: if (this.once('crit', 0.06)) at('moonCut', 0.6, 1.4, 1.5); break;

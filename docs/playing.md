@@ -164,8 +164,8 @@ evolutions, as a turret has; you pick one, for 1500 gold:
 | Crowbar | Scrap King | every kill with the bar pays half its bounty again and heals you 4%; Home Run comes back 3 s sooner |
 
 A greatsword with every track full and an evolution can take one more thing at the armory,
-**Worldbreaker** (3000 gold, once): its ultimate's fissure no longer just closes, it goes off in a
-shockwave 6 tiles either side of the line, and every creep the shockwave catches carries a Tesla
+**Worldbreaker** (3000 gold, once): its ultimate's cracked ground no longer just closes, it goes
+off in a shockwave 10 tiles round the blade, and every creep the shockwave catches carries a Tesla
 charge that leaps on from creep to creep, 5 times. With Stormbreaker they leap 7 times and hit
 harder, 9 times while you stand within 5 tiles of a Tesla coil (anyone's); with Ashen Colossus
 every creep a charge strikes is set burning.
@@ -434,7 +434,7 @@ running, and going down ends it.
 | Rocket launcher | Cluster MIRV: a rocket to the cursor that splits into ten bomblets |
 | Crowbar (brutal, blades) | Berserk: 8 s of double swings that heal you and can't be slowed or stunned |
 | Katana | Crimson Tempest: 8 s of cutting half again as fast, every swing a sweep of blood 4.5 tiles out through up to eight creeps, bleed building twice as fast |
-| Greatsword | Worldsplitter: raise the blade 0.8 s, untouchable, then split the ground 12 tiles towards the cursor: everything within 1.5 tiles of the line takes five swings' worth and a quarter of its health (a boss 8%), is sundered to the full and stunned; the fissure erupts every half second for 4 s, holding what walks onto it. Nothing slows, stuns or grabs you till it closes. With Worldbreaker it ends in a shockwave and leaping charges |
+| Greatsword | Worldsplitter: raise the blade 0.8 s, untouchable, then slam it into the ground where you stand: a shockwave 7 tiles every way, everything in it taking five swings' worth and a quarter of its health (a boss 8%), a little less at the edge, sundered to the full, stunned, and thrown back if it lives (a boss stands firm); the ground 4 tiles round the blade stays cracked and erupts every half second for 4 s, holding what walks back onto it. Nothing slows, stuns or grabs you till it closes. With Worldbreaker it ends in a wider shockwave and leaping charges |
 
 No ultimate spends ammo while it runs.
 
