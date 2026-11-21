@@ -622,12 +622,9 @@ func (s *session) command(p []byte) bool {
 	case "restart":
 		nc = netplay.Cmd{Op: netplay.OpRestart}
 	case "chat":
-		t := strings.TrimSpace(c.Text)
+		t := netplay.ChatLine(c.Text)
 		if t == "" {
 			return false
-		}
-		if len(t) > 200 {
-			t = t[:200]
 		}
 		nc = netplay.Cmd{Op: netplay.OpChat, Text: t}
 	default:
