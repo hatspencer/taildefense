@@ -12,8 +12,8 @@ import type { Game } from './state';
 // show every state; then the legendaries: the katana's combo, a pair of katanas, Flash Draw,
 // the greatsword's combo, Skyfall, the evolved blades (Moonlit Edge, the greatsword's
 // follow-through), the crowbar's Home Run, plain and Bonebreaker's, and Worldsplitter: a
-// tempered greatsword raised and brought down, the fissure it opens erupting, and Worldbreaker
-// detonating it as it closes. Past them, the turret evolutions' shots ('fx'): a napalm missile flying
+// tempered greatsword raised and slammed down, the shockwave going out every way, the ground it
+// cracks erupting, and Worldbreaker detonating it as it closes. Past them, the turret evolutions' shots ('fx'): a napalm missile flying
 // and bursting, and an arc web striking a knot of points. Past those ('huey'), a supply Huey
 // hovering with its door gunner sweeping the ground around it. It takes the demo's world over after
 // its first frame and stops it, then poses everything itself.
@@ -49,7 +49,7 @@ export class Lab {
     if (at === 'huey') return [this.fx() + 22, this.y0 - 2]; // north of it, as the Huey is up in the air
     if (/^h\d+$/.test(at)) return this.spot(Number(at.slice(1)));
     if (at === 'crowbar') { const [x, y] = this.spot(16); return [x + 1.7, y]; }
-    if (at === 'worldsplitter') { const [x, y] = this.spot(18); return [x + 5, y]; }
+    if (at === 'worldsplitter') return this.spot(18);
     if (at === 'h') return [this.x0 + COLS.length * DX + 4.2, this.y0 + 1.5 * DY];
     if (at === 'legend') return [this.x0 + COLS.length * DX + 4.2, this.y0 + 6 * DY];
     if (at !== '' && !Number.isNaN(Number(at))) return [this.x0 + 3 * DX, this.y0 + Number(at) * DY];
@@ -58,7 +58,7 @@ export class Lab {
 
   // Where survivor pose i stands: two to a row beside the creeps, and the crowbar's two (16 and
   // 17) out in the open to the right, clear of the trees further down, and Worldsplitter's (18)
-  // below them, its fissure running off to the right.
+  // below them, its shockwave and cracks all round it.
   private spot(i: number): [number, number] {
     const hx = this.x0 + COLS.length * DX + 2.5;
     if (i === 18) return [hx + 7.5, this.y0 + 4 * DY];
@@ -224,10 +224,11 @@ export class Lab {
   }
 
   // Worldsplitter every 7 seconds with a tempered greatsword that has Worldbreaker: raised, then
-  // the cut along 12 tiles to the right, the fissure open 4 s and erupting every half second,
-  // and Worldbreaker's shockwave and charges as it closes.
+  // slammed down facing right, the shockwave 7 tiles every way, the ground round the blade
+  // cracked 4 s and erupting every half second, and Worldbreaker's shockwave and charges as it
+  // closes.
   private worldsplitter(p: Player, t: number, x: number, y: number, fresh: boolean): [number, number, number] {
-    const f = this.game.cur, len = 12, half = 1.5, open = 4;
+    const f = this.game.cur, reach = 7, crack = 4, open = 4;
     p.cur = GREAT; p.owned = (1 << GREAT) | OWNED_TEMPERED | OWNED_BREAKER; p.evo[GREAT] = 1;
     const period = 7, cycle = Math.floor(t / period), go = (t % period) - 1, d = ART_TIME[Art.Split];
     p.swings = (cycle + (go >= d ? 1 : 0)) & 255;
@@ -246,18 +247,21 @@ export class Lab {
       f.bX[j] = bx; f.bY[j] = by; f.bR[j] = r; f.bKind[j] = k;
     };
     const since = go - d;
-    if (since >= 0 && once('cut')) tracer(x, y, x + len, y, TRACER_SPLIT);
+    if (since >= 0 && once('cut')) tracer(x, y, x + reach, y, TRACER_SPLIT);
     if (since >= 0 && since < open) {
       const e = f.nEffects++;
-      f.eKind[e] = EffectKind.Fissure; f.eX0[e] = x; f.eY0[e] = y; f.eX[e] = x + len; f.eY[e] = y; f.eR[e] = half;
+      f.eKind[e] = EffectKind.Fissure; f.eX0[e] = x; f.eY0[e] = y; f.eX[e] = x; f.eY[e] = y; f.eR[e] = crack;
       f.eLeft[e] = Math.ceil((open - since) * 10); f.eTotal[e] = open * 10;
       const burst = Math.floor(since / FISSURE_EVERY);
-      if (burst > 0 && once(`burst${burst}`)) for (let k = 0; k < 3; k++) blast(x + Math.random() * len, y, half, BlastKind.Erupt);
+      if (burst > 0 && once(`burst${burst}`)) for (let k = 0; k < 4; k++) {
+        const a = Math.random() * 6.283, d = crack * (0.3 + 0.7 * Math.random());
+        blast(x + Math.cos(a) * d, y + Math.sin(a) * d, 1.5, BlastKind.Erupt);
+      }
     }
     if (since >= open && once('breaker')) {
-      for (const u of [0, 0.5, 1]) blast(x + len * u, y, 6, BlastKind.Breaker);
-      // The charges leaping from creep to creep, here between points either side of the line.
-      const pts = Array.from({ length: 9 }, (_, k) => [x + 0.5 + k * 1.4, y + (k % 2 ? 1 : -1) * (1 + Math.random() * 3.5)]);
+      blast(x, y, 10, BlastKind.Breaker);
+      // The charges leaping from creep to creep, here between points spiralling out round it.
+      const pts = Array.from({ length: 9 }, (_, k) => [x + Math.cos(k * 1.9) * (2 + k * 0.9), y + Math.sin(k * 1.9) * (2 + k * 0.9)]);
       for (let k = 1; k < pts.length; k++) tracer(pts[k - 1][0], pts[k - 1][1], pts[k][0], pts[k][1], TRACER_ARC);
     }
     return [x, y, 0];

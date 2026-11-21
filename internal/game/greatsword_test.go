@@ -109,16 +109,20 @@ func TestASecondGreatswordTempersTheFirst(t *testing.T) {
 	}
 }
 
-// Worldsplitter: raised untouchable, then a cut along its line that takes a share of everything
-// in it, sunders and stuns it, and a fissure left erupting; nothing it deals fills the meter.
-func TestWorldsplitterSplitsTheGround(t *testing.T) {
+// Worldsplitter: raised untouchable, then slammed into the ground in a shockwave every way that
+// takes a share of everything in reach, sunders and stuns it and throws back what lives (a boss
+// stands firm), and the ground round the blade left erupting; nothing it deals fills the meter.
+func TestWorldsplitterSlamsTheGround(t *testing.T) {
 	a := greatRig(t, 1, true)
 	w, p := a.w, a.p
-	w.SpawnCreep(CBrute, a.ox+6, a.oy)       // in the line
-	w.SpawnCreep(CBrute, a.ox+6, a.oy+4)     // beside it
-	w.SpawnCreep(CGoliath, a.ox+10, a.oy+.5) // a boss in it
+	at := [][2]float32{{3, 0}, {-3, 0}, {0, -3}, {-4, 4}} // in reach, all round
+	for _, d := range at {
+		w.SpawnCreep(CBrute, a.ox+d[0], a.oy+d[1])
+	}
+	w.SpawnCreep(CBrute, a.ox+splitReach+2, a.oy) // out of reach
+	w.SpawnCreep(CGoliath, a.ox, a.oy+3)          // a boss on the cracked ground
 	for i := range w.Creeps {
-		w.Creeps[i].HP = w.Creeps[i].MaxHP * 50 // only shares and stuns are measured here
+		w.Creeps[i].HP = w.Creeps[i].MaxHP * 50 // only shares, stuns and throws are measured here
 	}
 	p.Ult = 1
 	if err := w.Cast(p, AbUltimate, a.ox+12, a.oy); err != nil {
@@ -138,42 +142,53 @@ func TestWorldsplitterSplitsTheGround(t *testing.T) {
 	for range int(splitWindup*TickRate) + 1 {
 		splitTick(a)
 	}
-	in, beside, boss := &w.Creeps[0], &w.Creeps[1], &w.Creeps[2]
-	if in.HP > in.MaxHP*(50-splitCut) {
-		t.Errorf("the cut took %.0f%% of a brute in its line, want at least %.0f%%", 100*(in.MaxHP*50-in.HP)/in.MaxHP, 100*splitCut)
+	for k, d := range at {
+		c := &w.Creeps[k]
+		took := (c.MaxHP*50 - c.HP) / c.MaxHP
+		if took < splitCut*splitEdge {
+			t.Errorf("the slam took %.0f%% of a brute at %v, want at least %.0f%%", 100*took, d, 100*splitCut*splitEdge)
+		}
+		if c.Sunder != sunderCap(1) || c.stunLeft <= 0 {
+			t.Errorf("a brute at %v: sunder %d, stunned %.1fs", d, c.Sunder, c.stunLeft)
+		}
+		was := d[0]*d[0] + d[1]*d[1]
+		if dx, dy := c.X-a.ox, c.Y-a.oy; dx*dx+dy*dy < was+1 || dx*d[0]+dy*d[1] <= 0 {
+			t.Errorf("a brute at %v was not thrown back: now at %.1f, %.1f", d, dx, dy)
+		}
 	}
-	if boss.HP > boss.MaxHP*(50-splitBoss) {
-		t.Errorf("the cut took %.0f%% of a goliath in its line", 100*(boss.MaxHP*50-boss.HP)/boss.MaxHP)
+	out, boss := &w.Creeps[len(at)], &w.Creeps[len(at)+1]
+	if out.HP != out.MaxHP*50 {
+		t.Error("the slam hit a brute out of its reach")
 	}
-	if in.Sunder != sunderCap(1) || in.stunLeft <= 0 {
-		t.Errorf("a brute in the line: sunder %d, stunned %.1fs", in.Sunder, in.stunLeft)
+	if boss.HP > boss.MaxHP*(50-splitBoss*splitEdge) || boss.stunLeft <= 0 {
+		t.Errorf("the slam took %.0f%% of a goliath and stunned it %.1fs", 100*(boss.MaxHP*50-boss.HP)/boss.MaxHP, boss.stunLeft)
 	}
-	if beside.HP != beside.MaxHP*50 {
-		t.Error("the cut hit a brute 4 tiles off its line")
+	if boss.X != a.ox || boss.Y != a.oy+3 {
+		t.Error("the slam threw a goliath")
 	}
 	if len(w.Effects) != 1 || w.Effects[0].Kind != EffFissure {
-		t.Fatalf("no fissure left open: %v", w.Effects)
+		t.Fatalf("no cracked ground left: %v", w.Effects)
 	}
-	after := in.HP
+	after := boss.HP
 	for range splitErupt * TickRate {
 		splitTick(a)
 	}
-	if in.HP >= after {
-		t.Error("the fissure never erupted under the brute")
+	if boss.HP >= after {
+		t.Error("the cracked ground never erupted under the goliath")
 	}
 	if len(w.Effects) != 0 {
-		t.Error("the fissure never closed")
+		t.Error("the cracked ground never closed")
 	}
 	if p.Ult != 0 {
 		t.Errorf("Worldsplitter filled the meter to %.2f", p.Ult)
 	}
-	if beside.HP != beside.MaxHP*50 {
-		t.Error("without Worldbreaker the closing fissure hit a brute 4 tiles off")
+	if out.HP != out.MaxHP*50 {
+		t.Error("without Worldbreaker the closing ground hit a brute out of reach")
 	}
 }
 
-// Worldbreaker: bought once, for a greatsword full and evolved; as the fissure closes the line
-// goes off, and every creep the shockwave catches throws a charge on, Stormbreaker's further,
+// Worldbreaker: bought once, for a greatsword full and evolved; as the cracked ground closes it
+// goes off in a wider shockwave, and every creep the shockwave catches throws a charge on, Stormbreaker's further,
 // further still beside a Tesla coil.
 func TestWorldbreakerChargesLeap(t *testing.T) {
 	w := newBare(7)
@@ -207,9 +222,9 @@ func TestWorldbreakerChargesLeap(t *testing.T) {
 			a.built = false
 		}
 		// One creep in the shockwave, a long chain of them leading off out of it.
-		w.SpawnCreep(CBrute, a.ox+6, a.oy+5)
+		w.SpawnCreep(CBrute, a.ox, a.oy+9)
 		for k := range 12 {
-			w.SpawnCreep(CBrute, a.ox+6, a.oy+9+3*float32(k))
+			w.SpawnCreep(CBrute, a.ox, a.oy+13+3*float32(k))
 		}
 		for i := range w.Creeps {
 			w.Creeps[i].HP = 1e7

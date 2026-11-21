@@ -11,6 +11,9 @@ import type { Game } from '../state';
 import { K_ARMORY, K_CORE, K_MISSILE, K_SNIPER, K_TESLA } from './structs';
 import { linInto, writeMatrix } from './util';
 
+// How many cracks Worldsplitter's ground breaks into round the blade.
+const SPLIT_CRACKS = 7;
+
 const STRIDE = 16;
 // Rotor wash colours by the ground under it.
 const WASH_DIRT = [0xa08a64, 0x8f7a58, 0xb59f78, 0x7d6a4c];
@@ -185,7 +188,7 @@ export class Effects {
   private lastDamage = 0;
   private lasting: THREE.InstancedMesh; private lastingFire: THREE.InstancedMesh; private grenades: THREE.InstancedMesh;
   private acid: THREE.InstancedMesh; private sacs: THREE.InstancedMesh;
-  // Worldsplitter's fissure: a scorched trench along its line and the molten crack in it.
+  // Worldsplitter's cracked ground: a scorched trench along each crack and the molten seam in it.
   private trench: THREE.InstancedMesh; private crack: THREE.InstancedMesh;
   private t0 = performance.now();
   private sec = 0;
@@ -234,7 +237,7 @@ export class Effects {
     this.acid = new THREE.InstancedMesh(fd, am, 64);
     const sm = new THREE.MeshLambertNodeMaterial({ color: 0x9ab83a, emissive: 0x2a4a08 });
     this.sacs = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.42, 1), sm, 64);
-    // The fissure, a flat quad along its line (x along it, z across, both -0.5..0.5): a dark
+    // A crack of the fissure, a flat quad along it (x along it, z across, both -0.5..0.5): a dark
     // trench of broken ground, and over it a jagged crack glowing molten, pulsing, tapering at
     // both ends.
     const strip = new THREE.PlaneGeometry(1, 1); strip.rotateX(-Math.PI / 2);
@@ -592,28 +595,32 @@ export class Effects {
     this.flashLight(x1, 1.2, y1, 30);
   }
 
-  // Worldsplitter coming down: the blade's line drawn the whole length at once, white-hot over a
-  // wide molten smear, the ground thrown up along it a beat later from the survivor out to the
-  // far end, and a flash where the blade bit.
+  // Worldsplitter slammed into the ground: the blade driven down just ahead of the survivor in
+  // a white-hot flash, then the shockwave going out every way to its reach (x0, y0 to x1, y1 is
+  // the survivor to that reach the way they face): rings of light and dust rolling out, the
+  // ground heaved up in a ring that travels with it, and grit flung out all round.
   private splitCut(t: number, x0: number, y0: number, x1: number, y1: number, dist: number): void {
-    this.streaks.add(t, x0, 0.3, y0, x1, 0.15, y1, 0.4, 0xffffff, 0.14, 0, 0, 0.6, 1, 2.4);
-    this.streaks.add(t, x0, 0.3, y0, x1, 0.15, y1, 0.6, 0xff7a1a, 0.6, 0, 0, 0.6, 1, 1.1);
-    this.streaks.add(t, x0, 2.6, y0, x0, 0.1, y0, 0.18, 0xfff4d0, 0.3, 0, 0, 1, 1, 2);
-    const a = Math.atan2(y1 - y0, x1 - x0), c = Math.cos(a), s = Math.sin(a);
-    this.flashLight(x0 + c, 1.5, y0 + s, 60);
-    this.glow.add(t, x0 + c * 0.8, 0.6, y0 + s * 0.8, 0, 0, 0, 0.2, 0xfff0d0, 3, 1, 0, 1, 1, 1.5);
-    this.rings.add(t, x0 + c * 0.8, 0.12, y0 + s * 0.8, 0, 0, 0, 0.5, 0xfff0d0, 0.3, 3.2, 0, 1, 1, 1.4);
-    const n = Math.max(4, Math.round(dist / 0.8));
-    for (let j = 0; j <= n; j++) {
-      const u = j / n, x = x0 + (x1 - x0) * u, y = y0 + (y1 - y0) * u, tj = t + 0.03 + u * 0.12;
-      // Slabs of ground heaved up either side, grit and dust rolling off them.
-      for (const side of [-1, 1]) {
-        const sp = 1 + Math.random() * 2;
-        this.glow.add(tj, x - s * side * 0.4, 0.2, y + c * side * 0.4, -s * side * sp, 4 + Math.random() * 4, c * side * sp,
-          0.6 + Math.random() * 0.3, j % 2 ? 0x5a4a34 : 0x8a7a5a, 0.24, 0.16, 16, 1, 1, 0.5);
+    const a = Math.atan2(y1 - y0, x1 - x0), c = Math.cos(a), s = Math.sin(a), r = Math.max(dist, 1);
+    const bx = x0 + c * 0.9, bz = y0 + s * 0.9;
+    this.streaks.add(t, bx, 2.8, bz, bx, 0.05, bz, 0.22, 0xfff4d0, 0.32, 0, 0, 1, 1, 2.2);
+    this.flashLight(bx, 1.5, bz, 80);
+    this.glow.add(t, bx, 0.6, bz, 0, 0, 0, 0.25, 0xfff0d0, 3.5, 1.2, 0, 1, 1, 1.5);
+    this.rings.add(t, x0, 0.14, y0, 0, 0, 0, 0.45, 0xfff0d0, 0.5, r, 0, 1, 1, 1.5);
+    this.rings.add(t + 0.04, x0, 0.12, y0, 0, 0, 0, 0.6, 0xff8a30, 0.4, r * 1.05, 0, 1, 1, 1.1);
+    this.rings.add(t + 0.08, x0, 0.1, y0, 0, 0, 0, 0.8, 0x9a8a6c, 0.4, r * 1.15, 0, 1, 1, 0.7);
+    this.spheres.add(t, x0, 0.2, y0, 0, 0, 0, 0.3, 0xffc070, 0.4, r * 0.5, 0, 0.5, 1, 0.6);
+    const n = 28;
+    for (let j = 0; j < n; j++) {
+      const b = (j + Math.random() * 0.5) / n * 6.283, cb = Math.cos(b), sb = Math.sin(b);
+      // The heave travelling out: slabs thrown up at a few steps along each bearing, later the
+      // further out, and dust rolling at the front.
+      for (const u of [0.25, 0.55, 0.9]) {
+        const x = x0 + cb * r * u, z = y0 + sb * r * u, tj = t + 0.02 + u * 0.16, sp = 1 + Math.random() * 2;
+        this.glow.add(tj, x, 0.2, z, cb * sp, 3 + Math.random() * 4 * (1.2 - u), sb * sp,
+          0.55 + Math.random() * 0.3, (j + Math.round(u * 4)) % 2 ? 0x5a4a34 : 0x8a7a5a, 0.24, 0.16, 16, 1, 1, 0.5);
       }
-      if (j % 2 === 0) this.dust.add(tj, x, 0.3, y, (Math.random() - 0.5) * 1.5, 0.6, (Math.random() - 0.5) * 1.5, 1, 0x9a8a6c, 0.6, 1.5, 0, 1, 0.6);
-      if (j % 3 === 0) this.glow.add(tj, x, 0.2, y, 0, 2 + Math.random() * 2, 0, 0.5, 0xff8a20, 0.35, 0.1, 4, 1, 1, 1.3);
+      if (j % 2 === 0) this.dust.add(t + 0.15, x0 + cb * r * 0.95, 0.3, y0 + sb * r * 0.95, cb * 2, 0.6, sb * 2, 1.1, 0x9a8a6c, 0.7, 1.7, 0, 1, 0.6);
+      if (j % 3 === 0) this.glow.add(t, bx, 0.4, bz, cb * 6, 2 + Math.random() * 3, sb * 6, 0.5, 0xff8a20, 0.3, 0.1, 6, 1, 1, 1.3);
     }
   }
 
@@ -960,7 +967,7 @@ export class Effects {
     // Up to two rings an effect, one of anything else.
     this.lasting = this.room(this.lasting, f.nEffects * 2); this.lastingFire = this.room(this.lastingFire, f.nEffects);
     this.grenades = this.room(this.grenades, f.nEffects); this.acid = this.room(this.acid, f.nEffects); this.sacs = this.room(this.sacs, f.nEffects);
-    this.trench = this.room(this.trench, f.nEffects); this.crack = this.room(this.crack, f.nEffects);
+    this.trench = this.room(this.trench, f.nEffects * SPLIT_CRACKS); this.crack = this.room(this.crack, f.nEffects * SPLIT_CRACKS);
     let nr = 0, nf = 0, ng = 0, na = 0, ns = 0, nk = 0;
     const ta = this.trench.instanceMatrix.array as Float32Array, ka = this.crack.instanceMatrix.array as Float32Array;
     const ra = this.lasting.instanceMatrix.array as Float32Array, fa = this.lastingFire.instanceMatrix.array as Float32Array, ga = this.grenades.instanceMatrix.array as Float32Array;
@@ -1029,25 +1036,29 @@ export class Effects {
           this.glow.add(t, f.eX[i], 0.2, f.eY[i], Math.cos(a) * 2, 1.5 + Math.random(), Math.sin(a) * 2, 0.35, 0xa8e040, 0.14, 0.1, 6, 1, 0.8);
         }
       } else if (k === EffectKind.Fissure) {
-        // Worldsplitter's fissure: the crack opening fast, swelling as each burst goes off and
-        // narrowing as it closes; molten drops and smoke rising off it all along.
-        const x0 = f.eX0[i], y0 = f.eY0[i], dx = f.eX[i] - x0, dy = f.eY[i] - y0, len = Math.hypot(dx, dy);
-        if (len < 0.1) continue;
+        // Worldsplitter's cracked ground: cracks running out every way from where the blade bit,
+        // opening fast, swelling as each burst goes off and narrowing as it closes; molten drops
+        // and smoke rising off them. Each crack's bearing and length are fixed by the spot, so
+        // they hold still from frame to frame.
+        const cx = f.eX[i], cz = f.eY[i];
         const open = Math.min(1, (total - left) * 6) * Math.min(1, left / 0.4);
         const beat = ((total - left) % 0.5) / 0.5, swell = 1 + 0.35 * Math.max(0, 1 - beat * 4);
-        const cx = x0 + dx / 2, cz = y0 + dy / 2, c = dx / len, s = dy / len;
-        this.strip(ta, nk * 16, cx, 0.064, cz, c, s, len + r, r * 2.2 * Math.max(0.3, open));
-        this.strip(ka, nk++ * 16, cx, 0.075, cz, c, s, len, r * 1.4 * open * swell);
-        if (spawnFire) {
-          for (let j = 0; j < Math.ceil(len / 4); j++) {
-            const u = Math.random(), x = x0 + dx * u, z = y0 + dy * u;
+        const seed = Math.abs(Math.sin(cx * 12.9898 + cz * 78.233) * 43758.5453);
+        for (let j = 0; j < SPLIT_CRACKS; j++) {
+          const h = (seed * (j + 1) * 0.618) % 1, a = (j + h * 0.6) / SPLIT_CRACKS * 6.283;
+          const len = r * (0.65 + 0.45 * ((h * 7.1) % 1)), c = Math.cos(a), s = Math.sin(a);
+          const mx = cx + c * len / 2, mz = cz + s * len / 2;
+          this.strip(ta, nk * 16, mx, 0.064, mz, c, s, len + 0.6, 1.1 * Math.max(0.3, open));
+          this.strip(ka, nk++ * 16, mx, 0.075, mz, c, s, len, 0.7 * open * swell);
+          if (spawnFire && Math.random() < 0.6) {
+            const u = Math.random(), x = cx + c * len * u, z = cz + s * len * u;
             this.glow.add(t, x, 0.1, z, (Math.random() - 0.5) * 0.4, 1.2 + Math.random() * 1.6, (Math.random() - 0.5) * 0.4,
               0.5 + Math.random() * 0.3, Math.random() < 0.6 ? 0xff6a10 : 0xffc040, 0.14, 0.04, 2, 1, 1, 1.1);
           }
-          if (Math.random() < 0.35) {
-            const u = Math.random();
-            this.smoke.add(t, x0 + dx * u, 0.5, y0 + dy * u, 0, 0.9, 0, 1.6, 0x2e2622, 0.5, 1.4, 0, 1, 0.35);
-          }
+        }
+        if (spawnFire && Math.random() < 0.35) {
+          const a = Math.random() * 6.283, d = Math.random() * r;
+          this.smoke.add(t, cx + Math.cos(a) * d, 0.5, cz + Math.sin(a) * d, 0, 0.9, 0, 1.6, 0x2e2622, 0.5, 1.4, 0, 1, 0.35);
         }
       } else if (k === EffectKind.Acid) {
         // The pool a sac leaves: seething green, bubbles bursting on it and a sour haze off it.

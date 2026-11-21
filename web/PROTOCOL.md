@@ -412,7 +412,7 @@ u16  nCreeps
 u16  nTracers         shots fired this tick
   u16  x0, y0, x1, y1 q8
   u8   kind           0..6 player weapon kind (6 the crowbar: a swing, the survivor to its
-                      reach), 8 + weapon kind the same under its ultimate (drawn red and wider), 16+structKind turret shot (a missile battery's is a one-tile stub at launch; its missiles fly as 5, rocket, tracers), 32 spitter spit, 35 a hurler's bone, 33 dash (the hero's leap, start to end), 34 the Huey's door gunner, 36 a napalm missile in flight (as 5, burning), 37 an arc web's jump from creep to creep (and from each struck creep to the one two back), 38 a katana's cut and 39 a greatsword's (the survivor to its reach), 40 and 41 the same under their ultimates, 42 Flash Draw's cut (start to end of the survivor's run), 43 Moonlit Edge's crescent, 44 a greatsword's follow-through, 45 the crowbar's Home Run (the survivor to its reach) and 46 Bonebreaker's, all the way round, 47 Worldsplitter's cut (the survivor to the end of the fissure)
+                      reach), 8 + weapon kind the same under its ultimate (drawn red and wider), 16+structKind turret shot (a missile battery's is a one-tile stub at launch; its missiles fly as 5, rocket, tracers), 32 spitter spit, 35 a hurler's bone, 33 dash (the hero's leap, start to end), 34 the Huey's door gunner, 36 a napalm missile in flight (as 5, burning), 37 an arc web's jump from creep to creep (and from each struck creep to the one two back), 38 a katana's cut and 39 a greatsword's (the survivor to its reach), 40 and 41 the same under their ultimates, 42 Flash Draw's cut (start to end of the survivor's run), 43 Moonlit Edge's crescent, 44 a greatsword's follow-through, 45 the crowbar's Home Run (the survivor to its reach) and 46 Bonebreaker's, all the way round, 47 Worldsplitter's slam (the survivor out to the shockwave's reach the way they face; the blade bites just ahead of them)
                       (x0,y0 is the Huey over the ground; it fires from the air)
 u16  nBlasts          explosions and pulses this tick
   u16  x, y q8
@@ -427,10 +427,9 @@ u16  nBlasts          explosions and pulses this tick
                       (at the generator, r its reach), 16 a napalm missile bursting (the
                       ground burns a moment where it lands), 17 a creep's blood loss bursting,
                       18 Skyfall landing (r its reach), 19 a melee hit landing critical (on the
-                      creep, r its radius), 20 a burst of Worldsplitter's fissure erupting (three
-                      a burst along the line, r its half width), 21 Worldbreaker going off (at the
-                      fissure's start, middle and end, r its reach either side; its charges
-                      leap as tracers 37)
+                      creep, r its radius), 20 a burst of Worldsplitter's cracked ground erupting
+                      (four a burst on it, r the burst's size), 21 Worldbreaker going off (at the
+                      blade, r its reach; its charges leap as tracers 37)
 u16  nDeaths          creeps that died this tick
   u16  x, y q8
   u8   kind
@@ -442,8 +441,8 @@ u16  nEffects         lasting effects, the full current list every frame
                       6 a broodmother's sac of bile: she rears back at x0,y0 for its first 0.7 s,
                       then it arcs to x,y and bursts within r when it ends, 7 a pool of acid,
                       8 a spitter's glob flying from x0,y0 to where its mark stood, x,y; it
-                      splashes within r there when it ends, 9 Worldsplitter's fissure from x0,y0
-                      to x,y, r either side of the line, erupting every 0.5 s until it ends
+                      splashes within r there when it ends, 9 Worldsplitter's cracked ground r round
+                      x,y (x0,y0 the same), erupting every 0.5 s until it ends
   u16  x0, y0, x, y q8
   u8   r              radius * 8
   u8   left           deciseconds left

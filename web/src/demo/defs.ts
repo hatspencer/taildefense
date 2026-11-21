@@ -42,7 +42,7 @@ export const WEAPON_BASE: W0[] = [
   { name: 'Katana', short: 'KTN', price: 1800, range: 2.2, fire: 'melee', special: '+bleed', dmg: 34, rate: 2.6, mag: 1, reload: 0,
     ult: { name: 'Crimson Tempest', desc: '8 seconds of wide, fast cuts that reach further and bleed twice as hard.', time: 8, range: 0, radius: 0, target: 'self' } },
   { name: 'Greatsword', short: 'GSW', price: 1800, range: 2.8, fire: 'melee', special: '+wider, +stagger', dmg: 100, rate: 0.85, mag: 1, reload: 0,
-    ult: { name: 'Worldsplitter', desc: 'The blade raised, untouchable, then brought down to split the ground in a line ahead: everything on it crushed and stunned, then thrown up as the fissure erupts.', time: 5, range: 12, radius: 0, target: 'point' } },
+    ult: { name: 'Worldsplitter', desc: 'The blade raised, untouchable, then slammed into the ground: a shockwave every way round you, everything in it crushed, stunned and thrown back, then the cracked ground round the blade erupts.', time: 5, range: 0, radius: 0, target: 'self' } },
 ];
 
 function upgradeCost(price: number, level: number): number {

@@ -869,13 +869,19 @@ twice the damage for 8 s. The aim: the crowd blade by a distance, and near the k
   heavy blade, and the reason to bring it; the gap after a stun still keeps the fast guns from
   doing the same.
 - **Worldsplitter replaces Titan's Wrath.** An ultimate should be a moment, and the greatsword's
-  is the ground breaking: 0.8 s raised, untouchable, then a cut 12 tiles long and 3 wide, five
-  swings' worth and a quarter of each creep's health (a boss 8%), sundered to the full, stunned
-  long; then the fissure erupts every half second for 4 s, holding whatever walks onto it. The
-  ultimate runs till it closes, so nothing stops the wielder and nothing it deals fills the meter
-  again. It is a point cast, aimed like the MIRV, which also lets bots use it.
+  is the ground breaking: 0.8 s raised, untouchable, then the blade slammed into the ground at
+  the survivor's feet. The shockwave goes out every way, 7 tiles: five swings' worth and a
+  quarter of each creep's health (a boss 8%), 70% of it at the edge, sundered to the full,
+  stunned long (`stagger`, so it renews a stun already on), and whatever lives is thrown up to 4
+  tiles straight out (`push`, so less for a big creep; a boss stands firm). The ground round the
+  blade stays cracked 4 tiles out and erupts every half second for 4 s, holding whatever walks
+  back onto it. The ultimate runs till the cracks close, so nothing stops the wielder and nothing
+  it deals fills the meter again. It is cast on the survivor, not at a point: a melee blade's
+  big moment is in the middle of the crowd, and a line ahead left the creeps behind it free. It
+  first was a 12 by 3 cut along the aim; the slam covers four times the ground, which is the
+  point of an ultimate, and the throw buys the wielder room after it.
 - **Worldbreaker**, bought once at the armory for 3000 once every track is full and it has
-  evolved: the closing fissure goes off 6 tiles either side, and every creep it catches carries a
+  evolved: the closing ground goes off 10 tiles round the blade, and every creep it catches carries a
   Tesla charge that leaps on 5 times (a creep the blow killed still passes its charge on).
   Stormbreaker's leap 7 times and harder, 9 times beside a Tesla coil within 5 tiles of the
   survivor, which ties the blade to the base it defends; Ashen Colossus's set every creep they
@@ -883,8 +889,8 @@ twice the damage for 8 s. The aim: the crowd blade by a distance, and near the k
   gold in. It goes through `evolveWeapon` as branch 3, a third thing the armory evolves.
 
 Wave 25, the bench (survivors don't move; creeps walk in): seconds to kill a goliath, and to clear
-the army and the heavy mix starting 3 tiles off; Worldsplitter on two armies scattered over a
-14 by 10 field ahead:
+the army and the heavy mix starting 3 tiles off; Worldsplitter on two armies scattered round
+the survivor, out to 7.8 tiles (just past the slam's reach) and to 10.8:
 
 | | goliath | army | heavy |
 |---|---|---|---|
@@ -893,10 +899,15 @@ the army and the heavy mix starting 3 tiles off; Worldsplitter on two armies sca
 | greatsword now, evolved | 5.6 | 1.4 | 1.4 |
 | greatsword now, tempered | 4.6 | 1.4 | 0.7 |
 
-| Worldsplitter | killed at the cut | at the close |
+| Worldsplitter, tempered, Stormbreaker | killed by the slam | at the close |
 |---|---|---|
-| without Worldbreaker | 14 of 62 | 15 of 62 |
-| with Worldbreaker | 14 of 62 | 62 of 62 |
+| without Worldbreaker, to 7.8 | 55 of 62 | 55 of 62 |
+| without Worldbreaker, to 10.8 | 25 of 62 | 25 of 62 |
+| with Worldbreaker, to 7.8 | 55 of 62 | 62 of 62 |
+| with Worldbreaker, to 10.8 | 25 of 62 | 62 of 62 |
+
+What lives through the slam is the brutes and maulers and a few at the edge, stunned and thrown
+clear of the cracks (the bench's creeps stand still, so none walk back onto them).
 
 On its own, with Worldbreaker and Stormbreaker, it takes three quarters of a goliath's health.
 The charge from 16 tiles is bound by the creeps' walk in (the greatsword kills each group as it

@@ -43,7 +43,7 @@ export const COMPASS = ['east', 'southeast', 'south', 'southwest', 'west', 'nort
 
 export const enum Order { Idle = 0, Move, AMove, Attack, Hold, Build, Repair, Loot, Revive, Steer, Pickup, Board, Gate }
 export const enum BlastKind { Explosion = 0, Frost, Tesla, Concussion, Airstrike, Loot, Ambush, Taunt, Lightning, Revived, GuardsWake, Bell, Bile, Landed, Flame, Overload, Napalm, Bleed, Skyfall, Crit,
-  // Worldsplitter's fissure erupting (a burst along its line), and Worldbreaker detonating it.
+  // Worldsplitter's cracked ground erupting (a burst on it), and Worldbreaker detonating it.
   Erupt, Breaker }
 export const enum Weather { Clear = 0, Fog, Rain, Storm, Snow, Drizzle, Thunder, HeavySnow }
 // How much each weather counts as rain (internal/game/weather.go wetness).
@@ -77,8 +77,8 @@ export function lootable(k: number): boolean { return k !== SiteKind.Pump && k !
 // Bile: a broodmother's sac, rearing back from (x0, y0) for LOB_WINDUP seconds, then in the
 // air; it bursts within r of (x, y) when left runs out. Acid: the pool it leaves. Spit: a
 // spitter's glob flying from (x0, y0) to where its mark stood, (x, y), splashing within r there.
-// Fissure: Worldsplitter's crack in the ground from (x0, y0) to (x, y), r either side of the
-// line, erupting every FISSURE_EVERY seconds until left runs out.
+// Fissure: Worldsplitter's cracked ground, r round (x, y) ((x0, y0) the same), erupting every
+// FISSURE_EVERY seconds until left runs out.
 export const enum EffectKind { Grenade = 1, Napalm = 2, AirTarget = 3, Drop = 4, Slam = 5, Bile = 6, Acid = 7, Spit = 8, Fissure = 9 }
 export const FISSURE_EVERY = 0.5;
 export const LOB_WINDUP = 0.7;

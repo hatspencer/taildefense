@@ -572,14 +572,14 @@ function worldsplit(sr: number, r: R): Buf {
   click(b, r, at, 1800, 0.7, 0.004);
   const f = jit(r, 260, 0.05);
   ping(b, at, [f, f * 1.41, f * 2.2], 0.25, 0.2);
-  // The tear running out along the fissure: rubble roaring, darkening as it gets further off.
+  // The shockwave rolling out from the blade: rubble roaring, darkening as it gets further off.
   roar(b, r, at + 0.02, 1.4, 2400, 150, 0.01, 0.35, 0.9, 2);
   crackle(b, r, at + 0.03, 0.5, 120, 600, 2200, 0.35);
   debris(b, r, at + 0.25, 1.6, 30, 900, 3800, 0.18);
   return b.normalize(0.95).fadeOut(0.2);
 }
 
-// A burst of the fissure: a deep cough out of the ground, a spatter of rock and a hiss of heat.
+// A burst of the cracked ground: a deep cough out of the ground, a spatter of rock and a hiss of heat.
 // Short and soft: three go off every half second for four seconds.
 function erupt(sr: number, r: R): Buf {
   const b = new Buf(sr, 0.7);
