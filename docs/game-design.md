@@ -932,7 +932,14 @@ game, not a game without the base.
   it is saved for the moment it turns: the meter fills by damage dealt, measured against what a
   wave holds (ultFull: 37% of three waves' walker-health at the current wave, and the
   difficulty's wave size and creep health), so the pace stays the same as waves grow and on
-  every difficulty. Only the hit points a hit takes count, never overkill: when it counted, a
+  every difficulty. Measured against the whole wave it still slowed late: bot games to wave 40
+  earned about 0.49 of a meter a wave on waves 1-4, 0.32 on 11-19 and 0.18 on 31-34, because
+  waves grow with the cube of the wave while a survivor's own damage only keeps up with creep
+  health (their upgrades run out, and the turrets take the growing rest), and a swarm wave,
+  swollen to 2.5 times the creeps at wave 20 and 3.5 at 40 but lasting only about 1.3 times as
+  long, gave as little as 0.09. So past wave 16 the meter counts the wave as wave 16's plus 30
+  walkers a wave, still at the wave's creep health, and a swarm counts as a wave and a half,
+  not as many as it holds; up to wave 16 nothing changed. Only the hit points a hit takes count, never overkill: when it counted, a
   rocket or a rifle round on a walker filled the meter for damage nobody needed, and the
   launcher and rifle charged far faster than the pistol or SMG for the same kills. A revive gives 15%, so helping fills it too. Turret fire
   and burning don't count: the meter rewards the survivor's own fighting, not the base's.

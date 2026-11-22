@@ -81,11 +81,30 @@ var Ultimates = [NumWeapons]UltDef{
 // health, about what a survivor in the thick of it takes off in ultWaves waves while the
 // turrets do the rest; bots fill it every two or three. Turrets and burning ground add
 // nothing, and nothing fills it while an ultimate runs.
+//
+// Past ultLate the waves outgrow what a survivor's hands can deal: their upgrades run out and
+// the turrets take the growing rest, so measured against the whole wave the meter came slower
+// every wave. From there the wave counts as the one at ultLate plus ultLateGrow walkers a
+// wave, still at the wave's creep health. A swarm swells far past an ordinary wave but lasts
+// only a little longer, so it counts as ultSwarm waves, not as many as it holds.
 const (
 	ultWaves     = 3
 	ultShare     = .37
 	ultPerRevive = .15
+	ultLate      = 16
+	ultLateGrow  = 30
+	ultSwarm     = 1.5
 )
+
+// ultWave is how many walkers a lone survivor's wave counts for on the meter, before the
+// difficulty's wave size.
+func ultWave(wave int) float32 {
+	n := baseBudget(min(wave, ultLate)) + ultLateGrow*float32(max(wave-ultLate, 0))
+	if wave%5 == 0 {
+		n *= ultSwarm
+	}
+	return n
+}
 
 // ultFull is the damage that fills the meter this wave. Every hit asks, so it is worked out
 // once for each wave and difficulty.
@@ -93,7 +112,7 @@ func (w *World) ultFull() float32 {
 	if w.ult.full == 0 || w.ult.wave != w.Wave || w.ult.diff != w.Diff {
 		wave := max(w.Wave, 1)
 		d := w.diff()
-		w.ult.full = ultWaves * ultShare * Budget(wave, 1) * d.Count * Creeps[CWalker].HP * HPScale(wave) * d.HP
+		w.ult.full = ultWaves * ultShare * ultWave(wave) * d.Count * Creeps[CWalker].HP * HPScale(wave) * d.HP
 		w.ult.wave, w.ult.diff = w.Wave, w.Diff
 	}
 	return w.ult.full
