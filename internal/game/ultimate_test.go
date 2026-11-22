@@ -1,6 +1,9 @@
 package game
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 // A survivor's own damage fills the meter; a turret's does not.
 func TestDamageChargesTheUltimate(t *testing.T) {
@@ -239,5 +242,59 @@ func TestOverkillDoesNotCharge(t *testing.T) {
 	w.damage(1, hp*10, int8(p.ID))
 	if big := p.Ult - small; big > small*1.001 {
 		t.Fatalf("ten times a walker's health charged %.4f, its health %.4f", big, small)
+	}
+}
+
+// The meter is measured against the wave up to wave 16; past it the wave counts 30 walkers more
+// a wave, a swarm counts as a wave and a half, and the difficulty's wave size and creep health
+// scale it.
+func TestUltimateMeterGrowsSlowerLate(t *testing.T) {
+	w := newBare(3)
+	full := func(wave int, diff Difficulty) float32 {
+		w.Wave, w.Diff = wave, diff
+		return w.ultFull()
+	}
+	near := func(got, want float32) bool { return math.Abs(float64(got/want-1)) < 1e-5 }
+	old := func(wave int) float32 {
+		return ultWaves * ultShare * Budget(wave, 1) * Creeps[CWalker].HP * HPScale(wave)
+	}
+	for wave := 1; wave <= 16; wave++ {
+		if wave%5 != 0 && !near(full(wave, DiffNormal), old(wave)) {
+			t.Fatalf("wave %d: %.0f, was %.0f", wave, full(wave, DiffNormal), old(wave))
+		}
+	}
+	// Wave 3: 66.305 walkers of 40 hit points at 1.316 times, 37% of three waves.
+	if got := full(3, DiffNormal); !near(got, 3874.2277) {
+		t.Fatalf("wave 3: %.1f", got)
+	}
+	// Past 16: 555.04 walkers at wave 16, then 30 more a wave, below the whole wave.
+	for _, c := range []struct {
+		wave int
+		want float32
+	}{{16, 126299.35}, {17, 144009.70}, {24, 317027.29}} {
+		got := full(c.wave, DiffNormal)
+		if !near(got, c.want) {
+			t.Fatalf("wave %d: %.1f, want %.1f", c.wave, got, c.want)
+		}
+		if c.wave > 16 && got >= old(c.wave) {
+			t.Fatalf("wave %d: %.0f is not below %.0f", c.wave, got, old(c.wave))
+		}
+	}
+	// Wave 20 is a swarm: 675.04 walkers, half again, not the swell's 2.5 times.
+	if got := full(20, DiffNormal); !near(got, 310612.50) {
+		t.Fatalf("swarm wave 20: %.1f", got)
+	}
+	if got := ultWave(20); !near(got, 1.5*675.04) {
+		t.Fatalf("swarm wave 20 counts %.2f walkers, not 1.5 times 675.04", got)
+	}
+	// Hard is 1.25 times the wave at 1.3 times the health.
+	d := Difficulties[DiffHard]
+	for _, wave := range []int{3, 20, 24} {
+		if got, want := full(wave, DiffHard), full(wave, DiffNormal)*d.Count*d.HP; !near(got, want) {
+			t.Fatalf("hard wave %d: %.0f, want %.0f", wave, got, want)
+		}
+	}
+	if got := full(24, DiffHard); !near(got, 515169.34) {
+		t.Fatalf("hard wave 24: %.1f", got)
 	}
 }

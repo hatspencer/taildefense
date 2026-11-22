@@ -227,7 +227,7 @@ func (w *World) longBreak() bool { return w.Wave > 0 && w.Wave%5 == 0 }
 // and each player beyond the first adds more of it as the game goes on.
 func Budget(wave, players int) float32 {
 	f := float32(wave)
-	base := 20 + 12*f + 1.1*f*f + .015*f*f*f
+	base := baseBudget(wave)
 	crowd := 1 + (.6+.015*min(f, 30))*float32(players-1)
 	if wave%5 == 0 {
 		// Every fifth wave is a swarm, and they swell: twice the creeps at wave 10, three
@@ -235,6 +235,12 @@ func Budget(wave, players int) float32 {
 		base *= 1.5 + .05*min(f, 40)
 	}
 	return base * crowd
+}
+
+// baseBudget is a lone survivor's wave in walkers before a swarm swells it.
+func baseBudget(wave int) float32 {
+	f := float32(wave)
+	return 20 + 12*f + 1.1*f*f + .015*f*f*f
 }
 
 // hordeFrom is the first swarm wave that also breaks over the base all at once.
