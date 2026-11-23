@@ -482,8 +482,8 @@ type World struct {
 // New builds a world from a seed at the default difficulty.
 func New(seed uint64) *World { return NewGame(seed, DefaultDifficulty) }
 
-// NewGame builds a world from a seed: terrain, the base with its walls, gates and starting
-// turrets, the spawn points on the map edge, and the loot sites with their guards.
+// NewGame builds a world from a seed: terrain, the base with its starting turrets and (but on brutal)
+// its walls and gates, the spawn points on the map edge, and the loot sites with their guards.
 func NewGame(seed uint64, diff Difficulty) *World {
 	const w, h = 352, 220
 	if diff >= NumDifficulties {
@@ -560,7 +560,8 @@ func (w *World) StructAt(x, y int) int {
 const baseRadius = 14
 
 // buildBase lays out the generator, the armory, a square of walls with a gate on each side,
-// floor inside, and four gun turrets by the gates.
+// floor inside, and four gun turrets by the gates. A bare difficulty (brutal) has no walls or
+// gates.
 func (w *World) buildBase() {
 	cx, cy := w.W/2, w.H/2
 	w.CoreX, w.CoreY = float32(cx), float32(cy)
@@ -577,7 +578,7 @@ func (w *World) buildBase() {
 	w.Core = w.place(SCore, cx-2, cy-2, -1)
 	w.Tier = 1
 	w.Armory = w.place(SArmory, cx+6, cy-1, -1)
-	for i := -r; i <= r; i++ {
+	for i := -r; i <= r && !w.diff().Bare; i++ {
 		for _, p := range [][2]int{{cx + i, cy - r}, {cx + i, cy + r}, {cx - r, cy + i}, {cx + r, cy + i}} {
 			if w.StructAt(p[0], p[1]) >= 0 {
 				continue

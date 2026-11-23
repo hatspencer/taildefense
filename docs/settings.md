@@ -12,7 +12,7 @@ out past the base you see only a few steps round you (twice as far with a rifle)
 black until someone on the team has been there, the dead come out of the dark, and nobody tells
 you how many guards a site has left. Brutal's night is darker still: you see a small pool round
 you and down your flashlight's beam, only what you, a teammate, the generator or a turret
-lights right now shows, and ground found before goes back to black. On brutal you start with only a crowbar and no gold. A restart keeps the game's difficulty. The host can also change it
+lights right now shows, and ground found before goes back to black. On brutal you start with only a crowbar and no gold, and the base has no walls or gates until you build them. A restart keeps the game's difficulty. The host can also change it
 mid-game by clicking the difficulty chip at the top left.
 
 `WAVES` is how long the games you host are: `20`, `30` or `40` (the default) waves, after which

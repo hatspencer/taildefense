@@ -577,7 +577,8 @@ func (w *World) Give(p *Player, to int, g int32) error {
 	return nil
 }
 
-// Restart begins a new game on a new map with the same players, everything reset.
+// Restart begins a new game with the same players, everything reset, on the map of seed: the
+// world's own seed deals the same map again.
 func (w *World) Restart(seed uint64) *World {
 	nw := NewGame(seed, w.Diff)
 	nw.FogOfWar = w.FogOfWar

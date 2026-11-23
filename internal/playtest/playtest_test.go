@@ -57,7 +57,7 @@ func TestSoak(t *testing.T) {
 		{1, game.DiffNormal, 1, 4},
 		{2, game.DiffEasy, 4, 4},
 		{3, game.DiffHard, 2, 4},
-		{4, game.DiffBrutal, 3, 3},
+		{5, game.DiffBrutal, 3, 3},
 	}
 	if testing.Short() {
 		games = games[:1]
