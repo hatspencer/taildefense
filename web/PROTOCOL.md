@@ -33,7 +33,7 @@ Text messages are JSON objects with a `t` field. Binary messages start with a ty
 
 ### `welcome` (text)
 
-Sent on connect, and again when the host restarts the game on a new map (the client resets
+Sent on connect, and again when the host restarts the game, on a new map or the same one (the client resets
 everything it knows, a terrain message follows).
 
 ```jsonc
@@ -561,7 +561,7 @@ fall on its clock. The demo host acks numbered commands too.
 {"op": "pickBlade", "w": 7}                   // a blades game: the blade to start with, one of startBlades, once
 {"op": "overload"}                           // the generator's Overload, once a wave from tier tiers.overload
 {"op": "ready",   "on": true}                // ready for the next wave (all ready: starts in 3 s)
-{"op": "restart"}                            // a new map, only once the game is over
+{"op": "restart", "on": true}                // a new game, only once the game is over: on the same map, or (false) a new one
 {"op": "difficulty", "kind": 2}              // the host only: change the difficulty from here on
 {"op": "chat",    "text": "gg"}
 {"op": "ping",    "x": 150, "y": 98, "kind": 1}  // mark a spot for everyone; 3 back to back, then one a second

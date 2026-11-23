@@ -600,7 +600,7 @@ func (s *Server) command(p *peer, c Cmd) {
 			err = errors.New("the game is still running")
 			break
 		}
-		s.restart()
+		s.restart(c.A == 1)
 	case OpDifficulty:
 		if s.cfg.Owner == "" || p.id.Login != s.cfg.Owner {
 			err = errors.New("only the host can change the difficulty")
@@ -761,8 +761,13 @@ func Exec(w *game.World, pl *game.Player, c Cmd) (string, error) {
 	return msg, err
 }
 
-func (s *Server) restart() {
-	nw := s.world.Restart(uint64(time.Now().UnixNano()))
+// restart begins a new game, on the same map or on a new one.
+func (s *Server) restart(same bool) {
+	seed, on := uint64(time.Now().UnixNano()), "a new map"
+	if same {
+		seed, on = s.world.Seed, "the same map"
+	}
+	nw := s.world.Restart(seed)
 	s.world = nw
 	// Nothing sent about the old map is a base for the new one: every peer gets a key frame.
 	s.enc = Encoder{}
@@ -784,7 +789,7 @@ func (s *Server) restart() {
 	for i, b := range s.bots {
 		s.bots[i] = s.newBot(b.ID)
 	}
-	s.cfg.Log("restarted on a new map")
+	s.cfg.Log("restarted on %s", on)
 }
 
 func (s *Server) tick() {
@@ -941,7 +946,7 @@ const (
 	OpBuild // A kind, X Y tile
 	OpUpgradeStruct
 	OpSell
-	OpRestart
+	OpRestart // A 1 for the same map, 0 for a new one
 	OpChat
 	OpMove       // X Y
 	OpAttackMove // X Y

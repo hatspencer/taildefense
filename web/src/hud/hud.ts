@@ -867,12 +867,14 @@ export class Hud {
         <h3 class="sect">The team</h3>
         <div class="board"></div>
         <div class="foot"><div class="row"></div>
-        <div class="note">${wd.hosting ? 'Restart deals a new map to everyone in the game.' : 'Restart deals a new map to everyone in the game; leaving takes you back to the terminal.'}</div></div>
+        <div class="note">A restart takes everyone in the game along${wd.hosting ? '.' : '; leaving takes you back to the terminal.'}</div></div>
       </div>`;
       this.overBoard = this.over.querySelector('.board') as HTMLElement;
       const row = this.over.querySelector('.row') as HTMLElement;
       const rs = el('button', 'primary', row, 'Restart on a new map');
-      rs.onclick = () => ctl.send({ op: 'restart' });
+      rs.onclick = () => ctl.send({ op: 'restart', on: false });
+      const same = el('button', '', row, 'Restart on the same map');
+      same.onclick = () => ctl.send({ op: 'restart', on: true });
       const lv = el('button', 'danger', row, 'Leave game');
       lv.onclick = () => this.leave();
       tick = true;
