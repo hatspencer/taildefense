@@ -34,6 +34,7 @@ type DifficultyDef struct {
 	Revive float32 // seconds a downed survivor can be revived before respawning at the base
 	Guard  float32 // loot guards: how many, and how tough
 	Melee  bool    // survivors start with a crowbar instead of the pistol
+	Bare   bool    // the base starts without its walls and gates
 	Dark   float32 // how far a survivor sees out in the wastes at night, 0 for no night
 	Cone   float32 // brutal: how far the flashlight reaches along the aim; the night shows only what is lit now
 	Unsaid bool    // the wave's notice doesn't say which sides it comes from
@@ -49,7 +50,7 @@ var Difficulties = [NumDifficulties]DifficultyDef{
 	DiffEasy:   {Name: "Easy", HP: .75, Count: .75, Gold: 1.25, Start: 150, First: 40, Build: 20, Rest: 75, Revive: 28, Guard: .7, Pad: 22, Patience: 3.5},
 	DiffNormal: {Name: "Normal", HP: 1, Count: 1, Gold: 1, Start: 150, First: 20, Build: 15, Rest: 60, Revive: 20, Guard: 1, Pad: 28, Patience: 3},
 	DiffHard:   {Name: "Hard", HP: 1.3, Count: 1.25, Gold: .9, Start: 150, First: 25, Build: 18, Rest: 60, Revive: 16, Guard: 1.3, Dark: 7, Unsaid: true, Wipe: true, Pad: 48, Patience: 2.6},
-	DiffBrutal: {Name: "Brutal", HP: 1.7, Count: 1.5, Gold: .8, Start: 0, First: 30, Build: 20, Rest: 60, Revive: 12, Guard: 1.7, Melee: true, Dark: 3, Cone: 11, Unsaid: true, Wipe: true, Pad: 58, Patience: 2.2},
+	DiffBrutal: {Name: "Brutal", HP: 1.7, Count: 1.5, Gold: .8, Start: 0, First: 30, Build: 20, Rest: 60, Revive: 12, Guard: 1.7, Melee: true, Bare: true, Dark: 3, Cone: 11, Unsaid: true, Wipe: true, Pad: 58, Patience: 2.2},
 }
 
 // String is the difficulty's name.

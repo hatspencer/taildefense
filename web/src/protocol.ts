@@ -299,7 +299,9 @@ export type TextMsg = Welcome | Toast | Status | End | DifficultyMsg | NetMsg | 
 export type Command = (
   | { op: 'move' | 'amove'; x: number; y: number }
   | { op: 'attack'; id: number }
-  | { op: 'stop' } | { op: 'hold' } | { op: 'reload' } | { op: 'restart' } | { op: 'leave' } | { op: 'taunt' } | { op: 'sprint'; on: boolean } | { op: 'pause' }
+  | { op: 'stop' } | { op: 'hold' } | { op: 'reload' } | { op: 'leave' } | { op: 'taunt' } | { op: 'sprint'; on: boolean } | { op: 'pause' }
+  // on: the same map again rather than a new one.
+  | { op: 'restart'; on: boolean }
   | { op: 'revive'; p: number }
   | { op: 'difficulty'; kind: number }
   | { op: 'ability'; slot: number; x: number; y: number }

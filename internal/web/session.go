@@ -318,7 +318,7 @@ func (s *session) reset(wel netplay.Welcome) {
 func (s *session) host(m netplay.Msg) {
 	switch m.Type {
 	case netplay.MsgWelcome:
-		// The host restarted on a new map.
+		// The host restarted, on a new map or the same one.
 		if wel, err := netplay.DecodeWelcome(m.Payload); err == nil {
 			s.reset(wel)
 		}
@@ -621,6 +621,9 @@ func (s *session) command(p []byte) bool {
 		}
 	case "restart":
 		nc = netplay.Cmd{Op: netplay.OpRestart}
+		if c.On {
+			nc.A = 1
+		}
 	case "chat":
 		t := netplay.ChatLine(c.Text)
 		if t == "" {

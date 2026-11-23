@@ -48,7 +48,8 @@ The menu, the controls, the first steps and the field report work without the mo
 or Tab move between the buttons, Enter presses one, Esc closes. A controller does the same with
 the d-pad or left stick, A to press, B to go back and Start for the menu; the game itself is
 played on the keyboard and mouse. Over the field report Enter is still the chat until you move
-into the report, so a last word does not restart the game.
+into the report, so a last word does not restart the game. Restart on a new map, or on the same
+map to try it again.
 
 The field report says how it ended: the wave that broke through and what stood at the generator
 when it fell, or who the Huey left behind. Under the tally it names the MVP (most kills) and
@@ -457,7 +458,7 @@ buying.
 Creeps walk to the generator round every wall, however long the way round, as long as there is
 one: open a gate and build a maze outside it, and they walk the maze under your turrets' guns.
 Only a base sealed tight gets broken into, where the walls are weakest. The base starts sealed,
-its gates shut. The waves grow every time, faster the longer
+its gates shut, except on brutal, where it starts with no walls or gates. The waves grow every time, faster the longer
 the game goes, and with every player who is actually playing (anyone idle for 90 s doesn't
 count). Each wave comes in from one side of the map, or from two or three later on, and seldom
 from the side the last one did; the wave's notice says where ("incoming from the north and
