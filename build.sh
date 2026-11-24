@@ -147,8 +147,16 @@ modcache() {
   fi
 }
 
-# Per-tree compiler cache; overridable because Go locks it and parallel builds serialise.
-GOCACHE_DIR="${TAILDEFENSE_GOCACHE:-$PWD/.gocache}"
+# Compiler cache in the main checkout's .gocache, which a git worktree shares so it does not
+# compile from cold; overridable because Go locks it and parallel builds serialise.
+gocache() {
+  common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || common=
+  case "$common" in
+    */.git) echo "${common%/.git}/.gocache" ;;
+    *) echo "$PWD/.gocache" ;;
+  esac
+}
+GOCACHE_DIR="${TAILDEFENSE_GOCACHE:-$(gocache)}"
 
 # Every build container is named and labelled after this tool, so none is left behind. --rm
 # removes one when it exits; the trap removes the running one when this script is interrupted

@@ -16,17 +16,7 @@
       "Bash(./build.sh tidy:*)",
       "Bash(./build.sh soak:*)",
       "Bash(./build.sh fuzz:*)",
-      "Bash(./build.sh netsim:*)",
-      "Bash(TAILDEFENSE_GOCACHE=/home/dan/personal/taildefense/.gocache ./build.sh check:*)",
-      "Bash(TAILDEFENSE_GOCACHE=/home/dan/personal/taildefense/.gocache ./build.sh test:*)",
-      "Bash(TAILDEFENSE_GOCACHE=/home/dan/personal/taildefense/.gocache ./build.sh build:*)",
-      "Bash(TAILDEFENSE_GOCACHE=/home/dan/personal/taildefense/.gocache ./build.sh web:*)",
-      "Bash(TAILDEFENSE_GOCACHE=/home/dan/personal/taildefense/.gocache ./build.sh golden:*)",
-      "Bash(TAILDEFENSE_GOCACHE=/home/dan/personal/taildefense/.gocache ./build.sh fmt:*)",
-      "Bash(TAILDEFENSE_GOCACHE=/home/dan/personal/taildefense/.gocache ./build.sh tidy:*)",
-      "Bash(TAILDEFENSE_GOCACHE=/home/dan/personal/taildefense/.gocache ./build.sh soak:*)",
-      "Bash(TAILDEFENSE_GOCACHE=/home/dan/personal/taildefense/.gocache ./build.sh fuzz:*)",
-      "Bash(TAILDEFENSE_GOCACHE=/home/dan/personal/taildefense/.gocache ./build.sh netsim:*)"
+      "Bash(./build.sh netsim:*)"
     ]
   }
 }
