@@ -34,16 +34,11 @@ import (
 
 // EnvNoBg disables painting the terminal while leaving the theme's colours alone.
 //
-// Separate from NO_COLOR, and separate from the remembered switch, because it answers a
-// different complaint: "my terminal already has the background I want, give me the theme's
+// Separate from NO_COLOR because it answers a different complaint: "my terminal already has the background I want, give me the theme's
 // text colours on top of it". Most often that is a terminal that ignores OSC 11 — Apple's
 // Terminal.app is the one on these machines — where painting silently does nothing and the
 // theme's text colours are then the only half that arrives.
 const EnvNoBg = "TAILDEFENSE_NO_BG"
-
-// bgPref is the remembered choice: `td config theme bg off` keeps a theme's palette
-// without letting it repaint the terminal.
-var bgPref = true
 
 // painted records whether this process has changed the terminal, so ResetTerminal is a
 // no-op when there is nothing to undo and cannot emit a reset into a pipe.
@@ -56,9 +51,6 @@ var painted bool
 // visible characters. stderr is where every other piece of decoration already goes.
 var bgOut io.Writer = os.Stderr
 
-// SetPaintBackground records whether a full theme may repaint the terminal.
-func SetPaintBackground(on bool) { bgPref = on }
-
 // bgEnabled reports whether painting is allowed right now.
 //
 // Colour being enabled is the load-bearing condition: it already accounts for NO_COLOR,
@@ -67,7 +59,7 @@ func SetPaintBackground(on bool) { bgPref = on }
 // excluded separately: its stdout is a pipe the session reads and re-renders, so an OSC there
 // would either be stripped as noise or, worse, forwarded and applied twice.
 func bgEnabled() bool {
-	if !colorEnabled || !bgPref {
+	if !colorEnabled {
 		return false
 	}
 	if os.Getenv(EnvNoBg) != "" {

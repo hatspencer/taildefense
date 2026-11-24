@@ -17,7 +17,7 @@ func TestLinkIsAHyperlinkWithTheLabelVisible(t *testing.T) {
 	if !strings.HasPrefix(got, "\x1b]8;;https://ui.example/t?x=1\x1b\\") || !strings.HasSuffix(got, "\x1b]8;;\x1b\\") {
 		t.Fatalf("not an OSC 8 hyperlink: %q", got)
 	}
-	if visible := ansi.Strip(LinkLabel(got)); visible != "Jump to kafbat" {
+	if visible := ansi.Strip(linkLabel(got)); visible != "Jump to kafbat" {
 		t.Fatalf("visible text is %q", visible)
 	}
 }
@@ -25,12 +25,12 @@ func TestLinkIsAHyperlinkWithTheLabelVisible(t *testing.T) {
 // A link label is one styled run, not one per letter. With underline in the style lipgloss
 // styled each character on its own, so a ten-letter label became ten escape pairs in every
 // transcript; steering forbids underline on an inline run for exactly that reason.
-func TestALinkLabelIsOneStyledRun(t *testing.T) {
+func TestAlinkLabelIsOneStyledRun(t *testing.T) {
 	forceTruecolor(t)
 	t.Cleanup(func() { InitColor(false) })
 	InitColor(false)
 
-	label := LinkLabel(Link("file:///tmp/x.md", "slip--02-rule"))
+	label := linkLabel(Link("file:///tmp/x.md", "slip--02-rule"))
 	if n := strings.Count(label, "\x1b["); n > 2 {
 		t.Fatalf("the label carries %d escape sequences, want one run and its reset: %q", n, label)
 	}
@@ -47,5 +47,20 @@ func TestLinkPrintsTheURLWhenEscapesAreOff(t *testing.T) {
 
 	if got := Link("https://ui.example/t", "Jump to kafbat"); got != "Jump to kafbat  https://ui.example/t" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+// linkLabel strips a Link back to its styled label.
+func linkLabel(s string) string {
+	for {
+		start := strings.Index(s, "\x1b]8;;")
+		if start < 0 {
+			return s
+		}
+		end := strings.Index(s[start:], "\x1b\\")
+		if end < 0 {
+			return s
+		}
+		s = s[:start] + s[start+end+2:]
 	}
 }

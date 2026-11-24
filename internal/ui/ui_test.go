@@ -7,20 +7,21 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"taildefense/internal/platform"
 )
 
-// --quiet and --json drop supporting detail and keep findings. Tested here, once, because
-// both are global flags implemented in this layer rather than per command: a command that
+// --json drops supporting detail and keeps findings. Tested here, once, because it is a
+// global flag implemented in this layer rather than per command: a command that
 // only ever calls Info/Fail must go quiet or verbose the same way as any other. A Printer
 // pointed at a buffer is not os.Stdout, so this isolates the suppression from the stream
 // redirection tested separately.
-func TestQuietAndJSONDropSupportingDetail(t *testing.T) {
+func TestJSONDropsSupportingDetail(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		set  func(bool)
 	}{
-		{"quiet", SetQuiet},
 		{"json", SetJSON},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -36,7 +37,7 @@ func TestQuietAndJSONDropSupportingDetail(t *testing.T) {
 				t.Errorf("%s did not suppress supporting detail: %q", tc.name, buf.String())
 			}
 
-			// Findings still print: the whole point of both flags is to keep them.
+			// Findings still print: the whole point of the flag is to keep them.
 			buf.Reset()
 			p.Pass("held")
 			p.Fail("broke")
@@ -47,7 +48,7 @@ func TestQuietAndJSONDropSupportingDetail(t *testing.T) {
 					t.Errorf("%s suppressed a finding %q: %q", tc.name, want, got)
 				}
 			}
-			// Fail is still counted under either flag: the exit code must not depend on
+			// Fail is still counted under the flag: the exit code must not depend on
 			// how loud the output is.
 			if p.Failures() != 1 {
 				t.Errorf("%s: Failures() = %d, want 1", tc.name, p.Failures())
@@ -56,20 +57,18 @@ func TestQuietAndJSONDropSupportingDetail(t *testing.T) {
 	}
 }
 
-// The mode accessors report what the setters set, and default to off. A command reads
+// The mode accessor reports what the setter set, and defaults to off. A command reads
 // ctx.JSON to decide whether to emit structured output, so a wrong default here would make
 // every command either always or never machine-readable.
-func TestModeAccessors(t *testing.T) {
-	SetQuiet(false)
+func TestModeAccessor(t *testing.T) {
 	SetJSON(false)
-	if Quiet() || JSONMode() {
-		t.Fatalf("modes not off by default: quiet=%v json=%v", Quiet(), JSONMode())
+	if JSONMode() {
+		t.Fatalf("JSON mode is not off by default")
 	}
-	SetQuiet(true)
 	SetJSON(true)
-	t.Cleanup(func() { SetQuiet(false); SetJSON(false) })
-	if !Quiet() || !JSONMode() {
-		t.Errorf("setters did not take: quiet=%v json=%v", Quiet(), JSONMode())
+	t.Cleanup(func() { SetJSON(false) })
+	if !JSONMode() {
+		t.Errorf("the setter did not take")
 	}
 }
 
@@ -111,8 +110,6 @@ func TestPrinterCountsFailures(t *testing.T) {
 	p.Note("detail")
 	p.Warn("look at this")
 	p.OK("done")
-	// Bad is deliberately not counted: it is used where something else owns the tally.
-	p.Bad("cross")
 	if got := p.Failures(); got != 0 {
 		t.Errorf("Failures() = %d before any Fail call", got)
 	}
@@ -121,11 +118,6 @@ func TestPrinterCountsFailures(t *testing.T) {
 	p.Fail("second")
 	if got := p.Failures(); got != 2 {
 		t.Errorf("Failures() = %d, want 2", got)
-	}
-
-	p.ResetFailures()
-	if got := p.Failures(); got != 0 {
-		t.Errorf("Failures() = %d after ResetFailures", got)
 	}
 }
 
@@ -174,7 +166,7 @@ func TestTableAlignsAroundANSI(t *testing.T) {
 	// The second column has to start at the same visible offset on both rows.
 	offsets := make([]int, 2)
 	for i, line := range lines {
-		plain := stripANSI(line)
+		plain := ansi.Strip(line)
 		offsets[i] = strings.Index(plain, "abc1234")
 		if offsets[i] < 0 {
 			offsets[i] = strings.Index(plain, "def5678")
@@ -199,20 +191,6 @@ func TestTableHasNoTrailingWhitespace(t *testing.T) {
 func TestTableEmpty(t *testing.T) {
 	if got := Table(nil, "  "); got != "" {
 		t.Errorf("Table(nil) = %q, want empty", got)
-	}
-}
-
-func TestStripANSI(t *testing.T) {
-	cases := map[string]string{
-		"\x1b[32mgreen\x1b[0m":         "green",
-		"plain":                        "plain",
-		"\x1b[1;33mbold yellow\x1b[0m": "bold yellow",
-		"":                             "",
-	}
-	for in, want := range cases {
-		if got := stripANSI(in); got != want {
-			t.Errorf("stripANSI(%q) = %q, want %q", in, got, want)
-		}
 	}
 }
 
@@ -275,48 +253,12 @@ func TestNoColorProducesPlainText(t *testing.T) {
 	}
 }
 
-func TestHeadingAndSectionDoNotPanicOnEmptyInput(t *testing.T) {
+func TestSectionDoesNotPanicOnEmptyInput(t *testing.T) {
 	var buf bytes.Buffer
 	p := New(&buf)
-	p.Heading("")
 	p.Section("", "")
-	p.HR()
 	if buf.Len() == 0 {
 		t.Error("no output produced")
-	}
-}
-
-// A heading is a blank line, the title, then one heavy rule under it — three lines total,
-// down from the old five-line double-bar box. The shorter form repeats better: a batch run
-// and the shell open a heading per tab, and the box was three lines of drawing before any
-// content each time. This pins the new shape so a refactor cannot quietly grow it back.
-func TestHeadingShape(t *testing.T) {
-	t.Setenv("TAILDEFENSE_FORCE_COLOR", "")
-	t.Setenv("NO_COLOR", "1")
-	InitColor(false)
-	t.Cleanup(func() { t.Setenv("NO_COLOR", ""); InitColor(false) })
-
-	var buf bytes.Buffer
-	p := New(&buf)
-	p.Heading("E2E TEST  ·  target staging")
-
-	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
-	// Leading blank, title, rule.
-	if len(lines) != 3 {
-		t.Fatalf("heading has %d lines, want 3 (blank, title, rule): %q", len(lines), lines)
-	}
-	if strings.TrimSpace(lines[0]) != "" {
-		t.Errorf("first heading line is not blank: %q", lines[0])
-	}
-	if !strings.Contains(lines[1], "E2E TEST") {
-		t.Errorf("title line missing the title: %q", lines[1])
-	}
-	// The rule under the title is the heavy bar, and there is exactly one bar, not two.
-	if !strings.Contains(lines[2], bannerChar) {
-		t.Errorf("no heavy rule under the title: %q", lines[2])
-	}
-	if strings.Contains(lines[1], bannerChar) {
-		t.Errorf("the title line itself is a bar — the old top bar was not removed: %q", lines[1])
 	}
 }
 
@@ -377,26 +319,5 @@ func TestRuleNeverExceedsTheTerminal(t *testing.T) {
 	room := platform.TermCols() - len([]rune(gutter))
 	if got := len([]rune(rule(ruleChar, 500))); got > room {
 		t.Errorf("rule is %d columns wide with only %d columns of room", got, room)
-	}
-}
-
-// A listing must not borrow the verdict vocabulary. This is the guarantee that keeps a search
-// result from printing as PASS: the marker is dim, and neither PASS nor FAIL appears.
-func TestARowIsNeitherAPassNorAFailure(t *testing.T) {
-	var buf bytes.Buffer
-	p := New(&buf)
-	p.Row("steering/knowledge-loop.md")
-
-	got := buf.String()
-	if !strings.Contains(got, "steering/knowledge-loop.md") {
-		t.Fatalf("Row dropped its text: %q", got)
-	}
-	for _, verdict := range []string{"PASS", "FAIL", "▲"} {
-		if strings.Contains(got, verdict) {
-			t.Errorf("a listed row printed the %q verdict: %q", verdict, got)
-		}
-	}
-	if p.Failures() != 0 {
-		t.Errorf("a listed row counted as a failure")
 	}
 }

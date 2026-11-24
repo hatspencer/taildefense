@@ -21,15 +21,13 @@ import (
 // Eye candy: the transient set.
 //
 // Everything in anim.go is chrome that sits on screen. What follows is a set of short scenes
-// played once, at the edge of a command, and then erased: the swarm that builds the wordmark,
-// the honeycomb a run fills, the pollen burst on a clean result, the angry bee on a failing
-// one, lessons flying into steering on promote, the bee orbiting the knowledge loop on audit.
+// played once, at the edge of a command, and then erased: the swarm that builds the wordmark
+// and the typewriter that types the line under it.
 //
 // The rules from anim.go apply unchanged, and three more are specific to scenes:
 //
-//  1. Nothing waits on a scene. A scene plays after the work it decorates is done, never in
-//     front of it, and every scene draws from a fixed budget per process (budget below), so
-//     the most a command can be held up by is the budget, however many scenes it reaches.
+//  1. Nothing waits on a scene. Every scene draws from a fixed budget per process (budget
+//     below), so the most a command can be held up by is the budget, however many scenes it reaches.
 //
 //  2. A scene is erased when it ends, or keeps exactly the bytes the still path prints. Either
 //     way the scrollback is what a transcript would show, so a scene is never the only place
@@ -40,16 +38,15 @@ import (
 //     was interrupted still reports it.
 //
 // The gate is AnimEnabled plus the link (motion), plus the conditions a scene adds on top:
-// stdout is the real stdout, no --json, no --quiet, nothing collecting the output, not inside
-// a shell pane, and room on screen for the whole block. Off any of those, a scene writes zero
-// bytes, which is what keeps --json, pipes, NO_COLOR, TERM=dumb, CI and hook output identical.
+// stdout is the real stdout, no --json, not inside a shell pane, and room on screen for the
+// whole block. Off any of those, a scene writes zero bytes, which is what keeps --json, pipes, NO_COLOR, TERM=dumb, CI and hook output identical.
 
 // candyFrame is the redraw interval of a scene. Sixty frames a second: a scene is short and
 // local, and a lower rate is what makes a bee's path read as hops instead of flight.
 const candyFrame = 16 * time.Millisecond
 
-// beeGlyph is the bee drawn by the transient scenes: the swarm that builds the wordmark, the
-// orbit on audit, the angry bee on a failing run. Two cells wide. It is only ever drawn into a
+// beeGlyph is the bee drawn by the transient scenes: the lead bee of the swarm that
+// builds the wordmark. Two cells wide. It is only ever drawn into a
 // canvas that is erased when the scene ends, so unlike the former header bee it changes no frame
 // height.
 const beeGlyph = "🐝"
@@ -61,14 +58,10 @@ const (
 	// openingBudget is what the banner's swarm and typewriter share. A banner precedes work, so
 	// this is held under the half second the plain wipe used to take.
 	openingBudget budget = iota
-	// closingBudget is what everything after the work shares: finales, flights, the wheel and
-	// cascading tables. The ~400ms the tool promises at most on completion.
-	closingBudget
 )
 
 var budgetLimit = map[budget]time.Duration{
 	openingBudget: 450 * time.Millisecond,
-	closingBudget: 400 * time.Millisecond,
 }
 
 // minScene is the shortest scene worth starting. Below it a scene is a flash, which reads as a
@@ -77,7 +70,6 @@ const minScene = 60 * time.Millisecond
 
 var budgetSpent = map[budget]*atomic.Int64{
 	openingBudget: {},
-	closingBudget: {},
 }
 
 // takeBudget grants up to want from b, or zero when too little is left.
@@ -94,13 +86,6 @@ func takeBudget(b budget, want time.Duration) time.Duration {
 		if spent.CompareAndSwap(cur, cur+d) {
 			return time.Duration(d)
 		}
-	}
-}
-
-// resetBudgets is for tests, which play many scenes in one process.
-func resetBudgets() {
-	for _, s := range budgetSpent {
-		s.Store(0)
 	}
 }
 
@@ -128,7 +113,7 @@ func sceneOK(w io.Writer, height int) bool {
 	if height <= 0 || w != io.Writer(os.Stdout) {
 		return false
 	}
-	if !motion() || JSONMode() || Quiet() || Captured() || InShellPane() {
+	if !motion() || JSONMode() || InShellPane() {
 		return false
 	}
 	return platform.TermRows() >= height+2
@@ -223,9 +208,8 @@ func runScene(ctx context.Context, w io.Writer, height int, dur time.Duration, k
 // ── a cell canvas ────────────────────────────────────────────────────────────
 //
 // Scenes are drawn on a grid and then flattened to rows, rather than built as strings,
-// because particles overlap: a pollen grain and a honeycomb cell can want the same cell, and
-// the only sane way to decide who wins is to have one cell to decide it in. Flattening emits
-// runs of one style, the same economy shimmerHeads relies on.
+// because particles overlap: two bees can want the same cell, and the only sane way to decide who wins is to have one cell to decide it in. Flattening emits
+// runs of one style, so a row costs few escape sequences.
 
 type canvas struct {
 	w, h  int
@@ -296,16 +280,6 @@ func (c *canvas) clear(x, y int) {
 	c.glyph[y][x], c.style[y][x] = "", nil
 }
 
-// text writes s from x, one cell per rune.
-func (c *canvas) text(x, y int, s string, st *lipgloss.Style) {
-	for _, r := range s {
-		if r != ' ' {
-			c.put(x, y, string(r), st)
-		}
-		x++
-	}
-}
-
 // rows flattens the canvas, trimming trailing blanks so a frame never ends in spaces.
 func (c *canvas) rows() []string {
 	out := make([]string, c.h)
@@ -358,7 +332,7 @@ func (c *canvas) rows() []string {
 
 type pt struct{ x, y float64 }
 
-// quad is a quadratic Bezier: the arc a lesson flies from the queue to a steering cell.
+// quad is a quadratic Bezier: the arc a bee flies into its cell of the wordmark.
 func quad(a, ctrl, b pt, t float64) pt {
 	u := 1 - t
 	return pt{u*u*a.x + 2*u*t*ctrl.x + t*t*b.x, u*u*a.y + 2*u*t*ctrl.y + t*t*b.y}
@@ -522,4 +496,13 @@ func relLuminance(hex string) float64 {
 		return math.Pow((v+0.055)/1.055, 2.4)
 	}
 	return 0.2126*lin(r) + 0.7152*lin(g) + 0.0722*lin(b)
+}
+
+// clipRow shortens s to n cells with an ellipsis, measured in cells so a wide rune cannot
+// push a row past the column and cutting between escape sequences rather than inside one.
+func clipRow(s string, n int) string {
+	if n <= 1 || ansi.StringWidth(s) <= n {
+		return s
+	}
+	return ansi.Truncate(s, n, "…")
 }
