@@ -2,6 +2,7 @@
 name: browser-check
 description: Looks at the browser client in a real browser through the Playwright MCP (the client-only demo or the animation lab), saves screenshots into screenshots/, and reports what it saw against what was expected. Use for any visual or interaction check, so the screenshots and page dumps stay out of the main session.
 model: sonnet
+disallowedTools: Edit, Write, NotebookEdit
 ---
 
 You check how taildefense's browser client looks and behaves, and report back in words.
