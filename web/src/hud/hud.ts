@@ -1073,7 +1073,8 @@ export class Hud {
         const locked = (d.tier ?? 0) > f.tier;
         // The name has the button's whole width; the price and the keycap share the line under it.
         const short = !locked && gold < d.price;
-        b.innerHTML = `<span class="n">${esc(d.name.split(' ')[0])}</span><span class="pk"><span class="p">${locked ? `tier ${ROMAN[d.tier!]}` : `${d.price}g`}</span><kbd>${esc(d.key)}</kbd></span>`;
+        const word = d.name.split(' ')[0];
+        b.innerHTML = `<span class="n"${word.length > 7 ? ' style="font-size:.82em"' : ''}>${esc(word)}</span><span class="pk"><span class="p">${locked ? `tier ${ROMAN[d.tier!]}` : `${d.price}g`}</span><kbd>${esc(d.key)}</kbd></span>`;
         b.disabled = locked || short;
         b.title = `${d.name}: ${d.desc}${locked ? `\nNeeds the generator at tier ${ROMAN[d.tier!]}` : short ? `\nNeed ${fmtGold(Math.ceil(d.price - gold))}g more` : ''}`;
         if (locked) b.classList.add('locked');
@@ -1237,7 +1238,7 @@ export class Hud {
     else if (m.k === 'build') {
       const d = this.ctl.game.welcome?.structs[m.kind];
       const sticky = stickyKind(m.kind);
-      s = `Place ${d?.name ?? ''} (${d?.price ?? 0}g): left-click${sticky ? ', again for the next' : ' · Shift keeps placing'} · Esc stops`;
+      s = `Place ${d?.name ?? ''} (${d?.price ?? 0}g): left-click${sticky ? ', again for the next' : ' · Shift keeps placing'}${d?.facing ? ' · X turns it' : ''} · Esc stops`;
       if (this.ctl.routeNote) s += ` · ${this.ctl.routeNote}`;
     }
     show(this.modeEl, s !== '');

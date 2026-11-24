@@ -90,7 +90,10 @@ type structDef struct {
 	Range      float32    `json:"range"`
 	Ranges     []float32  `json:"ranges,omitempty"` // a turret's reach at each range track level
 	Turret     bool       `json:"turret"`
-	Floor      bool       `json:"floor,omitempty"` // a trap: laid flat, it stops nobody
+	Floor      bool       `json:"floor,omitempty"`  // a trap: laid flat, it stops nobody
+	Facing     bool       `json:"facing,omitempty"` // placed turned to one of eight facings
+	Air        float32    `json:"air,omitempty"`    // the catapult pit: seconds a creep it throws is in the air
+	Stun       float32    `json:"stun,omitempty"`   // and the seconds it is stunned after it lands
 	Key        string     `json:"key"`
 	Desc       string     `json:"desc"`
 	Upgrade    []int32    `json:"upgrade"`
@@ -310,11 +313,14 @@ func welcome(wel netplay.Welcome, core point, host, hint string, hosting bool) w
 	}
 	for k, d := range game.Structs {
 		sk := game.StructKind(k)
-		sd := structDef{Name: d.Name, Price: d.Price, HP: d.HP, W: d.W, H: d.H, Range: d.Range, Turret: d.Turret, Floor: d.Floor, Desc: d.Desc, Special: d.Special}
+		sd := structDef{Name: d.Name, Price: d.Price, HP: d.HP, W: d.W, H: d.H, Range: d.Range, Turret: d.Turret, Floor: d.Floor, Facing: d.Facing, Desc: d.Desc, Special: d.Special}
 		if d.Key != 0 {
 			sd.Key = string(d.Key)
 		}
 		sd.Upgradable = game.Upgradable(sk)
+		if sk == game.STrapCatapult {
+			sd.Air, sd.Stun = game.CatapultAir, game.CatapultStun
+		}
 		sd.Tier = d.Tier
 		for _, e := range game.Evolutions[sk] {
 			if e.Name != "" {

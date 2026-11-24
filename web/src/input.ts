@@ -227,7 +227,7 @@ export class Input {
     if (e.repeat) return;
 
     // While the build bar is open the top row picks what to place (1 wall to 8 missile
-    // battery, then 9 0 - = the traps); otherwise the numbers are the medkit and the weapons.
+    // battery, then 9 bait pit and 0 catapult pit); otherwise the numbers are the medkit and the weapons.
     if (hud.buildCard) {
       const wd = ctl.game.welcome;
       const kind = wd?.buildable.find((b) => wd.structs[b]?.key.toUpperCase() === up);
@@ -239,6 +239,8 @@ export class Input {
     // 2 to 7 the pistol to the launcher, 0 the crowbar, 8 and 9 the legendaries.
     if (k >= '0' && k <= '9' && k !== '1') { const w = k === '0' ? CROWBAR : k === '8' ? KATANA : k === '9' ? GREAT : Number(k) - 2; const me = ctl.me(); if (me && me.owned & (1 << w)) ctl.send({ op: 'select', w }); return; }
     switch (up) {
+      // X turns a catapult pit being placed (R stays reload).
+      case 'X': if (ctl.turnBuild()) return; break;
       case 'Z': ctl.setMode({ k: ctl.mode.k === 'ping' ? 'none' : 'ping' }); return;
       case 'H': this.fixAll(); return;
       case 'T': this.nextTurret(); return;

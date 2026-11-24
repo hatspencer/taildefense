@@ -37,6 +37,7 @@ type Order struct {
 	Gun     uint16     // OrderPickup: the weapon's id
 	Build   StructKind // OrderBuild
 	TX, TY  int        // OrderBuild: tile
+	Facing  uint8      // OrderBuild: which way it faces, for a kind whose def has Facing
 }
 
 // buildReach is how close a survivor walks to a tile before building on it.
@@ -94,13 +95,19 @@ func (w *World) Stop(p *Player, hold bool) {
 // OrderBuild sends the player to build k at tile x, y. It is refused at once when it could
 // never succeed; whether there is still gold and room is checked again on arrival.
 func (w *World) OrderBuild(p *Player, k StructKind, x, y int) error {
+	return w.OrderBuildFacing(p, k, x, y, 0)
+}
+
+// OrderBuildFacing is OrderBuild turned to facing, 0 to 7 eighths of a turn from +x towards
+// +y, for a kind that is placed facing a way (StructDef.Facing); other kinds ignore it.
+func (w *World) OrderBuildFacing(p *Player, k StructKind, x, y int, facing uint8) error {
 	if k >= NumStructKinds {
 		return errors.New("no such building")
 	}
 	if err := w.canBuild(p, k, x, y, false); err != nil {
 		return err
 	}
-	w.order(p, Order{Kind: OrderBuild, Build: k, TX: x, TY: y, X: float32(x) + .5, Y: float32(y) + .5})
+	w.order(p, Order{Kind: OrderBuild, Build: k, TX: x, TY: y, Facing: facing & 7, X: float32(x) + .5, Y: float32(y) + .5})
 	return nil
 }
 
@@ -498,7 +505,7 @@ func (w *World) act(p *Player, st Stats) int32 {
 	case OrderBuild:
 		dx, dy := o.X-p.X, o.Y-p.Y
 		if dx*dx+dy*dy <= buildReach*buildReach {
-			if err := w.Build(p, o.Build, o.TX, o.TY); err != nil {
+			if err := w.BuildFacing(p, o.Build, o.TX, o.TY, o.Facing); err != nil {
 				w.toast(p, 2, "%v", err)
 			}
 			o.Kind = OrderIdle

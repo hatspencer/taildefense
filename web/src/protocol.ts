@@ -20,7 +20,7 @@ export const MAX_CREEPS = 16384;
 
 // Structure kinds, as a frame's sKind and a Welcome's structs index them.
 export const K_CORE = 1, K_ARMORY = 2, K_WALL = 3, K_GATE = 4, K_GUN = 5, K_CANNON = 6, K_FROST = 7, K_TESLA = 8, K_SNIPER = 9, K_MISSILE = 10,
-  K_SPIKES = 11, K_TAR = 12, K_VENT = 13, K_MINE = 14, K_PYLON = 15;
+  K_BAIT = 11, K_CATAPULT = 12, K_PYLON = 13;
 // Walls and gates are placed in runs: a click places one and the next is already in hand.
 export const stickyKind = (k: number): boolean => k === K_WALL || k === K_GATE;
 export const MAX_PLAYERS = 8;
@@ -36,7 +36,9 @@ export const PF_CONNECTED = 1, PF_ALIVE = 2, PF_FIRING = 4, PF_READY = 8, PF_REL
 export const CF_BURNING = 1, CF_SLOWED = 2, CF_GUARD = 4, CF_HUNTING = 8, CF_SIEGE = 16, CF_ASLEEP = 32, CF_WINDUP = 64, CF_STRIKE = 128;
 // A creep's second flags byte, cFx: frenzied, then its wave's affixes it carries, then a
 // greatsword's Sunder on it (a stack or more).
-export const CX_FRENZY = 1, CX_ARMOURED = 2, CX_HASTY = 4, CX_SAPPER = 8, CX_SPLITTER = 16, CX_SUNDER = 32;
+export const CX_FRENZY = 1, CX_ARMOURED = 2, CX_HASTY = 4, CX_SAPPER = 8, CX_SPLITTER = 16, CX_SUNDER = 32,
+  // Held in a bait pit's knot; in the air, thrown by a catapult pit.
+  CX_HELD = 64, CX_AIR = 128;
 // A wave's affixes, as the welcome's affixes names them.
 export const AX_ARMOURED = 1, AX_HASTY = 2, AX_SAPPERS = 4, AX_SPLITTERS = 8;
 export const COMPASS = ['east', 'southeast', 'south', 'southwest', 'west', 'northwest', 'north', 'northeast'];
@@ -170,6 +172,10 @@ export interface StructDef {
   special?: string; values?: string[][];
   // A trap: laid flat on the ground, walked over by creeps and survivors alike.
   floor?: boolean;
+  // The catapult pit: the seconds a creep it throws is in the air, and is stunned after.
+  air?: number; stun?: number;
+  // Placed turned one of eight ways (the build command's facing, the frame's sFacing).
+  facing?: boolean;
   // The generator's tier it needs, past the first.
   tier?: number;
   // A turret's two evolutions; range multiplies its reach.
@@ -305,7 +311,7 @@ export type Command = (
   | { op: 'revive'; p: number }
   | { op: 'difficulty'; kind: number }
   | { op: 'ability'; slot: number; x: number; y: number }
-  | { op: 'build'; kind: number; tx: number; ty: number }
+  | { op: 'build'; kind: number; tx: number; ty: number; facing?: number }
   | { op: 'repair' | 'sell'; s: number }
   // Rebuilds every ghost and mends every damaged structure, between waves.
   | { op: 'fixAll' }
@@ -438,6 +444,10 @@ export class Frame {
   // A gate swung open, which creeps walk through.
   sOpen = new Uint8Array(256);
   sEvo = new Uint8Array(256); // a turret's evolution, 1 or 2 (StructDef.evolve), 0 none
+  // A trap's state: bit 0 going off (a bait pit holding, a catapult's arm sprung), bits 1-4
+  // its charge, 15 ready.
+  sTrap = new Uint8Array(256);
+  sFacing = new Uint8Array(256); // eighths of a turn from +x towards +y, for a kind placed facing a way
   // A turret's track levels, TURRET_TRACKS to a structure.
   sLv = new Uint8Array(256 * TURRET_TRACKS);
 
@@ -569,7 +579,7 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
   if (f.sAlive.length < ns) {
     f.sAlive = grow(f.sAlive, ns); f.sGhost = grow(f.sGhost, ns); f.sKind = grow(f.sKind, ns); f.sX = grow(f.sX, ns); f.sY = grow(f.sY, ns);
     f.sW = grow(f.sW, ns); f.sH = grow(f.sH, ns); f.sHp = grow(f.sHp, ns); f.sMaxHp = grow(f.sMaxHp, ns);
-    f.sLevel = grow(f.sLevel, ns); f.sOwner = grow(f.sOwner, ns); f.sOpen = grow(f.sOpen, ns); f.sEvo = grow(f.sEvo, ns);
+    f.sLevel = grow(f.sLevel, ns); f.sOwner = grow(f.sOwner, ns); f.sOpen = grow(f.sOpen, ns); f.sEvo = grow(f.sEvo, ns); f.sTrap = grow(f.sTrap, ns); f.sFacing = grow(f.sFacing, ns);
   }
   if (f.sLv.length < ns * TURRET_TRACKS) f.sLv = grow(f.sLv, ns * TURRET_TRACKS);
   f.nStructs = ns;
@@ -583,8 +593,9 @@ export function decodeFrame(buf: ArrayBuffer, f: Frame): void {
     for (let t = 0; t < TURRET_TRACKS; t++) f.sLv[i * TURRET_TRACKS + t] = d.getUint8(o + 13 + t);
     f.sOwner[i] = d.getInt8(o + 13 + TURRET_TRACKS);
     const state = d.getUint8(o + 14 + TURRET_TRACKS);
-    f.sOpen[i] = state & 1; f.sEvo[i] = (state >> 1) & 3;
-    o += 15 + TURRET_TRACKS;
+    f.sOpen[i] = state & 1; f.sEvo[i] = (state >> 1) & 3; f.sTrap[i] = state >> 3;
+    f.sFacing[i] = d.getUint8(o + 15 + TURRET_TRACKS) & 7;
+    o += 16 + TURRET_TRACKS;
   }
 
   const nc = d.getUint16(o, true); o += 2;

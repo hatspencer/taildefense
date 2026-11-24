@@ -36,7 +36,7 @@ const SEEK_PENDING = 1000; // ms a loot order just sent counts as on its way, un
 const BUILD_PENDING = 1000;
 
 // A build sent to the host and not yet in a frame.
-export interface PendingBuild { kind: number; tx: number; ty: number; w: number; h: number; at: number }
+export interface PendingBuild { kind: number; tx: number; ty: number; w: number; h: number; facing: number; at: number }
 // What the player is doing with the mouse, what is selected and hovered, and every action
 // the input handlers and the HUD buttons can trigger.
 export class Controller {
@@ -558,6 +558,17 @@ export class Controller {
   // The maze readout under the build prompt: how far the dead walk in, or that they can't.
   routeNote = '';
 
+  // Which way the next build of a kind placed facing a way is turned, 0..7 eighths of a turn
+  // from +x towards +y: kept for the session, so the next catapult faces as the last did.
+  facing = 0;
+
+  // X while placing such a kind turns it an eighth of a turn, clockwise as seen from above.
+  turnBuild(): boolean {
+    if (this.mode.k !== 'build' || !this.game.welcome?.structs[this.mode.kind]?.facing) return false;
+    this.facing = (this.facing + 1) & 7;
+    return true;
+  }
+
   startBuild(kind: number): void {
     const wd = this.game.welcome;
     if (!wd || !wd.buildable.includes(kind)) return;
@@ -590,8 +601,9 @@ export class Controller {
     const { tx, ty, w, h } = this.buildTile(kind);
     const err = this.canPlace(kind, tx, ty);
     if (err) { this.onToast(err, 2); return; }
-    this.send({ op: 'build', kind, tx, ty });
-    this.pending.push({ kind, tx, ty, w, h, at: performance.now() });
+    const facing = this.game.welcome?.structs[kind]?.facing ? this.facing : 0;
+    this.send(facing ? { op: 'build', kind, tx, ty, facing } : { op: 'build', kind, tx, ty });
+    this.pending.push({ kind, tx, ty, w, h, facing, at: performance.now() });
     this.fx.ping(tx + w / 2, ty + h / 2, 0x40ff70);
     this.onCue('build', tx + w / 2, ty + h / 2, `build:${tx}:${ty}`);
     if (!keep) this.setMode({ k: 'none' });

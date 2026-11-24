@@ -324,30 +324,48 @@ func (w *World) canBuild(p *Player, k StructKind, x, y int, near bool) error {
 	if w.Phase == PhaseOver {
 		return errOver
 	}
-	if x < 1 || y < 1 || x >= w.W-1 || y >= w.H-1 || w.Terrain[y*w.W+x].Solid() {
+	// x, y is the top-left tile of its footprint: one tile, or a trap's three by three.
+	fw, fh := int(d.W), int(d.H)
+	if x < 1 || y < 1 || x+fw > w.W-1 || y+fh > w.H-1 {
 		return errors.New("cannot build there")
 	}
-	if w.StructAt(x, y) >= 0 || w.floorAt[y*w.W+x] >= 0 {
-		return errors.New("something is already built there")
+	for ty := y; ty < y+fh; ty++ {
+		for tx := x; tx < x+fw; tx++ {
+			if w.Terrain[ty*w.W+tx].Solid() {
+				return errors.New("cannot build there")
+			}
+			if w.structAt[ty*w.W+tx] >= 0 || w.floorAt[ty*w.W+tx] >= 0 {
+				return errors.New("something is already built there")
+			}
+		}
 	}
-	cx, cy := float32(x)+.5-w.CoreX-.5, float32(y)+.5-w.CoreY-.5
+	mx, my := float32(x)+float32(fw)/2, float32(y)+float32(fh)/2 // the footprint's middle
+	cx, cy := mx-w.CoreX-.5, my-w.CoreY-.5
 	if cx*cx+cy*cy > BuildRadius*BuildRadius {
 		return fmt.Errorf("too far from the generator to build (stay within %d tiles)", BuildRadius)
 	}
 	// The pad lies out past the build ring at night, so this never gives an unfound pad away.
-	if w.onPad(x, y) {
-		return errors.New("keep the helipad clear: the evac Huey lands there")
-	}
-	if px, py := float32(x)+.5-p.X, float32(y)+.5-p.Y; near && px*px+py*py > (buildReach+1)*(buildReach+1) {
-		return errors.New("too far away; walk closer")
-	}
-	for _, o := range w.Players {
-		if o.Connected && o.Alive && math.Abs(float64(o.X-float32(x)-.5)) < .5+PlayerRadius && math.Abs(float64(o.Y-float32(y)-.5)) < .5+PlayerRadius {
-			return errors.New("someone is standing there")
+	for ty := y; ty < y+fh; ty++ {
+		for tx := x; tx < x+fw; tx++ {
+			if w.onPad(tx, ty) {
+				return errors.New("keep the helipad clear: the evac Huey lands there")
+			}
 		}
 	}
-	if w.nearestCreep(float32(x)+.5, float32(y)+.5, 1) >= 0 {
-		return errors.New("a creep is in the way")
+	// Reach is to the nearest tile of a footprint, as it is to a one-tile one's middle.
+	if px, py := clampf(p.X, float32(x)+.5, float32(x+fw)-.5)-p.X, clampf(p.Y, float32(y)+.5, float32(y+fh)-.5)-p.Y; near && px*px+py*py > (buildReach+1)*(buildReach+1) {
+		return errors.New("too far away; walk closer")
+	}
+	if !d.Floor {
+		// A trap goes down under whoever stands there: it stops nobody.
+		for _, o := range w.Players {
+			if o.Connected && o.Alive && math.Abs(float64(o.X-mx)) < float64(fw)/2+PlayerRadius && math.Abs(float64(o.Y-my)) < float64(fh)/2+PlayerRadius {
+				return errors.New("someone is standing there")
+			}
+		}
+		if w.nearestCreep(mx, my, 1) >= 0 {
+			return errors.New("a creep is in the way")
+		}
 	}
 	if d.Tier > w.Tier {
 		return fmt.Errorf("the %s needs the generator at tier %s", d.Name, TierNames[d.Tier])
@@ -359,7 +377,11 @@ func (w *World) canBuild(p *Player, k StructKind, x, y int, near bool) error {
 }
 
 // Build places a structure owned by the player.
-func (w *World) Build(p *Player, k StructKind, x, y int) error {
+func (w *World) Build(p *Player, k StructKind, x, y int) error { return w.BuildFacing(p, k, x, y, 0) }
+
+// BuildFacing places a structure owned by the player, turned to facing (0 to 7) if its kind is
+// placed facing a way.
+func (w *World) BuildFacing(p *Player, k StructKind, x, y int, facing uint8) error {
 	if k >= NumStructKinds {
 		return errors.New("no such building")
 	}
@@ -367,7 +389,10 @@ func (w *World) Build(p *Player, k StructKind, x, y int) error {
 		return err
 	}
 	p.Gold -= Structs[k].Price
-	w.place(k, x, y, int8(p.ID))
+	si := w.place(k, x, y, int8(p.ID))
+	if Structs[k].Facing {
+		w.Structs[si].Facing = facing & 7
+	}
 	p.Tally.Built++
 	return nil
 }

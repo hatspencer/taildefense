@@ -49,9 +49,9 @@ func (w *World) fuse(c *Creep, d *CreepDef, tp *Player) bool {
 	return true
 }
 
-// burst is burster c going up: survivors and structures in reach hurt, the ground left
-// burning, the burster gone for nobody's bounty. What the fire kills pays the team, as a trap
-// does, the kill counted to by, the survivor it was after (-1 none).
+// burst is burster c going up: survivors and structures in reach (traps excepted) hurt, the
+// ground left burning, the burster gone for nobody's bounty. What the fire kills pays the team,
+// as a turret's kill does, the kill counted to by, the survivor it was after (-1 none).
 func (w *World) burst(c *Creep, by int8) {
 	x, y := c.X, c.Y
 	c.HP, c.LastHit = 0, -1
@@ -74,7 +74,7 @@ func (w *World) burst(c *Creep, by int8) {
 	}
 	for i := range w.Structs {
 		s := &w.Structs[i]
-		if !s.Alive || s.Kind == SArmory {
+		if !s.Alive || s.Kind == SArmory || Structs[s.Kind].Floor {
 			continue
 		}
 		if dx, dy := clampf(x, float32(s.X), float32(s.X)+float32(s.W))-x, clampf(y, float32(s.Y), float32(s.Y)+float32(s.H))-y; dx*dx+dy*dy <= burstReach*burstReach {

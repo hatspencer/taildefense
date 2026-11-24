@@ -138,6 +138,8 @@ export const STRUCTS: StructDef[] = [
   turret(8, { name: 'Tesla coil', price: 280, hp: 220, key: '6', desc: 'Lightning that jumps from creep to creep.', special: '+2 jumps, further' }),
   turret(9, { name: 'Sniper tower', price: 380, hp: 200, key: '7', desc: 'A slow, heavy round from far off at the toughest creep it can see, tearing out a share of its health: the boss killer.', special: '+1 pierce' }),
   turret(10, { name: 'Missile battery', price: 420, hp: 260, key: '8', desc: 'A salvo of rockets with a wide blast, each at a different creep, coming down only near it.', special: '+1 missile' }),
+  { name: 'Bait pit', price: 250, hp: 300, w: 3, h: 3, range: 7, turret: false, floor: true, key: '9', desc: 'A pit of meat. When enough creeps come within reach it drags them all into a knot at its middle and holds them there for the cannons; then it recharges.', upgrade: up(250), upgradable: true },
+  { name: 'Catapult pit', price: 450, hp: 300, w: 3, h: 3, range: 0, turret: false, floor: true, facing: true, air: 0.9, stun: 1, key: '0', desc: 'A sprung floor. It flings up to three small creeps on it the way it faces, set when it is placed, to fall hard where they land; brutes and bosses are too heavy.', upgrade: up(450), upgradable: true },
 ];
 
 export const WEATHERS = [
@@ -165,7 +167,7 @@ export function demoWelcome(w: number, h: number): Welcome {
       { name: 'Vitamins', info: '+1.5 HP/s regen', costs: [130, 221, 376, 639, 1086] },
       { name: 'Scavenger', info: '+luck when searching', costs: [100, 170, 289, 491, 835] },
     ],
-    abilities: ABILITIES, structs: STRUCTS, buildable: [3, 4, 5, 6, 7, 8, 9, 10],
+    abilities: ABILITIES, structs: STRUCTS, buildable: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
     siteKinds: [{ name: 'Ruined house', search: 3 }, { name: 'Car wreck', search: 2 }, { name: 'Supply crate', search: 1.5 }, { name: 'Overrun outpost', search: 6 },
       { name: 'Pickup truck', search: 2.5 }, { name: 'Police cruiser', search: 2.5 }, { name: 'Ambulance', search: 3 }, { name: 'School bus', search: 4 }, { name: 'Army truck', search: 3.5 },
       { name: 'Gas station', search: 5 }, { name: 'Fuel pump', search: 0 }, { name: 'Fire engine', search: 3 }, { name: 'Armoured van', search: 4.5 },

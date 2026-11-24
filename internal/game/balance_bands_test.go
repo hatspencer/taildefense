@@ -242,30 +242,37 @@ func TestFrostMultipliesTheOthers(t *testing.T) {
 	}
 }
 
-// Traps are worth their cost: spikes and vents on the road take about what a gun turret's
-// gold would, mines bunched creeps late, and tar beside a gun turret adds what more gun would.
-func TestTrapsAreWorthTheirCost(t *testing.T) {
-	for _, wave := range []int{9, 29} {
-		kinds := laneWave(wave)
-		gun := runLane(laneOne(rig{turret: STurretGun}), kinds, wave, 0)
-		per := gun.killed / float32(gun.gold)
-		for _, r := range []struct {
-			name string
-			ps   []piece
-		}{{"spikes", trapRow(rigSpikes, 5)}, {"vents", trapRow(rigVent, 2)}} {
-			if res := runLane(r.ps, kinds, wave, 0); res.killed/float32(res.gold) < .6*per {
-				t.Errorf("wave %d: %s take %.0f per 100 gold, a gun turret %.0f", wave, r.name, res.killed/float32(res.gold)*100, per*100)
-			}
-		}
-	}
+// The bait pit turns a stream into a crowd: beside a cannon on a wave 29 road, the cannon
+// takes clearly more of the wave with it than without, and more than the pit's gold in more
+// cannon would add.
+func TestTheBaitPitBunchesTheWaveForTheGuns(t *testing.T) {
 	const wave = 29
 	kinds := laneWave(wave)
-	gun := runLaneGap(laneOne(rig{turret: STurretGun}), kinds, wave, 0, supportGap)
-	if res := runLaneGap(trapRow(rigMine, 5), kinds, wave, 0, supportGap); res.killed/float32(res.gold) < .6*gun.killed/float32(gun.gold) {
-		t.Errorf("mines take %.0f per 100 gold, a gun turret %.0f", res.killed/float32(res.gold)*100, gun.killed/float32(gun.gold)*100)
+	p := t3(STurretCannon)
+	alone := runLane(laneOne(p), kinds, wave, 0)
+	with := runLane(append(laneOne(p), trapOn(rigBait, 0)...), kinds, wave, 0)
+	if with.killed < 1.15*alone.killed {
+		t.Errorf("%s takes %.0f%% of the wave with a bait pit, %.0f%% without", p.name, with.share*100, alone.share*100)
 	}
-	if gain, own := supportGain(t3(STurretGun), trapRow(rigTar, 5), laneWave(19), 19); gain < .6*own {
-		t.Errorf("tar beside a gun turret adds %.0f per 100 gold, more gun %.0f", gain, own)
+	gain := (with.killed - alone.killed) / float32(rigBait.cost())
+	if own := alone.killed / float32(alone.gold); gain < own {
+		t.Errorf("a bait pit beside %s adds %.0f per 100 gold, more of it %.0f", p.name, gain*100, own*100)
+	}
+}
+
+// The catapult pit stays worth having late: the fall is a share of health, so on its own,
+// aimed back up the road, it takes much the same part of a wave at 29 as at 9. Where it is
+// aimed matters: thrown on down the road, the same creeps leak sooner and it takes less.
+func TestTheCatapultHoldsUpLate(t *testing.T) {
+	for _, wave := range []int{9, 29} {
+		back := runLane(trapOn(rigCatapult, 0), laneWave(wave), wave, 0)
+		if back.share < .08 {
+			t.Errorf("wave %d: a catapult alone takes %.0f%% of the wave", wave, back.share*100)
+		}
+		on := runLane(trapOn(rig{turret: STrapCatapult}, 0), laneWave(wave), wave, 0)
+		if on.killed >= back.killed {
+			t.Errorf("wave %d: aimed down the road it takes %.0f%%, back up it %.0f%%", wave, on.share*100, back.share*100)
+		}
 	}
 }
 

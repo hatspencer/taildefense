@@ -5,7 +5,7 @@ import { dispatch, type Handlers, type Transport } from '../net';
 import {
   type Command, MAX_CREEPS, Tile, Phase, Order, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_FIRING,
   PF_HURT, PF_MOVING, PF_READY, PF_RELOADING, CF_BURNING, CF_SLOWED, CF_GUARD, CF_HUNTING, CF_SIEGE, CF_ASLEEP,
-  CF_WINDUP, CF_STRIKE, WEAPON_SLOTS, EvacStage,
+  CF_WINDUP, CF_STRIKE, CX_AIR, CX_HELD, K_BAIT, K_CATAPULT, WEAPON_SLOTS, EvacStage,
   BlastKind, EffectKind, Emote, type SiteDef, SiteKind, TRACER_HELI, TRACER_ULT, WET, Weather, type Welcome,
 } from '../protocol';
 import { ABILITY_RADIUS, CREEPS, DEMO_TICK_RATE, STRUCTS, WEAPON_BASE, WEATHERS, demoWelcome, turretStats } from './defs';
@@ -48,7 +48,7 @@ interface DPlayer {
   cur: number; ammo: number; reloadLeft: number; respawn: number; gold: number; kills: number; damage: number;
   owned: number; levels: Uint8Array; gear: Uint8Array; order: number; tx: number; ty: number; target: number;
   // buff: the weapon whose ultimate runs + 1, 0 for none; ult its meter, 0..1.
-  buildKind: number; repairId: number; buff: number; buffLeft: number; ult: number; abLevel: number[]; abCool: number[];
+  buildKind: number; buildFacing?: number; repairId: number; buff: number; buffLeft: number; ult: number; abLevel: number[]; abCool: number[];
   ready: boolean; fireCd: number; shot: number; hurt: number; harm: number; moving: boolean; wander: number;
   site: number; searchT: number; revTarget: number; channel: number; emoteLeft: number; tauntCool: number; downT: number; look: number;
   medkits: number; heal: number; steerTurns: number; steerLeft: number;
@@ -60,11 +60,15 @@ interface DPlayer {
   // The scoreboard's tally: downs, revives, built, searched, bosses, damage taken.
   st: number[];
 }
-interface DStruct { alive: boolean; kind: number; x: number; y: number; w: number; h: number; hp: number; maxHp: number; level: number; lv: number[]; owner: number; cd: number }
+interface DStruct { alive: boolean; kind: number; x: number; y: number; w: number; h: number; hp: number; maxHp: number; level: number; lv: number[]; owner: number; cd: number; hold?: number; facing?: number }
 interface DEffect { kind: number; x0: number; y0: number; x: number; y: number; r: number; left: number; total: number; owner: number; dmg: number }
 
 // How much faster each weapon fires under its ultimate, as the host's playerStats has it.
 const ULT_RATE = [1, 2.5, 2, 1, 1.8, 1, 2];
+// The traps' numbers, as traps.go has them at level 1.
+const BAIT_REACH = 7, BAIT_HOLD = 4, BAIT_COOL = 9, BAIT_MIN = 4;
+const CAT_MAX = 3, CAT_COOL = 3, CAT_FALL = 0.35, CAT_AIR = 0.9, CAT_STUN = 1, CAT_SNAP = 0.45;
+const CAT_NEAR = 6, CAT_FAR = 10, CAT_SHORT = 2, CAT_SPREAD = 15 * Math.PI / 180;
 
 export class DemoHost implements Transport {
   private wr = new Writer();
@@ -123,6 +127,12 @@ export class DemoHost implements Transport {
   private cMax = new Float32Array(MAX_CREEPS);
   private cBurn = new Float32Array(MAX_CREEPS);
   private cSlow = new Float32Array(MAX_CREEPS);
+  // The traps' hold on a creep, as the host's: the bait pit holding it (its struct + 1) and
+  // for how long; a catapult's throw, the seconds left in the air and where it lands; the
+  // stun after.
+  private cBait = new Int16Array(MAX_CREEPS); private cBaitLeft = new Float32Array(MAX_CREEPS);
+  private cAir = new Float32Array(MAX_CREEPS); private cAx = new Float32Array(MAX_CREEPS); private cAy = new Float32Array(MAX_CREEPS);
+  private cStun = new Float32Array(MAX_CREEPS);
   private cRespawn = new Float32Array(MAX_CREEPS);
   private cOffX = new Float32Array(MAX_CREEPS);
   private cOffY = new Float32Array(MAX_CREEPS);
@@ -275,9 +285,9 @@ export class DemoHost implements Transport {
     if (this.opt.evac) this.callEvac();
   }
 
-  private addStruct(kind: number, x: number, y: number, owner: number): DStruct {
+  private addStruct(kind: number, x: number, y: number, owner: number, facing = 0): DStruct {
     const d = STRUCTS[kind];
-    const s: DStruct = { alive: true, kind, x, y, w: d.w, h: d.h, hp: d.hp, maxHp: d.hp, level: 1, lv: [0, 0, 0, 0], owner, cd: this.rnd() };
+    const s: DStruct = { alive: true, kind, x, y, w: d.w, h: d.h, hp: d.hp, maxHp: d.hp, level: 1, lv: [0, 0, 0, 0], owner, cd: this.rnd(), facing: d.facing ? facing & 7 : 0 };
     // Reuse a dead slot so ids stay small, the way the host keeps them stable.
     const i = this.structs.findIndex((o) => !o.alive);
     if (i >= 0) this.structs[i] = s; else this.structs.push(s);
@@ -452,7 +462,7 @@ export class DemoHost implements Transport {
     const i = y * W + x;
     if (this.tiles[i] >= Tile.Water) return true;
     const s = this.occ[i];
-    return s > 0 && this.structs[s - 1].kind !== 4;
+    return s > 0 && this.solid(this.structs[s - 1].kind);
   }
 
   private rebuildFlow(): void {
@@ -553,6 +563,7 @@ export class DemoHost implements Transport {
   }
 
   private fresh(id: number): void {
+    this.cBait[id] = 0; this.cAir[id] = 0; this.cStun[id] = 0;
     this.cCool[id] = 0; this.cSwing[id] = 0; this.cSwung[id] = 0; this.cFace[id] = 255; this.cBlows[id] = 0; this.cCalm[id] = 0;
   }
 
@@ -586,14 +597,14 @@ export class DemoHost implements Transport {
     const cs = this.cellStart, gw = this.gw;
     cs.fill(0);
     for (let id = 0; id < MAX_CREEPS; id++) {
-      if (!this.cAlive[id]) continue;
+      if (!this.cAlive[id] || this.cAir[id] > 0) continue;
       cs[Math.min(this.gh - 1, (this.cY[id] / 8) | 0) * gw + Math.min(gw - 1, (this.cX[id] / 8) | 0) + 1]++;
     }
     for (let i = 1; i < cs.length; i++) cs[i] += cs[i - 1];
     const fill = this.q;
     for (let i = 0; i < cs.length - 1; i++) fill[i] = cs[i];
     for (let id = 0; id < MAX_CREEPS; id++) {
-      if (!this.cAlive[id]) continue;
+      if (!this.cAlive[id] || this.cAir[id] > 0) continue;
       const c = Math.min(this.gh - 1, (this.cY[id] / 8) | 0) * gw + Math.min(gw - 1, (this.cX[id] / 8) | 0);
       this.cellItems[fill[c]++] = id;
     }
@@ -688,6 +699,9 @@ export class DemoHost implements Transport {
       let sp = CREEPS[k].speed * DT * slowW;
       if (this.cSlow[id] > 0) { sp *= 0.5; this.cSlow[id] -= DT; }
       if (this.cBurn[id] > 0) { this.cBurn[id] -= DT; this.hurt(id, 8 * DT, null); if (!this.cAlive[id]) continue; }
+      // Held, thrown or stunned by a trap, it stays where the trap has it.
+      if (this.cBait[id] || this.cAir[id] > 0) continue;
+      if (this.cStun[id] > 0) { this.cStun[id] -= DT; continue; }
       this.cCool[id] = Math.max(-1, this.cCool[id] - DT);
       this.cSwung[id] = this.cSwing[id]; this.cSwing[id] = 0; this.cFace[id] = 255;
       if (this.cCalm[id] > 0) this.cCalm[id] -= DT;
@@ -769,7 +783,7 @@ export class DemoHost implements Transport {
         const tx = Math.floor(x + (d === 0 ? e : d === 1 ? -e : 0)), ty = Math.floor(y + (d === 2 ? e : d === 3 ? -e : 0));
         if (tx < 0 || ty < 0 || tx >= W || ty >= H) continue;
         const o = this.occ[ty * W + tx];
-        if (o > 1 && this.structs[o - 1].kind !== 4) { s = this.structs[o - 1]; sx = s.x + s.w / 2; sy = s.y + s.h / 2; }
+        if (o > 1 && this.solid(this.structs[o - 1].kind)) { s = this.structs[o - 1]; sx = s.x + s.w / 2; sy = s.y + s.h / 2; }
       }
     }
     if (!s) return false;
@@ -868,7 +882,7 @@ export class DemoHost implements Transport {
     const nx = p.x + (dx / d) * sp, ny = p.y + (dy / d) * sp;
     const ok = (x: number, y: number) => {
       const i = Math.floor(y) * W + Math.floor(x);
-      return !(this.tiles[i] >= Tile.Water || (this.occ[i] > 0 && this.structs[this.occ[i] - 1].kind !== 4));
+      return !(this.tiles[i] >= Tile.Water || (this.occ[i] > 0 && this.solid(this.structs[this.occ[i] - 1].kind)));
     };
     if (ok(nx, ny)) { p.x = nx; p.y = ny; }
     else if (ok(nx, p.y)) p.x = nx;
@@ -945,7 +959,7 @@ export class DemoHost implements Transport {
           p.order = Order.Idle;
           const err = this.canBuild(p, p.buildKind, p.tx, p.ty);
           if (err) this.toast(err);
-          else { p.gold -= d.price; this.addStruct(p.buildKind, p.tx, p.ty, p.id); this.rebuildFlow(); }
+          else { p.gold -= d.price; this.addStruct(p.buildKind, p.tx, p.ty, p.id, p.buildFacing ?? 0); this.rebuildFlow(); }
         }
         break;
       }
@@ -1045,6 +1059,85 @@ export class DemoHost implements Transport {
     return '';
   }
 
+  private solid(kind: number): boolean { return kind !== 4 && !STRUCTS[kind]?.floor; }
+
+  // --- traps ---
+
+  // The bait pit and the catapult pit, after the host's traps.go: the same numbers and the same
+  // state bits, without its walls test (a throw here goes the way the catapult faces and comes
+  // down short of anything in the way, on open ground).
+  private stepTraps(): void {
+    for (let id = 0; id < MAX_CREEPS; id++) {
+      if (!this.cAlive[id]) continue;
+      if (this.cAir[id] > 0) {
+        const k = Math.min(1, DT / this.cAir[id]);
+        this.cX[id] += (this.cAx[id] - this.cX[id]) * k; this.cY[id] += (this.cAy[id] - this.cY[id]) * k;
+        if ((this.cAir[id] -= DT) <= 0) {
+          this.cAir[id] = 0; this.cStun[id] = CAT_STUN;
+          this.hurt(id, this.cMax[id] * CAT_FALL, null);
+          if (this.cHp[id] <= 0) this.kill(id, this.players[0] ?? null, true);
+        }
+        continue;
+      }
+      const b = this.cBait[id];
+      if (!b) continue;
+      const s = this.structs[b - 1];
+      if (!s?.alive || (this.cBaitLeft[id] -= DT) <= 0) { this.cBait[id] = 0; continue; }
+      const a = id * 2.399963, r = 0.9 * Math.sqrt((id * 0.618) % 1);
+      const gx = s.x + 1.5 + Math.cos(a) * r, gy = s.y + 1.5 + Math.sin(a) * r;
+      const dx = gx - this.cX[id], dy = gy - this.cY[id], d = Math.hypot(dx, dy);
+      const step = Math.min(d, (CREEPS[this.cKind[id]].size >= 2 ? 3.5 : 8) * DT);
+      if (d > 1e-3) { this.cX[id] += dx / d * step; this.cY[id] += dy / d * step; }
+    }
+    this.structs.forEach((s, si) => {
+      if (!s.alive || (s.kind !== K_BAIT && s.kind !== K_CATAPULT)) return;
+      const mx = s.x + 1.5, my = s.y + 1.5;
+      if ((s.hold ?? 0) > 0) {
+        s.hold! -= DT;
+        if (s.hold! <= 0) { s.hold = 0; if (s.kind === K_BAIT) s.cd = BAIT_COOL; }
+        return;
+      }
+      if (s.cd > 0) { s.cd -= DT; return; }
+      const free = (id: number) => this.cAlive[id] && !this.cBait[id] && this.cAir[id] <= 0 && this.cSite[id] < 0;
+      if (s.kind === K_BAIT) {
+        const r = BAIT_REACH + 0.75 * (s.level - 1);
+        const got: number[] = [];
+        for (let id = 0; id < MAX_CREEPS; id++) {
+          if (free(id) && CREEPS[this.cKind[id]].size < 3 && Math.hypot(this.cX[id] - mx, this.cY[id] - my) <= r) got.push(id);
+        }
+        if (got.length < BAIT_MIN) return;
+        const hold = BAIT_HOLD + 0.5 * (s.level - 1);
+        for (const id of got) { this.cBait[id] = si + 1; this.cBaitLeft[id] = hold; this.cSwing[id] = 0; }
+        s.hold = hold;
+        return;
+      }
+      let n = 0;
+      for (let id = 0; id < MAX_CREEPS && n < CAT_MAX; id++) {
+        if (!free(id) || CREEPS[this.cKind[id]].size >= 2) continue;
+        if (this.cX[id] < s.x || this.cX[id] >= s.x + 3 || this.cY[id] < s.y || this.cY[id] >= s.y + 3) continue;
+        const a = (s.facing ?? 0) * Math.PI / 4 + (this.rnd() * 2 - 1) * CAT_SPREAD, far = CAT_NEAR + this.rnd() * (CAT_FAR - CAT_NEAR);
+        for (let d = far; d >= CAT_SHORT; d -= 0.5) {
+          const lx = Math.floor(mx + Math.cos(a) * d) + 0.5, ly = Math.floor(my + Math.sin(a) * d) + 0.5;
+          if (this.blocked(Math.floor(lx), Math.floor(ly))) continue;
+          this.cAir[id] = CAT_AIR; this.cAx[id] = lx; this.cAy[id] = ly; this.cSwing[id] = 0;
+          n++;
+          break;
+        }
+      }
+      if (n) { s.cd = Math.max(1, CAT_COOL - 0.4 * (s.level - 1)); s.hold = CAT_SNAP; }
+    });
+  }
+
+  // A trap's bits of the structure's state byte, shifted down: 1 going off, then its charge.
+  private trapState(s: DStruct): number {
+    if (s.kind !== K_BAIT && s.kind !== K_CATAPULT) return 0;
+    const busy = (s.hold ?? 0) > 0;
+    if (busy && s.kind === K_BAIT) return 1;
+    const cd = s.kind === K_BAIT ? BAIT_COOL : Math.max(1, CAT_COOL - 0.4 * (s.level - 1));
+    const charge = s.cd <= 0 ? 15 : Math.min(14, Math.floor((1 - s.cd / cd) * 15));
+    return (charge << 1) | (busy ? 1 : 0);
+  }
+
   // --- turrets ---
 
   private stepStructs(): void {
@@ -1121,7 +1214,7 @@ export class DemoHost implements Transport {
       const sx = p.x, sy = p.y, n = Math.ceil(d / 0.25);
       for (let i = 1; i <= n; i++) {
         const nx = sx + (x - sx) * (i / n), ny = sy + (y - sy) * (i / n), t = Math.floor(ny) * W + Math.floor(nx);
-        if (this.tiles[t] >= Tile.Water || (this.occ[t] > 0 && this.structs[this.occ[t] - 1].kind !== 4)) break;
+        if (this.tiles[t] >= Tile.Water || (this.occ[t] > 0 && this.solid(this.structs[this.occ[t] - 1].kind))) break;
         p.x = nx; p.y = ny;
       }
       p.moving = false; p.order = Order.Idle;
@@ -1343,6 +1436,7 @@ export class DemoHost implements Transport {
       this.buildGrid();
       this.stepWeather();
       this.wakeGuards();
+      this.stepTraps();
       this.moveCreeps();
       for (const p of this.players) this.stepPlayer(p);
       this.stepStructs();
@@ -1428,7 +1522,7 @@ export class DemoHost implements Transport {
     w.u16(this.structs.length);
     for (const s of this.structs) {
       w.u8(s.alive ? 1 : 0); w.u8(s.kind); w.u16(s.x); w.u16(s.y); w.u8(s.w); w.u8(s.h);
-      w.u16(s.hp); w.u16(s.maxHp); w.u8(s.level); for (const l of s.lv) w.u8(l); w.i8(s.owner); w.u8(0);
+      w.u16(s.hp); w.u16(s.maxHp); w.u8(s.level); for (const l of s.lv) w.u8(l); w.i8(s.owner); w.u8(this.trapState(s) << 3); w.u8(s.facing ?? 0);
     }
     let n = 0;
     for (let id = 0; id < MAX_CREEPS; id++) n += this.cAlive[id];
@@ -1448,7 +1542,7 @@ export class DemoHost implements Transport {
       const sw = this.cSwing[id];
       if (sw === S_WINDUP) fl |= CF_WINDUP;
       else if (sw === S_STRIKE) fl |= CF_STRIKE;
-      w.u8(fl); w.u8(hunting ? this.cHunt[id] : this.cFace[id]); w.u8(0);
+      w.u8(fl); w.u8(hunting ? this.cHunt[id] : this.cFace[id]); w.u8((this.cBait[id] ? CX_HELD : 0) | (this.cAir[id] > 0 ? CX_AIR : 0));
     }
     const tr = this.tr;
     w.u16(tr.length / 5);
@@ -1513,7 +1607,7 @@ export class DemoHost implements Transport {
       case 'build': {
         const err = this.canBuild(p, cmd.kind, cmd.tx, cmd.ty);
         if (err) { this.toast(err); break; }
-        p.order = Order.Build; p.buildKind = cmd.kind; p.tx = cmd.tx; p.ty = cmd.ty;
+        p.order = Order.Build; p.buildKind = cmd.kind; p.buildFacing = cmd.facing ?? 0; p.tx = cmd.tx; p.ty = cmd.ty;
         break;
       }
       case 'repair': p.order = Order.Repair; p.repairId = cmd.s; break;

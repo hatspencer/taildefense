@@ -105,7 +105,12 @@ katana's combo, a pair of katanas, Flash Draw, the greatsword's combo with its f
 Skyfall, Worldsplitter and Worldbreaker, and the evolved blades), `#lab=crowbar` at the crowbar's Home Run (plain and
 Bonebreaker's, out in the open past the others), `#lab=fx` at the turret evolutions' shots (a napalm missile
 bursting, an arc web), `#lab=huey` at a supply Huey hovering with its door gunner sweeping round it
-(with a pause each lap, to see the gun go back to rest), and `&dist=11` brings the camera in.
+(with a pause each lap, to see the gun go back to rest), `#lab=traps` at a bait pit and a catapult
+pit going off on a loop over a stream of creeps (the knot and its hold, the catapult turned to face
+south-west and its plank snapping up that way, the throw's arc along its facing, a second lying
+stunned where it lands and getting up to walk on, both charge rings filling), and `&dist=11` brings the camera in.
+The demo (`#demo`) has both traps on 9 and 0 to place, and its host plays them as `traps.go` does,
+less the wall test, so their sounds can be heard there; X turns a catapult being placed there too.
 `#lab=sound` puts the sound bench over it: every recipe in the bank and every set of recordings,
 clicked (or Enter) to play as the game does, or the recipe, the recording or both alone (s, r, b),
 at the level the game plays it and the volume on its slider. Recordings come in through

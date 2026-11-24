@@ -12,7 +12,7 @@ import (
 // ground, so their numbers can be set side by side rather than guessed. The tests in
 // balance_bands_test.go hold the identities the balance is built round; `-args -balance`
 // prints the whole table, `-balance-only` some of its sections (a comma list of dps, clear,
-// kinds, lane, support, traps, trapkinds, pylon, overload, gold):
+// kinds, lane, support, traps, pylon, overload, gold):
 //
 //	./build.sh go test ./internal/game -run TestBalanceTable -v -args -balance
 //	./build.sh go test ./internal/game -run TestBalanceTable -v -args -balance -balance-only lane,support
@@ -91,6 +91,7 @@ type rig struct {
 	evo    uint8
 	dual   bool
 	level  uint8 // a trap's level, past the first
+	facing uint8 // which way it faces, for a kind placed facing a way
 }
 
 // cost is the gold that went into r.
@@ -141,6 +142,9 @@ func (a *arena) build(r rig, dx, dy int) *Structure {
 	s := &a.w.Structs[si]
 	s.Lv, s.Evo = r.lv, r.evo
 	s.Level = 1 + r.level
+	if Structs[r.turret].Facing {
+		s.Facing = r.facing
+	}
 	a.built = true
 	return s
 }
@@ -193,6 +197,9 @@ func (a *arena) tick(move int) {
 			c.Burn -= Dt
 			c.HP -= c.BurnDPS * w.burnMul() * Dt
 		}
+		if c.trapped() {
+			continue
+		}
 		if c.stunned() {
 			continue
 		}
@@ -214,6 +221,13 @@ func (a *arena) tick(move int) {
 				c.Y += dy / d * m
 			}
 		case lane:
+			// Thrown off the road by a catapult, it makes its way back to it as it comes on.
+			if dy := a.laneY - c.Y; abs32(dy) > .5 {
+				d := sqrt32(1 + dy*dy)
+				c.X += sp * Dt / d
+				c.Y += sp * Dt * dy / d
+				continue
+			}
 			c.X += sp * Dt
 		}
 	}
@@ -374,6 +388,12 @@ func runLaneGap(ps []piece, kinds []CreepKind, wave int, aff Affix, gap float32)
 	a.lane = true
 	a.laneY = a.oy + laneOff + .5
 	a.laneX0, a.laneX1 = a.ox-laneHalf, a.ox+laneHalf
+	// The way in is down the road: both fields count down to its far end, so a catapult
+	// throws its creeps back up it.
+	for i := range a.w.flow.dist {
+		d := int32(max(a.laneX1-float32(i%a.w.W), 0) * 10)
+		a.w.flow.dist[i], a.w.maze.dist[i] = d, d
+	}
 	var res laneResult
 	for _, p := range ps {
 		a.build(p.r, p.dx, p.dy)
@@ -447,14 +467,8 @@ func benchRigs() []rig {
 // laneOne is a lone structure of r beside the lane.
 func laneOne(r rig) []piece { return []piece{{r, 0, 0}} }
 
-// trapRow is n of trap r laid along the road, middle out.
-func trapRow(r rig, n int) []piece {
-	var ps []piece
-	for i := range n {
-		ps = append(ps, piece{r, i - n/2, laneOff})
-	}
-	return ps
-}
+// trapOn is trap r laid over the road, its middle dx tiles along from the arena's.
+func trapOn(r rig, dx int) []piece { return []piece{{r, dx - 1, laneOff - 1}} }
 
 // supportGain is what support s adds beside partner p in the lane at wave, against what p
 // does alone: the hit points s's gold bought, per 100 gold, and p's own per 100 gold.
@@ -470,11 +484,10 @@ func supportGain(p rig, s []piece, kinds []CreepKind, wave int) (gain, own float
 
 // The bench's traps.
 var (
-	rigSpikes = rig{name: "Spikes", turret: STrapSpikes}
-	rigTar    = rig{name: "Tar", turret: STrapTar}
-	rigVent   = rig{name: "Vent", turret: STrapVent}
-	rigMine   = rig{name: "Mine", turret: STrapMine}
-	rigPylon  = rig{name: "Pylon", turret: SPylon}
+	rigBait = rig{name: "Bait pit", turret: STrapBait}
+	// The catapult on the road faces back up it, the way the creeps came.
+	rigCatapult = rig{name: "Catapult", turret: STrapCatapult, facing: 4}
+	rigPylon    = rig{name: "Pylon", turret: SPylon}
 )
 
 // benchKinds are the creeps of the per-kind table.
@@ -566,7 +579,8 @@ func TestBalanceTable(t *testing.T) {
 				{"Cryo", []piece{{evoRig(STurretFrost, 1), 1, 0}}},
 				{"Blizzard", []piece{{evoRig(STurretFrost, 2), 1, 0}}},
 				{"Spotter", []piece{{evoRig(STurretSniper, 1), 1, 0}}},
-				{"Tar x5", trapRow(rigTar, 5)},
+				{"Bait pit", trapOn(rigBait, 0)},
+				{"Catapult", trapOn(rigCatapult, -6)},
 				{"Pylon", []piece{{rigPylon, 1, 0}}},
 			}
 			partners := []rig{
@@ -592,45 +606,58 @@ func TestBalanceTable(t *testing.T) {
 		}
 	}
 	if section("traps") {
-		rows := []struct {
-			name string
-			ps   []piece
-		}{
-			{"Spikes x5", trapRow(rigSpikes, 5)},
-			{"Spikes L3 x5", trapRow(rig{turret: STrapSpikes, level: 2}, 5)},
-			{"Vent x2", trapRow(rigVent, 2)},
-			{"Vent L3 x2", trapRow(rig{turret: STrapVent, level: 2}, 2)},
-			{"Mine x5", trapRow(rigMine, 5)},
-			{"Tar x5", trapRow(rigTar, 5)},
-			{"Gun 0", laneOne(rig{turret: STurretGun})},
-		}
-		for _, wave := range laneWaves {
+		// Each trap beside a partner on the road, against the partner alone and the partner
+		// with the trap's gold in more of itself: the hp taken off the wave. The catapult faces
+		// back up the road: "up" stands upstream of the partner and throws them further back,
+		// "back" stands past it and throws them back through its fire, and "+bait" throws them
+		// back into a bait pit laid under the partner (counted against the partner with the
+		// bait alone).
+		bait := trapOn(rigBait, 0)
+		catL3 := rig{turret: STrapCatapult, level: 2, facing: 4}
+		for _, wave := range []int{9, 19, 29} {
 			kinds := laneWave(wave)
-			fmt.Fprintf(&b, "\nwave %d lane, traps on the road: share of hp, hp per 100 gold, leaked; and the same with the creeps bunched up as a group comes\n", wave)
-			for _, r := range rows {
-				res := runLane(r.ps, kinds, wave, 0)
-				rd := runLaneGap(r.ps, kinds, wave, 0, supportGap)
-				fmt.Fprintf(&b, "%-16s %6d | %5.0f%% %8.0f %6d | %5.0f%% %8.0f %6d\n", r.name, res.gold, res.share*100, res.killed/float32(res.gold)*100, res.leaked, rd.share*100, rd.killed/float32(rd.gold)*100, rd.leaked)
+			fmt.Fprintf(&b, "\nwave %d lane, traps: share of the wave's hp a partner takes alone (or with bait, for +bait), with the trap, and with two of itself; the trap's hp per 100 gold against the partner's own\n", wave)
+			fmt.Fprintf(&b, "%-10s %-9s | %6s %6s %6s | %8s %8s\n", "partner", "trap", "alone", "trap", "two", "trap/100", "own/100")
+			for _, p := range []rig{{name: "Cannon 0", turret: STurretCannon}, t3(STurretCannon), t3(STurretTesla), t3(STurretMissile), t3(STurretGun)} {
+				alone := runLane(laneOne(p), kinds, wave, 0)
+				two := runLane(append(laneOne(p), piece{p, 1, 0}), kinds, wave, 0)
+				withBait := runLane(append(laneOne(p), bait...), kinds, wave, 0)
+				for _, tr := range []struct {
+					name string
+					base []piece
+					ps   []piece
+				}{
+					{"bait", nil, bait},
+					{"bait L3", nil, trapOn(rig{turret: STrapBait, level: 2}, 0)},
+					{"cat up", nil, trapOn(rigCatapult, -6)},
+					{"cat back", nil, trapOn(rigCatapult, 6)},
+					{"L3 back", nil, trapOn(catL3, 6)},
+					{"cat+bait", bait, trapOn(rigCatapult, 8)},
+				} {
+					base := alone
+					if tr.base != nil {
+						base = withBait
+					}
+					with := runLane(append(append(laneOne(p), tr.base...), tr.ps...), kinds, wave, 0)
+					fmt.Fprintf(&b, "%-10s %-9s | %5.0f%% %5.0f%% %5.0f%% | %8.0f %8.0f\n", p.name, tr.name, base.share*100, with.share*100, two.share*100,
+						(with.killed-base.killed)/float32(tr.ps[0].r.cost())*100, alone.killed/float32(alone.gold)*100)
+				}
 			}
-		}
-	}
-	if section("trapkinds") {
-		const wave = 20
-		fmt.Fprintf(&b, "\nwave %d: share of one creep's hp a row of traps takes as it walks over (one at a time)\n%-12s |", wave, "row")
-		for _, k := range benchKinds {
-			fmt.Fprintf(&b, " %6.6s", Creeps[k].Name)
-		}
-		fmt.Fprintf(&b, "\n")
-		for _, r := range []struct {
-			name string
-			ps   []piece
-		}{{"Spikes x5", trapRow(rigSpikes, 5)}, {"Vent x2", trapRow(rigVent, 2)}, {"Mine x1", trapRow(rigMine, 1)}} {
-			fmt.Fprintf(&b, "%-12s |", r.name)
-			for _, k := range benchKinds {
-				res := runLane(r.ps, []CreepKind{k}, wave, 0)
-				fmt.Fprintf(&b, " %5.0f%%", res.share*100)
+			// A cluster of three, a gun, a cannon and a tesla, with the catapult past it throwing
+			// them back into it.
+			cluster := []piece{{t3(STurretGun), -1, 0}, {t3(STurretCannon), 0, 0}, {t3(STurretTesla), 1, 0}}
+			cl := runLane(cluster, kinds, wave, 0)
+			clc := runLane(append(cluster, trapOn(rigCatapult, 7)...), kinds, wave, 0)
+			cl4 := runLane(append(cluster, piece{t3(STurretCannon), 0, -1}), kinds, wave, 0)
+			fmt.Fprintf(&b, "%-10s %-9s | %5.0f%% %5.0f%% %5.0f%% | %8.0f %8.0f  (two = a fourth, a cannon 3)\n", "cluster", "cat back", cl.share*100, clc.share*100, cl4.share*100,
+				(clc.killed-cl.killed)/float32(rigCatapult.cost())*100, cl.killed/float32(cl.gold)*100)
+			for _, c := range []struct {
+				name string
+				r    rig
+			}{{"up road", rigCatapult}, {"aside", rig{turret: STrapCatapult, facing: 6}}, {"forward", rig{turret: STrapCatapult}}} {
+				cat := runLane(trapOn(c.r, 0), kinds, wave, 0)
+				fmt.Fprintf(&b, "%-10s %-9s | %5.0f%% %8.0f per 100 gold, %d leaked, %.0f hp\n", "(alone)", c.name, cat.share*100, cat.killed/float32(cat.gold)*100, cat.leaked, cat.killed)
 			}
-			fmt.Fprintf(&b, "\n")
 		}
 	}
 	if section("pylon") {

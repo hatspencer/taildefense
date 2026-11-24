@@ -4,7 +4,7 @@ import {
   positionGeometry, select, sin, smoothstep, step, time, uniform, uniformArray, vec3, vertexColor,
 } from 'three/tsl';
 import {
-  CF_ASLEEP, CF_BURNING, CX_FRENZY, CX_SAPPER, CX_SPLITTER, CX_SUNDER, CF_HUNTING, CF_SIEGE, CF_SLOWED, CF_STRIKE, CF_WINDUP, type CreepDef, MAX_CREEPS, PF_ALIVE,
+  CF_ASLEEP, CF_BURNING, CX_FRENZY, CX_SAPPER, CX_SPLITTER, CX_SUNDER, CX_AIR, CX_HELD, CF_HUNTING, CF_SIEGE, CF_SLOWED, CF_STRIKE, CF_WINDUP, type CreepDef, K_CATAPULT, MAX_CREEPS, PF_ALIVE,
 } from '../protocol';
 import type { Game } from '../state';
 import { type CreepRig, creepRig } from './creepModels';
@@ -194,6 +194,10 @@ export class Creeps {
   // Per creep id.
   private phase = new Float32Array(MAX_CREEPS);
   private yaw = new Float32Array(MAX_CREEPS);
+  // Seconds since a catapult threw it, -1 on the ground; seconds since it came down, while
+  // it lies stunned, -1 otherwise.
+  private airT = new Float32Array(MAX_CREEPS).fill(-1);
+  private landT = new Float32Array(MAX_CREEPS).fill(-1);
   private wind = new Float32Array(MAX_CREEPS);
   private since = new Float32Array(MAX_CREEPS); // seconds since its last blow
   private lead = new Float32Array(MAX_CREEPS);
@@ -340,6 +344,16 @@ export class Creeps {
         this.hitT[id] = 9; this.hitAt[id] = game.flashUntil[id];
         this.px[id] = x; this.py[id] = y; this.mv[id] = 0; this.fl[id] = fl; this.kindOf[id] = kind;
         this.armless[id] = kind <= 1 && hash(id, 3) < 0.08 ? 1 : 0;
+        this.airT[id] = -1; this.landT[id] = -1;
+      }
+      // A catapult's throw, kept up off screen too, so the arc and the landing go by the time
+      // the host gave them.
+      const air = (f.cFx[i] & CX_AIR) !== 0;
+      if (air) { this.airT[id] = this.airT[id] < 0 ? 0 : this.airT[id] + dt; this.landT[id] = -1; }
+      else {
+        if (this.airT[id] >= 0) this.landT[id] = 0;
+        else if (this.landT[id] >= 0) this.landT[id] += dt;
+        this.airT[id] = -1;
       }
       this.lastT[id] = sec;
       // The gait: the phase goes round once per stride covered, so feet do not skate.
@@ -413,7 +427,25 @@ export class Creeps {
       fx[o + 15] = (hash(id, 7) - 0.5) * 0.6;
       this.variety(fx, o, id, kind);
       fx[o + 20] = 0; fx[o + 21] = 1; fx[o + 22] = 0; fx[o + 23] = f.cFx[i] & CX_SUNDER ? 1 : 0;
-      fx[o + 24] = x; fx[o + 25] = 0; fx[o + 26] = y; fx[o + 27] = this.yaw[id];
+      // Thrown, it goes up in an arc for as long as the host says it flies, tumbling; down, it
+      // lies flat on its back or its face for the stun and gets up as it ends; held in a bait
+      // pit's knot, it shivers.
+      let lift = 0, yaw = this.yaw[id];
+      const cat = game.welcome?.structs[K_CATAPULT];
+      if (air) {
+        const u = Math.min(1, this.airT[id] / (cat?.air ?? 0.9));
+        lift = 10 * u * (1 - u);
+        yaw += u * Math.PI * 4;
+      } else if (this.landT[id] >= 0) {
+        const lt = this.landT[id], stun = cat?.stun ?? 1;
+        if (lt >= stun) this.landT[id] = -1;
+        else {
+          fx[o + 20] = 0.85 * (lt < 0.1 ? lt / 0.1 : lt > stun - 0.35 ? (stun - lt) / 0.35 : 1);
+          fx[o + 21] = hash(id, 8) < 0.5 ? 1 : -1;
+          fx[o + 5] = 0;
+        }
+      } else if (f.cFx[i] & CX_HELD) yaw += Math.sin(sec * 23 + id) * 0.15;
+      fx[o + 24] = x; fx[o + 25] = lift; fx[o + 26] = y; fx[o + 27] = yaw;
       const cx = f.cFx[i];
       const lit = kind === this.burster;
       if ((cx & (CX_SAPPER | CX_SPLITTER) || lit) && nt < MARKS) {

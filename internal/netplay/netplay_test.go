@@ -206,6 +206,31 @@ func TestNoStructureOutlivesAShorterList(t *testing.T) {
 	}
 }
 
+// A structure's facing reaches the client, in a keyframe and in a delta.
+func TestAFacingSurvivesTheCodec(t *testing.T) {
+	w := newWorldWithCreeps(0)
+	var e Encoder
+	r := NewReplica(w.W, w.H, w.Terrain, 0, w.Seed)
+	s := w.Structs[0]
+	s.Alive, s.Kind, s.X, s.Facing = true, game.STrapCatapult, s.X+40, 5
+	w.Structs = append(w.Structs, s)
+	i := len(w.Structs) - 1
+	e.Delta(w, nil)
+	if err := r.Apply(e.Key(w, nil)); err != nil {
+		t.Fatal(err)
+	}
+	if got := r.Structs[i].Facing; got != 5 {
+		t.Fatalf("keyframe: facing %d, want 5", got)
+	}
+	w.Structs[i].Facing = 3
+	if err := r.Apply(e.Delta(w, nil)); err != nil {
+		t.Fatal(err)
+	}
+	if got := r.Structs[i].Facing; got != 3 {
+		t.Fatalf("delta: facing %d, want 3", got)
+	}
+}
+
 func TestATruncatedFrameIsAnErrorNotAPanic(t *testing.T) {
 	w := newWorldWithCreeps(50)
 	var e Encoder

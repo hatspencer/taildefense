@@ -673,7 +673,7 @@ func Exec(w *game.World, pl *game.Player, c Cmd) (string, error) {
 		if !pl.Alive {
 			err = errors.New("you are down")
 		} else {
-			err = w.OrderBuild(pl, game.StructKind(c.A), int(c.X), int(c.Y))
+			err = w.OrderBuildFacing(pl, game.StructKind(c.A), int(c.X), int(c.Y), c.B)
 		}
 	case OpRepair:
 		if pl.Alive {
@@ -943,7 +943,7 @@ const (
 	OpSelect
 	OpReload
 	OpReady
-	OpBuild // A kind, X Y tile
+	OpBuild // A kind, B facing (0-7, for a kind placed facing a way), X Y tile
 	OpUpgradeStruct
 	OpSell
 	OpRestart // A 1 for the same map, 0 for a new one

@@ -423,6 +423,12 @@ func (w *World) stepCreeps() {
 				continue
 			}
 		}
+		if c.trapped() {
+			// Held in a bait pit or in the air off a catapult (traps.go): the trap moves it,
+			// and it neither walks nor attacks.
+			c.ox, c.oy = c.X, c.Y
+			continue
+		}
 		w.patience(c, c.ox, c.oy)
 		c.ox, c.oy = c.X, c.Y
 		if c.stunned() {
@@ -1214,7 +1220,7 @@ func (w *World) ignite(i int32, dps float32) {
 func (w *World) damage(i int32, dmg float32, owner int8) { w.hit(i, dmg, owner, 1) }
 
 // dotArmor is the share of its armour a creep takes off one tick of damage over time. Armour
-// comes off every hit, and a tick of burning ground or spikes is a hit, so at the tuned 20 Hz
+// comes off every hit, and a tick of burning ground is a hit, so at the tuned 20 Hz
 // it came off 20 times a second; scaled to the tick it still does at any rate, where in full
 // a faster tick would wear a fire down to its 25% floor on anything armoured.
 const dotArmor = Dt * tunedRate

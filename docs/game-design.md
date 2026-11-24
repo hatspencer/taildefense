@@ -159,11 +159,12 @@ it here along with the code.
   - *Hasty*: every creep a fifth faster, so a short maze gives the guns less time.
   - *Sappers*: a fifth of the walkers and runners carry a charge. They ignore the maze, walk
     straight for the walls and blow up against the first structure they reach (280 to
-    everything within 1.6 tiles but the generator and the armory), for no bounty. Traps and
-    turrets out in front of the walls are the answer.
+    everything within 1.6 tiles but the generator and the armory; a trap takes nothing), for
+    no bounty. Turrets out in front of the walls, and a bait pit to hold them there, are the
+    answer.
   - *Splitters*: a third of the walkers, runners and brutes burst into two swarmers when they
-    die, so what dies at the walls is still a problem. Area damage, flame vents and spikes are
-    the answer.
+    die, so what dies at the walls is still a problem. Area damage, and a bait pit knotting
+    the swarmers under it, are the answer.
 
   Each one rewards a different base, so a team that has built for one has something to change
   for the next. That is why the next wave is **forecast**: the break before it says its affixes
@@ -253,13 +254,48 @@ them under the guns is the team's plan, and keeping it honest is the game.
   wall; it keeps to the maze, and each second it can't reach them wears a tile of its
   patience. Otherwise standing behind the maze would undo it. A calm creep takes against only
   a turret it can walk to; a frenzied one takes against anything.
-- **Traps line the lanes.** Spikes, tar, the flame vent and the mine (`internal/game/traps.go`)
-  are flat buildings in their own grid, so nothing paths round them and nothing changes the
-  maze; they reward a long walk the way turrets reward range. Their damage is turret fire: it
-  never provokes, and the kills pay the builder. Each is cheap and narrow on its own: spikes
-  wear by the creep-second they cut (100 or so crossings), tar only slows, the vent bursts
-  once every three seconds, and the mine is spent at once, a ghost for H to lay again, so
-  traps are a running cost of a maze rather than a one-off.
+- **Traps line the lanes.** The bait pit and the catapult pit (`internal/game/traps.go`) are
+  three by three flat buildings in their own grid, so nothing paths round them and nothing
+  changes the maze. Each does something no turret does. The bait pit turns a stream into a
+  crowd: with 4 creeps within 7 tiles it drags them into a knot at its middle and holds them
+  4 s (9 s to recharge), for splash to land on all of them at once; it does no damage itself.
+  The catapult pit throws small creeps where its builder aimed it: up to 3 on it at a time,
+  every 3 s, along the facing it was placed with (one of eight, `Structure.Facing`, carried by
+  the build order) within 15° of it and 6 to 10 tiles out, the fall a fixed 35% of their full
+  health, armour or not, and a second's stun. A landing on a wall, a building, water or off
+  the map is shortened along the throw's line to the last open tile; with none past 2 tiles
+  the creep is not thrown. It flies over whatever is in between: only where it comes down is
+  checked, so a wall or a gate in the way does not stop it. Both are permanent (no wear, no ghost, no upkeep, and
+  no blast, slam, sapper or bile hurts them) and go off by themselves on a cooldown, so they
+  stay worth having at wave 30: the knot is worth what the splash beside it is, and the fall
+  is a share of health, not a number. What they do counts as turret fire: it never provokes,
+  and a kill pays the team, the catapult's fall kills counted to its builder.
+  They replaced spikes, tar, the flame vent and the mine, four 1x1 traps that were cheap and
+  narrow (cut, slow, a burst, one blast) and that bots and players alike left unbuilt.
+  Decisions at the edges: a bait pit pulls only what has a clear straight walk to its middle,
+  and a creep dragged into a wall or gate stops there, so nothing is ever pulled through one;
+  bosses are never moved, brutes and maulers dragged at 3.5 tiles a second, not 8; the first
+  pit to take a creep keeps it; a held or thrown creep neither walks nor attacks, and a thrown
+  one is out of the targeting grid, so nothing can shoot it in the air. The throw's spread
+  and distance come off the sim's own RNG, so the same seed throws the same way.
+- **The catapult is aimed, and so it is dear.** It used to throw any way the dice said, kept
+  only from landing nearer the generator than the pit, so it could never throw them into the
+  base. Thrown at random it was a fall and a few seconds' walk, the same wherever it stood.
+  Aimed, where it stands and which way it faces are the choice: back up the road (the most time
+  on the bench's road, 12% of a wave 29 lane alone against 7% aimed on down it or aside),
+  through a turret's range again, or into a bait pit under the cannons. The generator rule
+  went with the random throw: the player points it, and a catapult aimed into the base throws
+  them in, which is the builder's mistake to make. Aimed, it was the best gold in the game at
+  200 (2 128 hp per 100 gold alone at wave 29, beside a level 3 gun 1 864 against the gun's
+  own 820), so it went to 450, above the missile battery's 420 and the dearest building. There
+  it is no early buy (157 per 100 gold alone at wave 9, nothing beside a level 3 turret, which
+  kills the whole wave), half a turret's worth at 19 (536 alone, 383 beside a level 3 gun
+  against its 788), and level with one at 29 (946 alone; beside a level 3 gun 828 against
+  820, beside a level 0 cannon 666, thrown back into a bait pit under a level 3 gun 810). The
+  fall is a share of health, so it keeps climbing past 29 as turrets fall behind. Beside a
+  tesla, a missile battery or a cluster of level 3s it adds next to nothing: what gets past
+  them is the brutes and bosses it cannot lift. Its levels cost by its price (360 then 720), so
+  a level 3 catapult is a late, big spend.
 - **The preview is the client's own.** In build mode, or with a gate picked out, the page works
   out the maze field over the build ring itself (`web/src/route.ts`) and dots the way in from
   eight points round it, with the average walk and how much the ghost adds. It ignores the
@@ -340,8 +376,9 @@ The turrets, their evolutions, the traps and the Overload are set on the balance
   nothing does.
 - **Frost is a pure slow, valued by what it adds.** Its 3 a pulse never kills anything big; its
   worth is the hit points a partner (gun, cannon, tesla, sniper, missile at 3s) takes with it
-  beside them, against what the same gold in more of the partner would take. Tar and the
-  spotter's mark are measured the same way, the pylon among four turrets.
+  beside them, against what the same gold in more of the partner would take. The traps and the
+  spotter's mark are measured the same way, the pylon among four turrets. The bench's road
+  carries a breach field down to its far end, and a catapult there faces back up it.
 - **Bosses by gold-seconds.** One creep of every kind, bosses and armoured ones too, killed by
   one turret 6 tiles off at wave 20; a boss killer's figure is seconds times gold.
 - **The gold curve.** A solo game earns about 9 000 by wave 10, 54 000 by 20 and 190 000 by 30
@@ -349,8 +386,8 @@ The turrets, their evolutions, the traps and the Overload are set on the balance
   nothing is short of gold, only of value per gold and of room.
 - **Tuned at 20 Hz, played at 30.** The bench numbers were taken at 20 ticks a second, and some
   of them lean on its whole ticks: a cooldown set afresh when it runs out (a turret's shot, a
-  creep's blow, a vent, a reload) lasted as many 20 Hz ticks as counting it down took (a gun
-  turret's quarter second took six), armour came off every tick of napalm or spikes, a hit by
+  creep's blow, a reload) lasted as many 20 Hz ticks as counting it down took (a gun
+  turret's quarter second took six), armour came off every tick of napalm, a hit by
   them had its 12% chance to turn a creep each tick, and a rocket's fuse looked once a tick.
   At 30 Hz each is worked out as it was at 20 (`tunedRate` in `defs.go`), so the game plays the
   same in seconds: 32 bot games last about 108 s a wave at either rate, within a second.
@@ -373,7 +410,7 @@ What the bench found, and what changed:
   the special said, since the next pulse came before the slow ran out, so a level 3 tower
   added a quarter of what more gun would. The special now deepens the slow, 45% of a creep's
   pace at level 0 to 75% at 5 (Blizzard another 10%); the deepest slow on a creep holds, so
-  frost and tar don't stack. Beside a level 3 gun at wave 29, frost 3 now adds 913 per 100 gold
+  two frost towers don't stack. Beside a level 3 gun at wave 29, frost 3 now adds 913 per 100 gold
   (741 before) against the gun's own 672, Blizzard 1541 (919), Cryo 1285 (1076). A level 0
   tower adds 2 000 to 4 000: the first slow on a lane is the best buy there is, and because a
   second adds nothing it stays one per lane.
@@ -387,13 +424,17 @@ What the bench found, and what changed:
   0.3 blast a level (0.35): 1 609 at wave 29, still the cheap crowd answer, and slow and heavy
   as it should be. Cannon 5, missile 5 and swarm are the fastest on a blob, but in the lane per
   gold they sit at or below the median (516, 472, 864), so they were left.
-- **Napalm and vents burned a flat 14 and 10 a second**, nothing at wave 29; they now burn by
-  their damage (35% of a missile's, a quarter of a vent's burst), and trap levels add half
-  their damage each, not a third.
-- **Mines didn't grow** and missed a wave 29 walker by half; a mine is laid again every wave,
-  so its damage now grows with the square root of the creeps' health (260 at wave 1, 900 at
-  29) and it reaches 3 tiles, not 2.4. Mines are a crowd's answer: in a sparse stream the first
-  quick creep sets each off alone.
+- **Napalm burned a flat 14 a second**, nothing at wave 29; it now burns by its damage, 35% of
+  a missile's.
+- **The old traps went unbuilt.** Spikes, tar, the vent and the mine were each cheap and
+  narrow, and none was worth a maze's room late. The bait pit and the catapult replaced them,
+  tuned on the bench's road (reach 6 → 7, hold 3.5 → 4 s, recharge 14 → 9 s, catapult 4 → 3 s
+  to rearm, from the first cut). At wave 29 a level 3 cannon takes 39% of the lane alone and
+  48% with a bait pit, the pit adding 1 258 per 100 gold against the cannon's own 863; a
+  level 0 cannon goes from 12% to 22%. The pit adds little beside a tesla (its jumps already
+  find the next creep in a file) and most beside splash. A catapult alone takes 13% of a
+  wave 9 lane and 10% of a wave 29 one (1 726 per 100 gold there), and beside a level 3 gun
+  at 29 lifts it from 18% to 27%, 1 539 per 100 gold against the gun's 820.
 - **The Overload grows with the creeps' health** (above): 450 at wave 30 no longer killed a
   walker.
 
@@ -415,8 +456,10 @@ beside a gun adding more than more gun; the sniper killing a boss for less than 
 else's gold-seconds and by 1.5 at level 0; missiles landing spread and short of their true
 damage on a lone creep; the tesla ahead of the gun on a pack and per gold on a bunched crowd;
 the cannon the slowest crowd turret with the heaviest shell; frost hurting under a tenth of a
-gun, deepening with its special, and adding at least 0.65 of more partner beside each; spikes,
-vents and mines at least 0.6 of a gun turret's gold, tar beside a gun as good as more gun; and
+gun, deepening with its special, and adding at least 0.65 of more partner beside each; a bait
+pit beside a level 3 cannon at wave 29 taking 15% more of the lane and more per gold than more
+cannon, a catapult alone aimed back up the road taking 8% of a lane at waves 9 and 29, and
+more than one aimed on down it; and
 the Overload killing every small creep at waves 10 to 30 but no brute.
 
 ## A base that grows
@@ -633,7 +676,7 @@ to creeps and shots, so the court is a place to fight in, not just to cross.
   Attack-move went away with click-to-move; Stop is a button on the orders card, and hold
   position came off the keys, since the hero standing still already holds.
 - **Building is a bar of numbers behind B.** 1–8 pick wall, gate, gun, cannon, frost, tesla,
-  sniper, missile, in the order of price, then 9, 0, - and = the traps (spikes, tar, vent, mine)
+  sniper, missile, in the order of price, then 9 and 0 the traps (bait pit, catapult pit)
   and [ the amplifier pylon, so the build keys never clash with the fight keys,
   and the letters they used to take (I, L, X) are free. Walls and gates stay picked after each
   one, because they go down in lines; a turret is one decision, so it places once and Shift
@@ -1280,18 +1323,19 @@ about -29, ambience -32 to -42, footsteps under -45.
 - **Everything the game added is heard too** (`web/src/sound/coverage.ts`, `ambience.ts`). The
   host sends no sound events, so these sounds come from changes between frames: a gate's
   open bit, a turret's evolution, the tier and the gold paid in, a creep's flags and health,
-  a creep stepping onto a trap tile, the blast kinds. That way the protocol stays as it was.
-  The recipes use the same physical parts as the rest of the bank. Spikes are steel biting
-  and a chain rattling. Tar is a slow glop and suck. A vent is gas hissing before the whump.
-  A mine is its pressure plate clicking and then a soil geyser over the explosion's boom.
+  a trap's going-off bit, a thrown creep's air flag clearing, the blast kinds. That way the
+  protocol carries no sound of its own. The recipes use the same physical parts as the rest
+  of the bank. The bait pit is chains snatched taut and a wet heave of meat with a low drag
+  under it. The catapult is a catch let go, a spring's twang and the arm slamming its stop.
+  A thrown creep lands with a heavy thud and a scatter of grit.
   Each evolution sounds like what it became: the gatling lighter and faster, the penetrator
   harder, the mortar a hollow thoomp, the anti-materiel rifle deeper than the .50. Napalm
   burns as it flies and lands with a soft liquid whump, not a shock front. Rounds glance off
   armoured creeps with a ring, a sapper's fuse sputters as a loop on the nearest one, and a
   splitter tears open with two squeals. Hasty waves need nothing new, since footsteps already
   follow ground covered. A rocket now sounds once as it leaves, not on every tick of its
-  flight. Mix rules hold for all of it. Everything common (spikes, tar, ricochets) is a
-  texture-priority sound, only the nearest one each tick plays, and it waits longer in a crowd.
+  flight. Mix rules hold for all of it. Everything common (landings, ricochets) is rate
+  limited, only the nearest one each tick plays, and ricochets wait longer in a crowd.
   The pylon only buzzes close by. The hound, the mauler and the goliath, which had no voice,
   now groan and die like the other creeps.
 - **The horde before the blows.** A distant horde bed (dozens of blurred moans, shuffling, a
