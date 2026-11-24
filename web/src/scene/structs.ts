@@ -1,9 +1,10 @@
 import * as THREE from 'three/webgpu';
-import { color, float, fract, max, mix, positionLocal, sin, step, time, uniform, vertexColor, vec3 } from 'three/tsl';
-import { K_ARMORY, K_BAIT, K_CANNON, K_CATAPULT, K_CORE, K_FROST, K_GATE, K_GUN, K_MISSILE, K_SNIPER, K_PYLON, K_TESLA, K_WALL, type StructDef, TURRET_TRACKS } from '../protocol';
+import { color, float, fract, max, mix, mrt, output, positionLocal, sin, step, time, uniform, vertexColor, vec3, vec4 } from 'three/tsl';
+import { K_ARMORY, K_BAIT, K_CANNON, K_CATAPULT, K_CORE, K_FROST, K_GATE, K_GUN, K_MISSILE, K_SNIPER, K_PYLON, K_TESLA, K_WALL, type StructDef, TTrack, TURRET_TRACKS, turretRange } from '../protocol';
 import type { Game } from '../state';
 import { isTrapKind, trapFace, trapGhost, trapMake, trapModel, trapUpdate } from './traps';
-import { box, concat, cone, cyl, dodeca, ico, merge, octa, part, playerColor, torus, writeMatrix, type Part } from './util';
+import { box, concat, cone, cyl, dodeca, ico, merge, octa, part, playerColor, sphere, torus, writeMatrix, type Part } from './util';
+import { AWM_LENS, AWM_MUZZLE, awmParts } from './awm';
 
 export { K_ARMORY, K_CANNON, K_CORE, K_FROST, K_GATE, K_GUN, K_MISSILE, K_SNIPER, K_TESLA, K_WALL };
 
@@ -31,14 +32,28 @@ function coreGlowMaterial(): THREE.MeshBasicNodeMaterial {
   return m;
 }
 
+// How strong a sniper's laser is, 0..1, set per object through userData.laser.
+const laserU = uniform(0).onObjectUpdate((frame) => (frame.object?.userData.laser as number | undefined) ?? 0);
+
+// The laser sight's beam and dot: additive red, bright in the dark, writing no depth (so the
+// outline pass draws no edge round it) and no normal (no crease).
+function laserMaterial(hex: number, k: number): THREE.MeshBasicNodeMaterial {
+  const m = new THREE.MeshBasicNodeMaterial();
+  m.colorNode = color(hex).mul(laserU.mul(k));
+  m.transparent = true; m.depthWrite = false; m.blending = THREE.AdditiveBlending;
+  m.mrtNode = mrt({ output, normal: vec4(0, 0, 0, 0) });
+  return m;
+}
+
 function glowMaterial(hex: number, pulse = 0): THREE.MeshBasicNodeMaterial {
   const m = new THREE.MeshBasicNodeMaterial();
   m.colorNode = pulse ? color(hex).mul(sin(time.mul(pulse)).mul(0.25).add(1.05)) : color(hex);
   return m;
 }
 
-// dmg: extra wreckage shown below 60% and 30% hp.
-interface Model { body: Part[]; head?: Part[]; headY?: number; glow?: { parts: Part[]; color: number; pulse: number }; spin?: Part[]; spinY?: number; dmg?: [Part[], Part[]] }
+// dmg: extra wreckage shown below 60% and 30% hp. gun: a part of the head that recoils in it,
+// pivoting at gunX along the head's +x.
+interface Model { body: Part[]; head?: Part[]; headY?: number; gun?: Part[]; gunX?: number; glow?: { parts: Part[]; color: number; pulse: number }; spin?: Part[]; spinY?: number; dmg?: [Part[], Part[]] }
 
 // The colours of a turret's tracks: damage, fire rate, range, special.
 const PIP = [0xc8502a, 0xd8b040, 0x5aa0c8, 0xb070d0];
@@ -211,6 +226,47 @@ function evoParts(): Part[] {
   return [part(cyl(0.44, 0.46, 0.08, 10), 0xb08a40, 0, 0.12, 0), part(cyl(0.02, 0.02, 0.5, 4), DARK, -0.36, 0.4, 0.36)];
 }
 
+// The sniper tower's rifle, the green AWM (awm.ts): its bore this high over the ground (the
+// effects' muzzle height in main.ts), pitching on its recoil about a point this far along it.
+// The tower's deck is this high, so it stands over every other turret and the walls. The bore
+// is 0.6 above it, high enough that the stock never comes down into the sandbag rim (its top
+// 0.16 over the deck, 0.34 to 0.65 from the centre) at any heading, at rest or at the top of
+// the kick.
+export const SNIPER_DECK = 2.78;
+export const SNIPER_HEAD_Y = SNIPER_DECK + 0.6;
+export const SNIPER_MUZZLE = AWM_MUZZLE;
+const SNIPER_PIVOT = -0.3;
+
+// How far a sniper's recoil throws its rifle back and tips it up, and how hard the mount
+// shudders.
+const SNIPER_KICK = { back: 0.3, pitch: 0.34, shudder: 0.05 };
+
+// The cradle the rifle rides in, turning on the pintle: a turntable, a yoke with steel cheeks
+// either side of the stock, and a recoil buffer on each side. The yoke sits low enough that the
+// rifle's magazine (its foot 0.24 under the bore) clears it.
+function sniperCradle(): Part[] {
+  const p: Part[] = [
+    part(cyl(0.16, 0.18, 0.06, 10), STEEL, 0, -0.31, 0),
+    part(box(0.3, 0.05, 0.26), DARK, 0, -0.27, 0),
+  ];
+  for (const z of [-1, 1]) {
+    p.push(part(box(0.3, 0.16, 0.03), STEEL, 0, -0.15, z * 0.11));
+    p.push(part(cyl(0.028, 0.028, 0.34, 6), 0x6a6e70, 0.02, -0.16, z * 0.15, 0, 0, Math.PI / 2));
+    p.push(part(cyl(0.036, 0.036, 0.08, 6), DARK, -0.15, -0.16, z * 0.15, 0, 0, Math.PI / 2));
+  }
+  return p;
+}
+
+// The sniper's recoil, time s seconds after a shot: a slam back to full in a few hundredths of
+// a second, then a damped settle that is still by about 1.2 s, inside its fastest reload
+// (0.35/s at level 0, 0.61 with a full fire rate track, 0.70 with a pylon: 1.42 s).
+function sniperKick(s: number, decay: number): number {
+  if (s < 0) return 0;
+  if (s < 0.035) return s / 0.035;
+  const u = s - 0.035;
+  return u > 1.6 ? 0 : Math.exp(-u * decay) * Math.cos(u * 5.5);
+}
+
 // Models face +x and stand on y = 0, centred on their footprint.
 function modelFor(kind: number): Model {
   switch (kind) {
@@ -266,31 +322,36 @@ function modelFor(kind: number): Model {
       glow: { parts: [part(ico(0.2, 1), 0, 0, 1.6, 0)], color: 0xd8b0ff, pulse: 9 },
     };
     case K_SNIPER: {
-      // A plank watchtower on four legs, a sandbagged platform up top and a long rifle on it.
-      const wood = 0x5a4430, wd2 = 0x6a5034, bag = 0x9a8c66;
+      // A plank watchtower on four legs, a sandbagged platform up top, and on a pintle in the
+      // middle of it the green AWM in a cradle.
+      const wood = 0x5a4430, wd2 = 0x6a5034, bag = 0x9a8c66, D = SNIPER_DECK, legH = D - 0.08;
       const body: Part[] = [part(box(0.9, 0.06, 0.9), 0x5a5850, 0, 0.03, 0)];
-      for (const [x, z] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) body.push(part(box(0.09, 1.66, 0.09), wood, x * 0.33, 0.83, z * 0.33));
-      for (const y of [0.45, 1.1]) {
-        body.push(part(box(0.66, 0.05, 0.05), wd2, 0, y, 0.33), part(box(0.66, 0.05, 0.05), wd2, 0, y, -0.33));
-        body.push(part(box(0.05, 0.05, 0.66), wd2, 0.33, y, 0), part(box(0.05, 0.05, 0.66), wd2, -0.33, y, 0));
+      // Four stout legs on footing blocks, ringed by rails and braced crosswise in every bay
+      // on every side, so it stands tall without looking spindly.
+      for (const [x, z] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) {
+        body.push(part(box(0.12, legH, 0.12), wood, x * 0.33, legH / 2, z * 0.33));
+        body.push(part(box(0.2, 0.1, 0.2), CONCRETE, x * 0.33, 0.05, z * 0.33));
       }
-      body.push(part(box(0.06, 0.9, 0.04), wd2, 0, 0.78, 0.34, 0, 0, 0.62), part(box(0.06, 0.9, 0.04), wd2, 0, 0.78, -0.34, 0, 0, -0.62));
-      body.push(part(box(0.92, 0.08, 0.92), wd2, 0, 1.68, 0));
-      body.push(part(box(0.9, 0.16, 0.12), bag, 0, 1.8, 0.4), part(box(0.9, 0.16, 0.12), bag, 0, 1.8, -0.4), part(box(0.12, 0.16, 0.66), bag, -0.4, 1.8, 0));
-      // A ladder up the back.
-      body.push(part(box(0.04, 1.7, 0.04), wood, -0.5, 0.85, 0.12), part(box(0.04, 1.7, 0.04), wood, -0.5, 0.85, -0.12));
-      for (let i = 0; i < 6; i++) body.push(part(box(0.03, 0.03, 0.26), wd2, -0.5, 0.2 + i * 0.27, 0));
-      return {
-        body,
-        head: [
-          part(box(0.34, 0.1, 0.1), 0x3a3428, 0, 0, 0),
-          part(cyl(0.025, 0.03, 0.9, 5), 0x1e1e1c, 0.6, 0.02, 0, 0, 0, Math.PI / 2),
-          part(cyl(0.04, 0.04, 0.26, 6), 0x2a2c2a, 0.08, 0.1, 0, 0, 0, Math.PI / 2),
-          part(box(0.06, 0.04, 0.12), 0x1e1e1c, 1.03, 0.02, 0),
-          part(box(0.03, 0.18, 0.03), 0x2a2a28, 0.4, -0.08, 0.06, 0.4, 0, 0), part(box(0.03, 0.18, 0.03), 0x2a2a28, 0.4, -0.08, -0.06, -0.4, 0, 0),
-        ],
-        headY: 2.0,
-      };
+      const rails = [0.35, 1.15, 1.95, D - 0.14];
+      for (const y of rails) {
+        body.push(part(box(0.66, 0.06, 0.06), wd2, 0, y, 0.33), part(box(0.66, 0.06, 0.06), wd2, 0, y, -0.33));
+        body.push(part(box(0.06, 0.06, 0.66), wd2, 0.33, y, 0), part(box(0.06, 0.06, 0.66), wd2, -0.33, y, 0));
+      }
+      for (let b = 0; b + 1 < rails.length; b++) {
+        const y0 = rails[b], y1 = rails[b + 1], h = y1 - y0, len = Math.hypot(0.66, h), a = Math.atan2(0.66, h), sgn = b % 2 ? 1 : -1;
+        for (const s of [-1, 1]) {
+          body.push(part(box(0.05, len, 0.04), wd2, 0, (y0 + y1) / 2, s * 0.34, 0, 0, sgn * a));
+          body.push(part(box(0.04, len, 0.05), wd2, s * 0.34, (y0 + y1) / 2, 0, -sgn * a, 0, 0));
+        }
+      }
+      body.push(part(box(0.92, 0.08, 0.92), wd2, 0, D - 0.04, 0));
+      body.push(part(box(0.9, 0.16, 0.12), bag, 0, D + 0.08, 0.4), part(box(0.9, 0.16, 0.12), bag, 0, D + 0.08, -0.4), part(box(0.12, 0.16, 0.66), bag, -0.4, D + 0.08, 0));
+      // A ladder up the back, all the way to the deck.
+      body.push(part(box(0.04, D, 0.04), wood, -0.5, D / 2, 0.12), part(box(0.04, D, 0.04), wood, -0.5, D / 2, -0.12));
+      for (let y = 0.2; y < D - 0.1; y += 0.27) body.push(part(box(0.03, 0.03, 0.26), wd2, -0.5, y, 0));
+      // The pintle the rifle turns on, bolted to the deck.
+      body.push(part(box(0.32, 0.04, 0.32), DARK, 0, D + 0.02, 0), part(cyl(0.05, 0.07, 0.3, 8), STEEL, 0, D + 0.15, 0));
+      return { body, head: sniperCradle(), headY: SNIPER_HEAD_Y, gun: awmParts(), gunX: SNIPER_PIVOT };
     }
     case K_MISSILE: {
       // A steel plinth with a box of six rockets on a turntable, red noses showing.
@@ -328,14 +389,22 @@ function modelFor(kind: number): Model {
   return { body: [part(box(0.9, 0.8, 0.9), 0x888888, 0, 0.4, 0)] };
 }
 
-interface Built { body: THREE.BufferGeometry; head?: THREE.BufferGeometry; headY: number; glow?: THREE.BufferGeometry; glowMat?: THREE.Material; spin?: THREE.BufferGeometry; spinY: number; dmg?: THREE.BufferGeometry[] }
+interface Built { body: THREE.BufferGeometry; head?: THREE.BufferGeometry; headY: number; gun?: THREE.BufferGeometry; gunX: number; glow?: THREE.BufferGeometry; glowMat?: THREE.Material; spin?: THREE.BufferGeometry; spinY: number; dmg?: THREE.BufferGeometry[] }
 
 interface Obj {
   kind: number; x: number; y: number; level: number; owner: number; evo: number; tier: number;
   group: THREE.Group; head: THREE.Object3D | null; spin: THREE.Object3D | null; glow: THREE.Object3D | null;
   dmg: THREE.Object3D[]; spinA: number;
   aim: number; aimGoal: number; recoil: number; lastShot: number;
+  // A sniper's: the rifle on its recoil pivot, and its laser sight (laser).
+  gun: THREE.Object3D | null; laser: Laser | null;
 }
+
+// A sniper's laser sight: the lens it shines from, the beam and its halo, the dot and its halo
+// on the mark; the creep it is on (by id, -1 none) and when it last looked for one.
+interface Laser { lens: THREE.Object3D; beam: THREE.Object3D[]; dot: THREE.Object3D[]; mark: number; lookedAt: number }
+
+const tmpV = new THREE.Vector3(), tmpW = new THREE.Vector3(), tmpD = new THREE.Vector3(), AXIS_X = new THREE.Vector3(1, 0, 0);
 
 // Walls and gates: an instanced post per tile and an instanced arm towards each connected
 // neighbour, so lines of walls read as one wall.
@@ -425,6 +494,10 @@ export class Structs {
   private evoMats = EVO.map((c) => glowMaterial(c, 2));
   private lampMat = glowMaterial(0xfff2c0);
   private ringGeo = new Map<number, THREE.BufferGeometry>();
+  // The laser sight's pieces: a unit beam along +x from its start, and a ball for the dot.
+  private beamGeo = new THREE.BoxGeometry(1, 1, 1).translate(0.5, 0, 0);
+  private dotGeo = sphere(1, 8, 6);
+  private laserMats = [laserMaterial(0xff2a18, 2.2), laserMaterial(0xff1808, 0.35)];
 
   constructor(scene: THREE.Scene) {
     scene.add(this.group);
@@ -442,8 +515,9 @@ export class Structs {
     let b = this.built.get(kind);
     if (b) return b;
     const m = modelFor(kind);
-    b = { body: merge(m.body), headY: m.headY ?? 0, spinY: m.spinY ?? 0 };
+    b = { body: merge(m.body), headY: m.headY ?? 0, gunX: m.gunX ?? 0, spinY: m.spinY ?? 0 };
     if (m.head) b.head = merge(m.head);
+    if (m.gun) b.gun = merge(m.gun);
     if (m.glow) { b.glow = merge(m.glow.parts); b.glowMat = kind === K_CORE ? coreGlowMaterial() : glowMaterial(m.glow.color, m.glow.pulse); }
     if (m.spin) b.spin = merge(m.spin);
     if (m.dmg) b.dmg = m.dmg.map((d) => merge(d));
@@ -491,11 +565,32 @@ export class Structs {
     body.castShadow = true; body.receiveShadow = true;
     g.add(body);
     let head: THREE.Object3D | null = null, spin: THREE.Object3D | null = null, glow: THREE.Object3D | null = null;
+    let gun: THREE.Object3D | null = null, laser: Laser | null = null;
     if (b.head) {
       head = new THREE.Mesh(b.head, this.mat);
       head.position.y = b.headY;
       head.castShadow = true;
       g.add(head);
+      if (b.gun) {
+        // The rifle pitches on its recoil about gunX along it.
+        gun = new THREE.Group();
+        gun.position.x = b.gunX;
+        const gm = new THREE.Mesh(b.gun, this.mat);
+        gm.position.x = -b.gunX;
+        gm.castShadow = true;
+        gun.add(gm);
+        head.add(gun);
+        const lens = new THREE.Object3D();
+        lens.position.set(...AWM_LENS);
+        gm.add(lens);
+        const piece = (geo: THREE.BufferGeometry, k: number) => {
+          const m = new THREE.Mesh(geo, this.laserMats[k]);
+          m.renderOrder = 3; m.frustumCulled = false; m.visible = false;
+          g.add(m);
+          return m;
+        };
+        laser = { lens, beam: [piece(this.beamGeo, 0), piece(this.beamGeo, 1)], dot: [piece(this.dotGeo, 0), piece(this.dotGeo, 1)], mark: -1, lookedAt: -1e9 };
+      }
     }
     if (b.glow) {
       glow = new THREE.Mesh(b.glow, b.glowMat);
@@ -531,7 +626,7 @@ export class Structs {
       g.add(tb, new THREE.Mesh(this.extra(`lamps${tier}`, () => merge(tp.lamps)), this.lampMat));
     }
     const aim = Math.random() * 6.28;
-    return { kind, x: f.sX[i], y: f.sY[i], level: f.sLevel[i], owner: f.sOwner[i], evo, tier, group: g, head, spin, glow, dmg, spinA: 0, aim, aimGoal: aim, recoil: 0, lastShot: 0 };
+    return { kind, x: f.sX[i], y: f.sY[i], level: f.sLevel[i], owner: f.sOwner[i], evo, tier, group: g, head, spin, glow, dmg, spinA: 0, aim, aimGoal: aim, recoil: 0, lastShot: -1e9, gun, laser };
   }
 
   private extra(key: string, make: () => THREE.BufferGeometry): THREE.BufferGeometry {
@@ -553,7 +648,10 @@ export class Structs {
       if (o && o.kind === k && o.x === f.sX[i] && o.y === f.sY[i] && o.level === f.sLevel[i] && o.owner === f.sOwner[i] && o.evo === f.sEvo[i] && (k !== K_CORE || o.tier === f.tier)) continue;
       if (o) this.group.remove(o.group);
       const n = this.make(game, i);
-      if (o && o.kind === k) { n.aim = o.aim; n.aimGoal = o.aimGoal; }
+      if (o && o.kind === k) {
+        n.aim = o.aim; n.aimGoal = o.aimGoal; n.lastShot = o.lastShot;
+        if (o.laser && n.laser) n.laser.mark = o.laser.mark;
+      }
       this.objs.set(i, n);
       this.group.add(n.group);
     }
@@ -600,6 +698,62 @@ export class Structs {
     o.aimGoal = Math.atan2(y1 - y0, x1 - x0);
     o.recoil = 1;
     o.lastShot = now;
+    // A sniper's laser goes on what it just shot: the creep nearest where the round ended.
+    if (o.laser) {
+      const f = game.cur;
+      let best = -1, bd = 2.25;
+      for (let j = 0; j < f.nCreeps; j++) {
+        const d = (f.cX[j] - x1) ** 2 + (f.cY[j] - y1) ** 2;
+        if (d < bd) { bd = d; best = j; }
+      }
+      if (best >= 0) o.laser.mark = f.cId[best];
+    }
+  }
+
+  // A sniper's mark, as an index into the frame's creeps, or -1. The page is not told what a
+  // sniper aims at between shots, so the laser stays on what it last shot while that lives and
+  // is in reach; with nothing, it looks a few times a second for what the host would pick, the
+  // toughest creep in reach, judged by each creep's kind's health times the share it has left.
+  private sniperMark(game: Game, i: number, o: Obj, L: Laser, now: number): number {
+    const f = game.cur, def = this.defs[o.kind], wd = game.welcome;
+    if (!def || !wd) return -1;
+    const r = turretRange(def, f.sLv[i * TURRET_TRACKS + TTrack.Range], f.sEvo[i]), rr = r * r;
+    const cx = o.group.position.x, cz = o.group.position.z;
+    const inReach = (j: number) => (game.rx[j] - cx) ** 2 + (game.ry[j] - cz) ** 2 <= rr;
+    const at = L.mark >= 0 ? game.indexById[L.mark] : -1;
+    if (at >= 0 && at < f.nCreeps && f.cId[at] === L.mark && inReach(at)) return at;
+    L.mark = -1;
+    if (now - L.lookedAt < 300) return -1;
+    L.lookedAt = now;
+    let best = -1, most = 0;
+    for (let j = 0; j < f.nCreeps; j++) {
+      const hp = (wd.creeps[f.cKind[j]]?.hp ?? 0) * f.cHp[j];
+      if (hp > most && inReach(j)) { most = hp; best = j; }
+    }
+    if (best >= 0) L.mark = f.cId[best];
+    return best;
+  }
+
+  // Points a sniper's laser from its lens to the dot on its mark, at strength k (0 off).
+  private shine(game: Game, o: Obj, L: Laser, j: number, k: number): void {
+    const on = j >= 0 && k > 0.01;
+    for (const m of [...L.beam, ...L.dot]) { m.visible = on; m.userData.laser = k; }
+    if (!on) return;
+    const g = o.group, wd = game.welcome!;
+    o.head!.updateWorldMatrix(true, true);
+    const from = L.lens.getWorldPosition(tmpV).sub(g.position);
+    const rad = wd.creeps[game.cur.cKind[j]]?.radius ?? 0.5;
+    const to = tmpW.set(game.rx[j] - g.position.x, 0.35 + rad * 0.6, game.ry[j] - g.position.z);
+    const d = tmpD.subVectors(to, from), len = d.length();
+    if (len < 0.05) { for (const m of [...L.beam, ...L.dot]) m.visible = false; return; }
+    d.divideScalar(len);
+    L.beam.forEach((m, n) => {
+      m.position.copy(from);
+      m.quaternion.setFromUnitVectors(AXIS_X, d);
+      const w = n ? 0.13 : 0.045;
+      m.scale.set(len, w, w);
+    });
+    L.dot.forEach((m, n) => { m.position.copy(to).addScaledVector(d, -rad * 0.5); m.scale.setScalar(n ? 0.24 : 0.08); });
   }
 
   setHover(id: number, on: boolean): void {
@@ -621,6 +775,28 @@ export class Structs {
         continue;
       }
       if (isTrapKind(o.kind)) { trapUpdate(o.group, o.head, o.kind, f.sTrap[i], f.sFacing[i], t, dt); continue; }
+      if (o.head && o.laser && o.gun) {
+        // A sniper: its rifle follows the laser's mark, slams back and up on each shot and
+        // settles; the laser cuts out at the shot and flickers back on as it settles.
+        const L = o.laser, j = this.sniperMark(game, i, o, L, now), s = (now - o.lastShot) / 1000;
+        if (j >= 0) o.aimGoal = Math.atan2(game.ry[j] - o.group.position.z, game.rx[j] - o.group.position.x);
+        else if (s > 2.5) o.aimGoal += dt * 0.4;
+        let d = o.aimGoal - o.aim;
+        d = Math.atan2(Math.sin(d), Math.cos(d));
+        o.aim += d * Math.min(1, dt * 10);
+        const K = SNIPER_KICK;
+        const shudder = s < 0.5 ? Math.sin(s * 47) * K.shudder * Math.exp(-s * 9) : 0;
+        o.head.rotation.y = -o.aim + shudder;
+        o.gun.position.x = SNIPER_PIVOT - K.back * Math.max(-0.25, sniperKick(s, 4.2));
+        o.gun.rotation.z = K.pitch * Math.max(-0.12, sniperKick(s - 0.01, 3.6));
+        // Off through the slam, then back over 0.35 s with two short blinks as the rifle
+        // settles, then steady.
+        let k = 1;
+        if (s < 0.22) k = 0;
+        else if (s < 0.57) { const u = (s - 0.22) / 0.35; k = (0.4 + 0.6 * u) * ((u > 0.2 && u < 0.3) || (u > 0.55 && u < 0.62) ? 0.25 : 1); }
+        this.shine(game, o, L, j, k);
+        continue;
+      }
       if (o.head) {
         // Idle turrets scan slowly.
         if (now - o.lastShot > 2500) o.aimGoal += dt * 0.4;
@@ -648,7 +824,10 @@ export class Structs {
     const b = this.buildKind(kind);
     g.add(new THREE.Mesh(b.body, mat));
     let head: THREE.Mesh | null = null;
-    if (b.head) { head = new THREE.Mesh(b.head, mat); head.position.y = b.headY; g.add(head); }
+    if (b.head) {
+      head = new THREE.Mesh(b.head, mat); head.position.y = b.headY; g.add(head);
+      if (b.gun) head.add(new THREE.Mesh(b.gun, mat));
+    }
     if (b.glow) { const h = new THREE.Mesh(b.glow, mat); if (kind === K_FROST) h.position.y = b.spinY; g.add(h); }
     if (isTrapKind(kind)) { trapGhost(g, head, kind, mat, band); trapFace(g, facing); }
     return g;

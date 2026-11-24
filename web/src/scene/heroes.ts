@@ -1,8 +1,9 @@
 import * as THREE from 'three/webgpu';
 import { color, sin, time, vertexColor } from 'three/tsl';
 import { WEAPON_BASE } from '../demo/defs';
-import { Art, ART_TIME, Emote, GREAT, KATANA, legendary, Order, PF_ALIVE, PF_FIRING, PF_HURT, PF_RELOADING, OWNED_DUAL, OWNED_DUAL_KATANA, OWNED_TEMPERED, THROW_FLIGHT } from '../protocol';
+import { Art, ART_TIME, Emote, GREAT, KATANA, legendary, Order, PF_ALIVE, PF_FIRING, PF_HURT, PF_RELOADING, OWNED_DUAL, OWNED_DUAL_KATANA, OWNED_TEMPERED, RIFLE, THROW_FLIGHT } from '../protocol';
 import type { Game } from '../state';
+import { AWM_HELD, AWM_HELD_MUZZLE, awmFull, awmParts } from './awm';
 import { litMaterial } from './structs';
 import { Body, type Look, readLook, shade } from './look';
 import { ik2, Spring, turnTowards, wrapAngle } from './rig';
@@ -53,12 +54,19 @@ const HOLDS: Hold[] = [
 HOLDS[KATANA] = { at: [0.26, 0.14, -0.2], grip: [0, 0, 0], fore: [-0.11, 0, 0], muzzle: 0.9 };
 HOLDS[GREAT] = { at: [0, 0.6, -0.22], grip: [0, 0, 0], fore: [-0.14, 0, 0], muzzle: 1.3 };
 
+// A fully bought Rifle is the AWM, shouldered as the rifle is, the off hand under its longer
+// fore-end.
+const AWM_HOLD: Hold = { at: [0.15, 0.39, -0.15], grip: [0, -0.04, 0], fore: [0.42, -0.04, 0], muzzle: AWM_HELD_MUZZLE };
+const holdOf = (w: number, evo: number): Hold => (w === RIFLE && evo ? AWM_HOLD : HOLDS[w] ?? HOLDS[0]);
+
 // A legendary's edge, lit: plain steel's shine, then by evolution (Crimson Fang, Moonlit Edge;
 // Ashen Colossus, Stormbreaker).
 const EDGE: Record<number, number[]> = { [KATANA]: [0xc8d2e4, 0xff2030, 0x9fdcff], [GREAT]: [0x8a8e96, 0xff6a10, 0xb080ff] };
 
 // The gun in the hand, facing +x from the grip, dressed in the player's colour. glow: the parts
-// drawn lit, a legendary's edge. A tempered greatsword has a second blade forged into it.
+// drawn lit, a legendary's edge. A tempered greatsword has a second blade forged into it. evo on
+// the Rifle (3): every track bought, so it is the green AWM, the sniper tower's rifle (awm.ts)
+// at a size to carry.
 export function gunParts(w: number, c: number, evo = 0, temper = false): { body: Part[]; spin: Part[]; glow: Part[] } {
   const D = 0x2b2b2b, M = 0x3e3e40, W = 0x5a3e24, O = 0x4e5236;
   const b: Part[] = [], s: Part[] = [], gl: Part[] = [];
@@ -73,6 +81,11 @@ export function gunParts(w: number, c: number, evo = 0, temper = false): { body:
       add(b, 0.36, 0.11, 0.08, D, 0.1, 0.04); add(b, 0.06, 0.18, 0.06, M, 0.13, -0.1); add(b, 0.12, 0.04, 0.04, D, 0.34, 0.06);
       add(b, 0.18, 0.035, 0.035, M, -0.16, 0.02); add(b, 0.06, 0.12, 0.06, D, 0, -0.06, 0, 0.2); add(b, 0.12, 0.03, 0.085, c, 0.08, 0.1); break;
     case 3:
+      if (evo) {
+        const { scale: k, x, y } = AWM_HELD;
+        for (const q of awmParts(true)) { q.geo.scale(k, k, k); q.geo.translate(x, y, 0); b.push(q); }
+        break;
+      }
       add(b, 0.5, 0.1, 0.08, D, 0.15, 0.04); add(b, 0.3, 0.04, 0.04, D, 0.56, 0.05); add(b, 0.26, 0.11, 0.07, W, -0.2, 0.0, 0, -0.08);
       add(b, 0.2, 0.06, 0.06, 0x1a1a1c, 0.12, 0.13); add(b, 0.07, 0.13, 0.06, M, 0.18, -0.08); add(b, 0.12, 0.03, 0.085, c, 0.3, 0.09); break;
     case 4:
@@ -380,9 +393,23 @@ export class Heroes {
       h.gun.add(h.spin);
       this.mesh(g.spin, h.spin, 0, 0.02);
     }
-    const hold = HOLDS[w] ?? HOLDS[0];
+    const hold = holdOf(w, evo);
     h.flash.position.x = hold.muzzle;
+
     h.group.traverse((c) => { c.userData.hl = h.group.userData.hl ?? 0; });
+  }
+
+  // Where the AWM's muzzle is, for the survivor standing at (x, y) with one in hand: the effects
+  // draw its flash there, soft, instead of the hero's own flash mesh. Null if nobody is.
+  awmMuzzle(x: number, y: number, out: THREE.Vector3): THREE.Vector3 | null {
+    for (const h of this.heroes.values()) {
+      if (h.weapon !== RIFLE || !h.evo) continue;
+      const p = h.group.position;
+      if ((p.x - x) ** 2 + (p.z - y) ** 2 > 0.36) continue;
+      h.group.updateWorldMatrix(true, true);
+      return h.flash.getWorldPosition(out);
+    }
+    return null;
   }
 
   // A second pistol or katana in the left hand, once found.
@@ -452,7 +479,8 @@ export class Heroes {
       let h = this.heroes.get(p.id);
       if (h && h.look !== p.look) { this.group.remove(h.group); h = undefined; }
       if (!h) { h = this.make(p.id, p.look, p.cur); this.heroes.set(p.id, h); }
-      this.setWeapon(h, p.cur, legendary(p.cur) ? p.evo[p.cur] + (p.cur === GREAT && (p.owned & OWNED_TEMPERED) !== 0 ? 4 : 0) : 0);
+      const awm = p.cur === RIFLE && awmFull(p.levels, RIFLE * 4, game.welcome?.maxLevel ?? 5);
+      this.setWeapon(h, p.cur, legendary(p.cur) ? p.evo[p.cur] + (p.cur === GREAT && (p.owned & OWNED_TEMPERED) !== 0 ? 4 : 0) : awm ? 1 : 0);
       this.setDual(h, (p.cur === 0 && (p.owned & OWNED_DUAL) !== 0) || (p.cur === KATANA && (p.owned & OWNED_DUAL_KATANA) !== 0));
       h.seen = serial;
       const alive = (p.flags & PF_ALIVE) !== 0;
@@ -554,7 +582,10 @@ export class Heroes {
       // One kick and flash per shot, at the weapon's own rate: a shotgun booms, an SMG chatters.
       if (!firing || leg) h.shotAt = -1e9;
       else if (now - h.shotAt >= 1000 / (WEAPON_BASE[h.weapon]?.rate ?? 3)) {
-        h.shotAt = now; h.kick.kick(h.weapon === 1 || h.weapon === 5 ? 9 : h.weapon === 6 ? -14 : 3);
+        // The AWM slams back and up hard enough to see from the camera: about 0.1 back and 12°
+        // up at the top of the kick.
+        const awm = h.weapon === RIFLE && h.evo;
+        h.shotAt = now; h.kick.kick(h.weapon === 1 || h.weapon === 5 ? 9 : h.weapon === 6 ? -14 : awm ? 26 : 3);
         // Dual pistols fire turn about, the flash at whichever went off.
         if (h.dual) { h.alt = !h.alt; (h.alt ? h.gun2 : h.gun).add(h.flash); }
       }
@@ -661,7 +692,7 @@ export class Heroes {
 
       // The gun where its hold puts it: kicked back by each shot, carried low at a sprint,
       // canted to the side for a reload.
-      const hold = HOLDS[h.weapon] ?? HOLDS[0];
+      const hold = holdOf(h.weapon, h.evo);
       const rl = h.reload, sp = h.sprint * (1 - rl);
       if (leg) {
         this.legendPose(h, leg, now, firing, su, after, artU, sp > 0.5 || run > 0.5, dt);
@@ -704,7 +735,7 @@ export class Heroes {
       // A legendary has no muzzle: its flash is the glint at the point, as Flash Draw is about to
       // cut, as Skyfall comes down and as Worldsplitter's blade is about to.
       h.flash.visible = leg ? (drawing && artU > 0.45 && Math.floor(now / 60) % 2 === 0) || (sky && artU > 0.7) || (raised && artU > 0.5 && Math.floor(now / 50) % 2 === 0)
-        : h.weapon !== 6 && now - h.shotAt < (h.weapon === 1 ? 70 : 45);
+        : h.weapon !== 6 && !(h.weapon === RIFLE && h.evo) && now - h.shotAt < (h.weapon === 1 ? 70 : 45);
       if (h.spin) h.spin.rotation.x += dt * (firing ? 40 : 0);
 
       // Hands: on the gun, unless kneeling, taunting or down.

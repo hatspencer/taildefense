@@ -104,7 +104,11 @@ survivors (`#lab=h0`…`#lab=h17` at one of them), `#lab=legend` at the legendar
 katana's combo, a pair of katanas, Flash Draw, the greatsword's combo with its follow-through,
 Skyfall, Worldsplitter and Worldbreaker, and the evolved blades), `#lab=crowbar` at the crowbar's Home Run (plain and
 Bonebreaker's, out in the open past the others), `#lab=fx` at the turret evolutions' shots (a napalm missile
-bursting, an arc web), `#lab=huey` at a supply Huey hovering with its door gunner sweeping round it
+bursting, an arc web), `#lab=sniper` at the base's sniper tower, made fully upgraded, firing into a
+big creep pacing outside the wall every 1.45 s, its fastest reload (the rifle's recoil and
+settle, the muzzle blast and dust, the laser cutting out at the shot and coming back),
+`#lab=awm` at a survivor with a fully bought Rifle, drawn as the same rifle, firing at its rate
+and holding each heading for three rounds, `#lab=huey` at a supply Huey hovering with its door gunner sweeping round it
 (with a pause each lap, to see the gun go back to rest), `#lab=traps` at a bait pit and a catapult
 pit going off on a loop over a stream of creeps (the knot and its hold, the catapult turned to face
 south-west and its plank snapping up that way, the throw's arc along its facing, a second lying
