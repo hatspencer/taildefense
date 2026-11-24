@@ -75,7 +75,7 @@ export class Sound {
   readonly synth: Synth;
   // The music under it all (music.ts), which follows the game from onFrame.
   readonly music: Music;
-  // The musical cues (cues.ts), and the gain the music goes through: cues.musicBus.
+  // The musical cues (cues.ts).
   readonly cues: Cues;
   private cam: THREE.Camera | null = null;
   private lx = 0; private ly = 0; private dist = 30;

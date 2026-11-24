@@ -72,7 +72,6 @@ func (w *World) PayIn(p *Player) error {
 		return err
 	}
 	w.TierPaid += amt
-	p.PaidIn += amt
 	if w.TierPaid < cost {
 		w.note(0, "%s paid %d into the generator · %d / %d for tier %s", p.Name, amt, w.TierPaid, cost, TierNames[w.Tier+1])
 		return nil

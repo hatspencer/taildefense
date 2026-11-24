@@ -615,3 +615,5 @@ func TestOnlyTheHostChangesTheDifficulty(t *testing.T) {
 		s.Close()
 	}
 }
+
+func (b *bitset) has(i uint16) bool { return b[i>>6]&(1<<(i&63)) != 0 }

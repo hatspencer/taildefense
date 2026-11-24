@@ -212,3 +212,12 @@ func TestAGateIsWorkedFromBesideItAndNotShutOnACreep(t *testing.T) {
 		t.Fatal("a survivor can't stand in a gateway")
 	}
 }
+
+// MazeDist is how far creeps walk from tile x, y to the generator, in tiles, going round every
+// wall; -1 when the base is sealed from there, so that they break in.
+func (w *World) MazeDist(x, y int) float32 {
+	if x < 0 || y < 0 || x >= w.W || y >= w.H || w.maze.dist[y*w.W+x] >= unreachable {
+		return -1
+	}
+	return float32(w.maze.dist[y*w.W+x]) / 10
+}

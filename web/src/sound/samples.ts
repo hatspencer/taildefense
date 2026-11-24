@@ -39,7 +39,7 @@
 
 import './samples/index';
 
-export interface SampleSpec {
+interface SampleSpec {
   files: string[];             // base64 MP3s, as the build's loader inlines them
   gain?: number;               // linear, on every take
   mode?: 'over' | 'replace';   // 'replace' by default
@@ -48,7 +48,7 @@ export interface SampleSpec {
   underGain?: number;          // 'over' only: its level
 }
 
-export interface SampleSet extends Readonly<Required<Omit<SampleSpec, 'jitter' | 'under'>>> {
+interface SampleSet extends Readonly<Required<Omit<SampleSpec, 'jitter' | 'under'>>> {
   readonly name: string;
   readonly jitter: number | undefined;
   readonly under: string | undefined;
@@ -76,8 +76,6 @@ export function registerSamples(name: string, spec: SampleSpec): void {
 
 // Every registered set, in the order registered.
 export function sampleSets(): SampleSet[] { return [...registry().values()]; }
-
-export function sampleSet(name: string): SampleSet | undefined { return registry().get(name); }
 
 // decodeSamples starts decoding every set not yet started, on ctx. A take that fails is left
 // out; a set none of whose takes decodes is failed, and its recipe plays.

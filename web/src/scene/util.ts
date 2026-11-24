@@ -15,8 +15,8 @@ export function linInto(out: Float32Array, o: number, hex: number, mul = 1): voi
   out[o] = tmpColor.r * mul; out[o + 1] = tmpColor.g * mul; out[o + 2] = tmpColor.b * mul;
 }
 
-export const PLAYER_COLORS = [0x3d8bff, 0xff4d4d, 0x3ddc84, 0xffc53d, 0xc77dff, 0x2fd6d6, 0xff8c3d, 0xf06bb5];
-export const BASE_COLOR = 0x8a8676;
+const PLAYER_COLORS = [0x3d8bff, 0xff4d4d, 0x3ddc84, 0xffc53d, 0xc77dff, 0x2fd6d6, 0xff8c3d, 0xf06bb5];
+const BASE_COLOR = 0x8a8676;
 export function playerColor(id: number): number {
   return id < 0 ? BASE_COLOR : PLAYER_COLORS[id % PLAYER_COLORS.length];
 }

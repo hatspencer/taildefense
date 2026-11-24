@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -91,59 +90,6 @@ func pathIn(self Self, peers []Peer, ip string) (string, string, bool) {
 // PeerPath is PathTo against a status already read, for callers that hold one.
 func PeerPath(self Self, peers []Peer, ip string) (path, via string, ok bool) {
 	return pathIn(self, peers, ip)
-}
-
-// PingResult is the last pong of a `tailscale ping`.
-type PingResult struct {
-	Via  string        // ip:port, the DERP region or the peer relay's address
-	Path string        // PathDirect, PathDERP or PathPeerRelay
-	RTT  time.Duration // round trip of that pong
-}
-
-// Ping runs `tailscale ping`, which sends disco pings that also nudge tailscale into trying a
-// direct path. It exits non-zero when no direct path came up within n pings, yet the pongs it
-// printed through DERP are still the answer, so the output is read either way.
-func Ping(ctx context.Context, ip string, n int) (PingResult, error) {
-	if n < 1 {
-		n = 1
-	}
-	out, err := runFor(ctx, time.Duration(n)*2*time.Second+3*time.Second,
-		"ping", "-c", strconv.Itoa(n), "--timeout", "2s", ip)
-	if r, ok := parsePing(out); ok {
-		return r, nil
-	}
-	if err != nil {
-		return PingResult{}, err
-	}
-	return PingResult{}, errors.New("tailscale ping " + ip + ": no pong")
-}
-
-var pongLine = regexp.MustCompile(`^pong from \S+ \(.*\) via (\S+) in (\S+)$`)
-
-func parsePing(out []byte) (PingResult, bool) {
-	var r PingResult
-	found := false
-	for _, line := range strings.Split(string(out), "\n") {
-		m := pongLine.FindStringSubmatch(strings.TrimSpace(line))
-		if m == nil {
-			continue
-		}
-		rtt, err := time.ParseDuration(m[2])
-		if err != nil {
-			continue
-		}
-		via := m[1]
-		switch {
-		case strings.HasPrefix(via, "DERP(") && strings.HasSuffix(via, ")"):
-			r = PingResult{Path: PathDERP, Via: via[len("DERP(") : len(via)-1], RTT: rtt}
-		case strings.HasPrefix(via, "peer-relay(") && strings.HasSuffix(via, ")"):
-			r = PingResult{Path: PathPeerRelay, Via: via[len("peer-relay(") : len(via)-1], RTT: rtt}
-		default:
-			r = PingResult{Path: PathDirect, Via: via, RTT: rtt}
-		}
-		found = true
-	}
-	return r, found
 }
 
 // NetReport is what `tailscale netcheck` found about this machine's network: whether direct

@@ -24,7 +24,7 @@ function texelNoise(perTile: number, seed: number) {
   return fract(sin(dot(cell.add(seed), vec2(12.9898, 78.233))).mul(43758.5453));
 }
 
-export const WATER_Y = -0.24;
+const WATER_Y = -0.24;
 // The ground's pieces, in tiles a side.
 const GROUND_PIECE = 64;
 

@@ -103,9 +103,3 @@ export function slowNoise(r: () => number, sr: number, sec: number, rate: number
   }
   return out;
 }
-
-// Mixes src into dst starting at second at, scaled by gain.
-export function mixIn(dst: Buf, src: Buf, at: number, gain: number): void {
-  const o = Math.floor(at * dst.sr);
-  for (let i = 0; i < src.len && o + i < dst.len; i++) if (o + i >= 0) dst.d[o + i] += src.d[i] * gain;
-}

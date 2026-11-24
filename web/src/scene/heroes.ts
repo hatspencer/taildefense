@@ -814,7 +814,7 @@ export const GOGGLES: Part[] = [
   part(box(0.08, 0.07, 0.07), 0x22251f, 0.22, 1.255, -0.06),
 ];
 
-export interface Figure { torso: Part[]; head: Part[]; tail: Part[]; pack: Part[]; eyes: Part[]; mouth: Part[] }
+interface Figure { torso: Part[]; head: Part[]; tail: Part[]; pack: Part[]; eyes: Part[]; mouth: Part[] }
 
 // The figure above the hips, facing +x, at its height standing: torso shaped by body, outfit
 // over it, head, face, hair and headgear, and what they carry on their back; in the pieces

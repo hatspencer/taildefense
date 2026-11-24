@@ -48,7 +48,7 @@ export function navKey(e: KeyboardEvent, root: HTMLElement): boolean {
 }
 
 // The controller: pressed edges of the buttons the windows use, read once a frame.
-export interface PadPress { up: boolean; down: boolean; ok: boolean; back: boolean; menu: boolean }
+interface PadPress { up: boolean; down: boolean; ok: boolean; back: boolean; menu: boolean }
 
 export class Pad {
   private was = 0;

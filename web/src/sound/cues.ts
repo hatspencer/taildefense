@@ -13,10 +13,8 @@ declare const __SOUND_CUES__: string;
 // sent for them.
 //
 // They are not anywhere, so they skip the world's placing, muffling and ducking, and go in
-// through musicBus, a gain into the mix before the limiter: the VOLUME setting applies to them.
-// The MUSIC setting's level belongs on musicBus too: whoever plays the music can either send
-// the loops through cues.musicBus and set its gain, or hand their own music gain to
-// cues.useBus(node) so the cues follow it.
+// through a bus of their own, a gain into the mix before the limiter: the VOLUME setting applies
+// to them, and the MUSIC setting through level.
 //
 // The recordings are decoded once, the first frame the sound engine is running, off the page's
 // thread; a cue asked for before its recording is ready is let go: a late cue says the wrong thing.
@@ -45,7 +43,6 @@ interface Playing { src: AudioBufferSourceNode; g: GainNode; prio: number; end: 
 
 export class Cues {
   private bus: GainNode | null = null;
-  private target: AudioNode | null = null;
   private bufs = new Map<string, AudioBuffer>();
   private decoding = false;
   private now: Playing | null = null;
@@ -56,16 +53,6 @@ export class Cues {
   private stood = false;
 
   constructor(private readonly synth: Synth) {}
-
-  // The gain the cues go through, made with the context; null until the sound has started.
-  get musicBus(): GainNode | null { this.connect(); return this.bus; }
-
-  // useBus sends the cues through node (a MUSIC volume gain, say) rather than straight into the
-  // mix; node is the music player's to connect onwards.
-  useBus(node: AudioNode): void {
-    this.target = node;
-    if (this.bus) { this.bus.disconnect(); this.bus.connect(node); }
-  }
 
   // level follows the MUSIC setting (0..100): the default 50 plays the cues as cut, 0 silences
   // them, 100 lifts them half again.
@@ -78,7 +65,7 @@ export class Cues {
     const ctx = this.synth.ctx, input = this.synth.input;
     if (this.bus || !ctx || !input) return;
     this.bus = ctx.createGain();
-    this.bus.connect(this.target ?? input);
+    this.bus.connect(input);
   }
 
   onFrame(game: Game): void {

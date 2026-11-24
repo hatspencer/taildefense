@@ -10,7 +10,7 @@ const RAIN_SKY = new THREE.Color(0x343a40), FOG_SKY = new THREE.Color(0x7a807c),
 const FLASH_SKY = new THREE.Color(0xd8e0ff), COOL_SUN = new THREE.Color(0xa8b8d0), WET_HEMI = new THREE.Color(0x9aa6b4);
 const SNOW_GROUND = new THREE.Color(0xc8ccd2), GROUND = new THREE.Color(0x4a4632);
 
-export interface Backend { name: 'WebGPU' | 'WebGL2'; }
+interface Backend { name: 'WebGPU' | 'WebGL2'; }
 
 // The renderer, scene, camera and lights. The sun's shadow camera follows the view target
 // so the shadow map only covers what is on screen and stays crisp.

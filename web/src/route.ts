@@ -10,7 +10,7 @@ const PAD = 10; // the window reaches this far past the build ring
 const ENTRIES = 8;
 const FAR = 1 << 30;
 
-export interface RouteSet {
+interface RouteSet {
   // Each entry's way in as tile indices of the window, generator last; empty when it has none.
   paths: Int32Array[];
   // The average walk in from the entries, in tiles; -1 when the base is sealed.

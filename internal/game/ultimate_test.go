@@ -298,3 +298,18 @@ func TestUltimateMeterGrowsSlowerLate(t *testing.T) {
 		t.Fatalf("hard wave 24: %.1f", got)
 	}
 }
+
+// FixCost is what FixAll would cost now: every ghost rebuilt and every damaged structure
+// mended, at the price building and repairing them one by one would take.
+func (w *World) FixCost() int32 {
+	var cost int32
+	for i := range w.Structs {
+		s := &w.Structs[i]
+		if s.Ghost {
+			cost += Structs[s.Kind].Price
+		} else if s.Alive && !s.mended() {
+			cost += repairCost(s)
+		}
+	}
+	return cost
+}

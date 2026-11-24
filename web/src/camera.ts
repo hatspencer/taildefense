@@ -11,7 +11,7 @@ CameraControls.install({
 
 // 55° above the horizon, as a polar angle from straight up.
 const POLAR = (90 - 55) * Math.PI / 180;
-export const MIN_DIST = 12, MAX_DIST = 75;
+const MIN_DIST = 12, MAX_DIST = 75;
 
 // The view: camera-controls orbiting a ground point with the tilt locked. Middle drag and
 // Alt+wheel turn it, the wheel dollies. Left and right buttons stay free for the game.

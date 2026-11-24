@@ -55,9 +55,6 @@ const (
 	windedUntil  = .35    // the bar a winded survivor needs back before sprinting again
 )
 
-// SprintInfo is sprinting's numbers, for the client.
-func SprintInfo() (mul, seconds, regen float32) { return sprintMul, 1 / sprintDrain, 1 / staminaRegen }
-
 // Sprinting reports whether p runs at sprint speed now.
 func (p *Player) Sprinting() bool { return p.Sprint && !p.Winded && p.Alive }
 
