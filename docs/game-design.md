@@ -204,6 +204,10 @@ endless, which goes on as before until the generator falls.
   shows on the map and the minimap only once a survivor's light has fallen on it, and the host
   says so. The evac call names the direction anyway, and the Huey's landing lights show it, so
   a team that never went looking still gets a chance, just a worse one.
+- **The pad stays clear of crates, as it does of buildings,** since the Huey lands there. A
+  supply drop picks its zone at least two tiles off the concrete, and the wrecks and crates
+  scattered when the map is dealt keep four tiles off it; the pad is placed first, so the map
+  is laid round it. An endless game's drops go anywhere, as it has no pad.
 - **Lift-off is a scene.** The camera rides the Huey for everyone, black bars slide in, it
   banks round for home and climbs away off the edge of the map; only then does the field
   report come up. It is stamped Extracted, or Left behind if the Huey left empty, and every

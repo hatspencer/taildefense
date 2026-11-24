@@ -44,6 +44,8 @@ const (
 	boardTime   = 1   // seconds of climbing in, unhurt
 	padHalf     = 3   // the pad is 2*padHalf tiles square, centred on PadX, PadY
 	padSpread   = 4   // tiles either side of the difficulty's Pad distance it may lie
+	crateClear  = 2   // tiles from the pad's edge to the middle of a supply crate at the nearest
+	lootClear   = 4   // tiles from the pad's edge to the middle of a scattered wreck or crate at the nearest
 )
 
 // EvacInfo is the extraction's timing, for the client: the Huey's flight in, how long it
@@ -151,6 +153,12 @@ func (w *World) onPad(x, y int) bool {
 		return false
 	}
 	return abs32(float32(x)+.5-w.PadX) < padHalf+1 && abs32(float32(y)+.5-w.PadY) < padHalf+1
+}
+
+// nearPad reports whether x, y is on the helipad or within m tiles of its edge, whether or
+// not the game has an evac.
+func (w *World) nearPad(x, y, m float32) bool {
+	return abs32(x-w.PadX) < padHalf+m && abs32(y-w.PadY) < padHalf+m
 }
 
 // lastWave reports whether the wave just cleared is the one that ends the game.
