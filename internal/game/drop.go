@@ -57,7 +57,8 @@ func (w *World) callDrop() {
 	w.note(1, "supply drop inbound: a Huey is bringing a crate in, %s", w.where(x, y))
 }
 
-// dropZone picks open ground well outside the walls that a survivor can walk to.
+// dropZone picks open ground well outside the walls, clear of the helipad, that a survivor
+// can walk to.
 func (w *World) dropZone() (float32, float32, bool) {
 	core := &w.Structs[w.Core]
 	for try := 0; try < 200; try++ {
@@ -75,7 +76,8 @@ func (w *World) dropZone() (float32, float32, bool) {
 				clear = walkable(w, tx, ty) && w.StructAt(tx, ty) < 0
 			}
 		}
-		if !clear {
+		// Not on the helipad or by it: the Huey lands there.
+		if !clear || !w.Endless() && w.nearPad(float32(int(x))+.5, float32(int(y))+.5, crateClear) {
 			continue
 		}
 		// Reachable from the base: a path that ends at the spot.

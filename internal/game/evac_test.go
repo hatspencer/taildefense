@@ -183,3 +183,37 @@ func TestAtNightTheHelipadHasToBeFound(t *testing.T) {
 		t.Error("by day the helipad has to be found")
 	}
 }
+
+func TestSupplyDropsNeverLandOnTheHelipad(t *testing.T) {
+	for seed := uint64(1); seed <= 30; seed++ {
+		for diff := Difficulty(0); diff < NumDifficulties; diff++ {
+			w := NewGame(seed, diff)
+			for i := 0; i < 20; i++ {
+				x, y, ok := w.dropZone()
+				if ok && w.nearPad(x, y, crateClear) {
+					t.Fatalf("seed %d, %s: a crate drops at %v,%v, by the pad at %v,%v", seed, diff, x, y, w.PadX, w.PadY)
+				}
+			}
+		}
+	}
+}
+
+func TestNoLootIsLaidOnTheHelipad(t *testing.T) {
+	for seed := uint64(1); seed <= 30; seed++ {
+		for diff := Difficulty(0); diff < NumDifficulties; diff++ {
+			w := NewGame(seed, diff)
+			for _, s := range w.Sites {
+				for ty := int(s.Y); ty < int(s.Y)+int(s.H); ty++ {
+					for tx := int(s.X); tx < int(s.X)+int(s.W); tx++ {
+						if w.onPad(tx, ty) {
+							t.Fatalf("seed %d, %s: %s at %d,%d is on the pad at %v,%v", seed, diff, SiteDefs[s.Kind].Name, s.X, s.Y, w.PadX, w.PadY)
+						}
+					}
+				}
+				if (s.Kind == SiteCrate || s.Kind.Wreck()) && w.nearPad(s.SX, s.SY, lootClear) {
+					t.Fatalf("seed %d, %s: %s at %v,%v is by the pad at %v,%v", seed, diff, SiteDefs[s.Kind].Name, s.SX, s.SY, w.PadX, w.PadY)
+				}
+			}
+		}
+	}
+}
