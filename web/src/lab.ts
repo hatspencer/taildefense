@@ -1,6 +1,6 @@
 import {
   Art, ART_TIME, BlastKind, CROWBAR, EffectKind, FISSURE_EVERY, GREAT, OWNED_BREAKER, OWNED_TEMPERED, TRACER_HELI, TRACER_SPLIT, TRACER_HOMERUN, TRACER_HOMERUN_ROUND, K_TESLA, KATANA, OWNED_DUAL, OWNED_DUAL_KATANA, TRACER_FLASH, TRACER_FOLLOW, TRACER_GREAT,
-  TRACER_KATANA, TRACER_MOON, THROW_FLIGHT, TRACER_ARC, TRACER_NAPALM, CX_AIR, CX_HELD, K_BAIT, K_CATAPULT, CF_ASLEEP, CF_BURNING, CF_GUARD, CF_STRIKE, CF_WINDUP, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_FIRING, PF_HURT, PF_MOVING, PF_RELOADING, Player,
+  TRACER_KATANA, TRACER_MOON, THROW_FLIGHT, K_SNIPER, TURRET_TRACKS, TRACER_ARC, TRACER_NAPALM, CX_AIR, CX_HELD, K_BAIT, K_CATAPULT, CF_ASLEEP, CF_BURNING, CF_GUARD, CF_STRIKE, CF_WINDUP, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_FIRING, PF_HURT, PF_MOVING, PF_RELOADING, Player, RIFLE,
 } from './protocol';
 import type { Game } from './state';
 
@@ -15,10 +15,14 @@ import type { Game } from './state';
 // tempered greatsword raised and slammed down, the shockwave going out every way, the ground it
 // cracks erupting, and Worldbreaker detonating it as it closes. Past them, the turret evolutions' shots ('fx'): a napalm missile flying
 // and bursting, and an arc web striking a knot of points. Past those ('huey'), a supply Huey
-// hovering with its door gunner sweeping the ground around it. Past that ('traps'), a bait pit
-// and a catapult pit going off on a loop over a stream of creeps, with the state bits the host
-// sends: the pit knotting eight walkers and letting them go, the catapult throwing three at a
-// time back up the road. It takes the demo's world over after
+// hovering with its door gunner sweeping the ground around it. And ('sniper') the demo base's
+// sniper tower made fully upgraded, its laser on a big creep pacing to and fro outside the wall
+// and a round into it every 1.45 s, its fastest reload: the recoil, the blast and the laser
+// coming back on. A survivor ('awm', h19) holds a fully bought Rifle, the AWM, firing it at its
+// rate, holding still for three rounds at a time.
+// Past that ('traps'), a bait pit and a catapult pit going off on a loop over a stream of creeps,
+// with the state bits the host sends: the pit knotting eight walkers and letting them go, the
+// catapult throwing three at a time back up the road. It takes the demo's world over after
 // its first frame and stops it, then poses everything itself.
 
 const COLS = ['walk', 'idle', 'attack', 'hit', 'burn', 'sleep', 'die'] as const;
@@ -33,7 +37,7 @@ export class Lab {
   private last = 0;
   // Player poses, by player slot.
   private poses = ['circle', 'sprint', 'loot', 'revive', 'reload', 'taunt', 'down', 'shoot', 'dual', 'thrown',
-    'katana', 'katanas', 'flash', 'great', 'skyfall', 'evolved', 'homerun', 'bonebreaker', 'worldsplitter'];
+    'katana', 'katanas', 'flash', 'great', 'skyfall', 'evolved', 'homerun', 'bonebreaker', 'worldsplitter', 'awm'];
   // The swing counter each legendary pose last showed, to cut a tracer when it moves.
   private swung: number[] = [];
   // Worldsplitter's moments already sent (the cut, each burst, the detonation), by name, with
@@ -47,10 +51,12 @@ export class Lab {
   }
 
   // Where to look: the whole bench, or one creep row (0..10), or the survivors ('h'), or one
-  // of them ('h0'..'h18'), or the crowbar's Home Run ('crowbar'), or Worldsplitter
+  // of them ('h0'..'h19'), or the crowbar's Home Run ('crowbar'), or Worldsplitter
   // ('worldsplitter'), or the turret shots ('fx').
   center(at = ''): [number, number] {
     if (at === 'fx') return [this.fx() + 4.5, this.y0 + 2.5];
+    if (at === 'sniper') { const s = this.dressSniper(); if (s) return [s[0], s[1] - 3.5]; }
+    if (at === 'awm') return this.spot(19);
     if (at === 'huey') return [this.fx() + 22, this.y0 - 2]; // north of it, as the Huey is up in the air
     if (at === 'traps') { const [bx, by] = this.trapsAt(); return [bx + 7, by]; }
     if (/^h\d+$/.test(at)) return this.spot(Number(at.slice(1)));
@@ -68,8 +74,46 @@ export class Lab {
   private spot(i: number): [number, number] {
     const hx = this.x0 + COLS.length * DX + 2.5;
     if (i === 18) return [hx + 7.5, this.y0 + 4 * DY];
+    if (i === 19) return [hx + 7.5 + 3.4, this.y0 + 3 * DY];
     if (i >= 16) return [hx + 7.5 + (i % 2) * 3.4, this.y0 + 2 * DY];
     return [hx + (i % 2) * 3.4, this.y0 + Math.floor(i / 2) * DY];
+  }
+
+  // The demo base's first sniper tower's centre, or null.
+  private sniper(): [number, number] | null {
+    const f = this.game.cur;
+    for (let i = 0; i < f.nStructs; i++) if (f.sAlive[i] && f.sKind[i] === K_SNIPER) return [f.sX[i] + 0.5, f.sY[i] + 0.5];
+    return null;
+  }
+
+  // Makes the demo base's sniper tower fully upgraded (every track at the top, evolved into
+  // Anti-materiel); returns its centre.
+  private dressSniper(): [number, number] | null {
+    const g = this.game, f = g.cur, wd = g.welcome!;
+    for (let i = 0; i < f.nStructs; i++) {
+      if (!f.sAlive[i] || f.sKind[i] !== K_SNIPER) continue;
+      for (let t = 0; t < TURRET_TRACKS; t++) f.sLv[i * TURRET_TRACKS + t] = wd.maxLevel;
+      f.sLevel[i] = 1 + wd.maxLevel * TURRET_TRACKS;
+      f.sEvo[i] = 2;
+      g.structsVersion++;
+      return [f.sX[i] + 0.5, f.sY[i] + 0.5];
+    }
+    return null;
+  }
+
+  // The sniper's mark: the biggest kind of creep, pacing six tiles to and fro seven tiles north
+  // of the tower, put in as creep n; returns the count with it.
+  private sniperMark(t: number, n: number): number {
+    const s = this.sniper(), g = this.game, f = g.cur, wd = g.welcome!;
+    if (!s) return n;
+    let k = 0;
+    for (let i = 1; i < wd.creeps.length; i++) if (wd.creeps[i].hp > wd.creeps[k].hp) k = i;
+    const u = (t % 8) / 8, along = u < 0.5 ? u * 2 : 2 - u * 2, id = 99;
+    const x = s[0] - 3 + along * 6, y = s[1] - 7;
+    f.cId[n] = id; f.cKind[n] = k; f.cFlags[n] = 0; f.cFx[n] = 0; f.cTarget[n] = 255; f.cHp[n] = 255;
+    f.cX[n] = x; f.cY[n] = y; g.rx[n] = x; g.ry[n] = y; g.heading[id] = u < 0.5 ? 0 : Math.PI;
+    g.indexById[id] = n;
+    return n + 1;
   }
 
   // The left edge of the turret shots, past the survivors.
@@ -118,6 +162,7 @@ export class Lab {
         n++;
       }
     }
+    n = this.sniperMark(t, n);
     n = this.traps(t, n);
     f.nCreeps = n;
     f.nBlasts = 0; f.nTracers = 0; f.nDeaths = 0; f.nEffects = 0;
@@ -128,7 +173,7 @@ export class Lab {
     for (let i = 0; i < this.poses.length; i++) {
       const p = f.players[i], pose = this.poses[i];
       // Health varies so the portraits show their wounds; the sprinter has a medkit working.
-      p.id = i; p.look = (i * 2654435761) >>> 0; p.cur = this.gun >= 0 ? this.gun : i % 6; p.hp = [80, 50, 55, 80, 22, 80, 0, 45, 70, 35, 90, 75, 60, 85, 65, 95, 70, 88, 100][i]; p.maxHp = 100;
+      p.id = i; p.look = (i * 2654435761) >>> 0; p.cur = this.gun >= 0 ? this.gun : i % 6; p.hp = [80, 50, 55, 80, 22, 80, 0, 45, 70, 35, 90, 75, 60, 85, 65, 95, 70, 88, 100, 90][i]; p.maxHp = 100;
       p.heal = pose === 'sprint' ? 5 : 0;
       p.flags = PF_CONNECTED | PF_ALIVE; p.order = Order.Idle; p.channel = 0; p.emote = Emote.None; p.emoteLeft = 0; p.sprinting = false;
       p.held = false; p.airborne = false; p.stunned = false; p.owned = 0;
@@ -162,6 +207,20 @@ export class Lab {
           if (u < hold) p.held = true;
           else if (u < hold + THROW_FLIGHT) { p.airborne = true; x -= (u - hold) / THROW_FLIGHT * 3; }
           else x -= 3;
+          break;
+        }
+        case 'awm': {
+          // The Rifle with all four tracks at the top, a round at its rate; it holds each
+          // heading for three rounds, so the kick is not lost in a turn, then turns a step.
+          p.cur = RIFLE; p.owned = 1 << RIFLE; p.levels.fill(0);
+          for (let k = 0; k < 4; k++) p.levels[RIFLE * 4 + k] = wd.maxLevel;
+          aim = Math.floor(t / 2) * 0.9; p.flags |= PF_FIRING;
+          const n = Math.floor(t * 1.5);
+          if (fresh && (this.swung[i] ?? -1) !== n) {
+            this.swung[i] = n;
+            const j = f.nTracers++;
+            f.tX0[j] = x; f.tY0[j] = y; f.tX1[j] = x + Math.cos(aim) * 12; f.tY1[j] = y + Math.sin(aim) * 12; f.tKind[j] = RIFLE;
+          }
           break;
         }
         default: [x, y, aim] = this.legend(p, pose, t, x, y, i, fresh); break;
@@ -287,6 +346,9 @@ export class Lab {
       const i = f.nBlasts++;
       f.bX[i] = bx; f.bY[i] = by; f.bR[i] = r; f.bKind[i] = k;
     };
+    // A round from the sniper into its mark every 29 frames (1.45 s at 20 Hz).
+    const sn = this.sniper(), mk = this.game.indexById[99];
+    if (sn && mk >= 0 && this.tick % 29 === 0) tracer(sn[0], sn[1], f.cX[mk], f.cY[mk], 16 + K_SNIPER);
     const m = this.tick % 28, step = 0.9;
     if (m < 10) tracer(x + m * step, y, x + (m + 1) * step, y, TRACER_NAPALM);
     else if (m === 10) { blast(x + 9, y, 1.5, BlastKind.Explosion); blast(x + 9, y, 1.5, BlastKind.Napalm); }

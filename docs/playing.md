@@ -86,7 +86,8 @@ dual pistols, each as upgraded as yours, fire twice as fast from twice the magaz
 one leaves you the other.
 
 Each gun has its range. The shotgun is brutal within a few tiles and loses up to two thirds of
-its punch by the end of its reach; the rifle hits as hard at 28 tiles as at 1. The minigun
+its punch by the end of its reach; the rifle hits as hard at 28 tiles as at 1, and once all four of its tracks are at 5 it is drawn as
+the sniper tower's huge green rifle, with a bigger kick and flash (it hits no harder for it). The minigun
 starts at under a third of its rate and takes two seconds of firing to spin up, so bring it up
 before the crowd arrives, not after; the SMG fires full from the first round. A rocket bursting
 near you hurts you too, up to 15 health a rocket, so switch guns when creeps reach you. The
@@ -203,7 +204,7 @@ Six turrets, from the build bar (B, then the number):
 | Cannon (4) | 240 | slow, heavy shells that burst on a crowd |
 | Frost tower (5) | 180 | pulses cold round itself, slowing everything in reach by nearly half; it barely hurts, but whatever else covers its reach gets twice as long at them |
 | Tesla coil (6) | 280 | lightning that jumps from creep to creep, three at a time to start; the more of them bunched together, the better |
-| Sniper tower (7) | 380 | a heavy round every few seconds from far off, at the toughest creep it can see, tearing out a share of its health besides, armour and all: the bigger the creep the harder it hits, so it is the boss killer |
+| Sniper tower (7) | 380 | a heavy round every few seconds from far off, at the toughest creep it can see, tearing out a share of its health besides, armour and all: the bigger the creep the harder it hits, so it is the boss killer. Its watchtower stands over every other turret, with a huge rifle that kicks back hard and blasts out of its brake on every shot, and a red laser sight on it rests on its mark |
 | Missile battery (8) | 420 | a salvo of rockets, each at a different creep, with a wide blast; they come down where the creep stood, give or take a tile or so, so they wreck a crowd and waste themselves on a lone or a quick one |
 
 A turret goes up the way a weapon does: four tracks, damage, fire rate, range and a special,

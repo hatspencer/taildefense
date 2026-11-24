@@ -1,7 +1,8 @@
 import * as THREE from 'three/webgpu';
 import { color, positionWorld, sin, time } from 'three/tsl';
-import type { Gun } from '../protocol';
+import { type Gun, RIFLE } from '../protocol';
 import type { Game } from '../state';
+import { awmFull } from './awm';
 import { gunParts } from './heroes';
 import { litMaterial } from './structs';
 import { merge, octa, playerColor, writeMatrix } from './util';
@@ -51,8 +52,10 @@ export class Guns {
     return g;
   }
 
-  private make(g: Gun): THREE.Mesh {
-    const m = new THREE.Mesh(this.geo(g.kind, g.by, g.evo), this.mat);
+  // A dropped Rifle with every track bought keeps its AWM look.
+  private make(g: Gun, max: number): THREE.Mesh {
+    const evo = g.kind === RIFLE && awmFull(g.lv, 0, max) ? 1 : g.evo;
+    const m = new THREE.Mesh(this.geo(g.kind, g.by, evo), this.mat);
     m.castShadow = true;
     // On its side, the muzzle off at an angle of its own.
     const yaw = ((g.id * 2654435761) >>> 0) / 4294967296 * Math.PI * 2;
@@ -80,7 +83,7 @@ export class Guns {
     let n = 0;
     for (const g of f.guns) {
       seen.add(g.id);
-      const m = this.meshes.get(g.id) ?? this.make(g);
+      const m = this.meshes.get(g.id) ?? this.make(g, game.welcome?.maxLevel ?? 5);
       this.meshes.set(g.id, m);
       const ph = (g.id * 0.618) % 1 * 6.28;
       m.userData.hl = g.id === this.hovered ? 1 : 0.3 + 0.25 * Math.sin(t * 3.2 + ph);
