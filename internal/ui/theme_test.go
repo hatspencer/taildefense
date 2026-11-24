@@ -4,8 +4,6 @@ import (
 	"math"
 	"strings"
 	"testing"
-
-	"github.com/charmbracelet/lipgloss"
 )
 
 // The default theme is the one in force when nothing has been chosen, and it is taildefense's
@@ -98,7 +96,7 @@ func TestEveryThemeIsWellFormed(t *testing.T) {
 		if rest != th.Accent {
 			t.Errorf("%s: the resting ramp stop is %+v, the accent is %+v", th.Name, rest, th.Accent)
 		}
-		for _, c := range append([]lipgloss.AdaptiveColor{th.Accent, th.OnAccent, th.Link}, th.Ramp...) {
+		for _, c := range append([]AdaptiveColor{th.Accent, th.OnAccent, th.Link}, th.Ramp...) {
 			for _, hex := range []string{c.Light, c.Dark} {
 				if len(hex) != 7 || hex[0] != '#' {
 					t.Errorf("%s: %q is not a #rrggbb colour", th.Name, hex)
@@ -192,18 +190,18 @@ func TestAFullThemeNamesEveryColour(t *testing.T) {
 		if !th.Full() {
 			continue
 		}
-		for name, c := range map[string]lipgloss.AdaptiveColor{
+		for name, c := range map[string]AdaptiveColor{
 			"Fg": th.Fg, "Dim": th.Dim, "Surface": th.Surface,
 			"Pass": th.Pass, "Fail": th.Fail, "Warn": th.Warn, "Info": th.Info, "Step": th.Step,
 			"Accent": th.Accent, "OnAccent": th.OnAccent, "Link": th.Link,
 		} {
-			if c == (lipgloss.AdaptiveColor{}) {
+			if c == (AdaptiveColor{}) {
 				t.Errorf("%s: %s is unset, so it would fall back to an adaptive pair", th.Name, name)
 			}
 		}
 		// Pinned, not adaptive: the theme owns the background, so there is nothing left to
 		// adapt to and a pair with two different sides means one of them is unreachable.
-		for name, c := range map[string]lipgloss.AdaptiveColor{
+		for name, c := range map[string]AdaptiveColor{
 			"Bg": th.Bg, "Fg": th.Fg, "Accent": th.Accent,
 		} {
 			if c.Light != c.Dark {
@@ -223,11 +221,11 @@ func TestATerminalFollowingThemeNamesNoBackgroundColours(t *testing.T) {
 		if th.Full() {
 			continue
 		}
-		for name, c := range map[string]lipgloss.AdaptiveColor{
+		for name, c := range map[string]AdaptiveColor{
 			"Fg": th.Fg, "Dim": th.Dim, "Surface": th.Surface,
 			"Pass": th.Pass, "Fail": th.Fail, "Warn": th.Warn, "Info": th.Info, "Step": th.Step,
 		} {
-			if c != (lipgloss.AdaptiveColor{}) {
+			if c != (AdaptiveColor{}) {
 				t.Errorf("%s follows the terminal but sets %s", th.Name, name)
 			}
 		}

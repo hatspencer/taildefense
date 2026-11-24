@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 
 	"taildefense/internal/ui"
 )
@@ -126,18 +126,21 @@ func (p *pixels) setf(x, y float64, c string, lv float64) {
 }
 
 // splashStyles caches a style per colour pair; a frame has a few dozen of them.
-var splashStyles = map[[2]string]lipgloss.Style{}
+//
+// The profile is part of the key: a style carries its colours already brought down to the
+// terminal's, so one built under another profile is another style.
+var splashStyles = map[[3]string]lipgloss.Style{}
 
 func cellStyle(fg, bg string) lipgloss.Style {
-	k := [2]string{fg, bg}
+	k := [3]string{fg, bg, ui.Profile().String()}
 	s, ok := splashStyles[k]
 	if !ok {
 		s = lipgloss.NewStyle()
 		if fg != "" {
-			s = s.Foreground(lipgloss.Color(fg))
+			s = s.Foreground(ui.Color(fg))
 		}
 		if bg != "" {
-			s = s.Background(lipgloss.Color(bg))
+			s = s.Background(ui.Color(bg))
 		}
 		splashStyles[k] = s
 	}

@@ -69,7 +69,7 @@ The toolchains come as images, `golang:1.27-alpine` and `node:26-alpine`
 
 | side | dependencies |
 |---|---|
-| Go (`go.mod`) | Bubble Tea, Lip Gloss and `charmbracelet/x/ansi` for the launcher, `muesli/termenv`, `golang.org/x/term`; everything else, the WebSocket included, is the standard library |
+| Go (`go.mod`) | Bubble Tea v2, Lip Gloss v2, `charmbracelet/colorprofile` and `charmbracelet/x/ansi` for the launcher, `lucasb-eyer/go-colorful` for the colour picks, `golang.org/x/term`; everything else, the WebSocket included, is the standard library |
 | client (`web/package.json`, exact pins) | three 0.186 (`three/webgpu`, TSL), camera-controls; esbuild, TypeScript 7 and `@types/three` to build |
 
 **To run:** `td` is one static binary with the client embedded; it needs no Go, Node or

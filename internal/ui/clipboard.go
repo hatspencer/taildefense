@@ -2,7 +2,6 @@ package ui
 
 import (
 	"context"
-	"encoding/base64"
 	"os"
 	"os/exec"
 	"runtime"
@@ -22,28 +21,16 @@ import (
 // worst outcome. Whichever of the two works, works; both working puts the same text
 // there twice, which is invisible.
 //
-// The sequence is written straight to stdout rather than through Bubble Tea, which has
-// no clipboard command in this version; one write of one complete sequence, so it cannot
-// land inside a frame.
+// The launcher sends the sequence as a Bubble Tea command (tea.SetClipboard), so the program
+// writes it between frames, and calls RunClipboardTool beside it.
 
-// CopyToClipboard puts text on the clipboard, both ways, unconditionally.
-func CopyToClipboard(text string) {
-	_, _ = os.Stdout.WriteString(ClipboardSequence(text))
-	runClipboardTool(text)
-}
-
-// ClipboardSequence is the OSC 52 write: ESC ] 52 ; c ; base64 BEL.
-func ClipboardSequence(text string) string {
-	return "\x1b]52;c;" + base64.StdEncoding.EncodeToString([]byte(text)) + "\a"
-}
-
-// runClipboardTool hands the text to the first clipboard program that exists.
+// RunClipboardTool hands the text to the first clipboard program that exists.
 //
 // Wayland first, since on a Wayland session xclip talks to XWayland's clipboard, which
 // is not the one the rest of the desktop pastes from. Bounded by a timeout: a tool with
 // no display to talk to should fail at once, and one that hangs instead must not hold a
 // goroutine forever.
-func runClipboardTool(text string) {
+func RunClipboardTool(text string) {
 	for _, tool := range clipboardTools() {
 		path, err := exec.LookPath(tool[0])
 		if err != nil {

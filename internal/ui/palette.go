@@ -1,7 +1,5 @@
 package ui
 
-import "github.com/charmbracelet/lipgloss"
-
 // Helpers for packages that draw their own effects (internal/tui) and need the palette as
 // numbers rather than as styles, for example to interpolate between two stops.
 
@@ -11,7 +9,7 @@ func Motion() bool { return motion() }
 
 // Hex resolves an adaptive colour to the #rrggbb it renders as against the background in
 // force: the theme's own when it paints one, the terminal's otherwise.
-func Hex(c lipgloss.AdaptiveColor) string { return adaptiveHex(c) }
+func Hex(c AdaptiveColor) string { return adaptiveHex(c) }
 
 // Background is the colour effects are drawn on: the theme's background when it paints one,
 // otherwise a typical dark or light terminal. Use it to blend a glow toward nothing.

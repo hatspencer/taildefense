@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 
 	"taildefense/internal/platform"
 )
@@ -80,7 +80,7 @@ func SetAnimate(on bool) { animPref = on }
 // wordmark changes colour the instant a sweep begins and back again when it ends — which
 // reads as a much bigger event than the sweep itself. A test pins the two together for
 // every theme, because nothing else about the palette would reveal a drift.
-var AccentRamp []lipgloss.AdaptiveColor
+var AccentRamp []AdaptiveColor
 
 // Positions in the ramp, as fractions rather than indices counted back from the end.
 //
@@ -109,7 +109,7 @@ var rampStyles []lipgloss.Style
 func initAnim() {
 	rampStyles = make([]lipgloss.Style, len(AccentRamp))
 	for i, c := range AccentRamp {
-		rampStyles[i] = lipgloss.NewStyle().Foreground(c).Bold(true)
+		rampStyles[i] = bold(newStyle().Foreground(c.color()))
 	}
 	invalidateCandy()
 }
