@@ -587,7 +587,7 @@ func wreckKind(rng *rand.Rand, tier uint8) SiteKind {
 }
 
 // placeSites turns the ruined houses into loot sites and scatters car wrecks and crates,
-// keeping only those a survivor can reach. It draws on its own generator, so the terrain
+// keeping only those a survivor can reach and the scattered ones off the helipad. It draws on its own generator, so the terrain
 // of a seed is the same with or without them.
 func (w *World) placeSites(ruins []ruin) []Site {
 	rng := rand.New(rand.NewPCG(w.Seed, 0x100f))
@@ -697,7 +697,8 @@ func (w *World) placeSites(ruins []ruin) []Site {
 		default:
 			continue
 		}
-		if want[k] == 0 || inside(x, y, 4) || !reach(sx, sy) {
+		// Not on the helipad or by it, placed before the sites: the Huey lands there.
+		if want[k] == 0 || inside(x, y, 4) || w.nearPad(sx, sy, lootClear) || !reach(sx, sy) {
 			continue
 		}
 		wanted := k
