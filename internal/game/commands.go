@@ -397,21 +397,6 @@ func (w *World) BuildFacing(p *Player, k StructKind, x, y int, facing uint8) err
 	return nil
 }
 
-// FixCost is what FixAll would cost now: every ghost rebuilt and every damaged structure
-// mended, at the price building and repairing them one by one would take.
-func (w *World) FixCost() int32 {
-	var cost int32
-	for i := range w.Structs {
-		s := &w.Structs[i]
-		if s.Ghost {
-			cost += Structs[s.Kind].Price
-		} else if s.Alive && !s.mended() {
-			cost += repairCost(s)
-		}
-	}
-	return cost
-}
-
 // repairCost is the gold mending s to full costs, rounded up.
 func repairCost(s *Structure) int32 {
 	return int32(math.Ceil(float64((s.MaxHP - s.HP) * RepairRate(s))))
@@ -469,23 +454,6 @@ func (w *World) FixAll(p *Player) (rebuilt, mended int, err error) {
 		w.toast(p, 2, "not enough gold for the rest")
 	}
 	return rebuilt, mended, nil
-}
-
-// Nearest returns the index of the closest live structure within r of the player, optionally
-// only turrets, or -1.
-func (w *World) Nearest(p *Player, r float32, turretsOnly bool) int {
-	best, bi := r*r, -1
-	for i := range w.Structs {
-		s := &w.Structs[i]
-		if !s.Alive || (turretsOnly && !Structs[s.Kind].Turret) {
-			continue
-		}
-		dx, dy := s.CX()-p.X, s.CY()-p.Y
-		if dd := dx*dx + dy*dy; dd < best {
-			best, bi = dd, i
-		}
-	}
-	return bi
 }
 
 // UpgradeStruct raises one of a turret's tracks, or a wall's or gate's level (t unused).

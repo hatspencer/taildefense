@@ -99,23 +99,22 @@ const (
 
 // CreepDef is a creep type's base stats, before the wave's scaling.
 type CreepDef struct {
-	Name     string
-	HP       float32
-	Speed    float32 // tiles per second
-	Damage   float32 // per hit
-	Rate     float32 // hits per second
-	Radius   float32
-	Reach    float32 // attack distance beyond the radius; spitters attack from range
-	Armor    float32 // flat damage reduction per hit
-	Bounty   int32
-	Cost     float32 // wave budget units
-	Size     uint8   // drawn as Size x Size pixels
-	MinWave  int
-	Aggro    float32 // distance at which a player is chased instead of the core
-	Windup   float32 // seconds a blow is telegraphed before it lands
-	Ranged   bool
-	Sprint   float32 // chance one of this kind is a sprinter, faster than a survivor in a chase
-	Unlocked string
+	Name    string
+	HP      float32
+	Speed   float32 // tiles per second
+	Damage  float32 // per hit
+	Rate    float32 // hits per second
+	Radius  float32
+	Reach   float32 // attack distance beyond the radius; spitters attack from range
+	Armor   float32 // flat damage reduction per hit
+	Bounty  int32
+	Cost    float32 // wave budget units
+	Size    uint8   // drawn as Size x Size pixels
+	MinWave int
+	Aggro   float32 // distance at which a player is chased instead of the core
+	Windup  float32 // seconds a blow is telegraphed before it lands
+	Ranged  bool
+	Sprint  float32 // chance one of this kind is a sprinter, faster than a survivor in a chase
 }
 
 // Creeps is indexed by CreepKind.
@@ -280,7 +279,7 @@ type Stats struct {
 	Stun                                             float32 // times a hit's stun
 	Shove                                            float32 // how far each pellet pushes, before the creep's size
 	Bleed                                            float32 // a katana: the blood loss each cut builds (legend.go)
-	Mastery                                          float32 // a legendary blade: how far it has been taken, 0..masteryMax (legend.go)
+	Mastery                                          float32 // a legendary blade: how far it has been taken, 0 to 1, more for a pair (legend.go)
 	Crit, CritMul                                    float32 // melee: the chance a hit is critical and its damage then (crit.go)
 	Mag                                              int16
 	Pellets, Pierce                                  int

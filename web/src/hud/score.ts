@@ -20,7 +20,7 @@ export interface ScoreRow {
 
 // How the game ended, for the field report and its picture: overrun, or the evac Huey gone
 // with out of the n survivors still in the game aboard.
-export interface Verdict { evac: boolean; ok: boolean; stamp: string; head: string; out: number; n: number }
+interface Verdict { evac: boolean; ok: boolean; stamp: string; head: string; out: number; n: number }
 
 export function verdict(f: Frame): Verdict {
   let n = 0, out = 0;
@@ -81,7 +81,7 @@ function plural(s: string, n: number): string { return n === 1 || s.endsWith('s'
 function list(a: string[]): string { return a.length < 2 ? a.join('') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`; }
 
 // A standout of the game, for the report's citations: MVP first, then the jobs done best.
-export interface Award { title: string; why: string; row: ScoreRow }
+interface Award { title: string; why: string; row: ScoreRow }
 
 // The citations, one per job, each to whoever did it most, and only for what was done at all.
 // A survivor gets at most two, so a team of several does not read as one player's report.

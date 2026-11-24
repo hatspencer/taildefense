@@ -1,7 +1,7 @@
 import type { PathMsg } from '../protocol';
 
 // Over this average round trip the game feels late whatever the path, so the badge says so.
-export const LAG_MS = 120;
+const LAG_MS = 120;
 
 // A path as F3 shows it: the words of tailnet.PathLabel, "unknown" while tailscale has chosen none.
 export function pathLabel(p: PathMsg): string {

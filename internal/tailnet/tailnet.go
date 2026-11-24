@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"sort"
@@ -126,11 +125,10 @@ type nodeJSON struct {
 	// CurAddr is the direct endpoint in use, "" when there is none. Relay is the node's home
 	// DERP region, set whether or not traffic goes through it. PeerRelay is a peer relay's
 	// address when one carries the traffic (newer tailscale only).
-	CurAddr       string
-	Relay         string
-	PeerRelay     string
-	Active        bool
-	LastHandshake time.Time
+	CurAddr   string
+	Relay     string
+	PeerRelay string
+	Active    bool
 }
 
 // Status reads `tailscale status --json`: this machine and its peers.
@@ -246,13 +244,4 @@ func Whois(ctx context.Context, addr string) (Identity, error) {
 		id.Login = id.Host + "@" + id.Login
 	}
 	return id, nil
-}
-
-// IsTailnetIP reports whether an address is in Tailscale's CGNAT or ULA range.
-func IsTailnetIP(ip net.IP) bool {
-	if ip4 := ip.To4(); ip4 != nil {
-		return ip4[0] == 100 && ip4[1]&0xc0 == 64
-	}
-	_, ula, _ := net.ParseCIDR("fd7a:115c:a1e0::/48")
-	return ula.Contains(ip)
 }

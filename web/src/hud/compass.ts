@@ -5,7 +5,7 @@ import { el } from './dom';
 const POINTS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 
 // The compass point from one spot to another, in tiles.
-export function bearing(dx: number, dy: number): string {
+function bearing(dx: number, dy: number): string {
   const deg = (Math.atan2(dx, -dy) * 180) / Math.PI;
   return POINTS[(Math.round(deg / 45) + 8) % 8];
 }

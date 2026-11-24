@@ -3,7 +3,6 @@ package netplay
 import (
 	"fmt"
 	"math/bits"
-	"time"
 
 	"taildefense/internal/game"
 )
@@ -191,9 +190,8 @@ type Replica struct {
 	// Effects is the whole current list, replaced by every frame.
 	Effects []Effect
 
-	FrameAt time.Time
-	Synced  bool // a keyframe has been applied
-	Bytes   int  // payload bytes of the last frame, for the HUD
+	Synced bool // a keyframe has been applied
+	Bytes  int  // payload bytes of the last frame, for the HUD
 }
 
 // NewReplica is an empty replica sized from a welcome.
@@ -464,7 +462,6 @@ func (r *Replica) Apply(p []byte) error {
 	if key {
 		r.Synced = true
 	}
-	r.FrameAt = time.Now()
 	return nil
 }
 

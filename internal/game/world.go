@@ -24,7 +24,6 @@ type Creep struct {
 	Kind       CreepKind
 	LastHit    int8 // player who last damaged it, -1 none, for the bounty
 	Shared     bool // that hit was their turret's or a trap's, so the whole team shares the bounty
-	Hit        uint8
 
 	// Aggro: a creep hunts a survivor it was pulled, taunted or provoked by, or goes for a
 	// structure that caught its eye, instead of following the field to the generator.
@@ -182,7 +181,6 @@ type Player struct {
 	pingFree         uint32  // the tick from which a ping costs nothing; see World.Ping
 	Stamina          float32 // 0..1
 	Medkits          uint8   // carried, used one at a time with UseMedkit
-	PaidIn           int32   // gold put into the generator's tiers (PayIn)
 	Goggles          bool    // night vision: daytime sight at night, and no flashlight
 	Heal             float32 // seconds of a medkit's healing left
 	steerLeft        float32 // seconds until an OrderSteer lapses without a repeat
@@ -652,13 +650,6 @@ func (w *World) remove(idx int) {
 	w.flowDirt = w.flowDirt || !Structs[s.Kind].Floor
 }
 
-// Generate makes the terrain: grass with dirt and sand patches, lakes, forests, ruined
-// buildings, and four roads into the middle. Deterministic for a seed.
-func Generate(seed uint64, w, h int) []Tile {
-	t, _ := generate(seed, w, h)
-	return t
-}
-
 // ruin is a walled place the generator built: a ruined house, an overrun outpost or the gas
 // station's shop. For an outpost, cx, cy is the middle of its keep; for the station, pumps
 // are the tiles of its fuel pumps.
@@ -675,7 +666,9 @@ type ruin struct {
 	shrine     bool // a shrine, its gate towards yaw and its altar searched from cx, cy (legend.go)
 }
 
-// generate is Generate, also returning the ruins it built.
+// generate makes the terrain: grass with dirt and sand patches, lakes, forests, ruined
+// buildings, and four roads into the middle. Deterministic for a seed. It also returns the
+// ruins it built.
 func generate(seed uint64, w, h int) ([]Tile, []ruin) {
 	var houses []ruin
 	rng := rand.New(rand.NewPCG(seed, 0x5eed))

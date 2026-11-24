@@ -217,7 +217,6 @@ type Model struct {
 	scanned  bool
 	scanning bool
 	scanGen  int
-	scanAt   time.Time
 	jcursor  int
 	typing   bool
 	addr     lineInput
@@ -442,7 +441,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.gen != m.scanGen {
 			return m, nil
 		}
-		m.scanning, m.scanned, m.scanAt = false, true, time.Now()
+		m.scanning, m.scanned = false, true
 		m.games = msg.res.Games
 		if m.jcursor > len(m.games) {
 			m.jcursor = len(m.games)

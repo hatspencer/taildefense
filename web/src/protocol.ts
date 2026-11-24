@@ -109,7 +109,7 @@ export function dualIn(owned: number, k: number): boolean {
 // How far a survivor has taken legendary blade k, as td's WeaponState.Mastery (legend.go):
 // its track levels, 5 for an evolution and 5 more for a second katana or a tempered greatsword,
 // over 25.
-export function mastery(p: Player, k: number): number {
+function mastery(p: Player, k: number): number {
   if (k !== KATANA && k !== GREAT) return 0;
   let n = 0;
   for (let t = 0; t < 4; t++) n += p.levels[k * 4 + t];
@@ -146,7 +146,7 @@ export const TRACER_ULT = 8;
 export interface CreepDef { name: string; hp: number; speed: number; radius: number; size: number; ranged: boolean; bounty: number; rate?: number; windup?: number }
 // A weapon's ultimate: time, how long it runs (Dead Eye: its marking); range and radius for one
 // cast at a point (target 'point'), else 0 (target 'self').
-export interface UltDef { name: string; desc: string; time: number; range: number; radius: number; target: string }
+interface UltDef { name: string; desc: string; time: number; range: number; radius: number; target: string }
 export interface WeaponDef {
   name: string; short: string; price: number; range: number; fire: string; special: string;
   costs: number[][]; values: string[][]; ult: UltDef;
@@ -157,7 +157,7 @@ export interface WeaponDef {
   // with every track at the top and evolved.
   breaker?: { name: string; desc: string; cost: number };
 }
-export interface GearDef { name: string; info: string; costs: number[] }
+interface GearDef { name: string; info: string; costs: number[] }
 export interface AbilityDef {
   name: string; key: string; desc: string; target: string; range: number; radius?: number[];
   cool: number[]; costs: number[]; always: boolean;
@@ -181,14 +181,14 @@ export interface StructDef {
   // A turret's two evolutions; range multiplies its reach.
   evolve?: { name: string; desc: string; range: number }[];
 }
-export interface SiteKindDef { name: string; search: number }
+interface SiteKindDef { name: string; search: number }
 // A loot site: the tiles it covers, the spot it is searched from, how far out it is, and how
 // hard its guards are (0 none .. 3 a lair).
 // yaw: a wreck's heading (radians, +x towards +y); the host blocks survivors with a box along it.
 // A ruined house's shape (internal/game/ruins.go).
 export const enum Ruin { Cottage = 0, TwoRoom, L, Barn, Shed, Collapsed }
 export interface SiteDef { kind: number; x: number; y: number; w: number; h: number; sx: number; sy: number; tier: number; guard: number; yaw?: number; ruin?: number }
-export interface WeatherDef { name: string; info: string }
+interface WeatherDef { name: string; info: string }
 // Where a site's loot stands: a house's search spot, the middle of a car's or crate's tile.
 export function siteX(s: SiteDef): number { return walled(s.kind) ? s.sx : s.x + s.w / 2; }
 export function siteY(s: SiteDef): number { return walled(s.kind) ? s.sy : s.y + s.h / 2; }
@@ -237,7 +237,7 @@ export interface Welcome {
 // board seconds. inbound: from the call to touchdown, the last flight of it in the air and the
 // last settle coming down; wait: how long it stays down, or last once someone is aboard;
 // depart: from lift-off to off the map, the first climb of it rising.
-export interface EvacDef {
+interface EvacDef {
   pad: { x: number; y: number }; half: number; reach: number; board: number;
   inbound: number; flight: number; settle: number; wait: number; last: number; depart: number; climb: number;
 }
@@ -277,12 +277,12 @@ export function repairCost(d: StructDef, f: Frame, i: number, perHP: number, sha
   return Math.ceil((maxHp - f.sHp[i]) * rate);
 }
 
-export interface Toast { t: 'toast'; level: number; text: string }
-export interface Status { t: 'status'; text: string }
+interface Toast { t: 'toast'; level: number; text: string }
+interface Status { t: 'status'; text: string }
 export interface End { t: 'end'; reason: string }
 // The host changed the difficulty mid-game; dark is the night it brings (0 for none).
-export interface DifficultyMsg { t: 'difficulty'; difficulty: { id: number; name: string }; dark: number; cone?: number }
-export interface NetMsg { t: 'net'; rtt: number }
+interface DifficultyMsg { t: 'difficulty'; difficulty: { id: number; name: string }; dark: number; cone?: number }
+interface NetMsg { t: 'net'; rtt: number }
 // The host applied this page's commands up to the one it numbered seq (absent when it gave
 // none; wire is td's own count), and the frame of tick shows them. ms is from td relaying
 // the command to the ack coming back.
@@ -297,7 +297,7 @@ export interface NetStatsMsg {
   host?: { drop: number; resync: number; q: number; qCap: number; tickP50: number; tickP99: number; tickMax: number };
 }
 // How packets reach the host, as tailscale says, soon after joining and about every 10 s.
-export type LinkPath = 'direct' | 'derp' | 'peer-relay' | 'idle' | 'local';
+type LinkPath = 'direct' | 'derp' | 'peer-relay' | 'idle' | 'local';
 export interface PathMsg { t: 'path'; path: LinkPath; via?: string }
 export type TextMsg = Welcome | Toast | Status | End | DifficultyMsg | NetMsg | AckMsg | NetStatsMsg | PathMsg;
 
@@ -386,17 +386,6 @@ export class Player {
     }
     this.nameBytes = src.slice();
     this.name = utf8.decode(src);
-  }
-  copyFrom(o: Player): void {
-    this.id = o.id; this.flags = o.flags; this.x = o.x; this.y = o.y; this.aim = o.aim;
-    this.hp = o.hp; this.maxHp = o.maxHp; this.cur = o.cur; this.ammo = o.ammo; this.mag = o.mag;
-    this.reload = o.reload; this.respawn = o.respawn; this.gold = o.gold; this.kills = o.kills;
-    this.damage = o.damage; this.owned = o.owned; this.levels.set(o.levels); this.gear.set(o.gear);
-    this.order = o.order; this.channel = o.channel; this.revived = o.revived; this.emote = o.emote;
-    this.emoteLeft = o.emoteLeft; this.tauntCool = o.tauntCool; this.stamina = o.stamina; this.sprinting = o.sprinting; this.winded = o.winded; this.stunned = o.stunned; this.held = o.held; this.airborne = o.airborne; this.goggles = o.goggles; this.shielded = o.shielded; this.aboard = o.aboard; this.look = o.look; this.buff = o.buff; this.buffLeft = o.buffLeft; this.ult = o.ult;
-    this.abLevel.set(o.abLevel); this.abCool.set(o.abCool); this.medkits = o.medkits; this.heal = o.heal; this.reloading = o.reloading; this.name = o.name;
-    this.evo.set(o.evo); this.swings = o.swings; this.art = o.art; this.artFrac = o.artFrac; this.artCool = o.artCool; this.slow = o.slow;
-    this.downs = o.downs; this.revives = o.revives; this.built = o.built; this.searched = o.searched; this.bosses = o.bosses; this.taken = o.taken; this.turret = o.turret;
   }
 }
 

@@ -27,8 +27,3 @@ export function shrineTile(s: SiteDef, lx: number, ly: number): [number, number]
   const ox = lx - SX, oy = ly - SY;
   return [Math.floor(s.sx) + ox * fy + oy * fx, Math.floor(s.sy) - ox * fx + oy * fy];
 }
-
-// Where plan cell (lx, ly) lies in the shrine's prop: +x towards the gate, from the search spot.
-export function shrineLocal(lx: number, ly: number): [number, number] {
-  return [ly - SY, SX - lx];
-}

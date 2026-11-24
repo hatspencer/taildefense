@@ -12,9 +12,8 @@ const words = game.MaxCreeps / 64
 
 type bitset [words]uint64
 
-func (b *bitset) set(i uint16)      { b[i>>6] |= 1 << (i & 63) }
-func (b *bitset) clear(i uint16)    { b[i>>6] &^= 1 << (i & 63) }
-func (b *bitset) has(i uint16) bool { return b[i>>6]&(1<<(i&63)) != 0 }
+func (b *bitset) set(i uint16)   { b[i>>6] |= 1 << (i & 63) }
+func (b *bitset) clear(i uint16) { b[i>>6] &^= 1 << (i & 63) }
 
 // each calls fn for every set bit, ascending.
 func (b *bitset) each(fn func(i uint16)) {

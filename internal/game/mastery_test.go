@@ -174,3 +174,6 @@ func TestAMasteredBladeKeepsItsFooting(t *testing.T) {
 		t.Error("stunned drawing Flash Draw")
 	}
 }
+
+// masteryMax is the most mastery a pair can have.
+const masteryMax = float32(masteryFull+masteryDual) / float32(masteryFull)

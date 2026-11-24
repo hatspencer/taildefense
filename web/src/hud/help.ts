@@ -4,7 +4,7 @@
 type Row = [keys: string, what: string];
 const k = (...ks: string[]) => ks.map((s) => `<kbd>${s}</kbd>`).join(' ');
 
-export const HELP: { title: string; rows: Row[] }[] = [
+const HELP: { title: string; rows: Row[] }[] = [
   {
     title: 'Move and fight',
     rows: [

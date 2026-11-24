@@ -155,11 +155,10 @@ const (
 	scrapCool = 3
 
 	// Mastery (Mastery): the levels an evolution and a second katana count as; the levels that
-	// make it 1, and the most a pair can have.
+	// make it 1.
 	masteryEvo  = 5
 	masteryDual = 5
 	masteryFull = int(NumTracks)*MaxLevel + masteryEvo
-	masteryMax  = float32(masteryFull+masteryDual) / float32(masteryFull)
 	// What it does at 1: the share more damage (by its square, so mostly near the top); the
 	// times a hit's stun it adds; the share of the stun gap it takes away; the share of each
 	// blow on its wielder it takes; the share of a stun on its wielder it takes; the share of
@@ -221,8 +220,8 @@ func (p *Player) unstoppable() bool {
 func (p *Player) evo(k WeaponKind) uint8 { return p.Weapons[k].Evo }
 
 // Mastery is how far legendary blade k has been taken in ws: its track levels, its evolution
-// and a second katana, from 0 for one just found to 1 for one fully bought and evolved, and up
-// to masteryMax for a pair of them. Every other weapon has none.
+// and a second katana, from 0 for one just found to 1 for one fully bought and evolved, and
+// masteryDual levels more for a pair of them. Every other weapon has none.
 func (ws *WeaponState) Mastery(k WeaponKind) float32 {
 	if k != WKatana && k != WGreat {
 		return 0

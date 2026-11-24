@@ -8,11 +8,11 @@ export const SKIN = [0x3e261c, 0x5a3826, 0x7a4c32, 0x9a6440, 0xb87a4e, 0xd09068,
 export const HAIR = [0x16120f, 0x16120f, 0x2e1f14, 0x4e3220, 0x7a3a1c, 0xc89c52, 0x8e8a82, 0xa85426];
 
 // Headwraps come in their own cloth.
-export const WRAP = [0x8a2a40, 0x2a5a6a, 0xc89040, 0x4a3a6a, 0xe0d8c8, 0x2a2a2a, 0x6a8a3a, 0xa04a20];
+const WRAP = [0x8a2a40, 0x2a5a6a, 0xc89040, 0x4a3a6a, 0xe0d8c8, 0x2a2a2a, 0x6a8a3a, 0xa04a20];
 
 export const enum Body { Masc, Fem, Andro }
 
-export type HairStyle =
+type HairStyle =
   'bald' | 'buzz' | 'short' | 'crop' | 'afro' | 'curly' | 'locs' | 'braids' | 'cornrows' |
   'ponytail' | 'bun' | 'long' | 'bob' | 'mohawk' | 'sidecut' | 'headwrap';
 
@@ -20,10 +20,10 @@ const MASC: HairStyle[] = ['bald', 'buzz', 'short', 'crop', 'afro', 'curly', 'lo
 const FEM: HairStyle[] = ['long', 'ponytail', 'bun', 'bob', 'braids', 'afro', 'locs', 'headwrap', 'curly', 'short', 'sidecut', 'cornrows', 'long', 'ponytail', 'braids', 'buzz'];
 const ANDRO: HairStyle[] = ['short', 'crop', 'bob', 'mohawk', 'sidecut', 'afro', 'locs', 'curly', 'buzz', 'bun', 'ponytail', 'braids', 'headwrap', 'cornrows', 'long', 'bald'];
 
-export type Hat = 'none' | 'cap' | 'hardhat' | 'helmet' | 'straw' | 'bandana' | 'beanie' | 'nursecap';
-export type Back = 'none' | 'medbag' | 'wrench' | 'pack' | 'bigpack' | 'toolbelt' | 'satchel' | 'bedroll';
+type Hat = 'none' | 'cap' | 'hardhat' | 'helmet' | 'straw' | 'bandana' | 'beanie' | 'nursecap';
+type Back = 'none' | 'medbag' | 'wrench' | 'pack' | 'bigpack' | 'toolbelt' | 'satchel' | 'bedroll';
 
-export interface Archetype {
+interface Archetype {
   name: string;
   legs: number;         // trousers
   boots: number;
@@ -36,7 +36,7 @@ export interface Archetype {
   pcLegs?: boolean;     // overalls and scrubs: the trousers are the player's colour too
 }
 
-export const ARCHETYPES: Archetype[] = [
+const ARCHETYPES: Archetype[] = [
   { name: 'paramedic', legs: 0x272b38, boots: 0x16161a, stripe: 0xe8e8d8, hat: 'none', hatColor: 0, back: 'medbag', chest: 'cross' },
   { name: 'mechanic', legs: 0, boots: 0x2a2018, hat: 'bandana', hatColor: 0x8a2a20, back: 'wrench', chest: 'pocket', pcLegs: true },
   { name: 'hunter', legs: 0x585638, boots: 0x3e2c1c, stripe: 0x1c1a16, hat: 'cap', hatColor: 0xe0681c, back: 'bedroll' },
