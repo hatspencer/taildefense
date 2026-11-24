@@ -1059,15 +1059,17 @@ fades into the weather's haze past that distance round your survivor, in every d
 With fog of war or at night it is also the survivor's sight: what they can light, and so, at
 night, what their shots can find.
 
-**Heavy weather is rare.** Heavy rain, storms and heavy snow are dramatic but tiring to look at
-and play through wave after wave. Their everyday forms are a **drizzle** (a little rain, fire
+**Heavy weather is rare.** Fog, heavy rain, storms and heavy snow are dramatic but tiring to
+look at and play through wave after wave. Fog is the heaviest of them for play, cutting sight
+by 60% and reach by 25%, and at one wave in six it came too often, so it now comes about one
+wave in twenty, as rarely as heavy rain. The everyday everyday forms are a **drizzle** (a little rain, fire
 burns slightly cooler), a **thunder shower** (light rain, a bolt every 7–15 s instead of every
 few seconds) and **snow** (a thin fall of flakes and a dusting on the ground; heavy snow is a
 thick, wind-driven fall that turns the ground white). Odds per wave, roughly:
 
 | clear | fog | drizzle | snow | thunder shower | heavy rain | heavy snow | storm |
 |---|---|---|---|---|---|---|---|
-| 39% | 17% | 16% | 9% | 8% | 5% | 4% | 3% |
+| 51% | 5% | 16% | 9% | 8% | 5% | 4% | 3% |
 
 Light weather counts as a fraction of its heavy form for every effect (drizzle 0.3, thunder
 shower 0.5, snow 0.4), on screen and in the sim alike.
