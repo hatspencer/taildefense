@@ -31,7 +31,8 @@ export const HELP: { title: string; rows: Row[] }[] = [
   {
     title: 'Build, between waves',
     rows: [
-      [k('B'), `build bar: ${k('1')}–${k('8')} walls and turrets, ${k('9')} ${k('0')} ${k('-')} ${k('=')} traps, ${k('[')} pylon; click to place`],
+      [k('B'), `build bar: ${k('1')}–${k('8')} walls and turrets, ${k('9')} bait pit, ${k('0')} catapult pit, ${k('[')} pylon; click to place`],
+      [k('X'), 'while placing the catapult pit, turn it: it throws the way it faces'],
       ['Left-click', 'select a structure, creep or survivor'],
       [`${k('U')} · ${k('Del')} twice`, 'upgrade · sell the selected structure'],
       [`${k('H')} twice`, 'rebuild what was destroyed and repair the rest'],

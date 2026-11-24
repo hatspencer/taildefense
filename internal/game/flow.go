@@ -225,18 +225,28 @@ func (g *spatial) build(cs []Creep) {
 		g.items = make([]int32, len(cs), cap(g.cellOf))
 	}
 	g.cellOf = g.cellOf[:len(cs)]
-	g.items = g.items[:len(cs)]
+	n := 0
 	for i := range cs {
+		// A creep in the air off a catapult (traps.go) is out of everything's reach.
+		if cs[i].air > 0 {
+			g.cellOf[i] = -1
+			continue
+		}
 		c := g.cell(cs[i].X, cs[i].Y)
 		g.cellOf[i] = c
 		g.start[c+1]++
+		n++
 	}
+	g.items = g.items[:n]
 	for i := 1; i < len(g.start); i++ {
 		g.start[i] += g.start[i-1]
 	}
 	// Fill using the start of the next cell as a moving cursor, walking backwards so each
 	// cell ends up in ascending creep order.
 	for i := len(cs) - 1; i >= 0; i-- {
+		if g.cellOf[i] < 0 {
+			continue
+		}
 		c := g.cellOf[i] + 1
 		g.start[c]--
 		g.items[g.start[c]] = int32(i)
@@ -244,7 +254,7 @@ func (g *spatial) build(cs []Creep) {
 	// Each start[c+1] has been walked down to where cell c begins; shift them into place.
 	cells := len(g.start) - 1
 	copy(g.start[:cells], g.start[1:])
-	g.start[cells] = int32(len(cs))
+	g.start[cells] = int32(n)
 }
 
 // each calls fn with every creep index whose cell overlaps the circle; fn returns false to stop.

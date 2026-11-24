@@ -3,6 +3,7 @@ import { float, mix, sin, time, uniform, vertexColor } from 'three/tsl';
 import type { Frame } from '../protocol';
 import type { Structs } from './structs';
 import { writeMatrix } from './util';
+import { trapFace } from './traps';
 
 const ROUTE_DOTS = 4096;
 
@@ -130,7 +131,7 @@ export class Overlays {
     }
     for (let i = 0; i < f.nStructs; i++) {
       if (!f.sGhost[i] || at.has(i)) continue;
-      const g = this.structs.ghost(f.sKind[i], this.ruinMat);
+      const g = this.structs.ghost(f.sKind[i], this.ruinMat, f.sFacing[i]);
       g.renderOrder = 4;
       g.position.set(f.sX[i] + f.sW[i] / 2, 0.02, f.sY[i] + f.sH[i] / 2);
       this.group.add(g);
@@ -175,12 +176,12 @@ export class Overlays {
   // click is answered at once, until the structure itself comes in.
   private pendingMat: THREE.MeshLambertNodeMaterial | null = null;
   private pendingAt = new Map<string, THREE.Group>();
-  pending(list: readonly { kind: number; tx: number; ty: number; w: number; h: number }[]): void {
+  pending(list: readonly { kind: number; tx: number; ty: number; w: number; h: number; facing: number }[]): void {
     const at = this.pendingAt;
     if (!list.length && !at.size) return;
     const want = new Set<string>();
     for (const p of list) {
-      const key = `${p.kind}:${p.tx}:${p.ty}`;
+      const key = `${p.kind}:${p.tx}:${p.ty}:${p.facing}`;
       want.add(key);
       if (at.has(key)) continue;
       if (!this.pendingMat) {
@@ -190,7 +191,7 @@ export class Overlays {
         this.pendingMat.emissiveNode = c.mul(0.2);
         this.pendingMat.opacityNode = sin(time.mul(14)).mul(0.1).add(0.55);
       }
-      const g = this.structs.ghost(p.kind, this.pendingMat);
+      const g = this.structs.ghost(p.kind, this.pendingMat, p.facing);
       g.renderOrder = 5;
       g.position.set(p.tx + p.w / 2, 0.02, p.ty + p.h / 2);
       this.group.add(g);
@@ -199,11 +200,12 @@ export class Overlays {
     for (const [key, g] of at) if (!want.has(key)) { this.group.remove(g); at.delete(key); }
   }
 
-  // kind < 0 hides the ghost.
-  buildGhost(kind: number, tx = 0, ty = 0, w = 1, h = 1, ok = true): void {
+  // kind < 0 hides the ghost. A kind placed facing a way is turned to facing, and a catapult
+  // pit's shows where it throws to.
+  buildGhost(kind: number, tx = 0, ty = 0, w = 1, h = 1, ok = true, facing = 0): void {
     if (kind !== this.ghostKind) {
       if (this.ghost) this.group.remove(this.ghost);
-      this.ghost = kind >= 0 ? this.structs.ghost(kind, this.ghostMat) : null;
+      this.ghost = kind >= 0 ? this.structs.ghost(kind, this.ghostMat, facing, true) : null;
       if (this.ghost) { this.ghost.renderOrder = 5; this.group.add(this.ghost); }
       this.ghostKind = kind;
     }
@@ -211,6 +213,7 @@ export class Overlays {
     if (kind < 0 || !this.ghost) return;
     this.ghostColor.value.setHex(ok ? 0x40ff70 : 0xff4030);
     this.ghost.position.set(tx + w / 2, 0.02, ty + h / 2);
+    trapFace(this.ghost, facing);
     this.foot.position.set(tx + w / 2, 0.08, ty + h / 2);
     this.foot.scale.set(w, 1, h);
   }

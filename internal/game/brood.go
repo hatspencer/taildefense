@@ -117,11 +117,11 @@ func (w *World) stepAcid(e *Effect) {
 	w.structsIn(e.X, e.Y, e.R, acidStruct*Dt)
 }
 
-// structsIn hurts every structure but the armory with any of its footprint within r of x, y.
+// structsIn hurts every structure but the armory and the traps with any of its footprint within r of x, y.
 func (w *World) structsIn(x, y, r, dmg float32) {
 	for i := range w.Structs {
 		st := &w.Structs[i]
-		if !st.Alive || st.Kind == SArmory {
+		if !st.Alive || st.Kind == SArmory || Structs[st.Kind].Floor {
 			continue
 		}
 		dx := x - min(max(x, float32(st.X)), float32(st.X)+float32(st.W))

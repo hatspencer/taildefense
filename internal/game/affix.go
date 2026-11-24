@@ -144,12 +144,12 @@ func (w *World) mark(c *Creep) {
 // frenzied creep, or a sapper.
 func (c *Creep) breaks() bool { return c.Frenzy || c.Aff&AffixSappers != 0 }
 
-// sap is a sapper blowing up against structure si: everything in reach but the generator and
-// the armory is hit, and the sapper is gone, for nobody's bounty.
+// sap is a sapper blowing up against structure si: everything in reach but the generator, the
+// armory and the traps (flat on the ground, nothing breaks them) is hit, and the sapper is gone, for nobody's bounty.
 func (w *World) sap(c *Creep) {
 	for i := range w.Structs {
 		s := &w.Structs[i]
-		if !s.Alive || i == w.Core || s.Kind == SArmory {
+		if !s.Alive || i == w.Core || s.Kind == SArmory || Structs[s.Kind].Floor {
 			continue
 		}
 		if dx, dy := clampf(c.X, float32(s.X), float32(s.X)+float32(s.W))-c.X, clampf(c.Y, float32(s.Y), float32(s.Y)+float32(s.H))-c.Y; dx*dx+dy*dy <= sapperReach*sapperReach {

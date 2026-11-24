@@ -250,11 +250,12 @@ func (e *viewEncoder) frame(r *netplay.Replica) []byte {
 		e.u8(s.Level)
 		e.b = append(e.b, s.Lv[:]...)
 		e.u8(uint8(s.Owner))
-		state := s.Evo << 1
+		state := s.Evo<<1 | s.Trap<<3
 		if s.Open {
 			state |= 1
 		}
 		e.u8(state)
+		e.u8(s.Facing)
 	}
 
 	e.u16(uint16(r.Count))
