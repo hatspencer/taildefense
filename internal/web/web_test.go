@@ -99,11 +99,14 @@ func TestTheBrowserPlaysThroughTheBridge(t *testing.T) {
 	}
 	done := make(chan ended, 1)
 	saved, savedMusic := make(chan int, 1), make(chan int, 1)
+	savedReticle, savedReticleSize := make(chan bool, 1), make(chan int, 1)
 	go func() {
 		res, err := Run(context.Background(), Options{Addr: srv.Addrs()[0], Name: "ana", Version: "test", Host: "box",
 			Hosting: true, Ready: func(p Page) { urls <- p.URL },
 			Volume: 55, SaveVolume: func(v int) error { saved <- v; return nil },
-			Music: 35, SaveMusic: func(v int) error { savedMusic <- v; return nil }})
+			Music: 35, SaveMusic: func(v int) error { savedMusic <- v; return nil },
+			Reticle: true, SaveReticle: func(on bool) error { savedReticle <- on; return nil },
+			ReticleSize: 150, SaveReticleSize: func(v int) error { savedReticleSize <- v; return nil }})
 		done <- ended{res, err}
 	}()
 	var url string
@@ -141,6 +144,9 @@ func TestTheBrowserPlaysThroughTheBridge(t *testing.T) {
 	}
 	if wel.Music != 35 {
 		t.Errorf("welcome music %d, want this machine's 35", wel.Music)
+	}
+	if !wel.Reticle || wel.ReticleSize != 150 {
+		t.Errorf("welcome reticle %v size %d, want this machine's on at 150", wel.Reticle, wel.ReticleSize)
 	}
 	if len(wel.Weapons) != int(game.NumWeapons) || len(wel.Abilities) != game.NumAbilities || wel.Core.X == 0 {
 		t.Fatalf("welcome defs: %d weapons, %d abilities, core %+v", len(wel.Weapons), len(wel.Abilities), wel.Core)
@@ -204,6 +210,25 @@ func TestTheBrowserPlaysThroughTheBridge(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("the music was not saved")
+	}
+	// The reticle too: turned off, and its size clamped to 50..300.
+	_ = ws.send(opText, []byte(`{"op":"reticle","on":false}`))
+	select {
+	case on := <-savedReticle:
+		if on {
+			t.Error("saved the reticle on, want off")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the reticle was not saved")
+	}
+	_ = ws.send(opText, []byte(`{"op":"reticleSize","v":900}`))
+	select {
+	case v := <-savedReticleSize:
+		if v != 300 {
+			t.Errorf("saved reticle size %d, want 300", v)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the reticle size was not saved")
 	}
 	_ = ws.send(opText, []byte(`{"op":"leave"}`))
 	select {

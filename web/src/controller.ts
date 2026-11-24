@@ -29,6 +29,8 @@ export const KEYS = ['Q', 'Shift', 'F', 'V'];
 const AIMED = 1;
 // F: the dash, or the weapon art of a legendary in hand.
 const ART = 2;
+// V: the airstrike.
+const STRIKE = 3;
 
 // Structures that stay picked after one is placed, so a line of them goes down click by click
 // until Esc; anything else is placed once (Shift keeps it).
@@ -534,6 +536,18 @@ export class Controller {
     return { name: a.name, desc: a.desc, key: a.key || KEYS[slot], range: a.range, radius: a.radius?.[Math.max(0, lvl - 1)] ?? 0,
       cool: a.cool[Math.max(0, lvl - 1)] ?? 0, target: a.target, level: lvl, maxLevel: a.costs.length, left: me.abCool[slot],
       nextCost: lvl < a.costs.length ? a.costs[lvl] : 0, charge: 0, running: 0 };
+  }
+
+  // Whether the hero has something cast where the cursor points, what the ground reticle marks:
+  // Q (an ultimate aimed at a point, not one on the hero), F (the dash bought, or a weapon art
+  // in hand) or V (the airstrike bought). Unlocked is the HUD's own test of a slot, level above
+  // 0. The grenade aims with its own preview instead.
+  aimsAtCursor(): boolean {
+    for (const slot of [0, ART, STRIKE]) {
+      const a = this.ability(slot);
+      if (a && a.level > 0 && a.target === 'point') return true;
+    }
+    return false;
   }
 
   // Casts an ability at once: at the cursor for one aimed at a point (pulled in to its range by

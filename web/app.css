@@ -434,6 +434,7 @@ b.legend { color: #e8c060; }
 .menu .volume { display: flex; align-items: center; gap: 10px; padding: 4px 2px; }
 .menu .volume input { flex: 1; accent-color: #e0b030; }
 .menu .volume b { width: 3ch; text-align: right; }
+.menu .volume input[type=checkbox] { flex: 0 0 auto; margin-right: auto; }
 
 /* ---------- game over: the field report ---------- */
 

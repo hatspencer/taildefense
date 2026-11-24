@@ -50,6 +50,9 @@ func TestDefaultsWithNoFile(t *testing.T) {
 	if p.Port() != DefaultPort || p.Browser() != BrowserAuto || !p.AutoUpdate() {
 		t.Errorf("defaults: port %d browser %q autoupdate %v", p.Port(), p.Browser(), p.AutoUpdate())
 	}
+	if !p.Reticle() || p.ReticleSize() != DefaultReticleSize {
+		t.Errorf("defaults: reticle %v size %d", p.Reticle(), p.ReticleSize())
+	}
 	for _, v := range p.All() {
 		if v.Source != SourceDefault {
 			t.Errorf("%s from %s, want default", v.Key.Name, v.Source)
@@ -111,10 +114,13 @@ func TestNoAutoupdateEnvTurnsItOff(t *testing.T) {
 func TestATypoKeepsTheDefault(t *testing.T) {
 	cfg := isolate(t)
 	os.MkdirAll(cfg, 0o755)
-	os.WriteFile(filepath.Join(cfg, File), []byte("AUTOUPDATE=of\nPORT=http\n"), 0o644)
+	os.WriteFile(filepath.Join(cfg, File), []byte("AUTOUPDATE=of\nPORT=http\nRETICLE=of\nRETICLE_SIZE=1000\n"), 0o644)
 	p := Load()
 	if !p.AutoUpdate() || p.Port() != DefaultPort {
 		t.Errorf("typos changed values: autoupdate %v port %d", p.AutoUpdate(), p.Port())
+	}
+	if !p.Reticle() || p.ReticleSize() != DefaultReticleSize {
+		t.Errorf("typos changed values: reticle %v size %d", p.Reticle(), p.ReticleSize())
 	}
 }
 
@@ -139,7 +145,7 @@ func TestSetWritesAndKeepsOtherKeys(t *testing.T) {
 	if _, err := Set("browser", "a\nb"); err == nil {
 		t.Error("a two-line browser accepted")
 	}
-	if _, err := Set("colour", "red"); err == nil || !strings.Contains(err.Error(), "name, port, difficulty, fog, waves, mode, volume, music, browser, autoupdate") {
+	if _, err := Set("colour", "red"); err == nil || !strings.Contains(err.Error(), "name, port, difficulty, fog, waves, mode, volume, music, reticle, reticle_size, browser, autoupdate") {
 		t.Errorf("unknown key: %v", err)
 	}
 	if v, err := Set("difficulty", "HARD"); err != nil || v != "hard" {
@@ -164,6 +170,24 @@ func TestSetWritesAndKeepsOtherKeys(t *testing.T) {
 	for in, want := range map[string]string{"35": "35", "0": "0", "off": "0", "on": "50"} {
 		if v, err := Set("music", in); err != nil || v != want {
 			t.Errorf("music %q: %q %v, want %q", in, v, err, want)
+		}
+	}
+	for in, want := range map[string]string{"off": "off", "NO": "off", "on": "on", "1": "on"} {
+		if v, err := Set("reticle", in); err != nil || v != want {
+			t.Errorf("reticle %q: %q %v, want %q", in, v, err, want)
+		}
+	}
+	if _, err := Set("reticle", "big"); err == nil {
+		t.Error("reticle \"big\" accepted")
+	}
+	for in, want := range map[string]string{"50": "50", " 150% ": "150", "300": "300", "100": "100"} {
+		if v, err := Set("reticle_size", in); err != nil || v != want {
+			t.Errorf("reticle_size %q: %q %v, want %q", in, v, err, want)
+		}
+	}
+	for _, in := range []string{"49", "301", "0", "-100", "off", "huge"} {
+		if _, err := Set("reticle_size", in); err == nil {
+			t.Errorf("reticle_size %q accepted", in)
 		}
 	}
 	if _, err := Set("name", "  Grace   Hopper "); err != nil {

@@ -235,10 +235,12 @@ type welcomeMsg struct {
 	Taunt           tauntDef      `json:"taunt"`
 	Revive          reviveDef     `json:"revive"`
 	Medkit          medkitDef     `json:"medkit"`
-	Goggles         int32         `json:"goggles"`  // night vision goggles' price
-	Volume          int           `json:"volume"`   // this machine's VOLUME setting, 0 (off) to 100
-	Music           int           `json:"music"`    // this machine's MUSIC setting, 0 (off) to 100 of the volume
-	Patience        []float32     `json:"patience"` // per difficulty: how far past the straight way in a creep walks a maze before it frenzies
+	Goggles         int32         `json:"goggles"`     // night vision goggles' price
+	Volume          int           `json:"volume"`      // this machine's VOLUME setting, 0 (off) to 100
+	Music           int           `json:"music"`       // this machine's MUSIC setting, 0 (off) to 100 of the volume
+	Reticle         bool          `json:"reticle"`     // this machine's RETICLE setting: the ground reticle drawn
+	ReticleSize     int           `json:"reticleSize"` // this machine's RETICLE_SIZE setting, in percent; 0 is the default
+	Patience        []float32     `json:"patience"`    // per difficulty: how far past the straight way in a creep walks a maze before it frenzies
 	Gate            gateDef       `json:"gate"`
 	Affixes         []string      `json:"affixes"` // a wave's affixes, bit by bit
 	Tiers           tiersDef      `json:"tiers"`

@@ -36,16 +36,18 @@ const File = "prefs"
 
 // The keys, as they are written in the file and typed after `td config`.
 const (
-	KeyName       = "NAME"
-	KeyPort       = "PORT"
-	KeyBrowser    = "BROWSER"
-	KeyAutoUpdate = "AUTOUPDATE"
-	KeyDifficulty = "DIFFICULTY"
-	KeyFog        = "FOG"
-	KeyWaves      = "WAVES"
-	KeyMode       = "MODE"
-	KeyVolume     = "VOLUME"
-	KeyMusic      = "MUSIC"
+	KeyName        = "NAME"
+	KeyPort        = "PORT"
+	KeyBrowser     = "BROWSER"
+	KeyAutoUpdate  = "AUTOUPDATE"
+	KeyDifficulty  = "DIFFICULTY"
+	KeyFog         = "FOG"
+	KeyWaves       = "WAVES"
+	KeyMode        = "MODE"
+	KeyVolume      = "VOLUME"
+	KeyMusic       = "MUSIC"
+	KeyReticle     = "RETICLE"
+	KeyReticleSize = "RETICLE_SIZE"
 )
 
 // DefaultVolume is VOLUME with nothing set: loud enough to hear, not so loud it startles.
@@ -53,6 +55,14 @@ const DefaultVolume = 70
 
 // DefaultMusic is MUSIC with nothing set: under the game's own sound, not over it.
 const DefaultMusic = 50
+
+// DefaultReticleSize is RETICLE_SIZE with nothing set: the ground reticle at its own size.
+// MinReticleSize and MaxReticleSize are the most it shrinks and grows, in percent.
+const (
+	DefaultReticleSize = 100
+	MinReticleSize     = 50
+	MaxReticleSize     = 300
+)
 
 // DefaultPort is netplay.DefaultPort, repeated here so the prefs do not import the network
 // code. A test pins the two together.
@@ -111,6 +121,10 @@ var Keys = []Key{
 		Parse: parseVolume, Default: func() string { return strconv.Itoa(DefaultVolume) }},
 	{Name: KeyMusic, Env: "TAILDEFENSE_MUSIC", Help: "music in the game, 0 to 100 of the volume; 0 turns it off",
 		Parse: parseMusic, Default: func() string { return strconv.Itoa(DefaultMusic) }},
+	{Name: KeyReticle, Env: "TAILDEFENSE_RETICLE", Help: "the reticle on the ground under the cursor, where a dash or an airstrike goes",
+		Parse: parseOnOff, Default: func() string { return "on" }, Bool: true},
+	{Name: KeyReticleSize, Env: "TAILDEFENSE_RETICLE_SIZE", Help: "the ground reticle's size, 50 to 300 percent of its own",
+		Parse: parseReticleSize, Default: func() string { return strconv.Itoa(DefaultReticleSize) }},
 	{Name: KeyBrowser, Env: "TAILDEFENSE_BROWSER", Help: "what opens the game: auto (best browser, full screen), default, chrome, firefox…, none or a command",
 		Parse: parseBrowser, Default: func() string { return BrowserAuto }},
 	{Name: KeyAutoUpdate, Env: "TAILDEFENSE_NO_AUTOUPDATE", Help: "update td in the background when main moves on",
@@ -322,6 +336,18 @@ func (p *Prefs) Music() int {
 	n, err := strconv.Atoi(p.Get(KeyMusic).Value)
 	if err != nil {
 		return DefaultMusic
+	}
+	return n
+}
+
+// Reticle is whether the page draws the reticle on the ground under the cursor.
+func (p *Prefs) Reticle() bool { return ParseOnOff(p.Get(KeyReticle).Value, true) }
+
+// ReticleSize is the ground reticle's size, MinReticleSize to MaxReticleSize percent.
+func (p *Prefs) ReticleSize() int {
+	n, err := strconv.Atoi(p.Get(KeyReticleSize).Value)
+	if err != nil {
+		return DefaultReticleSize
 	}
 	return n
 }
@@ -561,6 +587,16 @@ func parseLevel(s string, def int) (string, error) {
 	n, err := strconv.Atoi(strings.TrimSpace(v))
 	if err != nil || n < 0 || n > 100 {
 		return "", fmt.Errorf("%q is not a volume: 0 (off) to 100", s)
+	}
+	return strconv.Itoa(n), nil
+}
+
+// parseReticleSize takes 50 to 300, with or without a %.
+func parseReticleSize(s string) (string, error) {
+	v := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(s), "%"))
+	n, err := strconv.Atoi(v)
+	if err != nil || n < MinReticleSize || n > MaxReticleSize {
+		return "", fmt.Errorf("%q is not a reticle size: %d to %d percent", s, MinReticleSize, MaxReticleSize)
 	}
 	return strconv.Itoa(n), nil
 }

@@ -316,6 +316,19 @@ func play(p *ui.Printer, prefs *config.Prefs, o web.Options) (web.Result, error)
 		_, err := config.Set(config.KeyMusic, strconv.Itoa(v))
 		return err
 	}
+	o.Reticle, o.ReticleSize = prefs.Reticle(), prefs.ReticleSize()
+	o.SaveReticle = func(on bool) error {
+		v := "off"
+		if on {
+			v = "on"
+		}
+		_, err := config.Set(config.KeyReticle, v)
+		return err
+	}
+	o.SaveReticleSize = func(v int) error {
+		_, err := config.Set(config.KeyReticleSize, strconv.Itoa(v))
+		return err
+	}
 	if o.Browser == config.BrowserNone {
 		o.Browser = ""
 	}

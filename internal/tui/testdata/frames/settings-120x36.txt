@@ -11,19 +11,19 @@
 
   Settings  saved to <config>/prefs
 
-  ▶ name        tester  (default)
+  ▶ name          tester  (default)
       your name in games, as the others see it
-    port        7787  (default)
-    difficulty  normal  (default)
-    fog         off  (default)
-    waves       40  (default)
-    mode        standard  (default)
-    volume      70  (default)
-    music       50  (default)
-    browser     auto  (default)
-    autoupdate  on  (default)
-
-
+    port          7787  (default)
+    difficulty    normal  (default)
+    fog           off  (default)
+    waves         40  (default)
+    mode          standard  (default)
+    volume        70  (default)
+    music         50  (default)
+    reticle       on  (default)
+    reticle_size  100  (default)
+    browser       auto  (default)
+    autoupdate    on  (default)
 
 
 

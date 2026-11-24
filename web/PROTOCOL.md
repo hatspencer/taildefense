@@ -85,6 +85,8 @@ everything it knows, a terrain message follows).
   },
   "volume": 70,                // this machine's VOLUME setting, 0 (no sound) to 100; not the host's
   "music": 50,                 // this machine's MUSIC setting, 0 (no music) to 100 of the volume
+  "reticle": true,             // this machine's RETICLE setting: the ground reticle under the cursor drawn
+  "reticleSize": 100,          // this machine's RETICLE_SIZE setting, 50 to 300 percent; 0 or absent is 100
   "core": {"x": 160, "y": 100},// generator centre, tiles
   "buildRadius": 40,           // building only within this distance of core
   "shopRadius": 4.5,           // shop only within this distance of the armory centre
@@ -528,8 +530,8 @@ Text messages, JSON, one command each. Coordinates are tiles (floats); `tx`, `ty
 integers. The host checks everything; a refusal comes back as a `toast` with level 2.
 
 Any command relayed to the host may carry `"seq": n`, the page's own count for it (a number,
-increasing); the `ack` that covers it echoes it back. `volume` and `music` stay here and are
-never acked. The page numbers every other command and predicts its own WASD walk from them
+increasing); the `ack` that covers it echoes it back. `volume`, `music`, `reticle` and
+`reticleSize` stay here and are never acked. The page numbers every other command and predicts its own WASD walk from them
 (`web/src/predict.ts`): from each frame it replays the steers and sprints the ack does not yet
 cover, and the ack's tick for a command sent at a known time tells it where the host's ticks
 fall on its clock. The demo host acks numbered commands too.
@@ -582,4 +584,6 @@ fall on its clock. The demo host acks numbered commands too.
 {"op": "leave"}                              // back to the terminal; ends the game if hosting
 {"op": "volume",  "v": 40}                   // this td only, never relayed: save VOLUME (0..100)
 {"op": "music",   "v": 30}                   // this td only, never relayed: save MUSIC (0..100)
+{"op": "reticle", "on": false}               // this td only, never relayed: save RETICLE
+{"op": "reticleSize", "v": 150}              // this td only, never relayed: save RETICLE_SIZE (50..300)
 ```

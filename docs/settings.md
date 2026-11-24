@@ -38,6 +38,19 @@ where you left it.
 the music off and leaves the sound. It is this machine's own too, with its own slider under
 the volume's in the menu.
 
+`RETICLE` is `on` by default: a small reticle lies on the ground under the cursor, so you can see
+where a dash, a weapon art, an airstrike or an ultimate aimed at the cursor will go. Even on, it
+appears only once you have one of those: the dash or the airstrike bought, the crowbar or a
+legendary blade in hand, or a weapon whose ultimate is aimed at a point (the rocket launcher). `off`
+never draws it. It is this machine's
+own, like the volume, with a switch under the music's slider in the menu (F10) that takes effect
+and is saved the moment it flips.
+
+`RETICLE_SIZE` is that reticle's size, `50` to `300` percent, `100` by default. The reticle
+already grows as the camera pulls back so that it stays about the same size on screen; this is
+a multiplier on top of that. It has its own slider in the menu, under the reticle's switch,
+which resizes it as you drag and saves it when you let go.
+
 `BROWSER` is `auto` by default: td finds the browsers installed (Chrome, Chromium, Brave, Edge,
 Vivaldi, Firefox, and Safari on macOS) and starts the best one full screen, as an app window with
 a profile of its own that keeps the GPU busy even unfocused, and closes it when the game ends. It

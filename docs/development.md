@@ -73,6 +73,7 @@ The demo plays sound at 70 after the first click; `#demo&vol=0` silences it, `#d
 and `#demo&music=30` the music (50 by default). From disk the music plays outside Web Audio
 (a browser gives Web Audio only silence from file://), so it fades but is not filtered; served
 by td it is both. F3's `music` line shows the track wanted, the wave's intensity and each fade.
+`#demo&reticle=off` hides the ground reticle and `#demo&reticlesize=200` sizes it (100 by default).
 `#demo&firstrun` opens the first steps (a real game shows them once per machine), `#demo&phase=over`
 the field report, and `#demo&help`, `#demo&menu` and `#demo&score` the windows.
 The demo and the lab are a bundle of their own, `demo.js`, which the page fetches only for `#demo` and `#lab`.

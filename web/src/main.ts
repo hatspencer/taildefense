@@ -145,11 +145,11 @@ async function main(): Promise<void> {
   const rig = new CameraRig(world.camera, canvas);
   let transport: Transport | null = null;
   // Every command the host gets is numbered, so its ack says which ones a frame already
-  // shows; prediction replays the rest. volume, music and leave stay with td.
+  // shows; prediction replays the rest. volume, music, the reticle's and leave stay with td.
   let seq = 0;
   const send: Controller['send'] = (c) => {
     if (!transport) return;
-    if (c.op !== 'volume' && c.op !== 'music' && c.op !== 'leave') {
+    if (c.op !== 'volume' && c.op !== 'music' && c.op !== 'reticle' && c.op !== 'reticleSize' && c.op !== 'leave') {
       c.seq = ++seq;
       game.predict.sent(c.op, c.seq, performance.now(), c.op === 'steer' ? c.x : undefined, c.op === 'steer' || c.op === 'sprint' ? c.on : undefined);
     }
@@ -174,6 +174,8 @@ async function main(): Promise<void> {
   ctl.onCue = (c, x, y, key) => { const me = game.me(); if (me) sound.local(c, me, x, y, key); };
   hud.onVolume = (v, save) => { sound.synth.setVolume(v); if (save && !demo) send({ op: 'volume', v }); };
   hud.onMusic = (v, save) => { sound.music.setMusic(v); if (save && !demo) send({ op: 'music', v }); };
+  hud.onReticle = (on) => { overlays.reticleOn = on; if (!demo) send({ op: 'reticle', on }); };
+  hud.onReticleSize = (v, save) => { overlays.reticleSize = v; if (save && !demo) send({ op: 'reticleSize', v }); };
   const input = new Input(canvas, ctl, rig, hud);
   // A lost WebGPU device reloads once on WebGL2 (kept for this tab's session) instead of looping.
   world.onDeviceLost((msg) => {
@@ -205,6 +207,11 @@ async function main(): Promise<void> {
       hud.setVolume(sound.synth.volume);
       sound.music.setMusic(w.music ?? (P.has('music') ? Number(P.get('music')) : 50));
       hud.setMusic(sound.music.level);
+      // The demo takes #reticle=off and #reticlesize=N.
+      overlays.reticleOn = w.reticle ?? P.get('reticle') !== 'off';
+      overlays.reticleSize = Math.min(300, Math.max(50, w.reticleSize || Number(P.get('reticlesize')) || 100));
+      hud.setReticle(overlays.reticleOn);
+      hud.setReticleSize(overlays.reticleSize);
       creeps.setup(w.creeps);
       structs.setup(w.structs);
       loot.setup(w.sites);
@@ -518,9 +525,10 @@ async function main(): Promise<void> {
         : `the dead walk ~${Math.round(r.walk)} tiles in${d ? ` (${d > 0 ? '+' : ''}${d})` : ''}`;
     } else { overlays.route(null); ctl.routeNote = ''; }
     overlays.ring('build', m.k === 'build', wd.core.x, wd.core.y, wd.buildRadius, 0xffd860, 0.7);
-    // Where the cursor meets the ground, for the dash and the weapon arts cast there; the build
-    // ghost already marks it while building.
-    overlays.cursor(ctl.groundOk && m.k !== 'build', ctl.ground.x, ctl.ground.z, rig.dist);
+    // Where the cursor meets the ground, for the dash, the weapon arts, the airstrike and an
+    // ultimate aimed at a point, all cast there; the build ghost already marks it while
+    // building. With nothing of the kind to cast, no reticle.
+    overlays.cursor(ctl.groundOk && m.k !== 'build' && ctl.aimsAtCursor(), ctl.ground.x, ctl.ground.z, rig.dist);
     // Aiming the grenade: its range around the hero and the blast at the cursor.
     if (m.k === 'ability' && me) {
       const a = ctl.ability(m.slot);
