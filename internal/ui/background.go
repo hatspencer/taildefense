@@ -2,11 +2,12 @@ package ui
 
 import (
 	"fmt"
+	"image/color"
 	"io"
 	"os"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 
 	"taildefense/internal/platform"
 )
@@ -100,6 +101,22 @@ func PaintTerminal() {
 	painted = true
 }
 
+// TerminalColors is the background and foreground a full-screen program should declare with
+// each frame: the theme's when this process has painted the terminal, nil otherwise, which
+// leaves the terminal's own alone.
+func TerminalColors() (bg, fg color.Color) {
+	if !painted {
+		return nil, nil
+	}
+	if h := resolve(active.Bg); h != "" {
+		bg = lipgloss.Color(h)
+	}
+	if h := resolve(active.Fg); h != "" {
+		fg = lipgloss.Color(h)
+	}
+	return bg, fg
+}
+
 // ResetTerminal puts the terminal's own background and foreground back.
 //
 // Idempotent, and a no-op if nothing was painted, so the dispatcher can defer it
@@ -131,7 +148,7 @@ func osc(code int, hex string) string {
 
 // resolve picks the side of an adaptive pair that applies. A full theme's pairs hold the same
 // value on both sides, so this is only ever ambiguous for a theme that does not paint.
-func resolve(c lipgloss.AdaptiveColor) string {
+func resolve(c AdaptiveColor) string {
 	if c.Dark != "" {
 		return c.Dark
 	}

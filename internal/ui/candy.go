@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"taildefense/internal/platform"
@@ -409,21 +409,16 @@ func candyBackground() string {
 	if active.Full() {
 		return resolve(active.Bg)
 	}
-	if lipgloss.HasDarkBackground() {
+	if dark {
 		return "#1e1e1e"
 	}
 	return "#f5f5f5"
 }
 
-func adaptiveHex(c lipgloss.AdaptiveColor) string {
-	if lipgloss.HasDarkBackground() {
-		return c.Dark
-	}
-	return c.Light
-}
+func adaptiveHex(c AdaptiveColor) string { return c.hex() }
 
 // legibleRamp builds the scene ramp from the theme's ramp and accent against bg.
-func legibleRamp(ramp []lipgloss.AdaptiveColor, accent lipgloss.AdaptiveColor, bg string, pick func(lipgloss.AdaptiveColor) string) []string {
+func legibleRamp(ramp []AdaptiveColor, accent AdaptiveColor, bg string, pick func(AdaptiveColor) string) []string {
 	rest := 0
 	if len(ramp) > 0 {
 		rest = int(fracRest*float64(len(ramp)-1) + 0.5)
@@ -461,7 +456,7 @@ func candyRamp() ([]lipgloss.Style, []string) {
 	hexes := legibleRamp(AccentRamp, ColorAccent, candyBackground(), adaptiveHex)
 	styles := make([]lipgloss.Style, 0, len(hexes))
 	for _, h := range hexes {
-		styles = append(styles, lipgloss.NewStyle().Foreground(lipgloss.Color(h)).Bold(true))
+		styles = append(styles, bold(newStyle().Foreground(Color(h))))
 	}
 	if len(styles) == 0 {
 		styles = []lipgloss.Style{StyleAccent}

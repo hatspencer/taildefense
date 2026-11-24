@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"taildefense/internal/cli"
 	"taildefense/internal/config"
@@ -286,7 +286,12 @@ func (m *Model) whatsNew() *cli.News {
 // Run shows the launcher until the player picks something, and returns what.
 func Run(o Options) (Action, error) {
 	m := newModel(o)
-	final, err := tea.NewProgram(m, tea.WithAltScreen()).Run()
+	// The profile is the one every line outside the launcher was printed with, decided once
+	// in ui.InitColor, so the two cannot disagree about what the terminal shows.
+	final, err := tea.NewProgram(m, tea.WithColorProfile(ui.Profile())).Run()
+	// The program hands the terminal's own colours back when it ends; whatever prints next
+	// still belongs to the theme.
+	ui.PaintTerminal()
 	if err != nil {
 		return Action{Kind: ActionQuit}, err
 	}
@@ -471,14 +476,43 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.say(false, "td update installed nothing new")
 		}
 		return m, nil
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.key(msg)
+	case tea.PasteMsg:
+		return m.paste(msg.Content), nil
 	}
 	return m, nil
 }
 
-func (m *Model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if k.Type == tea.KeyCtrlC {
+// paste is text from the clipboard. It is typing where something is being typed, and
+// otherwise does what any key does to the splash and the help: closes them. Nowhere is it a
+// command, so a pasted "q" never quits.
+func (m *Model) paste(s string) tea.Model {
+	switch {
+	case m.splash:
+		m.splash = false
+	case m.typing:
+		m.addr.insert(s)
+	case m.editing:
+		m.field.insert(s)
+	case m.help:
+		m.help = false
+	}
+	return m
+}
+
+// keyName is the key as the screens below match it. Enter is enter whatever is held with it:
+// a terminal that reports keys in full says shift+enter where an older one says enter, and a
+// choice that works on one has to work on the other.
+func keyName(k tea.KeyPressMsg) string {
+	if k.Code == tea.KeyEnter {
+		return "enter"
+	}
+	return k.String()
+}
+
+func (m *Model) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if k.Code == 'c' && k.Mod.Contains(tea.ModCtrl) {
 		return m.quit(Action{Kind: ActionQuit})
 	}
 	// Any key skips the splash, and does nothing else.
@@ -496,7 +530,7 @@ func (m *Model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.help = false
 		return m, nil
 	}
-	switch k.String() {
+	switch keyName(k) {
 	case "?":
 		m.help = true
 		return m, nil
@@ -523,14 +557,26 @@ func (m *Model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m.menuKey(k)
 }
 
+// copyText puts text on the clipboard both ways: through the terminal, which the program
+// writes between frames, and through a clipboard tool on this machine; see ui/clipboard.go.
+func copyText(text string) tea.Cmd {
+	return tea.Batch(tea.SetClipboard(text), func() tea.Msg {
+		clipboardTool(text)
+		return nil
+	})
+}
+
+// clipboardTool is ui.RunClipboardTool, swapped by a test that must not reach the real one.
+var clipboardTool = ui.RunClipboardTool
+
 func (m *Model) foregroundUpdate() tea.Cmd {
 	m.notice = ""
 	return tea.ExecProcess(cli.ForegroundUpdate(), func(err error) tea.Msg { return fgUpdateMsg{err} })
 }
 
-func (m *Model) menuKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *Model) menuKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	items := m.menu()
-	switch k.String() {
+	switch keyName(k) {
 	case "up", "k":
 		m.cursor = (m.cursor + len(items) - 1) % len(items)
 	case "down", "j", "tab":
@@ -539,13 +585,13 @@ func (m *Model) menuKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.quit(Action{Kind: ActionQuit})
 	case "left", "right", "h", "l":
 		if m.cursor < len(items) && items[m.cursor] == itemHost {
-			m.cycleDifficulty(k.String() == "right" || k.String() == "l")
+			m.cycleDifficulty(keyName(k) == "right" || keyName(k) == "l")
 		}
 	case "y":
 		if m.cursor < len(items) && items[m.cursor] == itemHost {
 			if cmd, ok := m.joinCommand(); ok {
-				ui.CopyToClipboard(cmd)
 				m.say(false, "copied: %s", cmd)
+				return m, copyText(cmd)
 			}
 		}
 	case "f":
@@ -564,7 +610,7 @@ func (m *Model) menuKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.save(key, game.Mode((int(m.prefs.Mode())+1)%int(game.NumModes)).String())
 			m.notice = ""
 		}
-	case "enter", " ":
+	case "enter", "space":
 		if m.cursor >= len(items) {
 			m.cursor = 0
 		}
@@ -605,9 +651,9 @@ func (m *Model) menuKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *Model) joinKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *Model) joinKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	rows := len(m.games) + 1 // the address row is last
-	switch k.String() {
+	switch keyName(k) {
 	case "up", "k":
 		m.jcursor = (m.jcursor + rows - 1) % rows
 	case "down", "j", "tab":
@@ -620,7 +666,7 @@ func (m *Model) joinKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.screen = screenMenu
 		m.scanGen++ // stops the rescan loop
 		m.scanning = false
-	case "enter", " ":
+	case "enter", "space":
 		if m.jcursor >= len(m.games) {
 			m.typing = true
 			return m, nil
@@ -649,8 +695,8 @@ func (m *Model) readChangelog() tea.Cmd {
 	}, m.ensureTick())
 }
 
-func (m *Model) changelogKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch k.String() {
+func (m *Model) changelogKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch keyName(k) {
 	case "up", "k":
 		m.lscroll = max(m.lscroll-1, 0)
 	case "down", "j", "tab":
@@ -684,8 +730,8 @@ func (m *Model) runDoctor() tea.Cmd {
 	}, m.ensureTick())
 }
 
-func (m *Model) doctorKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch k.String() {
+func (m *Model) doctorKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch keyName(k) {
 	case "up", "k":
 		m.dscroll = max(m.dscroll-1, 0)
 	case "down", "j", "tab":
@@ -704,9 +750,9 @@ func (m *Model) doctorKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *Model) typeAddr(k tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch k.Type {
-	case tea.KeyEsc:
+func (m *Model) typeAddr(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch k.Code {
+	case tea.KeyEscape:
 		m.typing = false
 		return m, nil
 	case tea.KeyEnter:
@@ -725,16 +771,16 @@ func (m *Model) typeAddr(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *Model) settingsKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *Model) settingsKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	n := len(config.Keys)
-	switch k.String() {
+	switch keyName(k) {
 	case "up", "k":
 		m.scursor = (m.scursor + n - 1) % n
 	case "down", "j", "tab":
 		m.scursor = (m.scursor + 1) % n
 	case "q", "esc":
 		m.screen = screenMenu
-	case "enter", " ":
+	case "enter", "space":
 		key := config.Keys[m.scursor]
 		if key.Bool {
 			next := "on"
@@ -750,9 +796,9 @@ func (m *Model) settingsKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *Model) editSetting(k tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch k.Type {
-	case tea.KeyEsc:
+func (m *Model) editSetting(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch k.Code {
+	case tea.KeyEscape:
 		m.editing = false
 		return m, nil
 	case tea.KeyEnter:

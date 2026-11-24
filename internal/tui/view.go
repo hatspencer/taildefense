@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"taildefense/internal/cli"
@@ -19,7 +20,20 @@ import (
 
 // View draws the launcher from the window size every frame. Every line is cut to the width
 // and the frame to the height at the end, so no screen can wrap however narrow the window.
-func (m *Model) View() string {
+//
+// The terminal's modes are declared with every frame, the splash and the smallest window
+// included: a frame that left one out would switch it off.
+func (m *Model) View() tea.View {
+	v := tea.NewView(m.frame())
+	v.AltScreen = true
+	// A theme that paints the terminal says so here as well, so the program puts the colours
+	// back after an update has run in the foreground and reset them on its way out.
+	v.BackgroundColor, v.ForegroundColor = ui.TerminalColors()
+	return v
+}
+
+// frame is the launcher as text, what View shows and what `td frame` prints.
+func (m *Model) frame() string {
 	w, h := max(m.width, 20), max(m.height, 6)
 	elapsed := m.now.Sub(m.started)
 	if m.splash && elapsed < SplashFor && splashFits(w, h) {
@@ -642,5 +656,5 @@ func Frame(o Options, width, height int, view string) string {
 		}
 		m.splash, m.now = true, m.started.Add(at)
 	}
-	return m.View()
+	return m.frame()
 }

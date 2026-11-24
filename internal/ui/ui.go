@@ -25,16 +25,16 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/muesli/termenv"
 
 	"taildefense/internal/platform"
 )
 
 // The palette.
 //
-// These are lipgloss.AdaptiveColor pairs rather than the eight ANSI indices, for two
+// These are AdaptiveColor pairs rather than the eight ANSI indices, for two
 // reasons that both showed up in practice.
 //
 // The first is contrast. ANSI colour 3 is "yellow", but on a light terminal theme it
@@ -44,10 +44,10 @@ import (
 // legible either way. This tool gets run in whatever terminal the person already had
 // open, so "looks fine in mine" is not a standard.
 //
-// The second is that lipgloss degrades these on its own. InitColor asks termenv what
-// the terminal supports and sets the profile; a 16-colour terminal maps each hex value
-// to its nearest ANSI equivalent, so nothing here is worse than what it replaced, and
-// on a truecolor terminal it is considerably better.
+// The second is that they degrade on their own. InitColor reads what the terminal
+// supports and Color brings each hex value down to it; a 16-colour terminal gets the
+// nearest ANSI equivalent, so nothing here is worse than what it replaced, and on a
+// truecolor terminal it is considerably better.
 //
 // The values are the Tailwind 600/400 pairs, which is also what the reference fos CLI
 // uses — worth keeping identical so that two tools in the same workflow do not
@@ -59,47 +59,47 @@ import (
 // ones are rebuilt from the active theme on every InitColor, and a theme table that
 // referenced them directly would capture whatever the previous theme had left there.
 var (
-	baseGreen = lipgloss.AdaptiveColor{Light: "#16a34a", Dark: "#4ade80"}
-	baseRed   = lipgloss.AdaptiveColor{Light: "#dc2626", Dark: "#f87171"}
+	baseGreen = AdaptiveColor{Light: "#16a34a", Dark: "#4ade80"}
+	baseRed   = AdaptiveColor{Light: "#dc2626", Dark: "#f87171"}
 	// WARN is orange rather than yellow, because amber is the accent this tool is drawn in
 	// and a warning one shade from the accent stops reading as a warning. Full themes that
 	// own their whole palette still choose their own; this is what the rest inherit.
-	baseYellow  = lipgloss.AdaptiveColor{Light: "#c2410c", Dark: "#fb923c"}
-	baseCyan    = lipgloss.AdaptiveColor{Light: "#0891b2", Dark: "#22d3ee"}
-	baseBlue    = lipgloss.AdaptiveColor{Light: "#2563eb", Dark: "#60a5fa"}
-	baseGray    = lipgloss.AdaptiveColor{Light: "#6b7280", Dark: "#9ca3af"}
-	baseText    = lipgloss.AdaptiveColor{Light: "#1f2937", Dark: "#f9fafb"}
-	baseSurface = lipgloss.AdaptiveColor{Light: "#e5e7eb", Dark: "#1f2937"}
+	baseYellow  = AdaptiveColor{Light: "#c2410c", Dark: "#fb923c"}
+	baseCyan    = AdaptiveColor{Light: "#0891b2", Dark: "#22d3ee"}
+	baseBlue    = AdaptiveColor{Light: "#2563eb", Dark: "#60a5fa"}
+	baseGray    = AdaptiveColor{Light: "#6b7280", Dark: "#9ca3af"}
+	baseText    = AdaptiveColor{Light: "#1f2937", Dark: "#f9fafb"}
+	baseSurface = AdaptiveColor{Light: "#e5e7eb", Dark: "#1f2937"}
 )
 
 // The palette in force. Every one of these belongs to the active theme and is rebuilt by
 // applyTheme, which falls back to the base value above for anything the theme leaves unset.
 // Nothing else in the program has to know which theme is current. See theme.go.
 var (
-	ColorGreen  lipgloss.AdaptiveColor
-	ColorRed    lipgloss.AdaptiveColor
-	ColorYellow lipgloss.AdaptiveColor
-	ColorCyan   lipgloss.AdaptiveColor
-	ColorBlue   lipgloss.AdaptiveColor
-	ColorGray   lipgloss.AdaptiveColor
+	ColorGreen  AdaptiveColor
+	ColorRed    AdaptiveColor
+	ColorYellow AdaptiveColor
+	ColorCyan   AdaptiveColor
+	ColorBlue   AdaptiveColor
+	ColorGray   AdaptiveColor
 	// ColorText is the high-contrast "plain but emphasised" colour: near-black on a
 	// light theme, near-white on a dark one. It replaces ANSI 7, which was the one
 	// genuinely unreadable choice in the old palette.
-	ColorText lipgloss.AdaptiveColor
+	ColorText AdaptiveColor
 
 	// ColorAccent, ColorOnAccent and ColorLink are the brand colour, the text drawn on top
 	// of a block of it, and the colour of a link label.
-	ColorAccent   lipgloss.AdaptiveColor
-	ColorOnAccent lipgloss.AdaptiveColor
-	ColorLink     lipgloss.AdaptiveColor
+	ColorAccent   AdaptiveColor
+	ColorOnAccent AdaptiveColor
+	ColorLink     AdaptiveColor
 	// ColorSurface is the background of the bars that frame a full-screen view: one
 	// step off the background in either direction, so a bar reads as a bar without
 	// needing a rule under it.
-	ColorSurface lipgloss.AdaptiveColor
+	ColorSurface AdaptiveColor
 	// ColorBg is the background a full theme paints the terminal with, and the zero value
 	// for a theme that follows the terminal's own. Read by background.go, and by the
 	// full-screen views that have to fill a region rather than let it show through.
-	ColorBg lipgloss.AdaptiveColor
+	ColorBg AdaptiveColor
 )
 
 // Styles are resolved once at startup. Exported so commands can compose their
@@ -184,7 +184,9 @@ func suppressDetail() bool {
 // styles under the same colour decision.
 var lastNoColor bool
 
-func init() { InitColor(false) }
+// The package starts with colour decided but the terminal not yet asked for its background:
+// main has not parsed --no-color, and a question nobody wanted is still a question.
+func init() { initColor(false, false) }
 
 // InitColor decides whether ANSI escapes are emitted and builds the styles.
 //
@@ -192,7 +194,9 @@ func init() { InitColor(false) }
 // pbcopy` yields clean text), when NO_COLOR is set (https://no-color.org), when
 // TERM is dumb, or when --no-color was passed. TAILDEFENSE_FORCE_COLOR overrides
 // every one of those, which is what makes `taildefense ledger | less -R` work.
-func InitColor(noColorFlag bool) {
+func InitColor(noColorFlag bool) { initColor(noColorFlag, true) }
+
+func initColor(noColorFlag, ask bool) {
 	lastNoColor = noColorFlag
 	applyTheme()
 
@@ -213,67 +217,62 @@ func InitColor(noColorFlag bool) {
 	colorEnabled = enabled
 
 	if enabled {
-		// Ask termenv what the terminal supports rather than assuming truecolor:
-		// a 16-colour terminal renders a 24-bit colour as the nearest match, and
-		// on a 2-colour terminal it would be unreadable.
-		profile := termenv.ColorProfile()
-
-		// A child whose stdout is a pipe cannot detect any of this for itself: termenv
-		// sees a pipe and reports Ascii, which the line below would widen to a flat 16
-		// colours, and lipgloss cannot query the background so AdaptiveColor silently
-		// assumes dark. Both are wrong in the one place it matters most — the shell TUI
-		// captures its children's output and shows it next to its own, so a child
-		// limited to 16 colours next to truecolor chrome looks like a rendering fault,
-		// and a light-background user gets the dark palette on half the screen.
+		// Read what the terminal supports rather than assuming truecolor: a 16-colour
+		// terminal is given the nearest match, and on a 2-colour terminal a 24-bit colour
+		// would be unreadable.
+		//
+		// A child whose stdout is a pipe cannot detect any of this for itself: it sees a
+		// pipe and no colours, which is widened to a flat 16, and it cannot query the
+		// background so adaptive colours assume dark. Both are wrong in the one place it
+		// matters most: a parent that captures its children's output and shows it next to
+		// its own. A child limited to 16 colours next to truecolor chrome looks like a
+		// rendering fault, and a light-background user gets the dark palette on half the
+		// screen.
 		//
 		// So the parent, which does have a terminal, passes down what it found. This is
 		// only trusted when colour has been forced, which is the same condition under
 		// which the child's own detection is known to be unavailable.
-		if inherited, ok := inheritedProfile(); ok {
-			profile = inherited
-		}
-		if dark, ok := inheritedDarkBackground(); ok {
-			lipgloss.SetHasDarkBackground(dark)
-		}
+		profile = detectProfile()
 
-		if profile == termenv.Ascii {
-			profile = termenv.ANSI
-		}
-		lipgloss.SetColorProfile(profile)
-
+		// Adaptive colours need to know whether the background is dark, and the only way to
+		// find out is to ask the terminal. Asked here, while the terminal is still ours:
+		// inside a full-screen program the answer would be eaten by the program's own input
+		// reader.
+		//
 		// A full theme owns its background, so it, not the terminal, decides what adaptive
-		// means. This has to be set after the inherited value above and before any style is
-		// built: dozens of adaptive pairs are declared in the command packages rather than
-		// here, and this one line is what makes all of them resolve against the theme.
+		// means. This has to be settled before any style is built: every adaptive pair
+		// resolves against it.
+		dark = terminalIsDark(ask)
 		if active.Full() {
-			lipgloss.SetHasDarkBackground(active.Dark)
+			dark = active.Dark
 		}
 	} else {
-		lipgloss.SetColorProfile(termenv.Ascii)
+		profile = colorprofile.NoTTY
+		dark = terminalIsDark(false)
 	}
 
-	StylePass = lipgloss.NewStyle().Foreground(ColorGreen).Bold(true)
-	StyleFail = lipgloss.NewStyle().Foreground(ColorRed).Bold(true)
+	StylePass = bold(newStyle().Foreground(ColorGreen.color()))
+	StyleFail = bold(newStyle().Foreground(ColorRed.color()))
 	// Cyan, not yellow. INFO and WARN were previously both ANSI 3 and differed only
 	// by bold, which is close to no difference at all in a scrolling transcript —
 	// the one distinction that has to survive is "here is a fact" versus "you should
 	// probably act on this".
-	StyleInfo = lipgloss.NewStyle().Foreground(ColorCyan)
+	StyleInfo = newStyle().Foreground(ColorCyan.color())
 	// An explicit grey rather than Faint. Faint is widely ignored — several
 	// terminals render it at full brightness — so dim text was not reliably dim,
 	// which matters because it is what separates supporting detail from findings.
-	StyleNote = lipgloss.NewStyle().Foreground(ColorGray)
-	StyleWarn = lipgloss.NewStyle().Foreground(ColorYellow).Bold(true)
-	StyleStep = lipgloss.NewStyle().Foreground(ColorBlue).Bold(true)
-	StyleBold = lipgloss.NewStyle().Bold(true)
-	StyleCyan = lipgloss.NewStyle().Foreground(ColorCyan)
-	StyleGreen = lipgloss.NewStyle().Foreground(ColorGreen)
-	StyleRed = lipgloss.NewStyle().Foreground(ColorRed)
-	StyleYellow = lipgloss.NewStyle().Foreground(ColorYellow)
-	StyleWhite = lipgloss.NewStyle().Foreground(ColorText).Bold(true)
-	StyleDim = lipgloss.NewStyle().Foreground(ColorGray)
+	StyleNote = newStyle().Foreground(ColorGray.color())
+	StyleWarn = bold(newStyle().Foreground(ColorYellow.color()))
+	StyleStep = bold(newStyle().Foreground(ColorBlue.color()))
+	StyleBold = bold(newStyle())
+	StyleCyan = newStyle().Foreground(ColorCyan.color())
+	StyleGreen = newStyle().Foreground(ColorGreen.color())
+	StyleRed = newStyle().Foreground(ColorRed.color())
+	StyleYellow = newStyle().Foreground(ColorYellow.color())
+	StyleWhite = bold(newStyle().Foreground(ColorText.color()))
+	StyleDim = newStyle().Foreground(ColorGray.color())
 
-	StyleAccent = lipgloss.NewStyle().Foreground(ColorAccent)
+	StyleAccent = newStyle().Foreground(ColorAccent.color())
 	// StyleAccentBold marks the run inside a value that differs from the value beside it.
 	// Bold as well as coloured, so the mark is not carried by colour alone.
 	//
@@ -281,13 +280,16 @@ func InitColor(noColorFlag bool) {
 	// character at a time to control where the line stops, so `false` came out as five
 	// separate escape sequences instead of one. Five times the bytes in every transcript,
 	// every `less -R` and every copied line, for a second cue that bold already gives.
-	StyleAccentBold = lipgloss.NewStyle().Foreground(ColorAccent).Bold(true)
-	StyleBrand = lipgloss.NewStyle().Foreground(ColorAccent).Bold(true)
-	StyleBadge = lipgloss.NewStyle().Foreground(ColorOnAccent).Background(ColorAccent).Bold(true)
-	StyleSurface = lipgloss.NewStyle().Foreground(ColorText).Background(ColorSurface)
-	StyleSurfaceDim = lipgloss.NewStyle().Foreground(ColorGray).Background(ColorSurface)
-	StyleSurfaceBold = lipgloss.NewStyle().Foreground(ColorText).Background(ColorSurface).Bold(true)
-	StyleSelected = lipgloss.NewStyle().Reverse(true)
+	StyleAccentBold = bold(newStyle().Foreground(ColorAccent.color()))
+	StyleBrand = bold(newStyle().Foreground(ColorAccent.color()))
+	StyleBadge = bold(newStyle().Foreground(ColorOnAccent.color()).Background(ColorAccent.color()))
+	StyleSurface = newStyle().Foreground(ColorText.color()).Background(ColorSurface.color())
+	StyleSurfaceDim = newStyle().Foreground(ColorGray.color()).Background(ColorSurface.color())
+	StyleSurfaceBold = bold(newStyle().Foreground(ColorText.color()).Background(ColorSurface.color()))
+	StyleSelected = newStyle()
+	if enabled {
+		StyleSelected = StyleSelected.Reverse(true)
+	}
 	// The link colour is the theme's. The original violet theme draws links in the accent; the
 	// scarlet one moves them to blue, because a "Jump to kafbat" label in red three lines above a
 	// green PASS read as an error rather than as a link.
@@ -296,22 +298,14 @@ func InitColor(noColorFlag bool) {
 	// in the middle of a line became a pair of escapes per letter in every transcript and every
 	// `less -R`, the reason steering forbids underline on an inline run. The OSC 8 wrapper is what
 	// makes the label a link, and without colour Link prints the URL after it instead.
-	StyleLink = lipgloss.NewStyle().Foreground(ColorLink)
+	StyleLink = newStyle().Foreground(ColorLink.color())
 
 	// The animation ramp is built from the accent, so it is rebuilt whenever the styles
 	// are. A test that toggles colour would otherwise keep frames resolved against the
 	// previous profile.
 	initAnim()
 
-	if enabled {
-		// Adaptive colours need to know whether the background is dark, and lipgloss
-		// finds out by asking the terminal the first time one is rendered. Inside a
-		// full-screen program that first render happens after Bubble Tea has taken the
-		// terminal, so the answer can be eaten by the program's own input reader and
-		// the query waits out its timeout. Asking here, while the terminal is still
-		// ours, settles it before any program starts.
-		_ = lipgloss.HasDarkBackground()
-	} else {
+	if !enabled {
 		// Colour has just been turned off — by --no-color, by --json, or by a session
 		// rebuilding its styles — and a terminal already painted by a full theme has to be
 		// handed back. Done here rather than at each call site because every one of them

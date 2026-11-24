@@ -6,8 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
-
 	"taildefense/internal/platform"
 )
 
@@ -157,7 +155,7 @@ func TestRampFractionsAreOrderedAndClamped(t *testing.T) {
 func TestTheRestingRampShadeIsTheAccent(t *testing.T) {
 	forceTruecolor(t)
 	t.Cleanup(func() {
-		lipgloss.SetHasDarkBackground(true)
+		termDark, termDarkKnown = true, false
 		_ = SetTheme(DefaultTheme)
 	})
 
@@ -165,14 +163,14 @@ func TestTheRestingRampShadeIsTheAccent(t *testing.T) {
 		if err := SetTheme(theme.Name); err != nil {
 			t.Fatal(err)
 		}
-		for _, dark := range []bool{true, false} {
-			lipgloss.SetHasDarkBackground(dark)
+		for _, isDark := range []bool{true, false} {
+			termDark, termDarkKnown = isDark, true
 			InitColor(false)
 
 			rest := rampStyles[rampIdx(fracRest)].Render("HIVE")
 			brand := StyleBrand.Render("HIVE")
 			if rest != brand {
-				t.Errorf("%s dark=%v: the resting ramp shade is %q, the brand style is %q", theme.Name, dark, rest, brand)
+				t.Errorf("%s dark=%v: the resting ramp shade is %q, the brand style is %q", theme.Name, isDark, rest, brand)
 			}
 		}
 	}

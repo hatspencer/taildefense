@@ -5,8 +5,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-
-	"github.com/charmbracelet/lipgloss"
 )
 
 // Themes.
@@ -56,31 +54,31 @@ type Theme struct {
 
 	// Bg is the terminal background. Zero for a theme that follows the terminal's own,
 	// and the flag that tells everything else which kind of theme this is: Full reports it.
-	Bg lipgloss.AdaptiveColor
+	Bg AdaptiveColor
 	// Dark is whether Bg is a dark background. Only meaningful when Bg is set, and it is
-	// what InitColor hands to lipgloss.SetHasDarkBackground so that every adaptive colour
+	// what InitColor resolves every adaptive colour against, so that each one
 	// in the rest of the program resolves against the theme rather than the terminal.
 	Dark bool
 	// Fg is body text, Dim is supporting detail, Surface is the background of the bars
 	// that frame a full-screen view.
-	Fg      lipgloss.AdaptiveColor
-	Dim     lipgloss.AdaptiveColor
-	Surface lipgloss.AdaptiveColor
+	Fg      AdaptiveColor
+	Dim     AdaptiveColor
+	Surface AdaptiveColor
 
 	// The status slots. Their meaning is fixed; only the shade belongs to the theme.
-	Pass lipgloss.AdaptiveColor
-	Fail lipgloss.AdaptiveColor
-	Warn lipgloss.AdaptiveColor
-	Info lipgloss.AdaptiveColor
-	Step lipgloss.AdaptiveColor
+	Pass AdaptiveColor
+	Fail AdaptiveColor
+	Warn AdaptiveColor
+	Info AdaptiveColor
+	Step AdaptiveColor
 
 	// Accent is the brand colour: the wordmark, the prompt, the active tab, the
 	// selected row.
-	Accent lipgloss.AdaptiveColor
+	Accent AdaptiveColor
 	// OnAccent is text drawn on top of Accent.
-	OnAccent lipgloss.AdaptiveColor
+	OnAccent AdaptiveColor
 	// Link is the colour of a hyperlink's label, always underlined.
-	Link lipgloss.AdaptiveColor
+	Link AdaptiveColor
 	// Ramp is Accent from its darkest shade to white-hot: what the animations move
 	// through. Eleven stops, and the one at fracRest must be Accent exactly on both
 	// backgrounds — it is the shade every cell outside a moving highlight is painted in,
@@ -89,17 +87,17 @@ type Theme struct {
 	//
 	// The two terminal-following themes have hand-tuned ramps. Every other theme builds
 	// one with ramp(), which interpolates and therefore cannot get the resting stop wrong.
-	Ramp []lipgloss.AdaptiveColor
+	Ramp []AdaptiveColor
 }
 
 // Full reports whether the theme owns its background, and therefore whether it paints the
 // terminal and pins its colours rather than adapting to what is already there.
-func (t Theme) Full() bool { return t.Bg != (lipgloss.AdaptiveColor{}) }
+func (t Theme) Full() bool { return t.Bg != (AdaptiveColor{}) }
 
 // fixed is one colour, the same on any background: what a theme that owns its background
 // uses, since there is no longer anything to adapt to.
-func fixed(hex string) lipgloss.AdaptiveColor {
-	return lipgloss.AdaptiveColor{Light: hex, Dark: hex}
+func fixed(hex string) AdaptiveColor {
+	return AdaptiveColor{Light: hex, Dark: hex}
 }
 
 // ramp builds the eleven animation stops by interpolating dark to accent over the first
@@ -109,9 +107,9 @@ func fixed(hex string) lipgloss.AdaptiveColor {
 // of hex in which the one stop that has to be exactly the accent is the easiest to get
 // wrong, and getting it wrong makes the whole wordmark change colour when a sweep starts.
 // Here that stop is the input, so it cannot drift.
-func ramp(dark, accent, hot string) []lipgloss.AdaptiveColor {
+func ramp(dark, accent, hot string) []AdaptiveColor {
 	const rest = 4
-	out := make([]lipgloss.AdaptiveColor, 11)
+	out := make([]AdaptiveColor, 11)
 	for i := range out {
 		switch {
 		case i < rest:
@@ -180,14 +178,14 @@ var themes = map[string]Theme{
 		//
 		// Violet-700 on light, violet-400 on dark, the same weights the honey theme uses
 		// for its amber.
-		Accent:   lipgloss.AdaptiveColor{Light: "#6d28d9", Dark: "#a78bfa"},
-		OnAccent: lipgloss.AdaptiveColor{Light: "#faf5ff", Dark: "#1e1b4b"},
+		Accent:   AdaptiveColor{Light: "#6d28d9", Dark: "#a78bfa"},
+		OnAccent: AdaptiveColor{Light: "#faf5ff", Dark: "#1e1b4b"},
 		// Sky, not the accent: a lavender label next to a lavender selection is not a link.
-		Link: lipgloss.AdaptiveColor{Light: "#0369a1", Dark: "#7dd3fc"},
+		Link: AdaptiveColor{Light: "#0369a1", Dark: "#7dd3fc"},
 		// The light half climbs through indigo and blue to cyan-600 before it washes out,
 		// so on paper the four stops above the accent still hold 3:1 and a sweep reads as
 		// colour travelling rather than as ink fading.
-		Ramp: []lipgloss.AdaptiveColor{
+		Ramp: []AdaptiveColor{
 			{Light: "#1e0b4b", Dark: "#2e1065"},
 			{Light: "#2e1065", Dark: "#4c1d95"},
 			{Light: "#4c1d95", Dark: "#6d28d9"},
@@ -239,15 +237,15 @@ var themes = map[string]Theme{
 		//
 		// Amber-700 on light, amber-400 on dark. Amber-500 would be the obvious dark
 		// pairing and is unreadable on white, which is what the light half is for.
-		Accent: lipgloss.AdaptiveColor{Light: "#b45309", Dark: "#fbbf24"},
+		Accent: AdaptiveColor{Light: "#b45309", Dark: "#fbbf24"},
 		// Near-white on the deep amber a light terminal gets, near-black on the pale
 		// amber a dark one gets.
-		OnAccent: lipgloss.AdaptiveColor{Light: "#fffbeb", Dark: "#1a1408"},
+		OnAccent: AdaptiveColor{Light: "#fffbeb", Dark: "#1a1408"},
 		// Links are blue here, not the accent. Yellow underlined next to an orange WARN
 		// is two warm colours one shade apart, which is not two colours; blue is the one
 		// hue no status slot and not the accent claims.
-		Link: lipgloss.AdaptiveColor{Light: "#1d4ed8", Dark: "#7dd3fc"},
-		Ramp: []lipgloss.AdaptiveColor{
+		Link: AdaptiveColor{Light: "#1d4ed8", Dark: "#7dd3fc"},
+		Ramp: []AdaptiveColor{
 			{Light: "#451a03", Dark: "#78350f"},
 			{Light: "#6b2c06", Dark: "#92400e"},
 			{Light: "#8a3f07", Dark: "#b45309"},
@@ -270,10 +268,10 @@ var themes = map[string]Theme{
 		// the accent is a filled block while FAIL is foreground text behind a ✘; and the
 		// glyph carries the meaning anyway, which is what makes the status vocabulary
 		// survive a 16-colour terminal and NO_COLOR.
-		Accent: lipgloss.AdaptiveColor{Light: "#e10600", Dark: "#ff3b2f"},
+		Accent: AdaptiveColor{Light: "#e10600", Dark: "#ff3b2f"},
 		// Both shades are saturated enough to need help: white on the deep scarlet,
 		// near-black on the brighter one a dark theme gets.
-		OnAccent: lipgloss.AdaptiveColor{Light: "#ffffff", Dark: "#2a0603"},
+		OnAccent: AdaptiveColor{Light: "#ffffff", Dark: "#2a0603"},
 		// Blue, not accent. A "Jump to kafbat" label in scarlet three lines above a
 		// green PASS read as an error rather than as a link; blue underlined is the
 		// convention every reader already has, and STEP is the one status meaning that
@@ -281,7 +279,7 @@ var themes = map[string]Theme{
 		Link: baseBlue,
 		// The top stop is deliberately not pure white: a true #ffffff highlight on a red
 		// ramp reads as a blown-out pixel rather than as the hot end of the same colour.
-		Ramp: []lipgloss.AdaptiveColor{
+		Ramp: []AdaptiveColor{
 			{Light: "#7f1d1d", Dark: "#7f1d1d"},
 			{Light: "#9c1c1c", Dark: "#9c1c1c"},
 			{Light: "#b91c1c", Dark: "#b91c1c"},
@@ -422,7 +420,7 @@ var themes = map[string]Theme{
 		// animation reads as an oil slick. Only the stop at fracRest is pinned, which is
 		// what makes travelling legal. Still, it is identical to a plain violet theme:
 		// the cost is paid only while something moves.
-		Ramp: []lipgloss.AdaptiveColor{
+		Ramp: []AdaptiveColor{
 			fixed("#312e81"), fixed("#4338ca"), fixed("#6d28d9"), fixed("#8b5cf6"),
 			fixed("#a78bfa"), // fracRest, and Accent exactly
 			fixed("#c084fc"), fixed("#e879f9"), fixed("#f472b6"), fixed("#f9a8d4"),
@@ -592,8 +590,8 @@ func applyTheme() {
 }
 
 // or is the theme's colour when it set one, the shared palette's otherwise.
-func or(themed, base lipgloss.AdaptiveColor) lipgloss.AdaptiveColor {
-	if themed == (lipgloss.AdaptiveColor{}) {
+func or(themed, base AdaptiveColor) AdaptiveColor {
+	if themed == (AdaptiveColor{}) {
 		return base
 	}
 	return themed
