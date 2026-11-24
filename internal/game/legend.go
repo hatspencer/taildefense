@@ -435,7 +435,8 @@ func (w *World) arc(owner int8, first int32, dmg float32, jumps int, hop, burn f
 // bleed builds blood loss on creep i from p's cut; when it fills, it bursts.
 func (w *World) bleed(i int32, amt float32, p *Player) {
 	c := &w.Creeps[i]
-	if c.HP <= 0 {
+	// Out in the dark a survivor's cut can't reach it (hit), so neither does the bleed.
+	if c.HP <= 0 || w.hidden(c) {
 		return
 	}
 	if c.Bleed += amt; c.Bleed < bleedFull {
@@ -448,16 +449,22 @@ func (w *World) bleed(i int32, amt float32, p *Player) {
 	}
 	dmg := c.MaxHP*share + bleedFlat*lateScale(w.Wave)
 	x, y := c.X, c.Y
+	hp := c.HP
 	w.noArmor = true
 	w.hit(i, dmg, int8(p.ID), 1)
 	w.noArmor = false
+	// A burst that took nothing sets off nothing: each link of a Fang chain costs some
+	// creep hp, so the chain ends.
+	if c.HP >= hp {
+		return
+	}
 	w.Blasts = append(w.Blasts, Blast{x, y, 1, BlastBleed})
 	if p.evo(WKatana) == 1 {
 		// Crimson Fang drinks it, and spatters it onto what stands near.
 		p.HP = min(p.MaxHP, p.HP+p.MaxHP*fangHeal)
 		near := w.near[:0]
 		w.grid.each(x, y, fangReach, func(j int32) bool {
-			if o := &w.Creeps[j]; j != i && o.HP > 0 && (o.X-x)*(o.X-x)+(o.Y-y)*(o.Y-y) <= fangReach*fangReach {
+			if o := &w.Creeps[j]; j != i && o.HP > 0 && !w.hidden(o) && (o.X-x)*(o.X-x)+(o.Y-y)*(o.Y-y) <= fangReach*fangReach {
 				near = append(near, j)
 			}
 			return true

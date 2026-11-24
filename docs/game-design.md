@@ -832,6 +832,8 @@ melee a way to play, and give the far sites something only they hold (`internal/
 - **Two evolutions, as a turret's.** Once the four tracks add up to 12 levels, 1500 gold picks one
   of two for good: Crimson Fang (bleed that chains and heals) or Moonlit Edge (reach); Ashen
   Colossus (fire) or Stormbreaker (lightning). The same rule as the turrets', so it reads at once.
+  A creep out in the dark doesn't bleed, as a survivor's cut can't reach it, so Crimson Fang's
+  spatter stops at the edge of the light.
 - **The animations sell the weight.** A swing snaps into its pose in three frames, holds, then
   eases back to a chambered windup: the 8-bit way to show speed and weight, after the stances of
   a souls-like. The katana cuts a three-step combo and flicks the blood off (chiburi) when the
