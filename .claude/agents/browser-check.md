@@ -11,7 +11,9 @@ You check how taildefense's browser client looks and behaves, and report back in
 - Build the client first if asked to or if `internal/web/dist` is stale: `./build.sh web`.
 - Drive the page with the Playwright MCP tools. The demo runs with no host from
   `internal/web/dist/index.html#demo&nosplash`; serve `internal/web/dist` over HTTP on a free
-  port if `file://` is refused, and stop that server when you finish.
+  port if `file://` is refused, and stop that server when you finish. If the Playwright tools
+  are not available, stop and report that the Playwright MCP server is not configured; do not
+  look at the page some other way.
 - A new hash on the same URL does not reload: go through `about:blank`. After a rebuild, load
   with the cache disabled, or the old bundle is served. Shaders take a while to compile; wait
   for the scene before judging a black frame.
