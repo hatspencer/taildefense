@@ -432,7 +432,7 @@ The weather changes between waves and is the same for everyone. Fog shortens eve
 and hides teammates from the map and their health bars, rain dampens fire and slows creeps a
 little, a storm throws lightning at creeps out in the open, and snow slows everything down.
 Wet weather is mostly light, a drizzle or a passing thunder shower, and snow mostly a thin
-fall. Heavy rain, full storms and heavy snow are rare.
+fall. Fog, heavy rain, full storms and heavy snow are rare.
 
 ## Ultimates
 

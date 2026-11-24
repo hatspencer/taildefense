@@ -22,11 +22,12 @@ type WeatherDef struct {
 	Weight int // how often it comes up between waves
 }
 
-// Weathers is indexed by WeatherKind. Heavy rain, storms and heavy snow are rare; drizzle, a
-// passing thunder shower and a light snowfall are their everyday, lighter forms.
+// Weathers is indexed by WeatherKind. Fog, heavy rain, storms and heavy snow are rare; drizzle,
+// a passing thunder shower and a light snowfall are the everyday, lighter forms of the wet and
+// snowy ones.
 var Weathers = [NumWeathers]WeatherDef{
-	WClear:     {Name: "Clear", Weight: 40},
-	WFog:       {Name: "Fog", Info: "you see far less; you and your turrets reach 25% less far; creeps notice you later", Weight: 18},
+	WClear:     {Name: "Clear", Weight: 53},
+	WFog:       {Name: "Fog", Info: "you see far less; you and your turrets reach 25% less far; creeps notice you later", Weight: 5},
 	WRain:      {Name: "Heavy rain", Info: "harder to see; fire burns half as hot; creeps 8% slower", Weight: 5},
 	WStorm:     {Name: "Storm", Info: "heavy rain, and lightning strikes creeps out in the open", Weight: 3},
 	WSnow:      {Name: "Snow", Info: "creeps 6% slower, survivors 3% slower", Weight: 9},
