@@ -12,7 +12,7 @@ const STUCK = 8000;
 interface Said { head: string; what: string; tone: 'bad' | 'info' }
 
 // What the end of a game means to the player, from the reason td gives (internal/web/session.go).
-export function endText(reason: string): Said {
+function endText(reason: string): Said {
   const r = reason.toLowerCase();
   if (r.includes('you left')) return { head: 'You left the game', what: 'td is back in the terminal: host a new game, join one, or quit there.', tone: 'info' };
   if (r.includes('another tab')) return { head: 'The game moved to another tab', what: 'It was opened again somewhere else. Close this tab and play in the other one.', tone: 'info' };

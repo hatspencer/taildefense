@@ -40,23 +40,7 @@ func TestSetTTYForTest(t *testing.T) {
 	}
 }
 
-// ReleaseTarget names the release artifact as GOOS-GOARCH, not the human-readable OS()/Arch()
-// pair. Building a filename from the human pair yields a path that never exists, which is a
-// silent failure: the comment in platform.go calls this out, so pin it.
-func TestReleaseTargetUsesGoNaming(t *testing.T) {
-	want := runtime.GOOS + "-" + runtime.GOARCH
-	got := ReleaseTarget()
-	if got != want {
-		t.Errorf("ReleaseTarget = %q, want %q (GOOS-GOARCH, not the human OS/Arch)", got, want)
-	}
-	// And it must not accidentally use Arch(), which says x86_64 where Go says amd64.
-	if runtime.GOARCH == "amd64" && got == runtime.GOOS+"-x86_64" {
-		t.Error("ReleaseTarget used the human arch name x86_64; the release target names its output amd64")
-	}
-}
-
-// Arch uses uname's vocabulary (x86_64) so existing notes line up, while ReleaseTarget uses
-// Go's (amd64). The two deliberately disagree on amd64; this pins that they do.
+// Arch uses uname's vocabulary (x86_64) so existing notes line up, where Go says amd64.
 func TestArchVocabulary(t *testing.T) {
 	switch runtime.GOARCH {
 	case "amd64":
@@ -95,31 +79,6 @@ func TestTermWidthReportsWhetherAWidthWasFound(t *testing.T) {
 	t.Setenv("COLUMNS", "wide")
 	if _, ok := TermWidth(); ok {
 		t.Fatal("TermWidth accepted a COLUMNS that is not a number")
-	}
-}
-
-// Editor honours $EDITOR when the named program exists on PATH, and reports an error rather
-// than guessing when nothing usable is set.
-func TestEditorHonoursEnvironment(t *testing.T) {
-	// A program that exists on every unix box these tests run on.
-	t.Setenv("VISUAL", "")
-	t.Setenv("EDITOR", "cat")
-	parts, err := Editor()
-	if err != nil {
-		t.Fatalf("Editor errored with EDITOR=cat: %v", err)
-	}
-	if len(parts) == 0 || parts[0] != "cat" {
-		t.Errorf("Editor = %v, want it to start with cat", parts)
-	}
-
-	// A flag on $EDITOR is split, because $EDITOR is allowed to carry one ("code --wait").
-	t.Setenv("EDITOR", "cat -u")
-	parts, err = Editor()
-	if err != nil {
-		t.Fatalf("Editor errored with a flag: %v", err)
-	}
-	if len(parts) != 2 || parts[0] != "cat" || parts[1] != "-u" {
-		t.Errorf("Editor did not split the flag: %v", parts)
 	}
 }
 

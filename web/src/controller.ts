@@ -14,11 +14,11 @@ import type { Game } from './state';
 
 export type Mode = { k: 'none' } | { k: 'ping' } | { k: 'ability'; slot: number } | { k: 'build'; kind: number };
 // gun: a weapon on the ground, by its id.
-export type Pick = { t: 'creep' | 'struct' | 'hero' | 'site' | 'gun'; id: number } | null;
+type Pick = { t: 'creep' | 'struct' | 'hero' | 'site' | 'gun'; id: number } | null;
 
 // One ability slot as the HUD shows it. For the ultimate (slot 0), charge is its meter, 0..1,
 // and running the seconds left of one going; left and cool are 0.
-export interface AbilityInfo { name: string; desc: string; key: string; range: number; radius: number; cool: number; target: string; level: number; maxLevel: number; left: number; nextCost: number; charge: number; running: number }
+interface AbilityInfo { name: string; desc: string; key: string; range: number; radius: number; cool: number; target: string; level: number; maxLevel: number; left: number; nextCost: number; charge: number; running: number }
 
 // Ability slots, Overwatch style: the weapon's ultimate on Q, then the bought abilities, cast at
 // the cursor the moment the key goes down, but for the grenade; WASD walks.
@@ -43,7 +43,7 @@ const SEEK_PENDING = 1000; // ms a loot order just sent counts as on its way, un
 const BUILD_PENDING = 1000;
 
 // A build sent to the host and not yet in a frame.
-export interface PendingBuild { kind: number; tx: number; ty: number; w: number; h: number; facing: number; at: number }
+interface PendingBuild { kind: number; tx: number; ty: number; w: number; h: number; facing: number; at: number }
 // What the player is doing with the mouse, what is selected and hovered, and every action
 // the input handlers and the HUD buttons can trigger.
 export class Controller {
@@ -663,7 +663,7 @@ export class Controller {
   }
 
   // What rebuilding every ghost and mending every damaged structure costs, as the host
-  // reckons it (FixCost), and how many of each there are.
+  // reckons it (FixAll), and how many of each there are.
   fixCost(): { gold: number; ghosts: number; damaged: number } {
     const f = this.game.cur, wd = this.game.welcome;
     let gold = 0, ghosts = 0, damaged = 0;

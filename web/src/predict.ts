@@ -62,7 +62,7 @@ export function tileBlocked(tiles: Uint8Array, w: number, h: number, tx: number,
 const CORNERS = [-RADIUS, -RADIUS, RADIUS, -RADIUS, -RADIUS, RADIUS, RADIUS, RADIUS];
 
 // canStand is commands.go CanStand.
-export function canStand(b: Blocker, x: number, y: number): boolean {
+function canStand(b: Blocker, x: number, y: number): boolean {
   for (let i = 0; i < 8; i += 2) {
     if (b.blocked(Math.floor(f(x + CORNERS[i])), Math.floor(f(y + CORNERS[i + 1])))) return false;
   }
@@ -79,7 +79,7 @@ export function move(b: Blocker, x: number, y: number, dx: number, dy: number, o
 }
 
 // What a stride depends on besides the map, as the page knows it of its own survivor.
-export interface Gait {
+interface Gait {
   boots: number; // pairs of boots (gear)
   weather: number; amt: number; // the frame's weather and how strongly it holds
   sprinting: boolean; // sprint held and not winded
@@ -114,7 +114,7 @@ export function stamina(st: number, winded: boolean, sprinting: boolean, moved: 
 
 // counting reports whether a timer of v seconds is still running n ticks on: the host takes
 // dt off it in float32 before each tick's step (a slow, a buff) and acts while it is above 0.
-export function counting(v: number, n: number, dt: number): boolean {
+function counting(v: number, n: number, dt: number): boolean {
   let l = f(v);
   for (let i = 0; i < n && l > 0; i++) l = f(l - dt);
   return l > 0;
@@ -130,7 +130,7 @@ export function lapseTicks(dt: number): number {
 // ---- wrecks ------------------------------------------------------------------------------
 
 // What the welcome says of a site.
-export interface SiteLike { kind: number; sx: number; sy: number; yaw?: number }
+interface SiteLike { kind: number; sx: number; sy: number; yaw?: number }
 
 // Site kinds (protocol.ts SiteKind, game.SiteKind).
 const S_CAR = 1, S_PICKUP = 4, S_ARMY = 8, S_PUMP = 10, S_FIRE = 11, S_MOTO = 14, S_PLANE = 15, S_TANK = 16;
@@ -272,7 +272,7 @@ const RING = 128;
 // Positions travel as 1/8 tile: the host's position is within half of that of the frame's.
 const POS_HALF = 1 / 16, STAMINA_HALF = 0.5 / 255;
 // A correction bigger than this snaps rather than eases.
-export const SNAP = 1.5;
+const SNAP = 1.5;
 // Corrections and input changes are let go with this time constant in ms.
 const SMOOTH_MS = 100;
 // After the last tick that walked, prediction holds the hero where it stopped for this long,

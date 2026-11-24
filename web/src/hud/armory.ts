@@ -29,8 +29,6 @@ export class Armory {
     this.body = el('div', '', this.root);
   }
 
-  isOpen(): boolean { return !this.root.classList.contains('hidden'); }
-
   update(): void {
     const ctl = this.ctl, me = ctl.me(), wd = ctl.game.welcome;
     const open = ctl.armoryOpen && !!me && !!wd && ctl.game.cur.phase !== Phase.Over;

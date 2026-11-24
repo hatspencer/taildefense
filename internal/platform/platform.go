@@ -7,7 +7,7 @@
 // platforms.
 //
 // What remains is genuinely platform-specific: how to name the OS for a human,
-// how to open a URL, which editor to launch, and how wide the terminal is.
+// how to open a URL, and how wide the terminal is.
 package platform
 
 import (
@@ -84,18 +84,6 @@ func Arch() string {
 		return "x86_64"
 	}
 	return runtime.GOARCH
-}
-
-// ReleaseTarget is the "<os>-<arch>" suffix of this machine's release artifact.
-//
-// This deliberately does NOT use OS() or Arch(): those two are for humans and
-// return "Ubuntu 24.04" and "x86_64", while `./build.sh dist` names its output from
-// GOOS and GOARCH and so produces dist/taildefense-linux-amd64. Building a filename from the
-// human-readable pair yields a path that never exists, which is a silent failure: a
-// build would report that no prebuilt binary is available on a machine where one is
-// sitting right there.
-func ReleaseTarget() string {
-	return runtime.GOOS + "-" + runtime.GOARCH
 }
 
 // TermCols is the terminal width, defaulting to 80 when stdout is not a
@@ -229,39 +217,6 @@ func InCI() bool {
 // tea.ExecProcess do not, because they are only reachable from a session that has a
 // terminal to hand over.
 func CanHostFullscreen() bool { return IsTTY() && IsStdinTTY() }
-
-// Editor honours $VISUAL then $EDITOR, then the first of a short list that
-// exists. Returns the command and its arguments already split, because $EDITOR
-// is allowed to carry flags ("code --wait").
-func Editor() ([]string, error) {
-	candidates := []string{os.Getenv("VISUAL"), os.Getenv("EDITOR"), "nano", "vim", "vi"}
-	for _, c := range candidates {
-		if strings.TrimSpace(c) == "" {
-			continue
-		}
-		parts := strings.Fields(c)
-		if _, err := exec.LookPath(parts[0]); err == nil {
-			return parts, nil
-		}
-	}
-	return nil, fmt.Errorf("no editor found: set $EDITOR")
-}
-
-// Shell is the user's login shell, used by `taildefense shell`. $SHELL is the
-// only portable source; /bin/bash is the fallback that exists on both platforms.
-func Shell() string {
-	if s := os.Getenv("SHELL"); s != "" {
-		if _, err := exec.LookPath(s); err == nil {
-			return s
-		}
-	}
-	for _, s := range []string{"/bin/zsh", "/bin/bash", "/bin/sh"} {
-		if _, err := os.Stat(s); err == nil {
-			return s
-		}
-	}
-	return "/bin/sh"
-}
 
 // OpenURL is best effort and used only for informational links.
 func OpenURL(url string) error {

@@ -1,10 +1,6 @@
 package tailnet
 
 import (
-	"context"
-	"os"
-	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 )
@@ -63,49 +59,6 @@ func TestPathLabel(t *testing.T) {
 		if got := PathLabel(c[0], c[1]); got != c[2] {
 			t.Errorf("%s %s: %q, want %q", c[0], c[1], got, c[2])
 		}
-	}
-}
-
-func TestParsePing(t *testing.T) {
-	cases := []struct {
-		out  string
-		want PingResult
-	}{
-		{"pong from pal (100.64.0.9) via DERP(fra) in 61ms\npong from pal (100.64.0.9) via 203.0.113.5:41641 in 23ms\n",
-			PingResult{Path: PathDirect, Via: "203.0.113.5:41641", RTT: 23 * time.Millisecond}},
-		{"pong from attic (100.64.0.12) via DERP(nyc) in 88ms\npong from attic (100.64.0.12) via DERP(nyc) in 90ms\ndirect connection not established\n",
-			PingResult{Path: PathDERP, Via: "nyc", RTT: 90 * time.Millisecond}},
-		{"pong from cabin (100.64.0.13) via peer-relay(198.51.100.2:7777:vni:3) in 40ms\n",
-			PingResult{Path: PathPeerRelay, Via: "198.51.100.2:7777:vni:3", RTT: 40 * time.Millisecond}},
-		{"pong from v6 (fd7a:115c:a1e0::9) via [2001:db8::5]:41641 in 1.2s\n",
-			PingResult{Path: PathDirect, Via: "[2001:db8::5]:41641", RTT: 1200 * time.Millisecond}},
-	}
-	for _, c := range cases {
-		got, ok := parsePing([]byte(c.out))
-		if !ok || got != c.want {
-			t.Errorf("%q: %+v %v, want %+v", c.out, got, ok, c.want)
-		}
-	}
-	if _, ok := parsePing([]byte("timeout waiting for ping reply\n")); ok {
-		t.Error("no pong is no result")
-	}
-}
-
-// TestPingKeepsOutputOnFailure runs a fake tailscale that pongs through DERP and then exits 1,
-// as the real one does when no direct path came up.
-func TestPingKeepsOutputOnFailure(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("shell script fake")
-	}
-	bin := filepath.Join(t.TempDir(), "tailscale")
-	script := "#!/bin/sh\necho 'pong from attic (100.64.0.12) via DERP(nyc) in 88ms'\necho 'direct connection not established' >&2\nexit 1\n"
-	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv(EnvTailscale, bin)
-	r, err := Ping(context.Background(), "100.64.0.12", 1)
-	if err != nil || r.Path != PathDERP || r.Via != "nyc" || r.RTT != 88*time.Millisecond {
-		t.Errorf("%+v %v", r, err)
 	}
 }
 

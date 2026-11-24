@@ -49,7 +49,7 @@ func TestSitesAreReachableAndFixedBySeed(t *testing.T) {
 	}
 	// Placing sites must not change the terrain a seed makes.
 	w := New(3)
-	g := Generate(3, w.W, w.H)
+	g, _ := generate(3, w.W, w.H)
 	diff := 0
 	for i := range g {
 		if g[i] != w.Terrain[i] {
@@ -57,7 +57,7 @@ func TestSitesAreReachableAndFixedBySeed(t *testing.T) {
 		}
 	}
 	if diff > 2000 { // the base and the spawn clearings
-		t.Errorf("%d tiles differ from Generate", diff)
+		t.Errorf("%d tiles differ from generate", diff)
 	}
 }
 

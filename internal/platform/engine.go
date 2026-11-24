@@ -33,21 +33,6 @@ func ContainerEngine() (string, bool) {
 	return "", false
 }
 
-// ContainerEngineName resolves an engine without probing its daemon, for the cases that only
-// need the name to write down: rendering a configuration file that will launch it later.
-//
-// Deliberately separate from ContainerEngine. A daemon that is not running right now is no
-// reason to write the wrong engine into a file that outlives this moment, and a probe that
-// takes a second is no reason to slow down a render.
-func ContainerEngineName() (string, bool) {
-	for _, name := range containerEngineCandidates() {
-		if _, ok := LookPath(name); ok {
-			return name, true
-		}
-	}
-	return "", false
-}
-
 // containerEngineCandidates is the one place the order and the override live.
 func containerEngineCandidates() []string {
 	if v := strings.TrimSpace(os.Getenv(EnvContainerEngine)); v != "" {

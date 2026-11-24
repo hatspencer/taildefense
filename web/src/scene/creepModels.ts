@@ -8,7 +8,7 @@ import { J, JOINTS, rp, type RigPart } from './rig';
 //
 // Parts painted in these exact colours take a per-instance colour, so a horde is a crowd of
 // different people: shirt, trousers, skin (how far gone) and hair.
-export const SHIRT = 0xff00ff, PANTS = 0x00ff00, SKIN = 0x00ffff, HAIR = 0xffff00;
+const SHIRT = 0xff00ff, PANTS = 0x00ff00, SKIN = 0x00ffff, HAIR = 0xffff00;
 const SHOE = 0x2a2420, BLOOD = 0x4a0c0a, BONE = 0xd8ccb0, MOUTH = 0x2a0806, EYE = 0xd8d0a0, SOCKET = 0x1a0c08;
 
 type V4 = [number, number, number, number];
@@ -19,7 +19,7 @@ type V4 = [number, number, number, number];
 //   strike [z, x, y, scale]                              the pose as it lands
 //   die    [z, x, y, scale]                              crumpling; also the sleeper's slump
 //   misc   [flinch, flail, side, class]                  side: +1 left, -1 right; class: 0 body, 1 arm, 2 leg
-export interface JointDef { p: [number, number, number]; walk?: V4; flex?: V4; wind?: V4; strike?: V4; die?: V4; misc?: V4 }
+interface JointDef { p: [number, number, number]; walk?: V4; flex?: V4; wind?: V4; strike?: V4; die?: V4; misc?: V4 }
 
 export interface CreepRig {
   parts: RigPart[];

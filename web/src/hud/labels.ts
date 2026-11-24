@@ -4,7 +4,7 @@ import { type Game, PING_LIFE } from '../state';
 import { SNIPER_HEAD_Y } from '../scene/structs';
 import { cssHex, playerColor } from '../scene/util';
 
-export interface LabelFocus { hoverStruct: number; selStruct: number; hoverCreep: number; selCreep: number; showAllBars: boolean; hoverSite: number; siteHint: string; hoverGun?: number; gunHint?: string; dropHold?: number }
+interface LabelFocus { hoverStruct: number; selStruct: number; hoverCreep: number; selCreep: number; showAllBars: boolean; hoverSite: number; siteHint: string; hoverGun?: number; gunHint?: string; dropHold?: number }
 
 // The HUD's palette and faces, for the canvas (see app.css).
 // Labels use the HUD's one face (see --font).

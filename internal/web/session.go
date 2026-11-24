@@ -39,10 +39,6 @@ var dist embed.FS
 // refuse it.
 func init() { _ = mime.AddExtensionType(".ogg", "audio/ogg") }
 
-// EnvListen is where the page is served, host:port; the default is a free port on loopback.
-// Only loopback is accepted: the page is the player's own, nobody else's.
-const EnvListen = "TAILDEFENSE_WEB"
-
 // Options are how a player joins a game in the browser.
 type Options struct {
 	Addr    string // the host, host:port; netplay.DefaultPort is added when missing

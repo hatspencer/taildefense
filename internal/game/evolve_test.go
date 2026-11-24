@@ -29,9 +29,15 @@ func TestTheTeamPaysTheGeneratorUpATier(t *testing.T) {
 	if err := w.PayIn(p); err == nil {
 		t.Fatal("paid in with no gold")
 	}
-	tierUp(t, w, p, 2)
-	if p.PaidIn != cost || core.MaxHP <= hp {
-		t.Fatalf("paid %d of %d; generator %v → %v", p.PaidIn, cost, hp, core.MaxHP)
+	const purse = 100000
+	p.Gold = purse
+	for w.Tier < 2 {
+		if err := w.PayIn(p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if paid := TierStep + purse - p.Gold; paid != cost || core.MaxHP <= hp {
+		t.Fatalf("paid %d of %d; generator %v → %v", paid, cost, hp, core.MaxHP)
 	}
 	tierUp(t, w, p, MaxTier)
 	p.Gold = 1000

@@ -24,7 +24,7 @@ const ROWS = 7;
 // Low-res pixels per brick.
 const B = 3;
 
-export const TAGLINE = 'hold the base · loot the dark · bring everyone home';
+const TAGLINE = 'hold the base · loot the dark · bring everyone home';
 
 interface Brick { x: number; y: number; at: number; amber: boolean }
 

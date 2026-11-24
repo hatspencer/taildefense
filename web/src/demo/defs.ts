@@ -68,7 +68,7 @@ function weaponDefs(): WeaponDef[] {
   });
 }
 
-export const ABILITIES: AbilityDef[] = [
+const ABILITIES: AbilityDef[] = [
   { name: 'Ultimate', key: 'Q', desc: "The equipped weapon's ultimate, charged by fighting.", target: 'point', range: 0, cool: [0], costs: [0], always: true },
   { name: 'Grenade', key: 'Shift', desc: 'Lobbed at a point, bursts after a moment. Bigger, harder and sooner each level; from level 4 it leaves the ground burning.', target: 'point', range: 12, radius: [3, 3.5, 4, 4.5, 5], cool: [8, 7, 6, 5.5, 5], costs: [200, 400, 700, 1100, 1600], always: false },
   { name: 'Dash', key: 'F', desc: 'A short burst of speed towards the target point.', target: 'point', range: 5, cool: [10, 8, 6], costs: [300, 600, 1000], always: false },
@@ -81,8 +81,8 @@ export const ABILITY_RADIUS = [0, 3, 0, 7];
 const up = (price: number) => [0, 1, 2, 3, 4].map((l) => Math.round(price * 0.8 * l));
 
 // A turret's base numbers, as in internal/game/defs.go, and what its special track does.
-export interface TurretBase { dmg: number; rate: number; range: number; blast: number; slow: number; chains: number; pierce: number; salvo: number }
-export const TURRET_BASE: Record<number, TurretBase> = {
+interface TurretBase { dmg: number; rate: number; range: number; blast: number; slow: number; chains: number; pierce: number; salvo: number }
+const TURRET_BASE: Record<number, TurretBase> = {
   5: { dmg: 11, rate: 4, range: 9, blast: 0, slow: 0, chains: 0, pierce: 0, salvo: 0 },
   6: { dmg: 60, rate: 0.6, range: 11, blast: 2.2, slow: 0, chains: 0, pierce: 0, salvo: 0 },
   7: { dmg: 3, rate: 1, range: 6, blast: 0, slow: 1.6, chains: 0, pierce: 0, salvo: 0 },
