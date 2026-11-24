@@ -314,3 +314,49 @@ func TestTheCrowbarHitsAHomeRun(t *testing.T) {
 		t.Errorf("Scrap King: hp %.0f, paid %d more for a brute", p.HP, p.Gold-g)
 	}
 }
+
+// Crimson Fang's spatter must end. A clump out in the dark takes no blood loss, since a
+// survivor's cut can't reach it; were it to, every burst would do nothing and spatter more
+// than it spent, and the chain would recurse until the host's stack ran out. A lit clump
+// still chains.
+func TestFangSpatterEndsInTheDark(t *testing.T) {
+	a := newArena(10)
+	a.arm(weaponRig(WKatana, 0))
+	a.p.Weapons[WKatana].Evo = 1
+	w := a.w
+	for k := range 8 {
+		if !w.SpawnCreep(CBrute, a.ox+2+float32(k%4)*.3, a.oy+float32(k/4)*.3) {
+			t.Fatal("no creep")
+		}
+	}
+	w.grid.build(w.Creeps)
+	reset := func() {
+		for i := range w.Creeps {
+			c := &w.Creeps[i]
+			c.HP, c.MaxHP, c.Bleed = 1e6, 1e6, bleedFull-1
+		}
+		w.Blasts = w.Blasts[:0]
+	}
+	w.lit = make(Seen, (w.W*w.H+63)/64)
+	reset()
+	w.bleed(0, 10, a.p)
+	for i, c := range w.Creeps {
+		if c.HP != 1e6 || c.Bleed != bleedFull-1 {
+			t.Errorf("creep %d in the dark: hp %.0f, blood loss %.0f", i, c.HP, c.Bleed)
+		}
+	}
+	for i := range w.lit {
+		w.lit[i] = ^uint64(0)
+	}
+	reset()
+	w.bleed(0, 10, a.p)
+	bursts := 0
+	for _, b := range w.Blasts {
+		if b.Kind == BlastBleed {
+			bursts++
+		}
+	}
+	if w.Creeps[0].HP >= 1e6 || w.Creeps[1].HP >= 1e6 || bursts < 2 {
+		t.Errorf("a lit clump didn't chain: %d bursts, hp %.0f and %.0f", bursts, w.Creeps[0].HP, w.Creeps[1].HP)
+	}
+}
