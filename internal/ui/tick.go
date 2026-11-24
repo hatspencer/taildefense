@@ -14,10 +14,9 @@ import (
 // looks like a rendering bug and is really the link.
 //
 // So the interval is decided in one place, from where the process is running. Over SSH
-// the frame rate drops to about three a second: a spinner still turns and a decaying
-// marker still fades, because those are glyph-sized and a step every 300 ms reads as a
-// step. A sweep across an eighty-cell wordmark at three frames a second reads as a
-// stutter, so the sweeps and the breathing skip to their still frames instead; see
+// the frame rate drops to about three a second: a spinner still turns and
+// pulses, because it is glyph-sized and a step every 300 ms reads as a step. A sweep across an eighty-cell wordmark at three frames a second reads as a
+// stutter, so the sweeps skip to their still frames instead; see
 // motion below.
 //
 // This is not the same as TAILDEFENSE_NO_ANIM. That turns animation off, and someone on
@@ -62,8 +61,8 @@ func TickInterval() time.Duration {
 	return SpinnerPeriod
 }
 
-// motion reports whether a wide, continuous effect — a sweep across the wordmark, a
-// highlight along a rule, a breathing badge — may be drawn.
+// motion reports whether a wide, continuous effect — a sweep across the wordmark,
+// the splash — may be drawn.
 //
 // It is AnimEnabled with the link taken into account. The glyph-sized effects keep using
 // AnimEnabled on its own: they degrade gracefully at a low frame rate, and switching them

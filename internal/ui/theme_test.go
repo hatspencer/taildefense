@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -13,7 +12,7 @@ import (
 // own: terminal-following, violet accent, a ramp that drifts into wisp cyan. Someone who never
 // passes --theme sees the tool's own colour, and `default` still names it.
 func TestDefaultThemeIsTaildefense(t *testing.T) {
-	if got := ActiveTheme().Name; got != DefaultTheme || DefaultTheme != "taildefense" {
+	if got := active.Name; got != DefaultTheme || DefaultTheme != "taildefense" {
 		t.Fatalf("active theme at startup is %q, want %q", got, "taildefense")
 	}
 	if ColorAccent.Light != "#6d28d9" || ColorAccent.Dark != "#a78bfa" {
@@ -25,7 +24,7 @@ func TestDefaultThemeIsTaildefense(t *testing.T) {
 	if th, ok := LookupTheme("Default"); !ok || th.Name != DefaultTheme {
 		t.Errorf("`default` resolves to %q, want the default theme", th.Name)
 	}
-	if ActiveTheme().Full() {
+	if active.Full() {
 		t.Error("the default theme paints the terminal; it must follow it")
 	}
 }
@@ -123,8 +122,8 @@ func TestSetThemeRebuildsTheStyles(t *testing.T) {
 	if err := SetTheme("Marko"); err != nil {
 		t.Fatalf("case-insensitive lookup failed: %v", err)
 	}
-	if ActiveTheme().Name != "marko" {
-		t.Fatalf("active theme is %q after SetTheme", ActiveTheme().Name)
+	if active.Name != "marko" {
+		t.Fatalf("active theme is %q after SetTheme", active.Name)
 	}
 	if got := StyleBrand.Render("HIVE"); got == before {
 		t.Error("the brand style did not change with the theme")
@@ -159,8 +158,8 @@ func TestUnknownThemeIsRefusedAndNamesTheChoices(t *testing.T) {
 			t.Errorf("the error %q does not name theme %q", err, name)
 		}
 	}
-	if ActiveTheme().Name != DefaultTheme {
-		t.Errorf("a refused SetTheme changed the active theme to %q", ActiveTheme().Name)
+	if active.Name != DefaultTheme {
+		t.Errorf("a refused SetTheme changed the active theme to %q", active.Name)
 	}
 }
 
@@ -171,9 +170,6 @@ func TestAnimatePreferenceGatesEveryEffect(t *testing.T) {
 	t.Cleanup(func() { SetAnimate(true) })
 
 	SetAnimate(false)
-	if AnimateSetting() {
-		t.Fatal("AnimateSetting still reports on")
-	}
 	if AnimEnabled() {
 		t.Fatal("animation is enabled with the preference off")
 	}
@@ -182,25 +178,8 @@ func TestAnimatePreferenceGatesEveryEffect(t *testing.T) {
 		t.Error("Pulse still moves with animation off")
 	}
 	SetAnimate(true)
-	if !AnimateSetting() {
-		t.Error("AnimateSetting did not come back on")
-	}
-}
-
-// Swatch is a preview and must not depend on the active theme: the listing shows every
-// theme in its own colours, whichever one is in force.
-func TestSwatchShowsEachThemeInItsOwnColours(t *testing.T) {
-	forceTruecolor(t)
-	seen := map[string]bool{}
-	for _, th := range Themes() {
-		s := Swatch(th)
-		if !strings.Contains(s, th.Name) {
-			t.Errorf("the swatch for %s does not carry its name: %q", th.Name, s)
-		}
-		if seen[s] {
-			t.Errorf("two themes render the same swatch: %q", s)
-		}
-		seen[s] = true
+	if !AnimEnabled() {
+		t.Error("animation did not come back on with the preference")
 	}
 }
 
@@ -411,108 +390,4 @@ func hue(hex string) float64 {
 		h += 360
 	}
 	return h
-}
-
-// A full theme's swatch is one filled row, edge to edge. This is the listing's whole job: the
-// background is most of what distinguishes two themes, and a row that only tints a few glyphs
-// shows the least important part of the choice.
-func TestSwatchOfAFullThemeIsPaintedEdgeToEdge(t *testing.T) {
-	forceTruecolor(t)
-	// A wide terminal, so the summary is not the thing under test here: at 80 columns the
-	// row genuinely runs out of room and clips it, which is the intended trade and has its
-	// own test below.
-	t.Setenv("COLUMNS", "160")
-	for _, th := range Themes() {
-		if !th.Full() {
-			continue
-		}
-		s := Swatch(th)
-		r, g, b := rgb(th.Bg.Dark)
-		want := fmt.Sprintf("48;2;%d;%d;%d", r, g, b)
-		if !strings.Contains(s, want) {
-			t.Errorf("%s: the swatch never sets the theme background (%s)", th.Name, th.Bg.Dark)
-		}
-		if got := lipgloss.Width(s); got != swatchWidth() {
-			t.Errorf("%s: the swatch is %d cells, want %d", th.Name, got, swatchWidth())
-		}
-		if !strings.Contains(s, th.Summary) {
-			t.Errorf("%s: the summary is not inside the row", th.Name)
-		}
-	}
-}
-
-// On a terminal too narrow for everything, the summary is cut and the row still measures
-// exactly one row. Uncut it would wrap, and a wrapped block of background colour reads as two
-// broken themes rather than as one that did not fit.
-func TestSwatchClipsRatherThanWraps(t *testing.T) {
-	forceTruecolor(t)
-	th, ok := LookupTheme("regal")
-	if !ok {
-		t.Fatal("regal is missing")
-	}
-	for _, cols := range []string{"60", "80", "100", "300"} {
-		t.Setenv("COLUMNS", cols)
-		s := Swatch(th)
-		if got := lipgloss.Width(s); got != swatchWidth() {
-			t.Errorf("at COLUMNS=%s the swatch is %d cells, want %d", cols, got, swatchWidth())
-		}
-		if strings.Contains(s, "\n") {
-			t.Errorf("at COLUMNS=%s the swatch wrapped", cols)
-		}
-	}
-}
-
-// A theme that follows the terminal is drawn without a filled row, and the difference is the
-// point: nothing outside its accent badge carries a background, so the gap in the listing is
-// what tells you it brings none of its own.
-func TestSwatchOfATerminalFollowingThemeIsNotFilled(t *testing.T) {
-	forceTruecolor(t)
-	for _, th := range Themes() {
-		if th.Full() {
-			continue
-		}
-		s := Swatch(th)
-		if got := lipgloss.Width(s); got > swatchWidth() {
-			t.Errorf("%s: the swatch is %d cells, wider than the row", th.Name, got)
-		}
-		// The badge is the only background: it is a block of the accent. Everything after it
-		// must be foreground colour on whatever the terminal already has.
-		_, after, ok := strings.Cut(s, "\x1b[0m")
-		if !ok {
-			t.Fatalf("%s: the swatch has no reset after the badge: %q", th.Name, s)
-		}
-		if strings.Contains(after, "48;2;") {
-			t.Errorf("%s: the swatch paints a background outside its badge", th.Name)
-		}
-	}
-}
-
-// The swatch is a preview and must not depend on the active theme, or the listing would show
-// fifteen variations of whichever theme happens to be in force.
-//
-// Full themes only. A theme that follows the terminal has no colours of its own to preview, so
-// its swatch is drawn from the shared adaptive palette against the current background
-// assumption — and that assumption is exactly what a full theme changes. Its swatch shifting is
-// the same behaviour it would have in use, not a bug in the preview.
-func TestSwatchDoesNotDependOnTheActiveTheme(t *testing.T) {
-	forceTruecolor(t)
-	t.Cleanup(func() { _ = SetTheme(DefaultTheme) })
-
-	before := map[string]string{}
-	for _, th := range Themes() {
-		if th.Full() {
-			before[th.Name] = Swatch(th)
-		}
-	}
-	if err := SetTheme("regal"); err != nil {
-		t.Fatal(err)
-	}
-	for _, th := range Themes() {
-		if !th.Full() {
-			continue
-		}
-		if got := Swatch(th); got != before[th.Name] {
-			t.Errorf("%s: the swatch changed when the active theme did", th.Name)
-		}
-	}
 }

@@ -7,8 +7,6 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-
-	"taildefense/internal/platform"
 )
 
 // Themes.
@@ -149,7 +147,7 @@ func mix(a, b string, frac float64) string {
 	return fmt.Sprintf("#%02x%02x%02x", blend(ar, br), blend(ag, bg), blend(ab, bb))
 }
 
-// rgb splits #rrggbb. A malformed value yields black, which is visible in the swatch
+// rgb splits #rrggbb. A malformed value yields black, which is visible in the theme
 // listing rather than silent, and a test renders every theme's ramp.
 func rgb(hex string) (int, int, int) {
 	if len(hex) != 7 || hex[0] != '#' {
@@ -551,9 +549,6 @@ func LookupTheme(name string) (Theme, bool) {
 	return t, ok
 }
 
-// ActiveTheme is the theme the styles were last built from.
-func ActiveTheme() Theme { return active }
-
 // SetTheme makes a theme current and rebuilds every style from it.
 //
 // It rebuilds rather than waiting for the next InitColor because the two are called
@@ -602,129 +597,4 @@ func or(themed, base lipgloss.AdaptiveColor) lipgloss.AdaptiveColor {
 		return base
 	}
 	return themed
-}
-
-// Swatch renders a theme as one row for the theme listing: its name on a block of its accent,
-// then its background, filled edge to edge, carrying the ramp, the five status glyphs in their
-// own shades, a link label, body and dim text, and the summary.
-//
-// Painted as one continuous block rather than as coloured fragments on the terminal's own
-// background, because the background is most of what a theme is. A listing that showed only
-// accents was the reason this model was rebuilt: a light theme and a dark theme with the same
-// accent produced the same swatch, so the one thing worth choosing between was the one thing
-// not shown.
-//
-// A theme that follows the terminal is deliberately drawn without a filled row. That is the
-// truth about it: it has no background of its own, and the gap in the listing is what says so.
-//
-// The badge is padded to the longest theme name, so a listing of several lines up as a column
-// and the rows sit under each other, which is what makes them comparable.
-func Swatch(t Theme) string { return SwatchReserving(t, 0) }
-
-// SwatchReserving is Swatch narrowed by the columns a caller has already spent on the same row.
-//
-// A caller that prefixes a swatch with anything of its own — the marker `config theme` puts
-// in front of the theme in force — has to say so, or every such row comes out that much wider
-// than the budget: the rows wrap on an eighty-column terminal and the summaries are cut for no
-// reason on a wide one.
-func SwatchReserving(t Theme, reserve int) string {
-	nameWidth := 0
-	for _, name := range ThemeNames() {
-		nameWidth = max(nameWidth, len(name))
-	}
-	badge := lipgloss.NewStyle().Foreground(t.OnAccent).Background(t.Accent).Bold(true).
-		Render(" " + t.Name + strings.Repeat(" ", nameWidth-len(t.Name)) + " ")
-
-	// Every segment carries the background itself rather than relying on an outer style: an
-	// inner style ends with a full reset, which would cut an outer background short at the
-	// first coloured cell. Same reason StyleSurface exists.
-	seg := func(fg lipgloss.AdaptiveColor) lipgloss.Style {
-		s := lipgloss.NewStyle()
-		if fg != (lipgloss.AdaptiveColor{}) {
-			s = s.Foreground(fg)
-		}
-		if t.Full() {
-			s = s.Background(t.Bg)
-		}
-		return s
-	}
-
-	var b strings.Builder
-	b.WriteString(seg(lipgloss.AdaptiveColor{}).Render("  "))
-	for _, c := range t.Ramp {
-		b.WriteString(seg(c).Render("█"))
-	}
-	b.WriteString(seg(lipgloss.AdaptiveColor{}).Render("  "))
-	// The five slots in the order they appear in a transcript, each behind the glyph that
-	// carries the meaning when there is no colour at all.
-	for _, s := range []struct {
-		glyph string
-		color lipgloss.AdaptiveColor
-	}{
-		{"✔", or(t.Pass, baseGreen)},
-		{"✘", or(t.Fail, baseRed)},
-		{"▲", or(t.Warn, baseYellow)},
-		{"·", or(t.Info, baseCyan)},
-		{"▸", or(t.Step, baseBlue)},
-	} {
-		b.WriteString(seg(s.color).Render(s.glyph + " "))
-	}
-	// Not underlined, unlike a real link. lipgloss styles an underlined string one character
-	// at a time to control where the line stops, so "link" would come out as four separate
-	// escape sequences instead of one, x15 rows, for a cue the label already gives.
-	b.WriteString(seg(t.Link).Render("link"))
-	b.WriteString(seg(or(t.Fg, baseText)).Render("  Aa"))
-	b.WriteString(seg(or(t.Dim, baseGray)).Render(" aa  "))
-
-	// The summary is cut to what is left of the row rather than allowed to run past it.
-	// Uncut, a long summary wraps, and a wrapped row of background colour reads as two
-	// broken themes rather than as one that did not fit.
-	room := swatchWidth() - reserve - lipgloss.Width(badge) - lipgloss.Width(b.String())
-	b.WriteString(seg(or(t.Dim, baseGray)).Render(clip(t.Summary, room)))
-
-	// Filled to the width so the row reads as the theme rather than as a stripe with a
-	// ragged end. Measured rather than counted: the row is escape sequences and multi-byte
-	// glyphs, and len() on that is not a column count.
-	if t.Full() {
-		if pad := swatchWidth() - reserve - lipgloss.Width(badge) - lipgloss.Width(b.String()); pad > 0 {
-			b.WriteString(seg(lipgloss.AdaptiveColor{}).Render(strings.Repeat(" ", pad)))
-		}
-	}
-	return badge + b.String()
-}
-
-// clip cuts a string to at most n columns, marking a cut with an ellipsis.
-//
-// Counted in runes rather than bytes: every summary here is ASCII, but the ellipsis is not,
-// and a byte slice through a multi-byte character produces the replacement glyph rather than
-// a short string.
-func clip(s string, n int) string {
-	if n <= 0 {
-		return ""
-	}
-	r := []rune(s)
-	if len(r) <= n {
-		return s
-	}
-	if n == 1 {
-		return "…"
-	}
-	return string(r[:n-1]) + "…"
-}
-
-// swatchWidth is how wide a swatch row is drawn.
-//
-// Four columns short of the terminal, which is the two-space indent the listing adds on the
-// left plus the same again on the right so the rows do not touch the edge. Clamped at the
-// bottom because a very narrow terminal should get a short row rather than a negative one, and
-// at the top because a full-width row on a 300-column window is a wall of colour.
-func swatchWidth() int {
-	w := platform.TermCols() - 4
-	switch {
-	case w < 60:
-		return 60
-	case w > 120:
-		return 120
-	}
-	return w
 }

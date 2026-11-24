@@ -3,6 +3,8 @@ package ui
 import (
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 func TestWordmarkRowCounts(t *testing.T) {
@@ -87,7 +89,7 @@ func TestTheBannerHasNoLineBetweenTheWordmarkAndTheTagline(t *testing.T) {
 		t.Errorf("the banner is %d lines, want %d:\n%s", len(lines), want, buf.String())
 	}
 	for i, l := range lines {
-		if strings.TrimSpace(stripANSI(l)) == "" {
+		if strings.TrimSpace(ansi.Strip(l)) == "" {
 			t.Errorf("line %d of the banner is blank:\n%s", i, buf.String())
 		}
 	}

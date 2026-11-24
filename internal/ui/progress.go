@@ -79,11 +79,6 @@ type Progress struct {
 	mu      sync.Mutex
 	stopped bool
 	done    chan struct{}
-
-	// lastLine is the most recent output line from the operation, shown after the
-	// elapsed counter so the spinner says what is happening rather than only that
-	// something is.
-	lastLine string
 }
 
 // StartProgress begins a progress line. Always arrange for Stop to be called,
@@ -94,20 +89,13 @@ func StartProgress(label string) *Progress {
 		start: time.Now(),
 		// The same conditions the rest of the package uses to decide on colour: a
 		// real terminal, not TERM=dumb, and NO_COLOR unset. Reusing ColorEnabled
-		// keeps `--no-color` and NO_COLOR from having to be handled twice. Captured
-		// output is excluded too: this line rewrites itself with a carriage return, and
-		// a caller gathering the output does not own the cursor (captured.go).
-		live: platform.IsTTY() && ColorEnabled() && !Captured(),
+		// keeps `--no-color` and NO_COLOR from having to be handled twice.
+		live: platform.IsTTY() && ColorEnabled(),
 		done: make(chan struct{}),
 	}
 
 	if !p.live {
-		// Captured, the line is dropped rather than printed: it is a substitute for a
-		// spinner, not a finding, and on stdout it would land outside the buffer the caller
-		// is collecting into and read as output of whatever ran next.
-		if !Captured() {
-			fmt.Printf("  %s %s...\n", StyleInfo.Render("·"), label)
-		}
+		fmt.Printf("  %s %s...\n", StyleInfo.Render("·"), label)
 		return p
 	}
 
@@ -153,36 +141,9 @@ func (p *Progress) draw() {
 			StyleDim.Render("("+Elapsed(elapsed)+")"))
 	}
 
-	if p.lastLine != "" {
-		line += "  " + StyleDim.Render(p.lastLine)
-	}
-
 	// \r back to column zero, draw, then erase to end of line so a shorter line does
 	// not leave the tail of a longer one behind it.
 	fmt.Printf("\r%s\x1b[K", truncateVisible(line, termWidthOr(120)))
-}
-
-// Line reports an output line from the operation.
-//
-// On a terminal it is folded into the progress line and replaced by the next one:
-// a build's warnings are worth glancing at but not worth scrolling for. Without a
-// terminal it is printed, because that is the only place it can go.
-func (p *Progress) Line(text string) {
-	text = strings.TrimSpace(text)
-	if text == "" {
-		return
-	}
-
-	if !p.live {
-		if !Captured() {
-			fmt.Printf("    %s\n", StyleDim.Render(text))
-		}
-		return
-	}
-
-	p.mu.Lock()
-	p.lastLine = text
-	p.mu.Unlock()
 }
 
 // Stop ends the progress line, clearing it so the caller's own result line takes

@@ -23,7 +23,6 @@ func paintable(t *testing.T) *bytes.Buffer {
 	t.Setenv(EnvColorProfile, "")
 	t.Setenv(EnvNoBg, "")
 	restore := platform.SetTTYForTest(true)
-	SetPaintBackground(true)
 	InitColor(false)
 	if !colorEnabled {
 		t.Fatal("colour is off in a state where painting is supposed to be possible")
@@ -35,7 +34,6 @@ func paintable(t *testing.T) *bytes.Buffer {
 	t.Cleanup(func() {
 		bgOut = old
 		painted = false
-		SetPaintBackground(true)
 		restore()
 		_ = SetTheme(DefaultTheme)
 		InitColor(false)
@@ -116,7 +114,6 @@ func TestPaintingIsSuppressedWhereverColourIs(t *testing.T) {
 			t.Cleanup(platform.SetTTYForTest(false))
 		}},
 		{"a child of the session", func(t *testing.T) { t.Setenv(EnvColorProfile, "truecolor") }},
-		{"the switch is off", func(t *testing.T) { SetPaintBackground(false) }},
 		{"$" + EnvNoBg, func(t *testing.T) { t.Setenv(EnvNoBg, "1") }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

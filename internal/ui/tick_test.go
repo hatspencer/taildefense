@@ -40,34 +40,18 @@ func TestTickIntervalDropsOverSSH(t *testing.T) {
 	}
 }
 
-// The sweeps and the breathing skip over SSH while the glyph-sized effects keep going:
-// a spinner at four frames a second still turns, a sweep does not.
+// The wide effects skip over SSH while the glyph-sized effects keep going: a spinner at four
+// frames a second still turns, a sweep does not.
 func TestWideEffectsRestOverSSHAndGlyphsKeepMoving(t *testing.T) {
 	forceTruecolor(t)
 	t.Setenv("SSH_CONNECTION", "10.0.0.1 22 10.0.0.2 22")
 
-	row := WordmarkSmall()[0]
-	still := StyleBrand.Render(row)
-	// 900 ms into a busy cycle is inside the first sweep on a local terminal; see
-	// TestWordmarkRestsBetweenSweeps for the schedule this relies on.
-	if got := WordmarkSweep(row, 900*time.Millisecond, true); got != still {
-		t.Error("the wordmark swept over SSH")
-	}
-	if got := BreathText("02", 900*time.Millisecond); got != StyleBrand.Render("02") {
-		t.Error("BreathText breathed over SSH")
-	}
-	if BadgeBreath(900*time.Millisecond).Render("x") != StyleBadge.Render("x") {
-		t.Error("BadgeBreath breathed over SSH")
-	}
-	if got, want := Rule(12, 900*time.Millisecond, true), StyleDim.Render("────────────"); got != want {
-		t.Error("the busy rule swept over SSH")
+	if Motion() {
+		t.Error("wide effects are still allowed over SSH")
 	}
 
-	// Still alive: the pulse and the decay are made of one cell and survive a slow tick.
+	// Still alive: the pulse is made of one cell and survives a slow tick.
 	if Pulse(0).Render("x") == Pulse(400*time.Millisecond).Render("x") {
 		t.Error("the pulse stopped over SSH")
-	}
-	if _, live := Decay(100*time.Millisecond, time.Second); !live {
-		t.Error("Decay stopped reporting live over SSH")
 	}
 }

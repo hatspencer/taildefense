@@ -1,7 +1,5 @@
 package ui
 
-import "strings"
-
 // Link renders label as a terminal hyperlink to url.
 //
 // OSC 8 is what makes a label clickable: the terminal shows the label and opens the url,
@@ -20,20 +18,4 @@ func Link(url, label string) string {
 	// other way round, so lipgloss never sees the OSC sequence: it measures what it
 	// renders, and a url it cannot see is a url it cannot mangle.
 	return "\x1b]8;;" + url + "\x1b\\" + StyleLink.Render(label) + "\x1b]8;;\x1b\\"
-}
-
-// LinkLabel strips a Link back to its visible text — for tests and for anything that
-// needs to measure a line containing one.
-func LinkLabel(s string) string {
-	for {
-		start := strings.Index(s, "\x1b]8;;")
-		if start < 0 {
-			return s
-		}
-		end := strings.Index(s[start:], "\x1b\\")
-		if end < 0 {
-			return s
-		}
-		s = s[:start] + s[start+end+2:]
-	}
 }

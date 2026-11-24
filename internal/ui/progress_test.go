@@ -133,7 +133,6 @@ func TestProgressDegradesToPlainOutputWithoutATerminal(t *testing.T) {
 
 	out := captureStdout(t, func() {
 		p := StartProgress("fetching origin")
-		p.Line("resolving deltas")
 		p.Stop()
 	})
 
@@ -145,9 +144,6 @@ func TestProgressDegradesToPlainOutputWithoutATerminal(t *testing.T) {
 	}
 	if !strings.Contains(out, "fetching origin") {
 		t.Errorf("the label was not printed: %q", out)
-	}
-	if !strings.Contains(out, "resolving deltas") {
-		t.Errorf("a reported line was dropped instead of printed: %q", out)
 	}
 }
 
@@ -164,27 +160,5 @@ func TestProgressStopIsIdempotent(t *testing.T) {
 		p.Stop()
 		p.Stop()
 		p.Stop()
-		// Reporting a line after stopping must also be safe: a goroutine belonging to
-		// the finished operation can still be draining its output.
-		p.Line("late output")
 	})
-}
-
-func TestProgressEmptyLinesAreIgnored(t *testing.T) {
-	t.Setenv("NO_COLOR", "1")
-	InitColor(false)
-	defer func() { t.Setenv("NO_COLOR", ""); InitColor(false) }()
-
-	out := captureStdout(t, func() {
-		p := StartProgress("work")
-		p.Line("")
-		p.Line("   ")
-		p.Line("\t\n")
-		p.Stop()
-	})
-
-	// One line for the label, and nothing for the three blank reports.
-	if n := strings.Count(strings.TrimSpace(out), "\n"); n != 0 {
-		t.Errorf("blank reports produced output:\n%q", out)
-	}
 }

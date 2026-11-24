@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"fmt"
 	"os"
 	"strings"
 
@@ -115,14 +114,6 @@ const EnvNoBanner = "TAILDEFENSE_NO_BANNER"
 // BannerSuppressed reports whether a caller has asked for no banner.
 func BannerSuppressed() bool { return os.Getenv(EnvNoBanner) == "1" }
 
-// ContextLine is the one line "who and where am I" strip under the wordmark.
-func ContextLine(version string) string {
-	return fmt.Sprintf("  %s  ·  %s  ·  %s",
-		StyleAccent.Render(platform.OS()),
-		platform.Arch(),
-		StyleDim.Render("version "+version))
-}
-
 // Table renders aligned columns without a border, which is the shape almost
 // every listing in this tool wants: the inbox, the ledger, a theme list.
 //
@@ -162,25 +153,6 @@ func Table(rows [][]string, indent string) string {
 		// line, which is the one case the rule above does not cover.
 		b.WriteString(strings.TrimRight(line.String(), " "))
 		b.WriteString("\n")
-	}
-	return b.String()
-}
-
-// stripANSI removes escape sequences so column widths are measured in visible
-// characters. A styled cell is longer than it looks, and padding to the byte
-// length misaligns every row after the first coloured one.
-func stripANSI(s string) string {
-	var b strings.Builder
-	inEscape := false
-	for _, r := range s {
-		switch {
-		case r == '\x1b':
-			inEscape = true
-		case inEscape && (r == 'm' || r == 'K'):
-			inEscape = false
-		case !inEscape:
-			b.WriteRune(r)
-		}
 	}
 	return b.String()
 }
