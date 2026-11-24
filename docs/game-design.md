@@ -667,7 +667,10 @@ to creeps and shots, so the court is a place to fight in, not just to cross.
   cast at the cursor the moment the key goes down: an aim-then-click step was a beat too slow in
   a crowd. The grenade keeps one: Shift shows its range and blast, a left-click throws, Esc
   cancels; playing without it, a throw went wherever the cursor happened to be, and the grenade
-  is the ability you place with care. Right-click only focuses fire on a
+  is the ability you place with care. A reticle on the ground marks where a cast at the cursor
+  lands, and only while there is one to make: the dash or the airstrike bought, or a weapon art
+  in hand. With nothing to cast it marks nothing, so it would only be clutter on the field;
+  the menu turns it off or resizes it besides. Right-click only focuses fire on a
   creep; it used to cast the signature off a creep, which went off whenever a click missed.
   E is "use": a downed teammate, loot site or supply crate right beside you comes first, so a
   hero out looting searches the wreck at hand whatever is selected. Otherwise it uses what is

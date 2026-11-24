@@ -39,7 +39,9 @@ the music off and leaves the sound. It is this machine's own too, with its own s
 the volume's in the menu.
 
 `RETICLE` is `on` by default: a small reticle lies on the ground under the cursor, so you can see
-where a dash, a weapon art or an airstrike will go. `off` never draws it. It is this machine's
+where a dash, a weapon art or an airstrike will go. Even on, it appears only once you have one
+of those: the dash or the airstrike bought, or the crowbar or a legendary blade in hand. `off`
+never draws it. It is this machine's
 own, like the volume, with a switch under the music's slider in the menu (F10) that takes effect
 and is saved the moment it flips.
 

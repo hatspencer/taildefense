@@ -526,8 +526,8 @@ async function main(): Promise<void> {
     } else { overlays.route(null); ctl.routeNote = ''; }
     overlays.ring('build', m.k === 'build', wd.core.x, wd.core.y, wd.buildRadius, 0xffd860, 0.7);
     // Where the cursor meets the ground, for the dash and the weapon arts cast there; the build
-    // ghost already marks it while building.
-    overlays.cursor(ctl.groundOk && m.k !== 'build', ctl.ground.x, ctl.ground.z, rig.dist);
+    // ghost already marks it while building. With nothing of the kind to cast, no reticle.
+    overlays.cursor(ctl.groundOk && m.k !== 'build' && ctl.aimsAtCursor(), ctl.ground.x, ctl.ground.z, rig.dist);
     // Aiming the grenade: its range around the hero and the blast at the cursor.
     if (m.k === 'ability' && me) {
       const a = ctl.ability(m.slot);
