@@ -13,8 +13,8 @@ balance, `web/PROTOCOL.md` for anything the page and `td` exchange).
 
 How to work here:
 
-- Go and Node run only through `./build.sh`. In a worktree, prefix build commands with
-  `TAILDEFENSE_GOCACHE=<main checkout>/.gocache` so the compile cache is shared.
+- Go and Node run only through `./build.sh`, with no environment prefix: in a worktree it
+  shares the main checkout's compile cache by itself.
 - `./build.sh check` must pass before you commit. Pipe long output through `tail`.
 - A change to how the game plays fails the golden game. Run `./build.sh golden` only when the
   brief asks for that change in play; a refactor that fails the golden game is a wrong refactor.

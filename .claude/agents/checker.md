@@ -10,7 +10,7 @@ anything.
 
 - Run what you were asked to; with no instruction, `./build.sh check`. Write the output to a file
   in the scratchpad and read from that, e.g. `./build.sh check >"$out" 2>&1; echo "exit $?"`.
-- In a worktree, prefix with `TAILDEFENSE_GOCACHE=<main checkout>/.gocache`.
+- No environment prefix, in a worktree too: `./build.sh` finds the shared compile cache itself.
 - Never run `./build.sh golden` unless asked to: it rewrites the record a failure is measured
   against.
 

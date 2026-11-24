@@ -12,8 +12,8 @@ three.js browser client embedded from `internal/web/dist`.
 - `main` takes changes only through pull requests: the remote refuses a direct push. Push a
   branch. Don't use `gh` here: it is signed in to a different GitHub account than the one that
   owns this repo. Give the branch name and GitHub's compare link instead.
-- In a worktree, set `TAILDEFENSE_GOCACHE` to the main checkout's `.gocache` for `./build.sh`,
-  or every worktree compiles from cold.
+- In a worktree, `./build.sh` uses the main checkout's `.gocache` by itself, so run it without
+  an environment prefix: the allow rules match only the bare `./build.sh <target>` form.
 - Subagents in `.claude/agents/`, each on the cheapest model that does the job:
   - `implementer` (Opus, medium effort): one scoped change from a written brief, checked and
     committed on a branch. Give it its own worktree.
