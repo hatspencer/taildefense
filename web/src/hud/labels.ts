@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
-import { EffectKind, K_ARMORY, Order, PF_ALIVE, PingKind, siteX, siteY, walled } from '../protocol';
+import { EffectKind, K_ARMORY, K_SNIPER, Order, PF_ALIVE, PingKind, siteX, siteY, walled } from '../protocol';
 import { type Game, PING_LIFE } from '../state';
+import { SNIPER_HEAD_Y } from '../scene/structs';
 import { cssHex, playerColor } from '../scene/util';
 
 export interface LabelFocus { hoverStruct: number; selStruct: number; hoverCreep: number; selCreep: number; showAllBars: boolean; hoverSite: number; siteHint: string; hoverGun?: number; gunHint?: string; dropHold?: number }
@@ -178,7 +179,7 @@ export class Labels {
       const damaged = f.sHp[i] < f.sMaxHp[i];
       if (!damaged && i !== focus.hoverStruct && i !== focus.selStruct && !focus.showAllBars) continue;
       const k = f.sKind[i];
-      const hgt = k === 1 ? 3.0 : k === 2 ? 2.7 : k <= 4 ? 1.6 : 1.9;
+      const hgt = k === 1 ? 3.0 : k === 2 ? 2.7 : k <= 4 ? 1.6 : k === K_SNIPER ? SNIPER_HEAD_Y + 0.5 : 1.9;
       const sx = f.sX[i] + f.sW[i] / 2, sz = f.sY[i] + f.sH[i] / 2, a = clarity(sx, sz);
       if (a < HAZE_GONE || !this.project(cam, sx, hgt, sz)) continue;
       c.globalAlpha = fade(a);

@@ -21,7 +21,7 @@ import { Guns } from './scene/guns';
 import { Loot } from './scene/loot';
 import { Overlays } from './scene/overlays';
 import { Routes } from './route';
-import { K_CANNON, K_FROST, K_GATE, K_GUN, K_MISSILE, K_SNIPER, K_TESLA, Structs } from './scene/structs';
+import { K_CANNON, K_FROST, K_GATE, K_GUN, K_MISSILE, K_SNIPER, K_TESLA, SNIPER_HEAD_Y, Structs } from './scene/structs';
 import { FogOfWar } from './scene/fow';
 import { Terrain } from './scene/terrain';
 import { Weather } from './scene/weather';
@@ -133,6 +133,7 @@ async function main(): Promise<void> {
   const loot = new Loot(world.scene);
   const guns = new Guns(world.scene);
   const effects = new Effects(world.scene);
+  effects.heroMuzzle = (x, y, out) => heroes.awmMuzzle(x, y, out);
   const helis = new Helis(world.scene, effects);
   const fow = new FogOfWar(world.scene);
   creeps.onBlow = (x, y, k, h, r) => effects.blow(x, y, k, h, r);
@@ -191,7 +192,7 @@ async function main(): Promise<void> {
   const turretHeight = (x: number, y: number) => {
     const s = game.structAtTile(Math.floor(x), Math.floor(y));
     const k = s >= 0 ? game.cur.sKind[s] : 0;
-    return k === K_GUN ? 0.75 : k === K_CANNON ? 0.86 : k === K_FROST ? 1.5 : k === K_TESLA ? 1.6 : k === K_SNIPER ? 2.02 : k === K_MISSILE ? 0.95 : 1.0;
+    return k === K_GUN ? 0.75 : k === K_CANNON ? 0.86 : k === K_FROST ? 1.5 : k === K_TESLA ? 1.6 : k === K_SNIPER ? SNIPER_HEAD_Y : k === K_MISSILE ? 0.95 : 1.0;
   };
 
   const handlers: Handlers = {

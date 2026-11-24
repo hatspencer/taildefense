@@ -5,10 +5,11 @@ import {
 } from 'three/tsl';
 import {
   BlastKind, EffectKind, LOB_WINDUP, TRACER_ARC, TRACER_FLASH, TRACER_FOLLOW, TRACER_HOMERUN, TRACER_HOMERUN_ROUND, TRACER_GREAT_ULT, TRACER_HELI, TRACER_KATANA,
-  TRACER_KATANA_ULT, TRACER_MOON, TRACER_NAPALM, TRACER_SHARD, TRACER_SPLIT, TRACER_ULT, Tile,
+  TRACER_KATANA_ULT, TRACER_MOON, TRACER_NAPALM, TRACER_SHARD, TRACER_SPLIT, TRACER_ULT, RIFLE, Tile,
 } from '../protocol';
 import type { Game } from '../state';
-import { K_ARMORY, K_CORE, K_MISSILE, K_SNIPER, K_TESLA } from './structs';
+import { K_ARMORY, K_CORE, K_MISSILE, K_SNIPER, K_TESLA, SNIPER_DECK, SNIPER_MUZZLE } from './structs';
+import { AWM_HELD_MUZZLE, awmFull } from './awm';
 import { linInto, writeMatrix } from './util';
 
 // How many cracks Worldsplitter's ground breaks into round the blade.
@@ -162,6 +163,9 @@ class FxPool {
 const TRACER: Record<number, number> = { 0: 0xffe9a0, 1: 0xffb060, 2: 0xfff0b0, 3: 0xa0f0ff, 4: 0xffd860, 5: 0xffffff };
 // Muzzle flash size per player weapon: pistol, shotgun, SMG, rifle, minigun, rockets.
 const MUZZLE: Record<number, number> = { 0: 0.8, 1: 1.5, 2: 0.9, 3: 1.3, 4: 1.1, 5: 1.6 };
+// A hero's shot flashes 0.4 along it; the AWM's muzzle is as much further out as its barrel is
+// longer than the plain rifle's (whose muzzle is 0.74 along its hold), at the heroes' scale.
+const AWM_HERO_MUZZLE = 0.4 + (AWM_HELD_MUZZLE - 0.74) * 1.15;
 const TURRET: Record<number, number> = { 5: 0xfff0a0, 6: 0xffa040, 7: 0x9fe4ff, 8: 0xd8b0ff, 9: 0xfff8e0, 10: 0xffb060 };
 // Blood, dark and everywhere; the spitter bleeds bile.
 const CREEP_GORE = [0x4a0c0a, 0x56100c, 0x3e0a08, 0x5a1410, 0x4a5a14, 0x3a0808, 0x4a0c0a, 0x4a5a14];
@@ -174,11 +178,16 @@ export class Effects {
   private uUp = uniform(new THREE.Vector3(0, 1, 0));
   private glow: FxPool; private smoke: FxPool; private streaks: FxPool;
   private spheres: FxPool; private rings: FxPool; private decals: FxPool; private stars: FxPool; private dust: FxPool;
+  // Soft-edged streaks: the big muzzle blasts' jets of fire.
+  private jets: FxPool;
   // How dark it is (dusk, heavy weather), 0..1: muzzle flashes grow with it.
   dark = 0;
   // Where the door gunner's rounds leave from, the muzzle of the Huey nearest a map point
   // (the Helis set it), so its tracers come out of the gun.
   heliMuzzle: ((x: number, y: number, out: THREE.Vector3) => THREE.Vector3 | null) | null = null;
+  // Where a survivor's AWM's muzzle is, the survivor standing at a map point with one in hand
+  // (the Heroes set it), or null.
+  heroMuzzle: ((x: number, y: number, out: THREE.Vector3) => THREE.Vector3 | null) | null = null;
   private muzzleAt = new THREE.Vector3();
   private lights: THREE.PointLight[] = [];
   private lightLeft = new Float32Array(LIGHTS);
@@ -210,6 +219,7 @@ export class Effects {
     this.decals.mesh.renderOrder = 1;
     this.stars = new FxPool(this.group, quad, 1024, 'billboard', n, r, u, true, false, false, true);
     this.dust = new FxPool(this.group, quad, 4096, 'billboard', n, r, u, false, true, false, false, 1.6);
+    this.jets = new FxPool(this.group, quad, 512, 'streak', n, r, u, true, true);
     for (let i = 0; i < LIGHTS; i++) {
       const l = new THREE.PointLight(0xffb060, 0, 7, 1.6);
       l.castShadow = false;
@@ -327,12 +337,15 @@ export class Effects {
           this.smoke.add(t, x0 - ux * 0.3, h, y0 - uz * 0.3, -ux * 1.2, 0.5, -uz * 1.2, 0.9, 0x9a9a9a, 0.3, 1.1, 0, 1, 0.5);
           continue;
         }
-        const sniper = sk === K_SNIPER;
-        this.streaks.add(t, x0, h, y0, x1, 0.55, y1, sniper ? 0.3 + dist * 0.01 : 0.08 + dist * 0.006, col, sniper ? 0.06 : 0.09, 0, 0, 0.45);
+        // The sniper's round leaves from its rifle's muzzle, with the brake's blast.
+        const sniper = sk === K_SNIPER, big = sniper, ml = sniper ? SNIPER_MUZZLE : 0.6;
+        const sx = sniper ? x0 + ux * ml : x0, sz = sniper ? y0 + uz * ml : y0;
+        this.streaks.add(t, sx, h, sz, x1, 0.55, y1, sniper ? 0.3 + dist * 0.01 : 0.08 + dist * 0.006, col, sniper ? 0.06 : 0.09, 0, 0, 0.45);
+        if (big) this.brake(t, x0, y0, sx, h, sz, ux, uz);
         if (flashes++ < 60) {
-          const mx = x0 + ux * 0.6, mz = y0 + uz * 0.6;
-          this.glow.add(t, mx, h, mz, 0, 0, 0, 0.07, 0xffd070, sk === 6 ? 1.2 : 0.6, 0.3);
-          if (sk !== 7) this.muzzle(t, mx, h, mz, ux, uz, sk === 6 ? 1.6 : sniper ? 1.4 : 1, i);
+          const mx = x0 + ux * ml, mz = y0 + uz * ml;
+          this.glow.add(t, mx, h, mz, 0, 0, 0, big ? 0.14 : 0.07, 0xffd070, sk === 6 ? 1.2 : big ? 1.1 : 0.6, 0.3);
+          if (sk !== 7) this.muzzle(t, mx, h, mz, ux, uz, sk === 6 ? 1.6 : big ? 2.2 : 1, i, big);
         }
         continue;
       }
@@ -352,9 +365,18 @@ export class Effects {
       }
       const w = (wk === 5 ? 0.16 : wk === 3 ? 0.08 : 0.06) * (ult ? 1.6 : 1);
       const life = wk === 5 ? 0.25 + dist * 0.01 : 0.06 + dist * 0.004;
-      this.streaks.add(t, x0, 1.12, y0, x1, 0.55, y1, life, col, w, 0, 0, wk === 5 ? 0.25 : 0.4, 1, 1.4);
+      // A fully bought Rifle is the AWM: its round and its flash, soft and bigger, come from its
+      // muzzle in the survivor's hands (the hero draws no flash of its own for it).
+      const awm = wk === RIFLE && this.awmShot(game, x0, y0), am = awm ? this.heroMuzzle?.(x0, y0, this.muzzleAt) ?? null : null;
+      const sx = am ? am.x : x0, sy = am ? am.y : 1.12, sz = am ? am.z : y0;
+      this.streaks.add(t, sx, sy, sz, x1, 0.55, y1, life, col, w, 0, 0, wk === 5 ? 0.25 : 0.4, 1, 1.4);
       if (wk === 5) this.smoke.add(t, x0, 1.1, y0, 0, 0.6, 0, 0.8, 0x9a9a9a, 0.4, 1.2, 0, 1, 0.5);
-      if (flashes++ < 80) {
+      if (awm) {
+        const ux = (x1 - x0) / dist, uz = (y1 - y0) / dist, ml = AWM_HERO_MUZZLE;
+        const mx = am ? am.x : x0 + ux * ml, my = am ? am.y : 1.12, mz = am ? am.z : y0 + uz * ml;
+        this.glow.add(t, mx + ux * 0.1, my, mz + uz * 0.1, ux * 0.4, 0, uz * 0.4, 0.08, 0xffd890, 0.7, 0.25);
+        this.muzzle(t, mx, my, mz, ux, uz, MUZZLE[wk] * 1.3, 0, true);
+      } else if (flashes++ < 80) {
         const mx = x0 + (x1 - x0) / dist * 0.4, mz = y0 + (y1 - y0) / dist * 0.4;
         this.glow.add(t, mx, 1.12, mz, 0, 0, 0, 0.06, 0xffe0a0, 0.55, 0.2);
         this.muzzle(t, mx, 1.12, mz, (x1 - x0) / dist, (y1 - y0) / dist, MUZZLE[wk] ?? 1, i);
@@ -405,14 +427,57 @@ export class Effects {
     this.decals.add(t, x + (Math.random() - 0.5) * 0.6, 0.07, y + (Math.random() - 0.5) * 0.6, 0, 0, 0, 30, 0x4a0c0a, 0.3, 0.4, 0, 1, 0.7);
   }
 
+  // The sniper's muzzle blast: a fireball at the brake, its ports throwing jets of fire and
+  // smoke out either side and a little back, and the blast kicking up dust off the tower's
+  // platform and the ground round its foot. Every shot, whatever the light: it is a big gun.
+  private brake(t: number, tx: number, ty: number, x: number, y: number, z: number, dx: number, dz: number): void {
+    // The fireball holds a sixth of a second, long enough to be seen by day.
+    this.glow.add(t, x + dx * 0.2, y, z + dz * 0.2, dx * 0.6, 0, dz * 0.6, 0.17, 0xffc060, 1.2, 0.5);
+    this.stars.add(t, x + dx * 0.15, y, z + dz * 0.15, 0, 0, 0, 0.12, 0xfff0c0, 1.3, 0.5, 0, 1, 1, 1.4);
+    for (const side of [-1, 1]) {
+      const px = -dz * side, pz = dx * side;
+      this.jets.add(t, x, y, z, x + px * 0.7 - dx * 0.15, y + 0.04, z + pz * 0.7 - dz * 0.15, 0.07, 0xffa040, 0.16, 0, 0, 1.3, 1, 1.4);
+      for (let k = 0; k < 3; k++) {
+        // Smoke has no drag: a puff goes v * life, under a tile.
+        const v = 0.6 + Math.random() * 0.5, b = -0.25 + Math.random() * 0.3;
+        this.smoke.add(t + k * 0.02, x, y, z, (px + dx * b) * v, 0.2 + Math.random() * 0.2, (pz + dz * b) * v, 0.7 + Math.random() * 0.2, 0x9a948a, 0.12, 0.45 + Math.random() * 0.15, 0, 1, 0.45);
+      }
+    }
+    this.smoke.add(t + 0.02, x + dx * 0.2, y, z + dz * 0.2, dx * 0.7, 0.25, dz * 0.7, 0.9, 0x8a8680, 0.15, 0.55, 0, 1, 0.4);
+    // Dust shaken off the platform, and blown off the ground under the muzzle and round the foot.
+    for (let k = 0; k < 5; k++) {
+      const a = Math.random() * 6.283;
+      this.dust.add(t, tx + Math.cos(a) * 0.4, SNIPER_DECK + 0.06, ty + Math.sin(a) * 0.4, Math.cos(a) * 0.8, 0.3, Math.sin(a) * 0.8, 0.6, 0x9a8c70, 0.12, 0.4, 0, 1, 0.6);
+    }
+    for (let k = 0; k < 8; k++) {
+      // Out to about two tiles: drag stops a puff v / 1.6 from where it starts.
+      const a = Math.atan2(dz, dx) + (Math.random() - 0.5) * 2.4, r = 0.4 + Math.random() * 0.5, v = 0.6 + Math.random() * 0.8;
+      this.dust.add(t + 0.04, tx + Math.cos(a) * r, 0.15, ty + Math.sin(a) * r, Math.cos(a) * v, 0.4 + Math.random() * 0.4, Math.sin(a) * v, 0.8 + Math.random() * 0.4, 0x8a7a5c, 0.25, 0.8, 0, 1, 0.5);
+    }
+  }
+
   // A muzzle flash in the dark: a star at the barrel, a short cone of fire forward, a puff of
   // smoke and a warm light pulse from the pool. Subtle by day, bright at dusk and in storms.
-  private muzzle(t: number, x: number, y: number, z: number, dx: number, dz: number, size: number, i: number): void {
+  // Whether a shot from (x0, y0) came from a survivor's AWM: one standing there with the Rifle
+  // in hand and every one of its tracks bought. A shot does not say who fired it, so this asks
+  // who is standing where it starts.
+  private awmShot(game: Game, x0: number, y0: number): boolean {
+    const f = game.cur, max = game.welcome?.maxLevel ?? 5;
+    for (let j = 0; j < f.nPlayers; j++) {
+      const p = f.players[j];
+      if (p.cur === RIFLE && (p.x - x0) ** 2 + (p.y - y0) ** 2 < 0.36 && awmFull(p.levels, RIFLE * 4, max)) return true;
+    }
+    return false;
+  }
+
+  // soft: the cone drawn as a soft-edged jet, for a flash big enough that a hard-edged streak
+  // would show as a flat plank.
+  private muzzle(t: number, x: number, y: number, z: number, dx: number, dz: number, size: number, i: number, soft = false): void {
     const d = this.dark;
     if (d < 0.05 && i % 3) return;
     const s = size * (0.5 + 0.9 * d);
     this.stars.add(t, x + dx * 0.15, y, z + dz * 0.15, 0, 0, 0, 0.05 + 0.02 * Math.random(), 0xffd890, s * (0.8 + Math.random() * 0.5), s * 0.4, 0, 1, 1, 0.5 + d);
-    this.streaks.add(t, x, y, z, x + dx * 0.9 * s, y, z + dz * 0.9 * s, 0.05, 0xffa040, 0.16 * s, 0, 0, 1.3, 1, 0.5 + d);
+    (soft ? this.jets : this.streaks).add(t, x, y, z, x + dx * 0.9 * s, y, z + dz * 0.9 * s, soft ? 0.07 : 0.05, 0xffa040, 0.16 * s, 0, 0, 1.3, 1, (0.5 + d) * (soft ? 1.4 : 1));
     if (t - this.lastSmoke > 0.04) {
       this.lastSmoke = t;
       this.smoke.add(t + 0.03, x + dx * 0.3, y, z + dz * 0.3, dx * 0.4, 0.5, dz * 0.4, 0.7, 0x8a8680, 0.15 * size, 0.6 * size, 0, 1, 0.3);
@@ -1062,7 +1127,7 @@ export class Effects {
     const done = (m: THREE.InstancedMesh, n: number) => { m.count = n; if (n) m.instanceMatrix.needsUpdate = true; };
     done(this.lasting, nr); done(this.lastingFire, nf); done(this.grenades, ng); done(this.acid, na); done(this.sacs, ns);
     done(this.trench, nk); done(this.crack, nk);
-    for (const p of [this.glow, this.smoke, this.streaks, this.spheres, this.rings, this.decals, this.stars, this.dust]) p.flush(t);
+    for (const p of [this.glow, this.smoke, this.streaks, this.spheres, this.rings, this.decals, this.stars, this.dust, this.jets]) p.flush(t);
   }
 
   // A team ping: three rings rippling out wide, brighter than a command ping, so it reads

@@ -79,7 +79,9 @@ With only those two tracks maxed (damage x2.1, rate x1.65; the pistol damage x2.
   range is 10 and the magazine is 6.
 - **SMG**: steady and cheap. Full rate from the first shot.
 - **Rifle**: 80 a hit at range 28 with 3 pierce, which makes it the pick for brutes, bosses and
-  anything armored, and for a line of creeps. Slow to fire, small magazine.
+  anything armored, and for a line of creeps. Slow to fire, small magazine. With all four
+  tracks at 5 (12,860 gold in all) it is drawn as the sniper tower's green AWM, in hand and on
+  the ground when dropped, with a bigger kick and muzzle flash; it plays the same.
 - **Minigun**: the most damage in the game, with the biggest magazine, and the burn on its special
   track. Its barrels spin up (see below), the reload is the longest, and it costs 1400.
 - **Rocket launcher**: the area weapon. Lowest single-target DPS of the six, but a blast of 3

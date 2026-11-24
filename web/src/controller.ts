@@ -1,7 +1,14 @@
 import * as THREE from 'three/webgpu';
 import type { CameraRig } from './camera';
-import { artCooldown, canTake, dualIn, GREAT, KATANA, OWNED_WEAPONS, EvacStage, K_ARMORY, lootable, stickyKind, repairCost, walled, type Command, Order, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, PingKind, SiteKind, siteX, siteY, Tile, K_GATE } from './protocol';
+import { artCooldown, canTake, dualIn, GREAT, KATANA, OWNED_WEAPONS, EvacStage, K_ARMORY, lootable, stickyKind, repairCost, walled, type Command, Order, PF_ALIVE, PF_ARMORY, PF_CONNECTED, PF_READY, PF_RELOADING, Phase, PingKind, SiteKind, siteX, siteY, Tile, K_GATE, K_SNIPER } from './protocol';
 import type { Effects } from './scene/effects';
+import { structOnRay } from './pick';
+import { SNIPER_DECK, SNIPER_HEAD_Y } from './scene/structs';
+
+// A sniper tower's silhouette for picking: the lattice and sandbagged deck on its tile, then the
+// rifle, which reaches past it, up to the top of the scope.
+const SNIPER_TOP = SNIPER_HEAD_Y + 0.3;
+const SNIPER_BANDS: [number, number][] = [[SNIPER_DECK + 0.16, 0.5], [SNIPER_TOP, 0.7]];
 import type { LocalCue } from './sound/sound';
 import type { Game } from './state';
 
@@ -55,6 +62,7 @@ export class Controller {
   // Set by walkToArmory: the window opens on arrival, but not for walking past the shop.
   private toArmory = false;
   private g1 = new THREE.Vector3();
+  private g2 = new THREE.Vector3(); // the view ray at a sniper tower's top, which stands far over the rest
   onToast: (text: string, level: number) => void = () => {};
   onModeChange: () => void = () => {};
   // The local player's acts are answered on the page at once (a ring, a sound) rather than a
@@ -87,6 +95,7 @@ export class Controller {
     this.groundOk = this.rig.groundAt(this.mx, this.my, w, h, 0, this.ground) !== null;
     if (!this.groundOk) { this.hover = null; return; }
     this.rig.groundAt(this.mx, this.my, w, h, 1.2, this.g1);
+    this.rig.groundAt(this.mx, this.my, w, h, SNIPER_HEAD_Y, this.g2);
     this.hover = this.pick();
   }
 
@@ -125,11 +134,12 @@ export class Controller {
       if (d < nd) { nd = d; near = { t: 'creep', id: f.cId[i] }; }
     }
     if (best) return best;
-    for (let s = 0; s <= 6; s++) {
-      const t = s / 6;
-      const sid = g.structAtTile(Math.floor(ax + dx * t), Math.floor(az + dz * t));
-      if (sid >= 0) return { t: 'struct', id: sid };
-    }
+    // Structures: the ordinary ones on their tile up to head height, and a sniper tower anywhere
+    // on its silhouette, legs, deck and rifle, in front of whatever stands behind it.
+    const gx = this.ground.x, gz = this.ground.z, ux = (this.g2.x - gx) / SNIPER_HEAD_Y, uz = (this.g2.z - gz) / SNIPER_HEAD_Y;
+    const sid = structOnRay((y) => [gx + ux * y, gz + uz * y], (tx, tz) => g.structAtTile(tx, tz),
+      (id) => (f.sKind[id] === K_SNIPER ? { cx: f.sX[id] + 0.5, cz: f.sY[id] + 0.5, bands: SNIPER_BANDS } : null), 1.2, SNIPER_TOP);
+    if (sid >= 0) return { t: 'struct', id: sid };
     // Weapons on the ground, then loot sites; either gives way to a creep almost under the cursor.
     let gun = -1, gd = 0.8;
     for (const k of f.guns) {
