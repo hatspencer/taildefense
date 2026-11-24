@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"taildefense/internal/config"
 	"taildefense/internal/game"
 	"taildefense/internal/netplay"
 	"taildefense/internal/tailnet"
@@ -67,6 +68,13 @@ type Options struct {
 	// keeps it as SaveVolume does the volume.
 	Music     int
 	SaveMusic func(int) error
+	// Reticle is whether the page draws the reticle on the ground under the cursor, the
+	// RETICLE setting, and ReticleSize its size in percent, RETICLE_SIZE, 0 for the default;
+	// SaveReticle and SaveReticleSize keep them as SaveVolume does the volume.
+	Reticle         bool
+	ReticleSize     int
+	SaveReticle     func(bool) error
+	SaveReticleSize func(int) error
 	// Listen overrides where the page is served, for tests.
 	Listen string
 	// PathTo says how packets reach the host's address, for the page's link badge; nil is
@@ -421,6 +429,8 @@ func (s *session) greet() {
 	m.Seen = seenBytes(s.r.Seen)
 	m.Volume = s.o.Volume
 	m.Music = s.o.Music
+	m.Reticle = s.o.Reticle
+	m.ReticleSize = s.o.ReticleSize
 	s.text(b, m)
 	s.send(b, terrainMsg(s.wel.Terrain))
 	b.ready = true
@@ -522,6 +532,18 @@ func (s *session) command(p []byte) bool {
 		s.o.Music = min(max(c.V, 0), 100)
 		if s.o.SaveMusic != nil {
 			_ = s.o.SaveMusic(s.o.Music)
+		}
+		return false
+	case "reticle":
+		s.o.Reticle = c.On
+		if s.o.SaveReticle != nil {
+			_ = s.o.SaveReticle(s.o.Reticle)
+		}
+		return false
+	case "reticleSize":
+		s.o.ReticleSize = min(max(c.V, config.MinReticleSize), config.MaxReticleSize)
+		if s.o.SaveReticleSize != nil {
+			_ = s.o.SaveReticleSize(s.o.ReticleSize)
 		}
 		return false
 	case "move":

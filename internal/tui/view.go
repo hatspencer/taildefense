@@ -448,7 +448,11 @@ func (m *Model) doctorView(elapsed time.Duration, room int) []string {
 func (m *Model) settingsView(room int) []string {
 	out := []string{gutter + ui.StyleBold.Render("Settings") + "  " + ui.StyleDim.Render("saved to "+prefsPath()), ""}
 	var rows []string
-	at := 0 // the picked-out setting's row
+	at := 0    // the picked-out setting's row
+	width := 0 // the longest key's, so every value lines up past it
+	for _, k := range config.Keys {
+		width = max(width, len(k.Name))
+	}
 	for i, k := range config.Keys {
 		v := m.prefs.Get(k.Name)
 		mark := "  "
@@ -464,7 +468,7 @@ func (m *Model) settingsView(room int) []string {
 		if v.Source == config.SourceEnv {
 			src = k.Env + " overrides"
 		}
-		rows = append(rows, fmt.Sprintf("%s%s%s %s  %s", gutter, mark, ui.StyleBold.Render(pad(strings.ToLower(k.Name), 11)),
+		rows = append(rows, fmt.Sprintf("%s%s%s %s  %s", gutter, mark, ui.StyleBold.Render(pad(strings.ToLower(k.Name), width+1)),
 			value, ui.StyleDim.Render("("+src+")")))
 		if i == m.scursor {
 			rows = append(rows, gutter+"    "+ui.StyleDim.Render(k.Help))

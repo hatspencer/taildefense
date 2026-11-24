@@ -223,6 +223,10 @@ export interface Welcome {
   volume?: number;
   // This machine's MUSIC setting, 0..100 of the volume; 0 is no music. Absent from an older td.
   music?: number;
+  // This machine's RETICLE setting: the reticle on the ground under the cursor drawn or not,
+  // and RETICLE_SIZE, its size in percent (50..300). Absent from an older td: on, at 100.
+  reticle?: boolean;
+  reticleSize?: number;
   // Per difficulty: how far past the straight way in a creep walks a maze before it frenzies.
   patience?: number[];
   // Working a gate: seconds at it, seconds before it swings again, how near to stand.
@@ -347,6 +351,9 @@ export type Command = (
   | { op: 'volume'; v: number }
   // The same for the MUSIC setting.
   | { op: 'music'; v: number }
+  // The same for the RETICLE and RETICLE_SIZE settings.
+  | { op: 'reticle'; on: boolean }
+  | { op: 'reticleSize'; v: number }
 ) & { seq?: number };
 
 export class Player {

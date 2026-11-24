@@ -538,6 +538,22 @@ export class Hud {
     this.musEl.value = String(v);
     this.musOut.textContent = v === 0 ? 'off' : String(v);
   }
+  // onReticle hears the menu's RETICLE switch, saved as soon as it flips; onReticleSize and
+  // setReticleSize are the volume's for the RETICLE_SIZE slider, in percent.
+  onReticle: (on: boolean) => void = () => {};
+  onReticleSize: (v: number, save: boolean) => void = () => {};
+  private retEl!: HTMLInputElement;
+  private retOut!: HTMLElement;
+  private retSizeEl!: HTMLInputElement;
+  private retSizeOut!: HTMLElement;
+  setReticle(on: boolean): void {
+    this.retEl.checked = on;
+    this.retOut.textContent = on ? 'on' : 'off';
+  }
+  setReticleSize(v: number): void {
+    this.retSizeEl.value = String(v);
+    this.retSizeOut.textContent = String(v);
+  }
 
   toggleMenu(): void { this.toggle(this.menu); }
   toggleStats(): void { show(this.statsEl, this.statsEl.classList.contains('hidden')); }
@@ -588,6 +604,21 @@ export class Hud {
     this.musOut = el('b', '', mus, '');
     this.musEl.oninput = () => { const v = Number(this.musEl.value); this.setMusic(v); this.onMusic(v, false); };
     this.musEl.onchange = () => this.onMusic(Number(this.musEl.value), true);
+    // The RETICLE setting, the spot under the cursor on the ground: on or off, saved at once.
+    const ret = el('label', 'volume', m);
+    el('span', '', ret, 'Reticle');
+    this.retEl = el('input', '', ret);
+    this.retEl.type = 'checkbox';
+    this.retOut = el('b', '', ret, '');
+    this.retEl.onchange = () => { this.setReticle(this.retEl.checked); this.onReticle(this.retEl.checked); };
+    // RETICLE_SIZE, in percent of its own size: seen while dragging, saved when let go.
+    const rsz = el('label', 'volume', m);
+    el('span', '', rsz, 'Reticle size');
+    this.retSizeEl = el('input', '', rsz);
+    Object.assign(this.retSizeEl, { type: 'range', min: '50', max: '300', step: '10' });
+    this.retSizeOut = el('b', '', rsz, '');
+    this.retSizeEl.oninput = () => { const v = Number(this.retSizeEl.value); this.setReticleSize(v); this.onReticleSize(v, false); };
+    this.retSizeEl.onchange = () => this.onReticleSize(Number(this.retSizeEl.value), true);
     const leave = el('button', 'danger', m, 'Leave game');
     leave.onclick = () => this.leave();
     el('div', 'muted hint', m, '↑ ↓ to choose · Enter to press · Esc to close').id = 'menu-hint';

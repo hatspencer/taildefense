@@ -30,6 +30,9 @@ export class Overlays {
   private dots: THREE.InstancedMesh;
   // The reticle on the ground under the cursor: where a dash or a weapon art goes.
   private reticle = new THREE.Group();
+  // This machine's RETICLE and RETICLE_SIZE settings: whether it is drawn, and its size in percent.
+  reticleOn = true;
+  reticleSize = 100;
 
   constructor(scene: THREE.Scene, private structs: Structs) {
     scene.add(this.group);
@@ -96,12 +99,14 @@ export class Overlays {
     this.group.add(this.reticle);
   }
 
-  // The cursor's spot on the ground, about the same size on screen however far the camera is.
+  // The cursor's spot on the ground, about the same size on screen however far the camera is,
+  // times the RETICLE_SIZE setting; none at all with RETICLE off.
   cursor(on: boolean, x = 0, z = 0, dist = 22): void {
+    on = on && this.reticleOn;
     this.reticle.visible = on;
     if (!on) return;
     this.reticle.position.set(x, 0.12, z);
-    this.reticle.scale.setScalar(Math.min(2.5, Math.max(0.6, dist / 22)));
+    this.reticle.scale.setScalar(Math.min(2.5, Math.max(0.6, dist / 22)) * this.reticleSize / 100);
   }
 
   // Draws the ways in, each a list of tile indices that at(i) turns into tile x, y; none hides them.

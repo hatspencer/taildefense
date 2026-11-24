@@ -464,7 +464,8 @@ bar open too; while placing or pinging, a tap of Shift aims it and Shift held th
 placing. Dash and airstrike cast
 at the cursor the moment you press the key; point at the ground. A small reticle lies on the
 ground under the cursor wherever it points on the map, drawn over creeps and roofs, so you can
-see the spot a dash, a weapon art or an airstrike will go. The grenade goes to level 5, each
+see the spot a dash, a weapon art or an airstrike will go; the menu (F10) turns it off or makes it
+bigger or smaller (`RETICLE` and `RETICLE_SIZE`). The grenade goes to level 5, each
 level hitting harder (120 damage at the first, 400 at the fifth), throwing wider and coming back
 sooner; from level 4 it leaves a fire burning where it lands. After wave 10 the grenade and the
 airstrike hit harder as the creeps get tougher. Dash and airstrike go to level 3. With a
