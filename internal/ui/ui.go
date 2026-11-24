@@ -102,16 +102,6 @@ var (
 	ColorBg lipgloss.AdaptiveColor
 )
 
-var (
-	// The text colours for a filled badge. A badge is a block of one of the status hues
-	// with a label on it — the decision on a rule, the verdict on a check — and the label
-	// needs a colour that survives being drawn on that block rather than on the terminal.
-	ColorOnAmber = lipgloss.AdaptiveColor{Light: "#ffffff", Dark: "#1f2937"}
-	ColorOnBlue  = lipgloss.AdaptiveColor{Light: "#ffffff", Dark: "#172554"}
-	ColorOnGreen = lipgloss.AdaptiveColor{Light: "#ffffff", Dark: "#052e16"}
-	ColorOnGray  = lipgloss.AdaptiveColor{Light: "#ffffff", Dark: "#111827"}
-)
-
 // Styles are resolved once at startup. Exported so commands can compose their
 // own lines without inventing new colours.
 var (
@@ -154,27 +144,17 @@ var (
 
 var colorEnabled bool
 
-// quietMode drops supporting detail (Info, Note, Detail) and keeps only findings, set by
-// the global --quiet flag. jsonMode silences the Printer on stdout entirely, set by
-// --json, so a command that still writes status lines cannot corrupt the single JSON
-// document the caller is parsing; those lines move to stderr where progress belongs.
+// jsonMode silences the Printer on stdout entirely, set by --json, so a command that still
+// writes status lines cannot corrupt the single JSON document the caller is parsing; those
+// lines move to stderr where progress belongs.
 //
-// Both are package-level rather than per-Printer because they are global flags: a batch
-// parallel walk gives each worker its own Printer, and all of them must honour the same
-// decision. They are read under the Printer's own lock through the mode accessor.
+// It is package-level rather than per-Printer because it is a global flag: a parallel walk
+// gives each worker its own Printer, and all of them must honour the same decision. It
+// is read under the Printer's own lock through the mode accessor.
 var (
-	quietMode bool
-	jsonMode  bool
-	modeMu    sync.RWMutex
+	jsonMode bool
+	modeMu   sync.RWMutex
 )
-
-// SetQuiet turns quiet mode on or off for every Printer. The dispatcher calls it once
-// from the global flag before any command runs.
-func SetQuiet(on bool) {
-	modeMu.Lock()
-	quietMode = on
-	modeMu.Unlock()
-}
 
 // SetJSON turns JSON mode on or off. In JSON mode the Printer writes to stderr and drops
 // everything but findings, so stdout carries only what a command hands to EmitJSON.
@@ -182,13 +162,6 @@ func SetJSON(on bool) {
 	modeMu.Lock()
 	jsonMode = on
 	modeMu.Unlock()
-}
-
-// Quiet reports whether quiet mode is on.
-func Quiet() bool {
-	modeMu.RLock()
-	defer modeMu.RUnlock()
-	return quietMode
 }
 
 // JSONMode reports whether JSON mode is on.
@@ -199,12 +172,12 @@ func JSONMode() bool {
 }
 
 // suppressDetail reports whether supporting detail (Info, Note, Detail) should be dropped.
-// Both --quiet and --json want findings only: quiet by intent, json because those lines
-// would otherwise clutter the stderr channel a caller does not read.
+// --json wants findings only: those lines would otherwise clutter the stderr channel a caller
+// does not read.
 func suppressDetail() bool {
 	modeMu.RLock()
 	defer modeMu.RUnlock()
-	return quietMode || jsonMode
+	return jsonMode
 }
 
 // lastNoColor is the flag InitColor was last called with, so SetTheme can rebuild the
@@ -357,38 +330,6 @@ type Printer struct {
 	mu       sync.Mutex
 	w        io.Writer
 	failures int
-	// verdicts is the order PASS, FAIL and WARN lines were printed in, for the honeycomb a
-	// finale fills (honeycomb.go). Recorded, never printed: it changes no output.
-	verdicts []byte
-}
-
-// maxVerdicts bounds the record. A honeycomb of more cells than this is a wall, not a comb.
-const maxVerdicts = 64
-
-func (p *Printer) note(v byte) {
-	p.mu.Lock()
-	if len(p.verdicts) < maxVerdicts {
-		p.verdicts = append(p.verdicts, v)
-	}
-	p.mu.Unlock()
-}
-
-// Verdicts is the record of verdict lines so far, in order: 'p' pass, 'f' fail, 'w' warn.
-func (p *Printer) Verdicts() []byte {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return append([]byte(nil), p.verdicts...)
-}
-
-// Tally records one verdict a command printed in its own layout rather than as a PASS or FAIL
-// line, so its finale comb still has a cell per check. It prints nothing and, unlike Fail, does
-// not count a failure: the command's exit code already carries that.
-func (p *Printer) Tally(held bool) {
-	if held {
-		p.note(verdictPass)
-		return
-	}
-	p.note(verdictFail)
 }
 
 // New returns a Printer writing to w.
@@ -426,7 +367,6 @@ func jsonModeReadUnlocked() bool {
 
 // Pass records a check that held.
 func (p *Printer) Pass(format string, a ...any) {
-	p.note(verdictPass)
 	p.printf("  %s %s\n", StylePass.Render("PASS"), fmt.Sprintf(format, a...))
 }
 
@@ -435,12 +375,11 @@ func (p *Printer) Fail(format string, a ...any) {
 	p.mu.Lock()
 	p.failures++
 	p.mu.Unlock()
-	p.note(verdictFail)
 	p.printf("  %s %s\n", StyleFail.Render("FAIL"), fmt.Sprintf(format, a...))
 }
 
-// Info prints a fact that is not a verdict. Suppressed by --quiet and by --json, which
-// both want findings only.
+// Info prints a fact that is not a verdict. Suppressed by --json, which wants
+// findings only.
 func (p *Printer) Info(format string, a ...any) {
 	if suppressDetail() {
 		return
@@ -448,7 +387,7 @@ func (p *Printer) Info(format string, a ...any) {
 	p.printf("  %s %s\n", StyleInfo.Render("INFO"), fmt.Sprintf(format, a...))
 }
 
-// Note prints dimmed secondary detail. Suppressed by --quiet and --json.
+// Note prints dimmed secondary detail. Suppressed by --json.
 func (p *Printer) Note(format string, a ...any) {
 	if suppressDetail() {
 		return
@@ -461,20 +400,12 @@ func (p *Printer) Note(format string, a ...any) {
 // a second colour to say so.
 const detailIndent = "      "
 
-// Detail prints an indented supporting line under a finding. Suppressed by --quiet and
-// --json.
+// Detail prints an indented supporting line under a finding. Suppressed by --json.
 func (p *Printer) Detail(format string, a ...any) {
 	if suppressDetail() {
 		return
 	}
 	p.printf("%s%s\n", detailIndent, fmt.Sprintf(format, a...))
-}
-
-// Subhead labels a group of detail inside a section, one step left of the detail it
-// introduces — the files one steering entry would touch, inside the entry's own block. A
-// group label printed at the same indent as its own rows does not read as a label at all.
-func (p *Printer) Subhead(format string, a ...any) {
-	p.printf("    %s\n", StyleDim.Render(fmt.Sprintf(format, a...)))
 }
 
 // Fields prints aligned label/value detail under a section heading.
@@ -502,42 +433,14 @@ func (p *Printer) Fields(rows [][2]string) {
 	p.Raw(Table(tbl, detailIndent))
 }
 
-// Listing prints an aligned multi-column table at the detail indent, which is where every
-// listing in this tool belongs: the queue, the inbox, the ledger. A call site that passes its
-// own indent is how two listings printed one after the other end up not sharing a left edge.
-func (p *Printer) Listing(rows [][]string) {
-	p.cascade(Table(rows, detailIndent))
-}
-
-// Row prints one item of a list: something found or enumerated, not judged.
-//
-// It exists because the status vocabulary does not cover listing. Every other marker carries a
-// verdict, so a search result printed with Pass spends the one mark meaning "checked, and it
-// held" on a file that was merely matched, and a classification printed with Fail turns a
-// twenty-row summary into twenty red lines nobody reads to the end of. The marker is dim and
-// sits in the same column as PASS and FAIL, so a listing lines up with a report without
-// claiming to be one.
-func (p *Printer) Row(format string, a ...any) {
-	p.printf("  %s %s\n", StyleDim.Render("  · "), fmt.Sprintf(format, a...))
-}
-
 // Warn prints something the user should probably act on.
 func (p *Printer) Warn(format string, a ...any) {
-	p.note(verdictWarn)
 	p.printf("  %s %s\n", StyleWarn.Render("▲"), fmt.Sprintf(format, a...))
 }
 
 // OK prints a tick.
 func (p *Printer) OK(format string, a ...any) {
-	p.note(verdictPass)
 	p.printf("  %s %s\n", StylePass.Render("✔"), fmt.Sprintf(format, a...))
-}
-
-// Bad prints a cross without counting it: used where a failure is being reported
-// by something else that owns the tally.
-func (p *Printer) Bad(format string, a ...any) {
-	p.note(verdictFail)
-	p.printf("  %s %s\n", StyleFail.Render("✘"), fmt.Sprintf(format, a...))
 }
 
 // Plain writes a line with no decoration.
@@ -551,14 +454,6 @@ func (p *Printer) Failures() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.failures
-}
-
-// ResetFailures zeroes the counter. Used between the stages of a run that reports each
-// stage separately.
-func (p *Printer) ResetFailures() {
-	p.mu.Lock()
-	p.failures = 0
-	p.mu.Unlock()
 }
 
 // Section layout.
@@ -587,7 +482,6 @@ const (
 	// banners and the shell header use.
 	captionSep = "  ·  "
 	ruleChar   = "─"
-	bannerChar = "━"
 	// ruleWidth is the shared right edge. 56 columns fits an 80-column terminal
 	// with room to spare and is what `doctor` already used.
 	ruleWidth = 56
@@ -627,33 +521,6 @@ func (p *Printer) Section(title, caption string) {
 // Step prints a section heading with no caption.
 func (p *Printer) Step(format string, a ...any) {
 	p.Section(fmt.Sprintf(format, a...), "")
-}
-
-// HR draws a horizontal rule at the shared left and right edges, for closing a
-// report off.
-func (p *Printer) HR() {
-	p.printf("%s%s\n", gutter, StyleDim.Render(rule(ruleChar, ruleWidth)))
-}
-
-// Heading prints the banner a long-running command opens with.
-//
-// Two lines: the title, then a heavy rule under it. Not a three-line box with a heavy rule
-// above and below the title: that reads well once but repeats badly, since a batch
-// run and the shell open a heading per tab, and three lines of box drawing before any
-// content is a lot to scroll past every time. The single heavy rule under the title still
-// reads as heavier than a section heading (which uses a light rule and no leading blank of
-// this weight), so the "this opens a report" signal survives at two thirds the height.
-//
-// The bar spans the title rather than a fixed width, because these lines carry the target
-// environment and a timestamp and are usually longer than a section heading.
-func (p *Printer) Heading(format string, a ...any) {
-	text := fmt.Sprintf(format, a...)
-	width := visibleWidth(text)
-	if width < ruleWidth {
-		width = ruleWidth
-	}
-	bar := StyleStep.Render(rule(bannerChar, width))
-	p.printf("\n%s%s\n%s%s\n", gutter, StyleWhite.Render(text), gutter, bar)
 }
 
 // Errorf prints an error line to stderr without exiting, for commands that

@@ -3,7 +3,6 @@ package ui
 import (
 	"os"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 )
 
@@ -27,21 +26,6 @@ const (
 	// EnvForceColor turns colour on whatever the terminal, for `taildefense frame | less -R`.
 	EnvForceColor = "TAILDEFENSE_FORCE_COLOR"
 )
-
-// ColorEnviron describes the current terminal for a child process.
-//
-// Called by the shell TUI when building a child's environment. It reports what this
-// process actually resolved rather than re-detecting, so the child is guaranteed to
-// agree with the parent even if detection is somehow non-deterministic.
-func ColorEnviron() []string {
-	if !colorEnabled {
-		return nil
-	}
-	return []string{
-		EnvColorProfile + "=" + profileName(lipgloss.ColorProfile()),
-		EnvDarkBackground + "=" + boolDigit(lipgloss.HasDarkBackground()),
-	}
-}
 
 // inheritedProfile reads EnvColorProfile.
 func inheritedProfile() (termenv.Profile, bool) {
@@ -67,24 +51,4 @@ func inheritedDarkBackground() (bool, bool) {
 		return false, true
 	}
 	return false, false
-}
-
-func profileName(p termenv.Profile) string {
-	switch p {
-	case termenv.TrueColor:
-		return "truecolor"
-	case termenv.ANSI256:
-		return "256"
-	case termenv.ANSI:
-		return "16"
-	default:
-		return "none"
-	}
-}
-
-func boolDigit(b bool) string {
-	if b {
-		return "1"
-	}
-	return "0"
 }
