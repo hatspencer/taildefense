@@ -10,7 +10,8 @@ three.js browser client embedded from `internal/web/dist`.
 - Commits and pull requests carry no attribution lines: no `Co-Authored-By`, no
   `Claude-Session`, no "Generated with" footer or session link.
 - `main` takes changes only through pull requests: the remote refuses a direct push. Push a
-  branch. `gh` is not installed here; give the branch name and GitHub's compare link instead.
+  branch. Don't use `gh` here: it is signed in to a different GitHub account than the one that
+  owns this repo. Give the branch name and GitHub's compare link instead.
 - In a worktree, set `TAILDEFENSE_GOCACHE` to the main checkout's `.gocache` for `./build.sh`,
   or every worktree compiles from cold.
 - Subagents in `.claude/agents/`, each on the cheapest model that does the job:
@@ -26,4 +27,6 @@ three.js browser client embedded from `internal/web/dist`.
   - `docs/architecture.md`: one tick end to end, and why it's built this way.
   - `docs/development.md`: playtests, the golden game, the demo and the animation lab.
   - `docs/game-design.md`: design decisions and their reasons; update it with the code.
+  - `docs/weapons.md`: the armory's weapons, their stats, upgrade tracks and costs; update it
+    with `internal/game/defs.go`.
   - `web/PROTOCOL.md`: the contract between `td` and the page; update it with the codec.
