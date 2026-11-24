@@ -627,7 +627,7 @@ export class Sound {
       const was = i < this.nStructs && this.sAlive[i] && this.sKind[i] === f.sKind[i];
       if (f.sAlive[i] && !was) { const p = this.place(cx, cy, 0.6); if (p && !this.heard(`build:${f.sX[i]}:${f.sY[i]}`)) this.synth.play('hammer', p); }
       else if (f.sAlive[i] && level(f.sLevel[i], f.sLv, i) > this.sLevel[i]) { const p = this.place(cx, cy, 0.55); if (p) this.synth.play('upgrade', p); }
-      else if (!f.sAlive[i] && i < this.nStructs && this.sAlive[i] && !this.cover.owns(this.sKind[i])) {
+      else if (!f.sAlive[i] && i < this.nStructs && this.sAlive[i]) {
         // Sold whole, or knocked down: one that went at a quarter of its health or more was sold.
         const p = this.place(cx, cy, this.sHpFrac[i] > 0.25 ? 0.5 : 0.85, 1.5);
         if (p) this.synth.play(this.sHpFrac[i] > 0.25 ? 'coins' : 'crumble', p);

@@ -1602,97 +1602,43 @@ function hum(sr: number, r: R): Buf {
 // thuds and roars for weight and fire, voices through formants, nothing above about 7 kHz that
 // repeats often.
 
-// A spike strip biting: the steel's point going in with a short ring, flesh giving, and the
-// strip's chain rattling under the weight.
-function spikes(sr: number, r: R): Buf {
-  const b = new Buf(sr, 0.35);
-  const f = jit(r, 2900, 0.12);
-  click(b, r, 0, f * 1.1, 0.5, 0.0025, f * 0.7);
-  ping(b, 0.001, [f, f * 1.43, f * 2.2], 0.02, 0.12);
-  roar(b, r, 0.003, 0.07, jit(r, 2000, 0.25), 600, 0.001, jit(r, 0.016, 0.3), 0.45, 2.5);
-  thud(b, r, 0.002, jit(r, 140, 0.2), 80, 0.02, 0.5, 0.7, 1300);
-  debris(b, r, 0.015, 0.09, 4 + Math.floor(r() * 3), 2400, 5000, 0.1);
-  return b.normalize(0.7).fadeOut();
+// A bait pit going off: the hooks' chains snatched taut with a rattle and a clank, a wet heave
+// of the meat in the pit, and the low drag of everything in reach hauled in at once.
+function baitGrab(sr: number, r: R): Buf {
+  const b = new Buf(sr, 1.4);
+  clack(b, r, 0, jit(r, 1100, 0.1), 0.5, 240);
+  for (let k = 0; k < 3; k++) clack(b, r, 0.03 + k * 0.05 + r() * 0.02, jit(r, 1700, 0.2), 0.25, 400);
+  debris(b, r, 0.02, 0.4, 18, 1800, 4200, 0.18);
+  const sv = new SVF(sr), o = Math.floor(0.08 * sr);
+  for (let i = 0; i < sr * 0.5 && o + i < b.len; i++) {
+    const t = i / sr;
+    b.d[o + i] += sv.run(r() * 2 - 1, 260 + 180 * Math.sin(t * 18), 3).band * bump(t, 0.2, 0.18) * 0.9;
+  }
+  roar(b, r, 0.1, 1.1, 500, 120, 0.15, 0.6, 0.5, 2);
+  thud(b, r, 0.05, 90, 45, 0.08, 0.7, 0.5, 400);
+  return b.normalize(0.8).fadeOut(0.15);
 }
 
-// A spike strip worn through: a tine snapping with a twang, the strip's links clattering loose.
-function spikesBreak(sr: number, r: R): Buf {
-  const b = new Buf(sr, 1);
-  const f = jit(r, 380, 0.1);
-  click(b, r, 0, 2600, 0.6, 0.002, 1700);
-  ping(b, 0.002, [f, f * 2.76, f * 5.1], 0.16, 0.35);
-  thud(b, r, 0, 150, 80, 0.02, 0.4, 0.6, 1500);
-  debris(b, r, 0.02, 0.45, 14, 1500, 4500, 0.25);
+// A catapult pit throwing: the catch let go with a click, the spring arm whipping up with a
+// twang and a creak of planks, the slam of it against its stop and the air it throws.
+function catapult(sr: number, r: R): Buf {
+  const b = new Buf(sr, 0.9);
+  click(b, r, 0, 2400, 0.4, 0.003, 1200);
+  const f = jit(r, 210, 0.12);
+  ping(b, 0.01, [f, f * 2.02, f * 3.1], 0.25, 0.4);
+  roar(b, r, 0.01, 0.3, 1800, 500, 0.01, 0.12, 0.5, 2);
+  clack(b, r, 0.07, jit(r, 700, 0.1), 0.8, 180);
+  thud(b, r, 0.07, 130, 60, 0.04, 0.8, 0.6, 900);
+  return b.normalize(0.8).fadeOut();
+}
+
+// A thrown creep coming down: a heavy body hitting the dirt, a crack and a scatter of grit.
+function fallThud(sr: number, r: R): Buf {
+  const b = new Buf(sr, 0.6);
+  thud(b, r, 0, jit(r, 75, 0.2), 38, 0.06, 1, 0.5, 450);
+  click(b, r, 0.004, 1600, 0.3, 0.004, 700);
+  debris(b, r, 0.02, 0.3, 10, 700, 3000, 0.15);
   return b.normalize(0.75).fadeOut();
-}
-
-// Wading into tar: a slow, thick glop as the foot sinks, the pitch sagging, the suck of it
-// coming free and a few fat, low bubbles bursting.
-function tar(sr: number, r: R): Buf {
-  const b = new Buf(sr, 0.7);
-  const f0 = jit(r, 130, 0.2);
-  let ph = 0;
-  for (let i = 0; i < sr * 0.18; i++) {
-    const t = i / sr;
-    ph += TAU * f0 * (1 - 0.45 * t / 0.18) / sr;
-    b.d[i] += Math.sin(ph) * ad(t, 0.006, 0.06) * 0.7;
-  }
-  const sv = new SVF(sr), o = Math.floor(jit(r, 0.12, 0.2) * sr);
-  for (let i = 0; i < sr * 0.18 && o + i < b.len; i++) {
-    const t = i / sr;
-    b.d[o + i] += sv.run(r() * 2 - 1, 380 + 500 * t / 0.18, 3).band * bump(t, 0.1, 0.05) * 0.8;
-  }
-  thud(b, r, 0, 90, 50, 0.03, 0.5, 0.6, 500);
-  for (let k = 0; k < 3 + Math.floor(r() * 3); k++) {
-    const at = 0.2 + r() * 0.4, f = 150 + r() * 200, d = 0.02 + r() * 0.02, s = Math.floor(at * sr);
-    let p = 0;
-    for (let i = 0; i < d * 3 * sr && s + i < b.len; i++) {
-      const t = i / sr;
-      p += TAU * f * (1 + 1.5 * t / d) / sr;
-      b.d[s + i] += Math.sin(p) * ad(t, 0.002, d) * 0.25;
-    }
-  }
-  return b.normalize(0.65).fadeOut();
-}
-
-// A flame vent: the gas hissing up through the grate, catching with a whump, and a jet of fire
-// roaring out over the ground, fluttering, crackling as it burns off.
-function flameVent(sr: number, r: R): Buf {
-  const b = new Buf(sr, 1.7);
-  const hs = new SVF(sr);
-  for (let i = 0; i < sr * 0.14; i++) {
-    const t = i / sr;
-    b.d[i] += hs.run(r() * 2 - 1, 2200 + 2500 * t / 0.14, 0.8).band * Math.min(1, t / 0.1) * 0.3;
-  }
-  const at = jit(r, 0.11, 0.1);
-  thud(b, r, at, 85, 40, 0.09, 1, 0.4, 400);
-  roar(b, r, at, 0.9, 2600, 260, 0.02, 0.25, 0.9, 2.5);
-  const jet = new SVF(sr), flutter = slowNoise(r, sr, 1.7, 26), o = Math.floor(at * sr);
-  for (let i = 0; i < sr * 1.1 && o + i < b.len; i++) {
-    const t = i / sr;
-    b.d[o + i] += jet.run(r() * 2 - 1, 900 - 300 * t, 0.6).band * (0.75 + 0.35 * flutter[i]) * ad(t, 0.05, 0.45) * 0.8;
-  }
-  crackle(b, r, at + 0.05, 1.3, 90, 1300, 4500, 0.25);
-  return b.normalize(0.85).fadeOut(0.1);
-}
-
-// A mine: the pressure plate going down under a foot with a click and its spring, then the
-// charge, a crack sharper than a shell's (it is right under the ground) and a geyser of soil
-// thrown up and raining back. The explosion's own boom is played with it.
-function mine(sr: number, r: R): Buf {
-  const b = new Buf(sr, 2.2);
-  click(b, r, 0, 2200, 0.35, 0.003, 900);
-  clack(b, r, 0.006, 1400, 0.3, 300);
-  const at = jit(r, 0.03, 0.2), o = Math.floor(at * sr), nn = Math.ceil(0.0018 * sr);
-  for (let i = 0; i < nn; i++) { const u = i / nn; b.d[o + i] += (1 - 2 * u) * Math.min(1, u * 12, (1 - u) * 12) * 1.2; }
-  roar(b, r, at, 0.25, 6500, 900, 0.0005, 0.03, 0.9, 4);
-  roar(b, r, at + 0.02, 1.1, 1400, 200, 0.03, 0.3, 0.7, 2);
-  for (let k = 0; k < 14; k++) {
-    const u = r();
-    thud(b, r, at + 0.25 + u * 1.1, 160 + r() * 120, 70, 0.012, 0.2 * (1 - u * 0.6), 0.9, 900);
-  }
-  debris(b, r, at + 0.2, 1.5, 40, 600, 3500, 0.18);
-  return b.normalize(0.9).fadeOut(0.2);
 }
 
 // A gate swung: the latch knocked up, the hinges creaking (stick and slip, heavier and lower
@@ -2318,11 +2264,9 @@ for (let w = 0; w < 6; w++) {
 // Overload, gates, the turrets' evolutions, the waves' affixes, the bosses and the horde
 // (coverage.ts and ambience.ts play them).
 Object.assign(RECIPES, {
-  spikes: [4, spikes],
-  spikesBreak: [2, spikesBreak, LOW],
-  tar: [4, tar, LOW],
-  flameVent: [3, flameVent],
-  mine: [3, mine],
+  baitGrab: [2, baitGrab, LOW],
+  catapult: [3, catapult],
+  fallThud: [4, fallThud, LOW],
   gateOpen: [3, (sr: number, r: R) => gate(sr, r, true)],
   gateShut: [3, (sr: number, r: R) => gate(sr, r, false)],
   pylonOn: [1, pylonOn],

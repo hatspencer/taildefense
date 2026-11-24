@@ -43,6 +43,8 @@ const (
 const (
 	fxFrenzy = 1 << 0 // lost its patience with the maze: faster, tearing through walls
 	fxSunder = 1 << 5 // a greatsword's sunder on it (past the affixes)
+	fxHeld   = 1 << 6 // held in a bait pit's knot
+	fxAir    = 1 << 7 // in the air, thrown by a catapult
 	// Its wave's affixes it carries, game.Affix shifted up past fxFrenzy.
 	fxAffixShift = 1
 )
@@ -98,12 +100,25 @@ type structRec struct {
 	owner               int8
 	open                bool
 	evo                 uint8
+	trap                uint8 // a trap's state: busy, and its charge (trapState)
+	facing              uint8 // which way it faces, 0-7, for a kind placed facing a way
 	hpDirty, shapeDirty bool
 }
 
 func structOf(s *game.Structure) structRec {
 	return structRec{alive: s.Alive, ghost: s.Ghost, kind: s.Kind, x: uint16(s.X), y: uint16(s.Y), w: s.W, h: s.H,
-		hp: uint16(max(math.Ceil(float64(s.HP)), 0)), max: uint16(s.MaxHP), level: s.Level, lv: s.Lv, owner: s.Owner, open: s.Open, evo: s.Evo}
+		hp: uint16(max(math.Ceil(float64(s.HP)), 0)), max: uint16(s.MaxHP), level: s.Level, lv: s.Lv, owner: s.Owner, open: s.Open, evo: s.Evo, trap: trapState(s), facing: s.Facing}
+}
+
+// trapState is a trap's bits of the structure's state byte, shifted down: 1 going off (a bait
+// pit holding, a catapult's arm sprung), then four bits of charge, 15 ready.
+func trapState(s *game.Structure) uint8 {
+	busy, charge := s.TrapCharge()
+	st := charge << 1
+	if busy {
+		st |= 1
+	}
+	return st
 }
 
 func hp8(hp, maxHP float32) uint8 {
@@ -149,6 +164,12 @@ func creepFx(c *game.Creep) uint8 {
 	}
 	if c.Sunder > 0 {
 		f |= fxSunder
+	}
+	if c.Held() {
+		f |= fxHeld
+	}
+	if c.Airborne() {
+		f |= fxAir
 	}
 	return f | uint8(c.Aff)<<fxAffixShift
 }
@@ -295,7 +316,7 @@ func (e *Encoder) Delta(w *game.World, atArmory func(*game.Player) bool) []byte 
 			r = structOf(&w.Structs[i])
 		}
 		o := &e.structs[i]
-		o.shapeDirty = r.alive != o.alive || r.ghost != o.ghost || r.kind != o.kind || r.level != o.level || r.lv != o.lv || r.max != o.max || r.x != o.x || r.y != o.y || r.open != o.open || r.evo != o.evo
+		o.shapeDirty = r.alive != o.alive || r.ghost != o.ghost || r.kind != o.kind || r.level != o.level || r.lv != o.lv || r.max != o.max || r.x != o.x || r.y != o.y || r.open != o.open || r.evo != o.evo || r.trap != o.trap || r.facing != o.facing
 		o.hpDirty = !o.shapeDirty && r.hp != o.hp
 		if o.shapeDirty {
 			nShape++
@@ -429,11 +450,12 @@ func structRecord(b *enc, r *structRec) {
 	b.u8(r.level)
 	b.b = append(b.b, r.lv[:]...)
 	b.i8(r.owner)
-	state := r.evo << 1
+	state := r.evo<<1 | r.trap<<3
 	if r.open {
 		state |= 1
 	}
 	b.u8(state)
+	b.u8(r.facing)
 }
 
 func (e *Encoder) header(b *enc, w *game.World, atArmory func(*game.Player) bool, key bool) {

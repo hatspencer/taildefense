@@ -1,6 +1,6 @@
 import {
-  BlastKind, CF_ASLEEP, CX_ARMOURED, CX_FRENZY, CX_SAPPER, CX_SPLITTER, K_CANNON, K_GATE, K_GUN, K_MINE, K_PYLON, K_SNIPER,
-  K_SPIKES, K_TAR, K_VENT, MAX_CREEPS, TRACER_ARC, TRACER_NAPALM, TRACER_ULT,
+  BlastKind, CF_ASLEEP, CX_AIR, CX_ARMOURED, CX_FRENZY, CX_SAPPER, CX_SPLITTER, K_BAIT, K_CANNON, K_CATAPULT, K_GATE, K_GUN, K_PYLON,
+  K_SNIPER, MAX_CREEPS, TRACER_ARC, TRACER_NAPALM, TRACER_ULT,
 } from '../protocol';
 import type { Game } from '../state';
 import type { Sound } from './sound';
@@ -15,15 +15,13 @@ import { type Loop, type Placed, Prio } from './synth';
 // flying on, not a new one leaving its tube.
 const FLYING = 0.35;
 // The least time between two of each, alone and in the thick of a crowd.
-const SPIKE_GAP0 = 0.12, SPIKE_GAP1 = 0.3, TAR_GAP = 0.22, RICO_GAP0 = 0.08, RICO_GAP1 = 0.22;
+const LAND_GAP = 0.12, RICO_GAP0 = 0.08, RICO_GAP1 = 0.22;
 // How loud the pylon's buzz and the sapper's fuse are at most.
 const PYLON = 0.1, FUSE = 0.32;
 // After the siren, the Overload's capacitors charging up for the wave, a little later.
 const READY_AFTER = 2.5;
 // The evolutions that sound unlike the turret they came from, by kind and branch.
 const EVOLVED: Record<number, [string?, string?]> = { [K_GUN]: ['gatling', 'penetrator'], [K_CANNON]: ['mortar'], [K_SNIPER]: [undefined, 'antiMat'] };
-// Traps: laid flat, and their own sounds when they go.
-const FLOOR = new Set([K_SPIKES, K_TAR, K_VENT, K_MINE]);
 
 // Plays name at (x, y), loud at most, carrying reach, at context time t: what was heard, or null.
 type At = (name: string, x: number, y: number, loud: number, reach?: number, t?: number, prio?: Prio, rate?: number) => Placed | null;
@@ -33,11 +31,12 @@ export class Coverage {
   // The last frame's, read against.
   private ends: number[] = []; private seenEnds: number[] = [];
   private nS = 0;
-  private sAlive = new Uint8Array(256); private sKind = new Uint8Array(256); private sOpen = new Uint8Array(256); private sEvo = new Uint8Array(256);
+  private sAlive = new Uint8Array(256); private sKind = new Uint8Array(256); private sOpen = new Uint8Array(256); private sEvo = new Uint8Array(256); private sTrap = new Uint8Array(256);
   private tier = -1; private tierPaid = -1; private ready = false; private phase = -1;
   private cSeen = new Uint32Array(MAX_CREEPS); private cHp = new Uint8Array(MAX_CREEPS); private cFx = new Uint8Array(MAX_CREEPS);
-  private cTrap = new Int16Array(MAX_CREEPS).fill(-1);
   private splitters: { id: number; x: number; y: number }[] = [];
+  // Creeps in the air last frame, for one the fall killed: gone, it still comes down.
+  private flying: { id: number; x: number; y: number }[] = [];
   private fuse: Loop | null = null;
   private pylon: Loop | null = null;
 
@@ -46,12 +45,9 @@ export class Coverage {
   reset(): void {
     this.fuse?.stop(); this.fuse = null;
     this.pylon?.stop(); this.pylon = null;
-    this.ends = []; this.splitters = []; this.nS = 0; this.tier = -1; this.tierPaid = -1; this.ready = false; this.phase = -1;
-    this.cSeen.fill(0); this.cTrap.fill(-1);
+    this.ends = []; this.splitters = []; this.flying = []; this.nS = 0; this.tier = -1; this.tierPaid = -1; this.ready = false; this.phase = -1;
+    this.cSeen.fill(0);
   }
-
-  // owns says the trap kinds whose going is played here rather than as sold or knocked down.
-  owns(kind: number): boolean { return FLOOR.has(kind); }
 
   // fresh says whether a rocket's tracer (x0, y0) is one leaving, not one flying on: every
   // tick of a rocket's flight is a tracer, and only its first is a launch.
@@ -92,7 +88,6 @@ export class Coverage {
     for (let i = 0; i < f.nBlasts; i++) {
       const x = f.bX[i], y = f.bY[i];
       switch (f.bKind[i]) {
-        case BlastKind.Flame: at('flameVent', x, y, 0.75, 1.5, t0 + Math.random() * 0.02); break;
         case BlastKind.Napalm: at('napalmBurst', x, y, 0.85, 1.8, t0 + 0.01); break;
         case BlastKind.Landed: at('touchdown', x, y, 0.8, 2); break;
         case BlastKind.Overload:
@@ -109,7 +104,7 @@ export class Coverage {
     this.pylonLoop(game, paused);
   }
 
-  // Gates swinging, turrets evolving, pylons switched on, traps going off or wearing out.
+  // Gates swinging, turrets evolving, pylons switched on, traps going off.
   private structs(game: Game, t0: number, at: At): void {
     const f = game.cur;
     for (let i = 0; i < f.nStructs && i < this.nS; i++) {
@@ -119,13 +114,13 @@ export class Coverage {
       if (alive && was) {
         if (k === K_GATE && f.sOpen[i] !== this.sOpen[i]) at(f.sOpen[i] ? 'gateOpen' : 'gateShut', cx, cy, 0.6);
         if (f.sEvo[i] && !this.sEvo[i]) at('evolve', cx, cy, 0.7, 1.6);
+        // A trap going off: the bait pit's hooks churning as it drags them in, the catapult's
+        // arm snapping up.
+        if (f.sTrap[i] & 1 && !(this.sTrap[i] & 1)) {
+          if (k === K_BAIT) at('baitGrab', cx, cy, 0.8, 1.8, t0, Prio.Heavy);
+          else if (k === K_CATAPULT) at('catapult', cx, cy, 0.8, 1.6);
+        }
       } else if (alive && !was && k === K_PYLON) at('pylonOn', cx, cy, 0.5, 1.2, t0 + 0.4);
-      else if (!alive && was && FLOOR.has(k)) {
-        // Sold whole: coins. Gone a ghost: the mine went off, the spikes wore through, the rest broke.
-        if (!f.sGhost[i]) at('coins', cx, cy, 0.5, 1.5);
-        else if (k === K_MINE) at('mine', cx, cy, 0.9, 2, t0, Prio.Heavy);
-        else at(k === K_SPIKES ? 'spikesBreak' : 'crumble', cx, cy, 0.6, 1.5);
-      }
     }
     // A pylon built where nothing stood before (a new slot) switches on too.
     for (let i = this.nS; i < f.nStructs; i++) {
@@ -143,21 +138,17 @@ export class Coverage {
     }
   }
 
-  // The creeps: stepping onto the traps, rounds glancing off the armoured, one losing patience
-  // with the maze, a splitter bursting, a sapper's fuse burning.
+  // The creeps: one a catapult threw coming down, rounds glancing off the armoured, one losing
+  // patience with the maze, a splitter bursting, a sapper's fuse burning.
   private creeps(game: Game, t0: number, crowd: number, hear: number, at: At): void {
     const f = game.cur, prev = game.frames - 1, ex = this.s.ears.x, ey = this.s.ears.y, h2 = hear * hear * 1.7;
-    let spike = -1, spikeD = Infinity, tarI = -1, tarD = Infinity, rico = -1, ricoD = Infinity, fren = -1, frenD = Infinity, sap = -1, sapD = Infinity;
+    let land = -1, landD = Infinity, rico = -1, ricoD = Infinity, fren = -1, frenD = Infinity, sap = -1, sapD = Infinity;
     for (let i = 0; i < f.nCreeps; i++) {
       const id = f.cId[i], x = f.cX[i], y = f.cY[i], dx = x - ex, dy = y - ey, d = dx * dx + dy * dy;
       if (d > h2) continue;
       const known = this.cSeen[id] === prev, fx = f.cFx[i];
       if (known) {
-        const s = game.structAtTile(Math.floor(x), Math.floor(y));
-        const trap = s >= 0 && (f.sKind[s] === K_SPIKES || f.sKind[s] === K_TAR) ? s : -1;
-        if (trap >= 0 && trap !== this.cTrap[id]) {
-          if (f.sKind[trap] === K_SPIKES) { if (d < spikeD) { spikeD = d; spike = i; } } else if (d < tarD) { tarD = d; tarI = i; }
-        }
+        if (this.cFx[id] & CX_AIR && !(fx & CX_AIR) && d < landD) { landD = d; land = i; }
         if (fx & CX_ARMOURED && f.cHp[i] < this.cHp[id] && d < ricoD) { ricoD = d; rico = i; }
         if (fx & CX_FRENZY && !(this.cFx[id] & CX_FRENZY) && d < frenD) { frenD = d; fren = i; }
       }
@@ -166,10 +157,17 @@ export class Coverage {
     // Spread over the tick the frame covers, so a crowd's sounds do not all start at once.
     const tick = 1 / (game.welcome?.tickRate || 20);
     const spread = () => t0 + Math.random() * tick;
-    if (spike >= 0 && this.once('spikes', SPIKE_GAP0 + (SPIKE_GAP1 - SPIKE_GAP0) * crowd)) at('spikes', f.cX[spike], f.cY[spike], 0.5, 1, spread(), Prio.Texture);
-    if (tarI >= 0 && this.once('tar', TAR_GAP)) at('tar', f.cX[tarI], f.cY[tarI], 0.45, 1, spread(), Prio.Texture);
+    if (land >= 0 && this.once('land', LAND_GAP)) at('fallThud', f.cX[land], f.cY[land], 0.6, 1.2, spread());
     if (rico >= 0 && this.once('rico', RICO_GAP0 + (RICO_GAP1 - RICO_GAP0) * crowd)) at('ricochet', f.cX[rico], f.cY[rico], 0.35, 1, spread(), Prio.Texture);
     if (fren >= 0 && this.once('frenzy', 0.6)) at('frenzy', f.cX[fren], f.cY[fren], 0.6, 1.4, spread());
+
+    // One in the air last tick and gone now (not into the dark): the fall killed it, and it
+    // lands where it was coming down.
+    if (land < 0) for (const c of this.flying) {
+      if (game.indexById[c.id] >= 0 || game.hiddenAt[c.id] === game.frames) continue;
+      const dx = c.x - ex, dy = c.y - ey;
+      if (dx * dx + dy * dy <= h2 && this.once('land', LAND_GAP)) { at('fallThud', c.x, c.y, 0.6, 1.2, spread()); break; }
+    }
 
     // A splitter seen last tick, gone now (not into the dark) with a death where it stood.
     for (const sp of this.splitters) {
@@ -206,15 +204,14 @@ export class Coverage {
     this.phase = f.phase; this.tier = f.tier; this.tierPaid = f.tierPaid; this.ready = f.overloadReady;
     this.nS = Math.min(f.nStructs, 256);
     for (let i = 0; i < this.nS; i++) {
-      this.sAlive[i] = f.sAlive[i]; this.sKind[i] = f.sKind[i]; this.sOpen[i] = f.sOpen[i]; this.sEvo[i] = f.sEvo[i];
+      this.sAlive[i] = f.sAlive[i]; this.sKind[i] = f.sKind[i]; this.sOpen[i] = f.sOpen[i]; this.sEvo[i] = f.sEvo[i]; this.sTrap[i] = f.sTrap[i];
     }
-    this.splitters.length = 0;
+    this.splitters.length = 0; this.flying.length = 0;
     for (let i = 0; i < f.nCreeps; i++) {
       const id = f.cId[i];
       this.cSeen[id] = n; this.cHp[id] = f.cHp[i]; this.cFx[id] = f.cFx[i];
-      const s = game.structAtTile(Math.floor(f.cX[i]), Math.floor(f.cY[i]));
-      this.cTrap[id] = s >= 0 && FLOOR.has(f.sKind[s]) ? s : -1;
       if (f.cFx[i] & CX_SPLITTER) this.splitters.push({ id, x: f.cX[i], y: f.cY[i] });
+      if (f.cFx[i] & CX_AIR) this.flying.push({ id, x: f.cX[i], y: f.cY[i] });
     }
     // Where this tick's rockets got to, for the next tick's to be told apart from new ones.
     const e = this.seenEnds;

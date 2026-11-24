@@ -39,7 +39,7 @@ everything it knows, a terrain message follows).
 ```jsonc
 {
   "t": "welcome",
-  "proto": 29,
+  "proto": 31,
   "version": "a1b2c3d",
   "you": 0,                    // your player id
   "w": 352, "h": 220,          // map size in tiles
@@ -140,10 +140,14 @@ everything it knows, a terrain message follows).
      "evolve": [{"name": "Gatling", "desc": "...", "range": 1},   // a turret's two evolutions, 1 and
                 {"name": "Penetrator", "desc": "...", "range": 1}]}  // 2; range multiplies its reach
   ],
-  // The amplifier pylon (15) has "tier": 2: it can be built once the generator is at tier II.
-  // A trap (11 spike strip, 12 tar pit, 13 flame vent, 14 mine) has "floor": true: laid flat,
-  // it stops neither creeps nor survivors, and the maze runs over it.
-  "buildable": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],  // 9 sniper tower, 10 missile battery
+  // The amplifier pylon (13) has "tier": 2: it can be built once the generator is at tier II.
+  // A trap (11 bait pit, 12 catapult pit, both 3 by 3) has "floor": true: laid flat, it stops
+  // neither creeps nor survivors, and the maze runs over it. The catapult pit's def has "air":
+  // the seconds a creep it throws is in the air, for the page to draw the arc over, and
+  // "stun": the seconds it is stunned once down, which the page shows it lying flat. It also
+  // has "facing": true: it is placed turned one of eight ways (the build command's "facing")
+  // and throws that way, 6 to 10 tiles out, within 15 degrees of it.
+  "buildable": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],  // 9 sniper tower, 10 missile battery
   "siteKinds": [               // index = site kind
     {"name": "Ruined house", "search": 3},   // search: seconds it takes
     {"name": "Car wreck", "search": 2},
@@ -386,7 +390,13 @@ u16  nStructs         the whole list; the index is the struct id used in command
   u8   lv[4]          a turret's track levels: damage, fire rate, range, special (0 otherwise)
   i8   owner          player id, -1 for the starting base
   u8   state          bit 0: a gate swung open (creeps walk through it; shut, it is a wall to them);
-                      bits 1-2: a turret's evolution, 1 or 2 (its def's evolve), 0 none
+                      bits 1-2: a turret's evolution, 1 or 2 (its def's evolve), 0 none;
+                      bit 3: a trap going off (a bait pit holding its knot, a catapult pit's
+                      arm sprung up); bits 4-7: a trap's charge, 0..15, 15 ready (a bait pit
+                      holding is 0)
+  u8   facing         which way it was placed facing, 0..7 eighths of a turn from +x towards
+                      +y (0 east, 2 south, 4 west, 6 north), for a kind whose def has "facing";
+                      0 otherwise
 
 u16  nCreeps
   u16  id             stable for the creep's life; reused after death
@@ -407,7 +417,10 @@ u16  nCreeps
                       breaks through whatever is in its way), 2 armoured, 4 hasty, 8 a sapper
                       (walks straight for the walls and blows up against one), 16 a splitter
                       (bursts into swarmers when it dies), 32 sundered (a greatsword's blows
-                      have cracked it: less armour, every hit harder)
+                      have cracked it: less armour, every hit harder), 64 held in a bait pit's
+                      knot (it neither walks nor attacks), 128 in the air, thrown by a catapult
+                      pit (x, y go from the pit to where it lands over the def's "air" seconds;
+                      the page draws the height; nothing can hit it)
 
 u16  nTracers         shots fired this tick
   u16  x0, y0, x1, y1 q8
@@ -423,7 +436,7 @@ u16  nBlasts          explosions and pulses this tick
                       9 revived (a survivor stands up), 10 guards wake (at the guard),
                       11 the church bell rung (at its rope), 12 bile bursting (a broodmother's
                       sac landing, or the broodmother splitting open), 13 the evac Huey touching
-                      down on the helipad, 14 a flame vent bursting, 15 the generator's Overload
+                      down on the helipad, 14 unused, 15 the generator's Overload
                       (at the generator, r its reach), 16 a napalm missile bursting (the
                       ground burns a moment where it lands), 17 a creep's blood loss bursting,
                       18 Skyfall landing (r its reach), 19 a melee hit landing critical (on the
@@ -536,6 +549,7 @@ fall on its clock. The demo host acks numbered commands too.
 {"op": "fixAll"}                             // between waves: rebuild every ghost, repair all damaged
 {"op": "ability", "slot": 1, "x": 150, "y": 98}  // cast Q Shift F V (slot 0..3) at a point
 {"op": "build",   "kind": 5, "tx": 150, "ty": 96}  // walk to the tile and build there
+                                                // a kind whose def has "facing" takes "facing": 0..7, as the frame
 {"op": "repair",  "s": 12}                   // walk to struct 12 and repair it (costs gold)
 {"op": "loot",    "site": 3}                 // walk to site 3 and search it
 {"op": "upgradeStruct", "s": 12, "track": 1} // anywhere; track: a turret's (turretTracks), 0 for a wall

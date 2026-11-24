@@ -1,7 +1,8 @@
 import * as THREE from 'three/webgpu';
 import { color, float, fract, max, mix, positionLocal, sin, step, time, uniform, vertexColor, vec3 } from 'three/tsl';
-import { K_ARMORY, K_CANNON, K_CORE, K_FROST, K_GATE, K_GUN, K_MINE, K_MISSILE, K_SNIPER, K_SPIKES, K_PYLON, K_TAR, K_TESLA, K_VENT, K_WALL, type StructDef, TURRET_TRACKS } from '../protocol';
+import { K_ARMORY, K_BAIT, K_CANNON, K_CATAPULT, K_CORE, K_FROST, K_GATE, K_GUN, K_MISSILE, K_SNIPER, K_PYLON, K_TESLA, K_WALL, type StructDef, TURRET_TRACKS } from '../protocol';
 import type { Game } from '../state';
+import { isTrapKind, trapFace, trapGhost, trapMake, trapModel, trapUpdate } from './traps';
 import { box, concat, cone, cyl, dodeca, ico, merge, octa, part, playerColor, torus, writeMatrix, type Part } from './util';
 
 export { K_ARMORY, K_CANNON, K_CORE, K_FROST, K_GATE, K_GUN, K_MISSILE, K_SNIPER, K_TESLA, K_WALL };
@@ -309,33 +310,7 @@ function modelFor(kind: number): Model {
       }
       return { body, head, headY: 0.68 };
     }
-    // Traps lie flat, so they read as ground a creep walks over, not something in its way.
-    case K_SPIKES: {
-      // A board studded with steel spikes, nailed down at the corners.
-      const body: Part[] = [part(box(0.92, 0.06, 0.92), 0x4a3a2a, 0, 0.03, 0)];
-      for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
-        body.push(part(cone(0.06, 0.24, 4), j % 2 ? 0x9aa0a4 : 0x7a8084, -0.33 + i * 0.22 + (j % 2) * 0.06, 0.18, -0.33 + j * 0.22, 0, i * 0.7, 0));
-      }
-      return { body };
-    }
-    case K_TAR: return {
-      // A spill of black tar in a low rim of rubble, a few bubbles on it.
-      body: [
-        part(cyl(0.47, 0.49, 0.05, 10), 0x3a342c, 0, 0.025, 0),
-        part(cyl(0.42, 0.42, 0.06, 10), 0x0e0d0c, 0, 0.04, 0),
-        part(cyl(0.08, 0.08, 0.04, 6), 0x1e1c1a, 0.15, 0.08, -0.1),
-        part(cyl(0.05, 0.05, 0.03, 6), 0x24221e, -0.18, 0.08, 0.12),
-        part(cyl(0.04, 0.04, 0.03, 6), 0x1a1816, -0.05, 0.08, 0.22),
-      ],
-    };
-    case K_VENT: {
-      // A steel grate over a gas pipe, hazard-striped, with a pilot light in the middle.
-      const body: Part[] = [part(box(0.92, 0.08, 0.92), STEEL, 0, 0.04, 0)];
-      stripes(body, 0.47, 0.06, 4);
-      for (let i = 0; i < 5; i++) body.push(part(box(0.05, 0.03, 0.66), DARK, -0.26 + i * 0.13, 0.095, 0));
-      body.push(part(cyl(0.09, 0.11, 0.08, 8), 0x3a3c3e, 0, 0.12, 0));
-      return { body, glow: { parts: [part(cyl(0.05, 0.03, 0.1, 6), 0xff8a20, 0, 0.18, 0)], color: 0xff8a20, pulse: 2 } };
-    }
+    case K_BAIT: case K_CATAPULT: return trapModel(kind);
     case K_PYLON: return {
       // A mast on a concrete foot, wound with copper coils, a ring turning near the top and a
       // cyan lamp on it: the amplifier.
@@ -348,15 +323,6 @@ function modelFor(kind: number): Model {
       spin: [part(torus(0.32, 0.035, 4, 16), 0x8a8e90, 0, 0, 0, Math.PI / 2, 0, 0), part(box(0.64, 0.03, 0.05), 0x6a6e70, 0, 0, 0)],
       spinY: 1.4,
       glow: { parts: [part(ico(0.12), 0x60f0ff, 0, 1.7, 0)], color: 0x60f0ff, pulse: 1.5 },
-    };
-    case K_MINE: return {
-      // An anti-tank mine half dug in, its pressure plate up and a red arming light.
-      body: [
-        part(cyl(0.24, 0.27, 0.08, 10), 0x4a5030, 0, 0.04, 0),
-        part(cyl(0.13, 0.15, 0.05, 10), 0x3a3e26, 0, 0.1, 0),
-        part(box(0.1, 0.03, 0.04), DARK, 0.2, 0.08, 0),
-      ],
-      glow: { parts: [part(cyl(0.025, 0.025, 0.03, 6), 0xff2010, 0.08, 0.13, 0.08)], color: 0xff2010, pulse: 3 },
     };
   }
   return { body: [part(box(0.9, 0.8, 0.9), 0x888888, 0, 0.4, 0)] };
@@ -539,6 +505,7 @@ export class Structs {
     if (b.spin) { spin = new THREE.Mesh(b.spin, this.mat); spin.position.y = b.spinY; spin.castShadow = true; g.add(spin); }
     const dmg: THREE.Object3D[] = [];
     for (const d of b.dmg ?? []) { const m = new THREE.Mesh(d, this.mat); m.visible = false; m.castShadow = true; g.add(m); dmg.push(m); }
+    if (isTrapKind(kind)) trapMake(g, head, kind, this.mat);
     const def = this.defs[kind];
     const evo = f.sEvo[i], tier = kind === K_CORE ? f.tier : 0;
     // The trim that throws no shadow and never moves (the upgrade pips, the owner's ring, an
@@ -653,6 +620,7 @@ export class Structs {
         if (o.spin) { o.spinA += dt * (0.9 - 0.7 * d) * (d > 0.6 && Math.sin(t * 3) > 0.6 ? 0.1 : 1); o.spin.rotation.y = o.spinA; }
         continue;
       }
+      if (isTrapKind(o.kind)) { trapUpdate(o.group, o.head, o.kind, f.sTrap[i], f.sFacing[i], t, dt); continue; }
       if (o.head) {
         // Idle turrets scan slowly.
         if (now - o.lastShot > 2500) o.aimGoal += dt * 0.4;
@@ -669,8 +637,9 @@ export class Structs {
     }
   }
 
-  // A translucent copy of a struct for build placement.
-  ghost(kind: number, mat: THREE.Material): THREE.Group {
+  // A translucent copy of a struct for build placement, turned to facing; with band, a
+  // catapult's shows where it throws to.
+  ghost(kind: number, mat: THREE.Material, facing = 0, band = false): THREE.Group {
     const g = new THREE.Group();
     if (kind === K_WALL || kind === K_GATE) {
       g.add(new THREE.Mesh(kind === K_WALL ? this.walls.posts.geometry : this.walls.gposts.geometry, mat));
@@ -678,8 +647,10 @@ export class Structs {
     }
     const b = this.buildKind(kind);
     g.add(new THREE.Mesh(b.body, mat));
-    if (b.head) { const h = new THREE.Mesh(b.head, mat); h.position.y = b.headY; g.add(h); }
+    let head: THREE.Mesh | null = null;
+    if (b.head) { head = new THREE.Mesh(b.head, mat); head.position.y = b.headY; g.add(head); }
     if (b.glow) { const h = new THREE.Mesh(b.glow, mat); if (kind === K_FROST) h.position.y = b.spinY; g.add(h); }
+    if (isTrapKind(kind)) { trapGhost(g, head, kind, mat, band); trapFace(g, facing); }
     return g;
   }
 }

@@ -1,6 +1,6 @@
 import {
   Art, ART_TIME, BlastKind, CROWBAR, EffectKind, FISSURE_EVERY, GREAT, OWNED_BREAKER, OWNED_TEMPERED, TRACER_HELI, TRACER_SPLIT, TRACER_HOMERUN, TRACER_HOMERUN_ROUND, K_TESLA, KATANA, OWNED_DUAL, OWNED_DUAL_KATANA, TRACER_FLASH, TRACER_FOLLOW, TRACER_GREAT,
-  TRACER_KATANA, TRACER_MOON, THROW_FLIGHT, TRACER_ARC, TRACER_NAPALM, CF_ASLEEP, CF_BURNING, CF_GUARD, CF_STRIKE, CF_WINDUP, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_FIRING, PF_HURT, PF_MOVING, PF_RELOADING, Player,
+  TRACER_KATANA, TRACER_MOON, THROW_FLIGHT, TRACER_ARC, TRACER_NAPALM, CX_AIR, CX_HELD, K_BAIT, K_CATAPULT, CF_ASLEEP, CF_BURNING, CF_GUARD, CF_STRIKE, CF_WINDUP, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_FIRING, PF_HURT, PF_MOVING, PF_RELOADING, Player,
 } from './protocol';
 import type { Game } from './state';
 
@@ -15,11 +15,16 @@ import type { Game } from './state';
 // tempered greatsword raised and slammed down, the shockwave going out every way, the ground it
 // cracks erupting, and Worldbreaker detonating it as it closes. Past them, the turret evolutions' shots ('fx'): a napalm missile flying
 // and bursting, and an arc web striking a knot of points. Past those ('huey'), a supply Huey
-// hovering with its door gunner sweeping the ground around it. It takes the demo's world over after
+// hovering with its door gunner sweeping the ground around it. Past that ('traps'), a bait pit
+// and a catapult pit going off on a loop over a stream of creeps, with the state bits the host
+// sends: the pit knotting eight walkers and letting them go, the catapult throwing three at a
+// time back up the road. It takes the demo's world over after
 // its first frame and stops it, then poses everything itself.
 
 const COLS = ['walk', 'idle', 'attack', 'hit', 'burn', 'sleep', 'die'] as const;
 const DX = 3.2, DY = 3.6;
+// The way #lab=traps's catapult faces: 3 eighths of a turn from east towards south.
+const LAB_FACING = 3;
 
 export class Lab {
   private x0: number; private y0: number;
@@ -47,6 +52,7 @@ export class Lab {
   center(at = ''): [number, number] {
     if (at === 'fx') return [this.fx() + 4.5, this.y0 + 2.5];
     if (at === 'huey') return [this.fx() + 22, this.y0 - 2]; // north of it, as the Huey is up in the air
+    if (at === 'traps') { const [bx, by] = this.trapsAt(); return [bx + 7, by]; }
     if (/^h\d+$/.test(at)) return this.spot(Number(at.slice(1)));
     if (at === 'crowbar') { const [x, y] = this.spot(16); return [x + 1.7, y]; }
     if (at === 'worldsplitter') return this.spot(18);
@@ -112,6 +118,7 @@ export class Lab {
         n++;
       }
     }
+    n = this.traps(t, n);
     f.nCreeps = n;
     f.nBlasts = 0; f.nTracers = 0; f.nDeaths = 0; f.nEffects = 0;
 
@@ -292,6 +299,77 @@ export class Lab {
       }
       blast(pts[pts.length - 1][0], pts[pts.length - 1][1], 0.8, BlastKind.Tesla);
     }
+  }
+
+  // The bait pit's middle; the catapult pit's is 16 tiles on, the road running east through
+  // both.
+  private trapsAt(): [number, number] { return [Math.floor(this.fx() + 40) + 0.5, Math.floor(this.y0 + 2) + 0.5]; }
+  private trapSlots: [number, number] | null = null;
+
+  // The two traps and their creeps for this moment, from creep slot n: the slots after them.
+  // The bait pit's cycle is 10 s: eight walkers come down the road, at 2 s it takes them all
+  // into its knot for 4 s, then lets them walk on and recharges over 5 s. The catapult's is
+  // 5 s: three creeps walk onto it, at 1.2 s its arm snaps up and throws them 0.9 s through
+  // the air the way it faces (LAB_FACING, south-west), 6 to 10 tiles out and within 15
+  // degrees of it, to spots that shift a little each round, where they lie stunned 1 s,
+  // get up and walk on 1.5 s; it recharges over 3 s. Between rounds each creep is gone a
+  // moment, marked hidden as fog of war marks one, so the page takes it out of sight, not
+  // dead (a creep dropped from the frame otherwise falls as a corpse).
+  private traps(t: number, n: number): number {
+    const g = this.game, f = g.cur;
+    const [bx, by] = this.trapsAt(), kx = bx + 16, ky = by;
+    if (!this.trapSlots) {
+      const i = f.nStructs;
+      f.nStructs += 2;
+      this.trapSlots = [i, i + 1];
+      [[K_BAIT, bx], [K_CATAPULT, kx]].forEach(([k, x], j) => {
+        const s = i + j;
+        f.sAlive[s] = 1; f.sGhost[s] = 0; f.sKind[s] = k; f.sX[s] = x - 1.5; f.sY[s] = by - 1.5; f.sW[s] = 3; f.sH[s] = 3;
+        f.sHp[s] = 300; f.sMaxHp[s] = 300; f.sLevel[s] = 1; f.sOwner[s] = 0; f.sOpen[s] = 0; f.sEvo[s] = 0; f.sTrap[s] = 0;
+        f.sFacing[s] = k === K_CATAPULT ? LAB_FACING : 0;
+      });
+      g.updateStructGrid();
+    }
+    const [bs, ks] = this.trapSlots;
+    const shown = new Set<number>();
+    const put = (id: number, kind: number, x: number, y: number, heading: number, fx: number, hp = 255) => {
+      shown.add(id);
+      f.cId[n] = id; f.cKind[n] = kind; f.cFlags[n] = 0; f.cFx[n] = fx; f.cTarget[n] = 255; f.cHp[n] = hp;
+      f.cX[n] = x; f.cY[n] = y; g.rx[n] = x; g.ry[n] = y; g.heading[id] = heading; g.indexById[id] = n;
+      n++;
+    };
+    // The bait pit.
+    const u = t % 10, v = 1.5;
+    const held = u >= 2 && u < 6;
+    if (held) f.sTrap[bs] = 1;
+    else { const since = u >= 6 ? u - 6 : u + 4; f.sTrap[bs] = (since >= 5 ? 15 : Math.min(14, Math.floor(since / 5 * 15))) << 1; }
+    if (u < 9.5) for (let k = 0; k < 8; k++) {
+      const id = 4000 + k, sx = bx - 10 + k * 1.3, sy = by + ((k % 3) - 1) * 0.5;
+      const a = id * 2.399963, r = 0.9 * Math.sqrt((id * 0.618) % 1);
+      const nx = bx + Math.cos(a) * r, ny = by + Math.sin(a) * r, gx = sx + 2 * v;
+      if (u < 2) put(id, 0, sx + v * u, sy, 0, 0);
+      else if (held) { const s = Math.min(1, (u - 2) / 0.7); put(id, 0, gx + (nx - gx) * s, sy + (ny - sy) * s, Math.atan2(ny - sy, nx - gx), CX_HELD); }
+      else put(id, 0, nx + v * (u - 6), ny, 0, 0);
+    }
+    // The catapult pit.
+    const c = t % 5, air = 0.9, at = 1.2, stun = 1, cyc = Math.floor(t / 5);
+    if (c >= at && c < at + 0.45) f.sTrap[ks] = 1;
+    else { const since = (c - at + 5) % 5; f.sTrap[ks] = (since >= 3 ? 15 : Math.min(14, Math.floor(since / 3 * 15))) << 1; }
+    if (c < at + air + stun + 1.5) for (let k = 0; k < 3; k++) {
+      const id = 4100 + k, kind = [0, 1, 2][k];
+      const x0 = kx - 4 + k * 0.5 + 2.6 * Math.min(c, at), y0 = ky + (k - 1) * 0.7;
+      const j = (((cyc * 7 + k * 3) % 5) - 2) * 0.5;
+      const a = LAB_FACING * Math.PI / 4 + (k - 1) * 0.17 + j * 0.08, d = 6.6 + 1.2 * k + j;
+      const lx = kx + Math.cos(a) * d, ly = ky + Math.sin(a) * d;
+      if (c < at) put(id, kind, x0, y0, 0, 0);
+      else if (c < at + air) { const s = (c - at) / air; put(id, kind, x0 + (lx - x0) * s, y0 + (ly - y0) * s, a, CX_AIR); }
+      else if (c < at + air + stun) put(id, kind, lx, ly, a, 0, 166);
+      else put(id, kind, lx + 1.5 * (c - at - air - stun), ly, 0, 0, 166);
+    }
+    for (const id of [4000, 4001, 4002, 4003, 4004, 4005, 4006, 4007, 4100, 4101, 4102]) {
+      if (!shown.has(id)) { g.hiddenAt[id] = g.frames; g.indexById[id] = -1; }
+    }
+    return n;
   }
 
   // A supply Huey held in its hover, its door gunner firing every other frame at a mark that

@@ -76,6 +76,15 @@ type Creep struct {
 	trek, trekMax float32
 	Frenzy        bool
 	ox, oy        float32 // where it stood a tick ago
+	// The traps (traps.go): the bait pit holding it, its index + 1, 0 none, and the seconds the
+	// hold has left; thrown by a catapult, the seconds before it comes down at ax, ay, the
+	// share of its health the fall takes, and who built the catapult.
+	bait     int16
+	baitLeft float32
+	air      float32
+	ax, ay   float32
+	fall     float32
+	thrower  int8
 }
 
 // Structure is a building. Index in World.Structs is its ID; dead slots are reused.
@@ -88,6 +97,8 @@ type Structure struct {
 	Lv        [NumTracks]uint8 // a turret's track levels
 	Owner     int8             // player who built it, -1 for the starting base
 	Cool      float32
+	Hold      float32 // a trap: seconds a bait pit's hold or a catapult's snap has left (traps.go)
+	Facing    uint8   // eighths of a turn from +x towards +y, for a kind whose def has Facing
 	Alive     bool
 	Ghost     bool  // destroyed, not sold: its outline stays to be rebuilt (see FixAll)
 	Open      bool  // a gate swung open: open ground to creeps as well as survivors (maze.go)
@@ -234,14 +245,11 @@ const TracerTurret = 16
 // Blast is an explosion or pulse for one frame.
 type Blast struct {
 	X, Y, R float32
-	Kind    uint8 // 0 rocket/cannon, 1 frost, 2 tesla, … 11 the church bell, 12 a sac of bile bursting, 13 the evac Huey setting down, 14 a flame vent
+	Kind    uint8 // 0 rocket/cannon, 1 frost, 2 tesla, … 11 the church bell, 12 a sac of bile bursting, 13 the evac Huey setting down (14 is unused)
 }
 
 // BlastLanded is the dust the evac Huey raises setting down on the pad.
 const BlastLanded = 13
-
-// BlastFlame is a flame vent bursting (traps.go).
-const BlastFlame = 14
 
 // EffectKind is a lasting effect on the ground.
 type EffectKind uint8

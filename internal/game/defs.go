@@ -22,14 +22,14 @@ const Dt = float32(1) / TickRate
 
 // tunedRate is the tick rate the game's numbers were balanced at. Everything is in seconds,
 // but two things were tuned on its whole ticks: a cooldown restarted when it runs out (a
-// turret's, a creep's blow, a vent's) fired on the tick it reached zero, and armour came off
+// turret's, a creep's blow, a reload) fired on the tick it reached zero, and armour came off
 // every tick of damage over time (dot scales it to the tick).
 const tunedRate = 20
 
 // rearm restarts cooldown cool, just run out, for the next interval: as long as it lasted
 // counted down at the tuned rate, carrying what this tick overshot, so the cadence in
 // seconds is the one the balance was set on at any tick rate. Clamped to a tick's overshoot
-// for one that has sat run out a while (a creep out of reach, a vent with nothing on it).
+// for one that has sat run out a while (a creep out of reach, a turret with nothing to shoot).
 func rearm(cool *float32, interval float32) {
 	*cool = max(*cool, -Dt) + tunedInterval(interval)
 }
@@ -388,11 +388,9 @@ const (
 	STurretTesla
 	STurretSniper
 	STurretMissile
-	STrapSpikes // traps: laid flat, walked over by creeps and survivors alike (traps.go)
-	STrapTar
-	STrapVent
-	STrapMine
-	SPylon // the amplifier pylon: turrets in reach fire faster (evolve.go)
+	STrapBait     // traps: laid flat, walked over by creeps and survivors alike (traps.go)
+	STrapCatapult //
+	SPylon        // the amplifier pylon: turrets in reach fire faster (evolve.go)
 	NumStructKinds
 )
 
@@ -412,6 +410,7 @@ type StructDef struct {
 	Salvo   int     // missiles a battery fires at once
 	Turret  bool
 	Floor   bool  // a trap, laid flat on the ground: it stops nobody
+	Facing  bool  // placed turned to one of eight facings (Structure.Facing)
 	Tier    uint8 // the generator's tier it needs, past the first
 	Key     byte  // build card hotkey
 	Desc    string
@@ -430,15 +429,13 @@ var Structs = [NumStructKinds]StructDef{
 	STurretTesla:   {Name: "Tesla coil", Price: 280, HP: 220, W: 1, H: 1, Range: 8, Damage: 36, Rate: 1.2, Chains: 2, Turret: true, Key: '6', Desc: "Lightning that jumps from creep to creep.", Special: "+2 jumps, further"},
 	STurretSniper:  {Name: "Sniper tower", Price: 380, HP: 200, W: 1, H: 1, Range: 22, Damage: 150, Rate: .35, Pierce: 1, Turret: true, Key: '7', Desc: "A slow, heavy round from far off at the toughest creep it can see, tearing out a share of its health: the boss killer.", Special: "+1 pierce"},
 	STurretMissile: {Name: "Missile battery", Price: 420, HP: 260, W: 1, H: 1, Range: 14, Damage: 45, Rate: .5, Blast: 2, Salvo: 3, Turret: true, Key: '8', Desc: "A salvo of rockets with a wide blast, each at a different creep, coming down only near it.", Special: "+1 missile"},
-	STrapSpikes:    {Name: "Spike strip", Price: 60, HP: 300, W: 1, H: 1, Damage: 22, Floor: true, Key: '9', Desc: "Cuts every creep that walks over it, wearing down as it does. Lay it in a maze's lanes."},
-	STrapTar:       {Name: "Tar pit", Price: 50, HP: 300, W: 1, H: 1, Slow: .6, Floor: true, Key: '0', Desc: "Slows every creep that wades through it, so they spend longer under the guns."},
-	STrapVent:      {Name: "Flame vent", Price: 150, HP: 300, W: 1, H: 1, Range: 1.7, Damage: 40, Rate: .35, Floor: true, Key: '-', Desc: "Bursts into flame when a creep steps on it, setting everything round it alight."},
-	STrapMine:      {Name: "Mine", Price: 40, HP: 100, W: 1, H: 1, Range: 3, Damage: 260, Floor: true, Key: '=', Desc: "Blows up under the first creep to step on it, harder every wave. Rebuild all (H) lays it again."},
+	STrapBait:      {Name: "Bait pit", Price: 250, HP: 300, W: 3, H: 3, Range: baitReach, Floor: true, Key: '9', Desc: "A pit of meat. When enough creeps come within reach it drags them all into a knot at its middle and holds them there for the cannons; then it recharges. Each level: further and longer."},
+	STrapCatapult:  {Name: "Catapult pit", Price: 450, HP: 300, W: 3, H: 3, Floor: true, Facing: true, Key: '0', Desc: "A sprung floor. It flings up to three small creeps on it the way it faces, set when it is placed, to fall hard (a share of their health) where they land; brutes and bosses are too heavy. Each level: quicker, and a harder fall."},
 	SPylon:         {Name: "Pylon", Price: 200, HP: 260, W: 1, H: 1, Range: 3, Tier: PylonTier, Key: '[', Desc: "An amplifier: every turret within 3 tiles fires 15% faster; two in reach of one turret don't add up. Needs the generator at tier II."},
 }
 
 // Buildable lists what the build menu offers, in menu order.
-var Buildable = []StructKind{SWall, SGate, STurretGun, STurretCannon, STurretFrost, STurretTesla, STurretSniper, STurretMissile, STrapSpikes, STrapTar, STrapVent, STrapMine, SPylon}
+var Buildable = []StructKind{SWall, SGate, STurretGun, STurretCannon, STurretFrost, STurretTesla, STurretSniper, STurretMissile, STrapBait, STrapCatapult, SPylon}
 
 // MaxStructLevel is the highest level a wall or a gate goes to. A turret has a level per
 // track instead, each up to MaxLevel, as a weapon does.
@@ -451,10 +448,9 @@ const TrackRange = TrackHandling
 var TurretTrackNames = [NumTracks]string{"damage", "fire rate", "range", "special"}
 
 // Upgradable reports whether a structure of kind k can be raised a level: the turrets, walls
-// and gates, which only get tougher, and the spike strip and the flame vent, which get
-// tougher and hit harder.
+// and gates, which only get tougher, and the traps, whose levels are in traps.go.
 func Upgradable(k StructKind) bool {
-	return Structs[k].Turret || k == SWall || k == SGate || k == STrapSpikes || k == STrapVent
+	return Structs[k].Turret || k == SWall || k == SGate || Structs[k].Floor
 }
 
 // StructGrowth is the share of its base HP a structure gains with each level, or for a

@@ -221,19 +221,34 @@ and building again.
 
 ### Traps
 
-Traps line a maze. They lie flat: the dead walk over them, and so do you, and they never change
-the way in.
+Traps line a maze. Each is three by three and lies flat: the dead walk over them, and so do
+you, and they never change the way in. Nothing breaks them, they cost nothing to keep, and they
+go off by themselves; the lamps round the rim fill as one recharges and burn green when it is
+ready. What a trap kills pays the team, as a turret's kill does, and a trap never draws a creep
+onto you.
 
 | | | |
 |---|---|---|
-| Spike strip (9) | 60 | cuts every creep standing on it, and wears down as it does |
-| Tar pit (0) | 50 | slows every creep wading through it, so they spend longer under the guns |
-| Flame vent (-) | 150 | bursts into flame when a creep steps on it, setting everything round it alight; again every few seconds |
-| Mine (=) | 40 | blows up under the first creep to step on it, everything within 3 tiles, harder every wave, and is gone |
+| Bait pit (9) | 250 | when 4 or more creeps are within 7 tiles, drags them all into a knot at its middle and holds them there 4 seconds, then recharges for 9; no damage, so build it under a cannon, a missile battery or a tesla coil |
+| Catapult pit (0) | 450 | flings up to 3 small creeps standing on it 6 to 10 tiles the way it faces (X turns it while you place it); the fall takes 35% of their health, whatever the wave and whatever their armour, and stuns them a second; again every 3 seconds |
 
-A spike strip worn out or a mine gone off leaves a ghost, which H lays again between waves.
-Spike strips and flame vents go up levels: tougher, and each level adds half to their damage.
-Tar and a frost tower don't add up on the same creep: the deeper slow holds.
+The bait pit only pulls what has a straight walk to it: nothing comes through a wall or a gate,
+and a creep that walks into one on the way stops there. Bosses can't be moved; brutes and
+maulers come in slower. A creep in the knot doesn't attack. Two pits whose reach
+overlaps don't fight over a creep: the first to take it keeps it.
+
+The catapult never throws brutes, maulers or bosses, and never more than three at once. It
+throws the way you placed it facing, one of eight: while its ghost is up, X turns it an eighth
+of a turn, and a yellow band on the ground shows where they will come down, each within 15
+degrees of the arrow. The next catapult you place faces the same way. Aim it back up the road
+the way they came, into a bait pit under your guns, or anywhere else, the base included: it
+throws where you point it. A throw that would come down on a wall, a building, water or off the
+map falls short, on the last open ground along its line; with none past 2 tiles, that creep
+stays put. It flies over walls and gates: only where it lands counts. A thrown creep can't be hit in the air, nor hurt anyone. It is the dearest thing
+you can build: worth it once the waves are big, not as a first buy.
+
+Both go up levels. A bait pit's each reach 0.75 tiles further and hold half a second longer; a
+catapult's each rearm 0.4 seconds sooner and fall 5% harder.
 
 ### Evolutions and the pylon
 

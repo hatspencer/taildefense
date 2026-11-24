@@ -402,7 +402,8 @@ export class Game {
     f.nDeaths = n;
   }
 
-  private updateStructGrid(): void {
+  // Public for the lab, which lays its own structures into the frame.
+  updateStructGrid(): void {
     const f = this.cur;
     // A cheap signature of what is standing where; levels and hp do not matter here.
     let sig = '' + f.nStructs;

@@ -110,6 +110,8 @@ type StructView struct {
 	Owner     int8
 	Open      bool  // a gate swung open, which creeps walk through
 	Evo       uint8 // a turret's evolution, 1 or 2, 0 none
+	Trap      uint8 // a trap's state: bit 0 going off, bits 1-4 its charge, 15 ready
+	Facing    uint8 // which way it faces, 0-7 eighths of a turn from +x towards +y
 }
 
 // Tracer, Blast and Death are frame events in tiles.
@@ -372,7 +374,8 @@ func (r *Replica) Apply(p []byte) error {
 		}
 		s.Owner = d.i8()
 		st = d.u8()
-		s.Open, s.Evo = st&1 != 0, st>>1&3
+		s.Open, s.Evo, s.Trap = st&1 != 0, st>>1&3, st>>3
+		s.Facing = d.u8() & 7
 		r.Structs[idx] = s
 	}
 	if !key {

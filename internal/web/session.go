@@ -489,6 +489,7 @@ type cmd struct {
 	P      int     `json:"p"`
 	Slot   int     `json:"slot"`
 	Kind   int     `json:"kind"`
+	Facing int     `json:"facing"`
 	W      int     `json:"w"`
 	Track  int     `json:"track"`
 	Branch int     `json:"branch"`
@@ -540,7 +541,7 @@ func (s *session) command(p []byte) bool {
 	case "ability":
 		nc = netplay.Cmd{Op: netplay.OpAbility, A: u8(c.Slot), X: c.X, Y: c.Y}
 	case "build":
-		nc = netplay.Cmd{Op: netplay.OpBuild, A: u8(c.Kind), X: float32(c.TX), Y: float32(c.TY)}
+		nc = netplay.Cmd{Op: netplay.OpBuild, A: u8(c.Kind), B: u8(c.Facing & 7), X: float32(c.TX), Y: float32(c.TY)}
 	case "repair":
 		nc = netplay.Cmd{Op: netplay.OpRepair, T: u16(c.S)}
 	case "fixAll":

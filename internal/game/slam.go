@@ -91,7 +91,7 @@ func (w *World) slamLands(e *Effect) {
 	}
 	for i := range w.Structs {
 		st := &w.Structs[i]
-		if !st.Alive || st.Kind == SArmory {
+		if !st.Alive || st.Kind == SArmory || Structs[st.Kind].Floor {
 			continue
 		}
 		// From the nearest point of its footprint, so a big building is caught by its edge.
