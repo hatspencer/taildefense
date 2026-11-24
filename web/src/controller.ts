@@ -539,10 +539,11 @@ export class Controller {
   }
 
   // Whether the hero has something cast where the cursor points, what the ground reticle marks:
-  // F (the dash bought, or a weapon art in hand) or V (the airstrike bought). Unlocked is the
-  // HUD's own test of a slot, level above 0. The grenade aims with its own preview instead.
+  // Q (an ultimate aimed at a point, not one on the hero), F (the dash bought, or a weapon art
+  // in hand) or V (the airstrike bought). Unlocked is the HUD's own test of a slot, level above
+  // 0. The grenade aims with its own preview instead.
   aimsAtCursor(): boolean {
-    for (const slot of [ART, STRIKE]) {
+    for (const slot of [0, ART, STRIKE]) {
       const a = this.ability(slot);
       if (a && a.level > 0 && a.target === 'point') return true;
     }

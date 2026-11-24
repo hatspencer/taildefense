@@ -465,7 +465,8 @@ placing. Dash and airstrike cast
 at the cursor the moment you press the key; point at the ground. A small reticle lies on the
 ground under the cursor wherever it points on the map, drawn over creeps and roofs, so you can
 see the spot a dash, a weapon art or an airstrike will go. It is there only once you have one
-of those: the dash or the airstrike bought, or the crowbar or a legendary blade in hand. The menu (F10) turns it off or makes it
+of those: the dash or the airstrike bought, the crowbar or a legendary blade in hand, or a
+weapon whose ultimate is aimed at a point (the rocket launcher's Cluster MIRV). The menu (F10) turns it off or makes it
 bigger or smaller (`RETICLE` and `RETICLE_SIZE`). The grenade goes to level 5, each
 level hitting harder (120 damage at the first, 400 at the fifth), throwing wider and coming back
 sooner; from level 4 it leaves a fire burning where it lands. After wave 10 the grenade and the
