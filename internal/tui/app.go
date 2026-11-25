@@ -868,7 +868,13 @@ func (m *Model) settingsKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.editing = true
-		m.field.set(m.prefs.Get(key.Name).Value)
+		// A secret is edited from an empty field: the stored one is never put on screen,
+		// and an empty field left as it is changes nothing.
+		if key.Secret {
+			m.field.set("")
+		} else {
+			m.field.set(m.prefs.Get(key.Name).Value)
+		}
 	}
 	return m, nil
 }
@@ -879,7 +885,13 @@ func (m *Model) editSetting(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.editing = false
 		return m, nil
 	case tea.KeyEnter:
-		if m.save(config.Keys[m.scursor], m.field.value()) {
+		key := config.Keys[m.scursor]
+		if key.Secret && strings.TrimSpace(m.field.value()) == "" {
+			m.editing = false
+			m.say(false, "%s unchanged; td config %s --reset clears it", strings.ToLower(key.Name), strings.ToLower(key.Name))
+			return m, nil
+		}
+		if m.save(key, m.field.value()) {
 			m.editing = false
 		}
 		return m, nil
@@ -897,6 +909,10 @@ func (m *Model) save(key config.Key, raw string) bool {
 		return false
 	}
 	m.prefs.Reload()
+	v = key.Show(v)
+	if v == "" {
+		v = "nothing" // an empty field clears a key whose default is nothing
+	}
 	m.say(false, "saved %s = %s", strings.ToLower(key.Name), v)
 	if cur := m.prefs.Get(key.Name); cur.Source == config.SourceEnv {
 		m.say(true, "saved %s = %s, but %s overrides it in this shell", strings.ToLower(key.Name), v, cur.Key.Env)

@@ -36,7 +36,8 @@ usage:
   td doctor                      check tailscale, the browser and what updates need
   td keys                        the game's keys and what each does
   td config [KEY [VALUE]]        show, read or set name, port, difficulty, fog, waves, mode,
-                                 volume, music, reticle, reticle_size, browser
+                                 volume, music, reticle, reticle_size, browser, slack_token,
+                                 slack_channel
                                  (td config KEY --reset returns one to its default)
   td frame [--width W] [--height H] [--view menu|join|settings|keys|changelog|doctor|help|splash] [--at S]
                                  render one launcher frame from demo data (--at: seconds
@@ -233,7 +234,7 @@ func run(args []string) int {
 			p.Warn("%s", news)
 			p.Detail("%s", how)
 		}
-		return cli.Serve(os.Stdout, cli.HostOptions{Port: prefs.Port(), Seed: o.seed, Diff: prefs.Difficulty(), Fog: prefs.Fog(), Waves: prefs.Waves(), Mode: prefs.Mode(), Name: prefs.Name(), Version: version.Current(), Bots: o.bots})
+		return cli.Serve(os.Stdout, cli.HostOptions{Port: prefs.Port(), Seed: o.seed, Diff: prefs.Difficulty(), Fog: prefs.Fog(), Waves: prefs.Waves(), Mode: prefs.Mode(), Name: prefs.Name(), Version: version.Current(), Bots: o.bots}, prefs)
 	case "ls":
 		if o.json {
 			ui.SetJSON(true)
@@ -384,9 +385,13 @@ func play(p *ui.Printer, prefs *config.Prefs, o web.Options) (web.Result, error)
 // when the player leaves: a game hosted from a laptop lasts as long as its host plays. bots
 // play beside them.
 func hostAndPlay(p *ui.Printer, prefs *config.Prefs, seed uint64, bots int) (web.Result, error) {
+	// Slack, when on, hears of the game here and gets the scoreboard the page draws at each
+	// game's end. Closed after the host, it gives a reply still going a few seconds to land.
+	sl := cli.NewSlack(prefs, func(format string, a ...any) { p.Warn(format, a...) })
+	defer sl.Close()
 	srv, plan, err := cli.StartHost(context.Background(), cli.HostOptions{
 		Port: prefs.Port(), Seed: seed, Diff: prefs.Difficulty(), Fog: prefs.Fog(), Waves: prefs.Waves(), Mode: prefs.Mode(), Name: prefs.Name(), Version: version.Current(),
-		Bots: bots,
+		Bots: bots, Slack: sl,
 	}, nil)
 	for _, n := range plan.Notes {
 		p.Warn("%s", n)
@@ -404,8 +409,12 @@ func hostAndPlay(p *ui.Printer, prefs *config.Prefs, seed uint64, bots int) (web
 			addr = a
 		}
 	}
-	return play(p, prefs, web.Options{Addr: addr, Host: plan.Config.Host, Hosting: true, Hint: plan.Hint,
-		Status: cli.HostStatus(srv, plan)})
+	wo := web.Options{Addr: addr, Host: plan.Config.Host, Hosting: true, Hint: plan.Hint,
+		Status: cli.HostStatus(srv, plan)}
+	if sl != nil {
+		wo.KeepShot = sl.Shot
+	}
+	return play(p, prefs, wo)
 }
 
 func hostCmd(prefs *config.Prefs, seed uint64, bots int) int {

@@ -156,7 +156,7 @@ func TestSetWritesAndKeepsOtherKeys(t *testing.T) {
 	if _, err := Set("browser", "a\nb"); err == nil {
 		t.Error("a two-line browser accepted")
 	}
-	if _, err := Set("colour", "red"); err == nil || !strings.Contains(err.Error(), "name, port, difficulty, fog, waves, mode, volume, music, reticle, reticle_size, browser") {
+	if _, err := Set("colour", "red"); err == nil || !strings.Contains(err.Error(), "name, port, difficulty, fog, waves, mode, volume, music, reticle, reticle_size, browser, slack_token, slack_channel") {
 		t.Errorf("unknown key: %v", err)
 	}
 	if v, err := Set("difficulty", "HARD"); err != nil || v != "hard" {
@@ -211,8 +211,9 @@ func TestSetWritesAndKeepsOtherKeys(t *testing.T) {
 			t.Errorf("file lacks %q:\n%s", want, s)
 		}
 	}
-	if fi, _ := os.Stat(filepath.Join(cfg, File)); fi.Mode().Perm() != 0o644 {
-		t.Errorf("mode %v", fi.Mode().Perm())
+	// The file was written 0644 above, as an older td wrote it; any write tightens it.
+	if fi, _ := os.Stat(filepath.Join(cfg, File)); fi.Mode().Perm() != 0o600 {
+		t.Errorf("mode %v, want 0600", fi.Mode().Perm())
 	}
 	if err := Unset("name"); err != nil {
 		t.Fatal(err)
@@ -223,6 +224,101 @@ func TestSetWritesAndKeepsOtherKeys(t *testing.T) {
 	leftovers, _ := filepath.Glob(filepath.Join(cfg, ".prefs-*"))
 	if len(leftovers) > 0 {
 		t.Errorf("temp files left: %v", leftovers)
+	}
+}
+
+func TestSlackKeysParse(t *testing.T) {
+	isolate(t)
+	tok := "xoxb-1234567890-abcdefghijkl-a1b2"
+	for in, want := range map[string]string{tok: tok, "  " + tok + "\n": tok, "": "", "   ": ""} {
+		if got, err := parseSlackToken(in); err != nil || got != want {
+			t.Errorf("token %q: %q %v, want %q", in, got, err, want)
+		}
+	}
+	for _, in := range []string{"xoxp-1234-5678", "xapp-1-abc", "xoxb-", "xoxb-12 34", "xoxb-12\t34", "token"} {
+		if _, err := parseSlackToken(in); err == nil || !strings.Contains(err.Error(), "xoxb-") {
+			t.Errorf("token %q: %v, want a refusal naming xoxb-", in, err)
+		}
+	}
+	for in, want := range map[string]string{
+		"C0123ABCD": "C0123ABCD", " G0123ABCDE ": "G0123ABCDE", "D012345678": "D012345678",
+		"td-games": "#td-games", "#td-games": "#td-games", "C0123": "#C0123", "c0123abcd": "#c0123abcd",
+		"general": "#general", "": "",
+	} {
+		if got, err := parseSlackChannel(in); err != nil || got != want {
+			t.Errorf("channel %q: %q %v, want %q", in, got, err, want)
+		}
+	}
+	for _, in := range []string{"#", "td games", "#a#b", "##x"} {
+		if _, err := parseSlackChannel(in); err == nil {
+			t.Errorf("channel %q accepted", in)
+		}
+	}
+}
+
+func TestSlackOnlyWithBoth(t *testing.T) {
+	cfg := isolate(t)
+	tok := "xoxb-1234567890-abcdefghijkl-a1b2"
+	if _, _, on := Load().Slack(); on {
+		t.Error("on with nothing set")
+	}
+	if _, err := Set("slack_token", tok); err != nil {
+		t.Fatal(err)
+	}
+	if got, _, on := Load().Slack(); on || got != tok {
+		t.Errorf("token only: %q %v", got, on)
+	}
+	if _, err := Set("slack_channel", "td-games"); err != nil {
+		t.Fatal(err)
+	}
+	if got, ch, on := Load().Slack(); !on || got != tok || ch != "#td-games" {
+		t.Errorf("both: %q %q %v", got, ch, on)
+	}
+	if fi, _ := os.Stat(filepath.Join(cfg, File)); fi.Mode().Perm() != 0o600 {
+		t.Errorf("a file holding a token is %v, want 0600", fi.Mode().Perm())
+	}
+	// An empty value clears a key whose default is nothing, as --reset does, and leaves no
+	// blank line behind.
+	if v, err := Set("slack_token", " "); err != nil || v != "" {
+		t.Fatalf("clear: %q %v", v, err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(cfg, File)); strings.Contains(string(b), "SLACK_TOKEN") {
+		t.Errorf("a cleared token is still in the file:\n%s", b)
+	}
+	p := Load()
+	if _, _, on := p.Slack(); on || p.Get(KeySlackToken).Source != SourceDefault {
+		t.Errorf("after clearing: %+v", p.Get(KeySlackToken))
+	}
+	t.Setenv("TAILDEFENSE_SLACK_TOKEN", tok)
+	t.Setenv("TAILDEFENSE_SLACK_CHANNEL", "C0123ABCD")
+	if got, ch, on := Load().Slack(); !on || got != tok || ch != "C0123ABCD" {
+		t.Errorf("from the environment: %q %q %v", got, ch, on)
+	}
+}
+
+func TestShowMasksOnlySecrets(t *testing.T) {
+	tk, _ := Lookup(KeySlackToken)
+	ch, _ := Lookup(KeySlackChannel)
+	if !tk.Secret || ch.Secret {
+		t.Fatalf("secret: token %v channel %v", tk.Secret, ch.Secret)
+	}
+	for _, k := range Keys {
+		if k.Secret != (k.Name == KeySlackToken) {
+			t.Errorf("%s secret %v", k.Name, k.Secret)
+		}
+	}
+	tok := "xoxb-1234567890-abcdefghijkl-a1b2"
+	if got := tk.Show(tok); got != "xoxb-…a1b2" {
+		t.Errorf("masked %q", got)
+	}
+	if got := tk.Show(""); got != "" {
+		t.Errorf("empty masked to %q", got)
+	}
+	if got := tk.Show("xoxb-abc"); got != "********" {
+		t.Errorf("a short secret shows %q", got)
+	}
+	if got := ch.Show("#td-games"); got != "#td-games" {
+		t.Errorf("a plain key masked: %q", got)
 	}
 }
 

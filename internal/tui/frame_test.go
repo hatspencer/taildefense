@@ -112,7 +112,7 @@ func TestFramesSayWhatMatters(t *testing.T) {
 		t.Errorf("scrolled to the end, keys lacks %q:\n%s", last.Does, got)
 	}
 	set := ansi.Strip(Frame(Options{}, 80, 24, FrameSettings))
-	for _, want := range []string{"name", "tester", "port", "7787", "browser"} {
+	for _, want := range []string{"name", "tester", "port", "7787", "browser", "slack_token", "slack_channel"} {
 		if !strings.Contains(set, want) {
 			t.Errorf("settings lacks %q:\n%s", want, set)
 		}

@@ -9,7 +9,7 @@ import (
 
 func TestLaunchLinksNeedTheTokenAndAKnownBrowser(t *testing.T) {
 	var l launcher
-	h := handler("secret", 1, nil, nil, nil, &l, "http://127.0.0.1:1/#secret")
+	h := handler("secret", 1, nil, nil, nil, &l, "http://127.0.0.1:1/#secret", nil)
 	for path, want := range map[string]int{
 		"/launch/chrome?token=wrong":    http.StatusForbidden,
 		"/launch/chrome":                http.StatusForbidden,

@@ -10,7 +10,9 @@ import (
 )
 
 // Config is `td config [key [value]]`: every setting with its source, one setting's value,
-// or a new value written to the file. `td config KEY --reset` returns a key to its default.
+// or a new value written to the file. `td config KEY --reset` returns a key to its default,
+// as an empty value does for a key whose default is nothing (slack_token, slack_channel). A
+// secret key's value is shown masked everywhere here.
 //
 // The prefs passed in are the ones in force for this run, flags included, so `td config
 // --port 9000` shows the flag winning, which is the honest answer.
@@ -26,8 +28,12 @@ func Config(w io.Writer, prefs *config.Prefs, args []string) int {
 			if v.Source == config.SourceEnv {
 				src += " " + v.Key.Env
 			}
+			value := ui.StyleCyan.Render(v.Key.Show(v.Value))
+			if v.Value == "" {
+				value = ui.StyleDim.Render("—") // nothing set, as the Slack keys are by default
+			}
 			rows = append(rows, []string{
-				ui.StyleBold.Render(strings.ToLower(v.Key.Name)), ui.StyleCyan.Render(v.Value),
+				ui.StyleBold.Render(strings.ToLower(v.Key.Name)), value,
 				ui.StyleDim.Render(src), ui.StyleDim.Render(v.Key.Help),
 			})
 		}
@@ -45,7 +51,8 @@ func Config(w io.Writer, prefs *config.Prefs, args []string) int {
 			ui.Errorf("unknown setting %q; settings: %s", args[0], strings.Join(config.KeyNames(), ", "))
 			return 2
 		}
-		fmt.Fprintln(w, prefs.Get(k.Name).Value)
+		// A secret is masked here too: what it is for is the prefs file, not a terminal.
+		fmt.Fprintln(w, k.Show(prefs.Get(k.Name).Value))
 		return 0
 	case 2:
 		k, ok := config.Lookup(args[0])
@@ -67,7 +74,11 @@ func Config(w io.Writer, prefs *config.Prefs, args []string) int {
 			ui.Errorf("%s: %v", key, err)
 			return 2
 		}
-		p.OK("%s = %s", key, ui.StyleCyan.Render(v))
+		if v == "" {
+			p.OK("%s is cleared", key)
+		} else {
+			p.OK("%s = %s", key, ui.StyleCyan.Render(k.Show(v)))
+		}
 		if cur := prefs.Get(k.Name); cur.Source == config.SourceEnv || cur.Source == config.SourceFlag {
 			p.Warn("%s still overrides it in this shell", envOrFlag(cur))
 		}

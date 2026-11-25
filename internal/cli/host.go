@@ -33,6 +33,11 @@ type HostOptions struct {
 	Name    string // the hosting player's name; "" is the tailnet first name
 	Version string // this build, shown to everyone who probes the game
 	Bots    int    // bots that play in the game, 0 to netplay.MaxBots
+	// Slack announces the game once it is listening; nil is Slack off. The caller closes it
+	// after the server.
+	Slack *Slack
+	// GameOver is told how each game ended (netplay.ServerConfig.GameOver); nil discards.
+	GameOver func(netplay.GameEnd)
 }
 
 // HostPlan is a host worked out from the tailnet before anything listens: the server's
@@ -182,6 +187,7 @@ func StartHost(ctx context.Context, o HostOptions, log func(string, ...any)) (*n
 		return nil, plan, err
 	}
 	plan.Config.Log = log
+	plan.Config.GameOver = o.GameOver
 	srv, err := netplay.Listen(plan.Config)
 	if err != nil {
 		if strings.Contains(err.Error(), "address already in use") {
@@ -189,6 +195,8 @@ func StartHost(ctx context.Context, o HostOptions, log func(string, ...any)) (*n
 		}
 		return nil, plan, err
 	}
+	// Queued, not waited for: Slack answers or fails off to the side while the game starts.
+	o.Slack.Announce(&plan)
 	return srv, plan, nil
 }
 

@@ -538,7 +538,10 @@ func (m *Model) settingsView(room int) []string {
 			mark = ui.StyleAccent.Render("▶ ")
 			at = len(rows)
 		}
-		value := ui.StyleCyan.Render(v.Value)
+		value := ui.StyleCyan.Render(k.Show(v.Value))
+		if v.Value == "" {
+			value = ui.StyleDim.Render("—") // nothing set, as the Slack keys are by default
+		}
 		if i == m.scursor && m.editing {
 			value = m.field.view(m.markCursor)
 		}

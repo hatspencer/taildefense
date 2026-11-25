@@ -62,9 +62,63 @@ else is a command run with the URL. In any browser the page keeps the browser's 
 is closed. `--no-browser` does the same as `none` for one run, which is
 handy over SSH.
 
+`SLACK_TOKEN` is the Slack bot token, `xoxb-…`, that announces the games you host in a Slack
+channel. It is empty by default, which is off; `td config slack_token ""` or `td config
+slack_token --reset` clears it again. A token is a secret, so td keeps it in the prefs file,
+which td writes readable only by you, and never shows it in clear: `td config` and the
+launcher's settings show `xoxb-…` and its last four characters, and the launcher edits it from
+an empty field, where leaving the field empty changes nothing.
+
+`SLACK_CHANNEL` is the channel the games you host are announced in: a name, with or without its
+`#` (kept as `#name`), or a channel ID such as `C0123ABCD`. It is empty by default, and games are
+announced only with both it and the token set. With `td serve` on a machine of its own,
+`TAILDEFENSE_SLACK_TOKEN` and `TAILDEFENSE_SLACK_CHANNEL` set them without a prefs file. What
+gets posted, and how to set it up, is under [Slack](#slack).
+
 On a Linux laptop with two GPUs the browser draws on the one that drives the screen, usually the
 integrated one. The discrete GPU of such a laptop often has no outputs of its own, and every frame
 drawn there has to be copied across, which at 5K made the game slower, not faster.
+
+## Slack
+
+With `SLACK_TOKEN` and `SLACK_CHANNEL` both set, a game you host (`td`, `td host` or `td serve`)
+is announced in the channel once it is listening:
+
+> **Ada** is hosting taildefense on **box**
+> Join with `td join box` · needs td 4f1c2ab
+> Hard · 30 waves · blades · fog of war · 2 bots
+
+It always carries the join command and the td version the host runs, since a player on another
+version is refused; the mode, fog of war and bots are there only when they are not the default.
+When a game ends, its final scoreboard, the picture the host's page draws and keeps in the
+screenshots folder, is posted as a reply in the announcement's thread, and every game of the same
+hosting (a restart too) replies in that one thread. `td serve` has no page, so it replies with a
+line of text instead: the waves held, the kills, who played, and whether the Huey got out or the
+generator fell. A game only this machine can reach (tailscale down) is not announced at all, and
+td says so when it starts.
+
+Slack never holds up a game: the posts go one after another off to the side, a post waits at most
+10 s and the picture 30 s, and a failure is said once in the terminal with what to do about it.
+Leaving right at the end still gives the scoreboard a few seconds to go out.
+
+To set it up:
+
+1. Create a Slack app at [api.slack.com/apps](https://api.slack.com/apps) ("From scratch", in your
+   workspace).
+2. Under OAuth & Permissions, give it the bot token scopes `chat:write` and `files:write`.
+3. Install it to the workspace, and copy the Bot User OAuth Token (`xoxb-…`).
+4. Invite the bot to the channel: `/invite @name` in the channel.
+5. `td config slack_token xoxb-…` and `td config slack_channel C0123ABCD`.
+6. `td doctor` checks the token and says which workspace and bot it is and the channel it
+   announces in.
+
+Use the channel's ID, which is at the bottom of the channel's details: Slack takes a channel's
+name only for a public channel, and the picture can still go to the channel by its ID when the
+announcement itself failed.
+
+What leaves the machine: the host's name, this machine's name, the game's settings and version,
+and the scoreboard picture with the players' names (or, from `td serve`, their names in the text).
+The token goes only to Slack.
 
 ## Network
 
