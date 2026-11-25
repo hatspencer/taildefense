@@ -8,3 +8,5 @@
 /screenshots/
 /.claude/worktrees/
 /.playwright-mcp/
+/.claude/settings.local.json
+/CLAUDE.local.md
