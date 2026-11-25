@@ -10,8 +10,7 @@ three.js browser client embedded from `internal/web/dist`.
 - Commits and pull requests carry no attribution lines: no `Co-Authored-By`, no
   `Claude-Session`, no "Generated with" footer or session link.
 - `main` takes changes only through pull requests: the remote refuses a direct push. Push a
-  branch. Don't use `gh` here: it is signed in to a different GitHub account than the one that
-  owns this repo. Give the branch name and GitHub's compare link instead.
+  branch and open a pull request from it.
 - In a worktree, `./build.sh` uses the main checkout's `.gocache` by itself, so run it without
   an environment prefix: the allow rules match only the bare `./build.sh <target>` form.
 - Subagents in `.claude/agents/`, each on the cheapest model that does the job:
@@ -24,6 +23,7 @@ three.js browser client embedded from `internal/web/dist`.
   - `README.md`: what td is, setup, dependencies, commands, keys, the architecture picture. Keep
     it short; longer text goes in `docs/`.
   - `docs/playing.md`: the player's guide. `docs/settings.md`: settings, network, updates.
+  - `CONTRIBUTING.md`: what gets merged, playing a branch with `td update -b`, the licence (MIT, in `LICENSE`).
   - `docs/architecture.md`: one tick end to end, and why it's built this way.
   - `docs/development.md`: playtests, the golden game, the demo and the animation lab.
   - `docs/game-design.md`: design decisions and their reasons; update it with the code.

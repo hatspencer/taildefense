@@ -57,7 +57,8 @@ Every setting can also come from the environment (`TAILDEFENSE_NAME`, `TAILDEFEN
 `TAILDEFENSE_DIFFICULTY`, `TAILDEFENSE_FOG`, `TAILDEFENSE_WAVES`, `TAILDEFENSE_VOLUME`, `TAILDEFENSE_MUSIC`, `TAILDEFENSE_RETICLE`, `TAILDEFENSE_RETICLE_SIZE`, `TAILDEFENSE_BROWSER`,
 and `TAILDEFENSE_NO_AUTOUPDATE` to turn autoupdate off), and `td config` says where
 each value in force came from. `--theme NAME` (or `TAILDEFENSE_THEME`) picks the colour theme of the
-launcher and td's output, and `--no-color` turns colour off.
+launcher and td's output, `--no-color` turns colour off, and `--no-browser` prints the game's
+URL instead of opening it.
 
 The settings, the network and updates are explained in [docs/settings.md](docs/settings.md).
 
@@ -70,7 +71,7 @@ The toolchains come as images, `golang:1.27-alpine` and `node:26-alpine`
 | side | dependencies |
 |---|---|
 | Go (`go.mod`) | Bubble Tea v2, Lip Gloss v2, `charmbracelet/colorprofile` and `charmbracelet/x/ansi` for the launcher, `lucasb-eyer/go-colorful` for the colour picks, `golang.org/x/term`; everything else, the WebSocket included, is the standard library |
-| client (`web/package.json`, exact pins) | three 0.186 (`three/webgpu`, TSL), camera-controls; esbuild, TypeScript 7 and `@types/three` to build |
+| client (`web/package.json`, exact pins) | three 0.187 (`three/webgpu`, TSL), camera-controls; esbuild, TypeScript 7 and `@types/three` to build |
 
 **To run:** `td` is one static binary with the client embedded; it needs no Go, Node or
 container at run time.
@@ -183,13 +184,15 @@ it. How one tick travels from a key press to the screen, and why it's built this
 | `internal/netsim` | TCP and UDP proxies that delay, jitter, lose and throttle, to measure the netcode |
 | `internal/tui`, `internal/ui` | the launcher (Bubble Tea) and td's terminal output |
 | `internal/cli` | the commands: host, serve, ls, doctor, config, bench, install, update |
+| `internal/config`, `internal/install` | the settings and where each value came from; where td is installed and what an update builds from |
+| `internal/platform`, `internal/version` | the OS, the terminal and the container engine; this build's commit |
 | `internal/tailnet` | talks to the installed tailscale: this machine, peers, whois |
-| `web/src` | the browser client: `net`, `state`, `scene/`, `hud/`, `input`, `controller` |
+| `web/src` | the browser client: `net`, `state`, `predict`, `scene/`, `hud/`, `sound/`, `input`, `controller`, the `demo` and the labs |
 
 ## Development
 
 ```
-./build.sh check   # gofmt, vet, Go tests, client typecheck (in containers)
+./build.sh check   # gofmt, vet, Go tests, client typecheck and tests (in containers)
 ./build.sh build   # build ./td for this machine, client included
 ./build.sh install # build and install it
 ./build.sh test …  # go test ./..., with any flags given
@@ -206,3 +209,12 @@ it. How one tick travels from a key press to the screen, and why it's built this
 Playtests, the golden game, the demo and the animation lab are described in
 [docs/development.md](docs/development.md). `web/PROTOCOL.md` is the contract between `td` and
 the page, and `docs/game-design.md` records the design decisions and why they were made.
+
+## Contributing and licence
+
+MIT licensed, see [LICENSE](LICENSE); the sounds and music keep the licences in their `CREDITS`
+files. Pull requests that fit the spirit of the game get merged; anything else can live on as a
+branch and be played with `td update -b BRANCH`. The details are in
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
+taildefense is developed and maintained with [Claude Code](https://claude.com/claude-code).
