@@ -52,7 +52,6 @@ func TestHeadlineSaysWhatTheListIs(t *testing.T) {
 		{updateNews{From: "abc1234", To: "def5678", Changes: one}, "latest on main  (abc1234 is not in the last 200 commits)"},
 		{updateNews{To: "def5678", Changes: one}, "latest on main"},
 		{updateNews{From: "abc1234", To: "def5678"}, ""},
-		{updateNews{From: "def5678", To: "abc1234", Found: true, Back: true, Changes: []change{{"def5678", "x"}, {"ccc3333", "y"}}}, "went back 2 commits  def5678 → abc1234, taking out"},
 	}
 	for _, c := range cases {
 		if got := c.n.headline("→", "main"); got != c.want {

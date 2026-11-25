@@ -17,7 +17,7 @@ var Keys = []KeyHelp{
 	{"?", "this help", "everywhere"},
 	{"u", "td update now, when one waits or a host asks", "everywhere"},
 	{"R", "restart into the new td after an update", "everywhere"},
-	{"ctrl+c", "quit", "everywhere"},
+	{"ctrl+c ctrl+z", "quit; suspend to the shell (fg comes back)", "everywhere"},
 	{"← →", "the difficulty to host at", "host"},
 	{"w", "how long: 20, 30 or 40 waves, or endless", "host"},
 	{"f", "fog of war on or off", "host"},

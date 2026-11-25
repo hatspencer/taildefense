@@ -24,20 +24,60 @@ import (
 // The terminal's modes are declared with every frame, the splash and the smallest window
 // included: a frame that left one out would switch it off.
 func (m *Model) View() tea.View {
-	v := tea.NewView(m.frame())
+	content, cursor := m.render(true)
+	v := tea.NewView(content)
 	v.AltScreen = true
+	// A field being typed in shows the terminal's own cursor, which keeps the user's colour and
+	// blink and shows with colour off, where a reversed cell is one more empty style.
+	v.Cursor = cursor
+	// No mouse reporting: with it on, a drag no longer selects text, and the join command, an
+	// address or an error is what someone selects here. The wheel still moves the lists, as
+	// arrow keys, on the terminals that turn it into those on the alternate screen.
+	v.MouseMode = tea.MouseModeNone
+	v.WindowTitle = m.title()
 	// A theme that paints the terminal says so here as well, so the program puts the colours
-	// back after an update has run in the foreground and reset them on its way out.
+	// back after an update has run in the foreground or the launcher was suspended, and resets
+	// them on its way out.
 	v.BackgroundColor, v.ForegroundColor = ui.TerminalColors()
 	return v
 }
 
-// frame is the launcher as text, what View shows and what `td frame` prints.
+// title is the window's title while the launcher runs: td and the screen it is on. Run saves
+// the title the terminal had and puts it back afterwards, where the terminal keeps a stack.
+func (m *Model) title() string {
+	switch {
+	case m.splash:
+		return "td"
+	case m.help:
+		return "td · keys"
+	case m.screen == screenJoin:
+		return "td · join a game"
+	case m.screen == screenSettings:
+		return "td · settings"
+	case m.screen == screenChangelog:
+		return "td · changelog"
+	case m.screen == screenDoctor:
+		return "td · doctor"
+	}
+	return "td"
+}
+
+// frame is the launcher as text, what `td frame` prints and the tests read: a field being
+// typed in draws its cursor as a reversed cell.
 func (m *Model) frame() string {
+	s, _ := m.render(false)
+	return s
+}
+
+// render draws the launcher. With live, a field being typed in leaves its cursor to the
+// terminal, and render returns where it goes.
+func (m *Model) render(live bool) (string, *tea.Cursor) {
+	m.markCursor = live
+	defer func() { m.markCursor = false }()
 	w, h := max(m.width, 20), max(m.height, 6)
 	elapsed := m.now.Sub(m.started)
 	if m.splash && elapsed < SplashFor && splashFits(w, h) {
-		return splashView(w, h, elapsed.Seconds())
+		return splashView(w, h, elapsed.Seconds()), nil
 	}
 
 	// The help has the whole window to itself, under a one-line title.
@@ -80,10 +120,27 @@ func (m *Model) frame() string {
 	if len(lines) > h {
 		lines = lines[:h]
 	}
+	var cursor *tea.Cursor
 	for i, l := range lines {
+		if at := strings.Index(l, cursorMark); at >= 0 {
+			l = l[:at] + l[at+len(cursorMark):]
+			// Only on a cell that is on screen: a line cut to the width ends in "…", and
+			// the cursor then goes nowhere rather than onto it.
+			x, room := ansi.StringWidth(l[:at]), w
+			if ansi.StringWidth(l) > w {
+				room = w - 1
+			}
+			if x < room {
+				cursor = tea.NewCursor(x, i)
+				// A bar, the shape of a place to type. Bubble Tea leaves a blinking block,
+				// its default, in place when it exits, where it resets any other shape to the
+				// terminal's own.
+				cursor.Shape = tea.CursorBar
+			}
+		}
 		lines[i] = ansi.Truncate(l, w, "…")
 	}
-	return strings.Join(lines, "\n")
+	return strings.Join(lines, "\n"), cursor
 }
 
 const gutter = "  "
@@ -267,8 +324,6 @@ func (m *Model) itemHint(it menuItem) string {
 			return "updating in the background already"
 		case st.State == cli.UpdateFollowing:
 			return "td update on the branch you follow, then back here"
-		case st.State == cli.UpdatePinned:
-			return "td is " + st.Text() + ": td update leaves it there, td update -f returns to main"
 		case m.updateWaiting():
 			return "a newer td is out · td update, then back here"
 		}
@@ -342,7 +397,7 @@ func (m *Model) joinView(elapsed time.Duration, room int) []string {
 	}
 	addrRow := gutter + "  " + ui.StyleDim.Render("enter address…")
 	if m.typing {
-		addrRow = gutter + ui.StyleAccent.Render("▶ ") + "address: " + m.addr.view() + ui.StyleDim.Render("  host, host:port or IP · enter joins · esc")
+		addrRow = gutter + ui.StyleAccent.Render("▶ ") + "address: " + m.addr.view(m.markCursor) + ui.StyleDim.Render("  host, host:port or IP · enter joins · esc")
 	} else if m.jcursor >= len(m.games) {
 		addrRow = gutter + ui.StyleAccent.Render("▶ ") + ui.StyleBold.Render("enter address…")
 	}
@@ -478,7 +533,7 @@ func (m *Model) settingsView(room int) []string {
 		}
 		value := ui.StyleCyan.Render(v.Value)
 		if i == m.scursor && m.editing {
-			value = m.field.view()
+			value = m.field.view(m.markCursor)
 		}
 		src := string(v.Source)
 		if v.Source == config.SourceEnv {

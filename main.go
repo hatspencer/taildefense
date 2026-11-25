@@ -43,8 +43,7 @@ usage:
   td bench [--wave N] [--players P] [--seconds S] [--seed S]
                                  a late, busy wave (12, 4 players) timed: sim, encode, relay
   td install [-f]                install this binary to ~/.taildefense, linked from ~/.local/bin
-  td update [-f] [-b BRANCH] [-c COMMIT]
-                                 clone, build in a container, reinstall
+  td update [-f] [-b BRANCH]     clone, build in a container, reinstall
   td version [--offline] [--json]  this build, its source, whether an update waits
 
 flags:
@@ -68,10 +67,7 @@ flags:
 
 update flags:
   -f, --force      reinstall from main even when up to date, forgetting a followed branch
-                   or a pin
   -b, --branch B   install branch B and keep following it
-  -c, --commit C   install commit C of main (7 to 40 hex digits) and stay pinned to it:
-                   no autoupdate, and a plain td update leaves it; -f returns to main
 `
 
 type opts struct {
@@ -279,7 +275,15 @@ func launcher(prefs *config.Prefs, noSplash bool, bots int) int {
 	sess := tui.NewSession(cli.NewAutoUpdater(prefs.AutoUpdate()))
 	var last *tui.Outcome
 	for {
-		act, err := tui.Run(tui.Options{Version: version.Current(), Date: version.Date(), Prefs: prefs, Session: sess, Last: last, NoSplash: noSplash})
+		// A closed terminal ends the launcher as a quit, so td exits through its own clean-up
+		// rather than being killed in the middle of a frame. Interrupt and terminate the
+		// program handles itself.
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGHUP)
+		act, err := tui.Run(tui.Options{Version: version.Current(), Date: version.Date(), Prefs: prefs, Session: sess, Last: last, NoSplash: noSplash, Context: ctx})
+		stop()
+		if errors.Is(err, tui.ErrInterrupted) {
+			return 130
+		}
 		if err != nil {
 			ui.Errorf("%v", err)
 			return 1

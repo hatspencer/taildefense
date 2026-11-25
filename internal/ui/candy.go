@@ -2,7 +2,6 @@ package ui
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"math"
 	"os"
@@ -95,12 +94,12 @@ var cursorHidden atomic.Bool
 
 func hideCursor(w io.Writer) {
 	cursorHidden.Store(true)
-	io.WriteString(w, "\x1b[?25l")
+	io.WriteString(w, ansi.HideCursor)
 }
 
 func showCursor(w io.Writer) {
 	if cursorHidden.Swap(false) {
-		io.WriteString(w, "\x1b[?25h")
+		io.WriteString(w, ansi.ShowCursor)
 	}
 }
 
@@ -158,7 +157,7 @@ func runScene(ctx context.Context, w io.Writer, height int, dur time.Duration, k
 	io.WriteString(w, strings.Repeat("\n", height))
 	draw := func(rows []string) {
 		var sb strings.Builder
-		fmt.Fprintf(&sb, "\x1b[%dA", height)
+		sb.WriteString(ansi.CursorUp(height))
 		for i := 0; i < height; i++ {
 			row := ""
 			if i < len(rows) {
@@ -166,7 +165,7 @@ func runScene(ctx context.Context, w io.Writer, height int, dur time.Duration, k
 				// terminals into the pending-wrap state, and the next \n then skips a line.
 				row = clipRow(rows[i], max(1, cols-1))
 			}
-			sb.WriteString("\r" + row + "\x1b[K\n")
+			sb.WriteString("\r" + row + ansi.EraseLineRight + "\n")
 		}
 		io.WriteString(w, sb.String())
 	}
@@ -175,11 +174,11 @@ func runScene(ctx context.Context, w io.Writer, height int, dur time.Duration, k
 			return
 		}
 		var sb strings.Builder
-		fmt.Fprintf(&sb, "\x1b[%dA", height)
+		sb.WriteString(ansi.CursorUp(height))
 		for i := 0; i < height; i++ {
-			sb.WriteString("\r\x1b[K\n")
+			sb.WriteString("\r" + ansi.EraseLineRight + "\n")
 		}
-		fmt.Fprintf(&sb, "\x1b[%dA", height)
+		sb.WriteString(ansi.CursorUp(height))
 		io.WriteString(w, sb.String())
 	}()
 

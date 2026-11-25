@@ -10,7 +10,10 @@ import (
 
 // lineInput is a one-line text field. Hand written rather than taken from bubbles because the
 // launcher needs exactly this much editing (type, move, delete) and the module list stays
-// the handful of terminal libraries the rest of the family uses.
+// the handful of terminal libraries the rest of the family uses. bubbles' textinput would
+// bring the module and a clipboard library with it, a key map (ctrl+v reading the clipboard,
+// word moves) the launcher does not want, styles to reset and its own cursor to offset, for
+// about as many lines as this whole file.
 type lineInput struct {
 	r   []rune
 	pos int
@@ -87,12 +90,22 @@ func (l *lineInput) key(k tea.KeyPressMsg) bool {
 	return true
 }
 
-// view draws the text with the cursor as a reversed cell.
-func (l *lineInput) view() string {
+// view draws the text with the cursor in it. A running launcher passes mark and gets
+// cursorMark where the cursor stands, which View turns into the terminal's own cursor; still
+// output (td frame, the tests) draws the cursor as a reversed cell instead.
+func (l *lineInput) view(mark bool) string {
 	before := string(l.r[:l.pos])
+	if mark {
+		return before + cursorMark + string(l.r[l.pos:])
+	}
 	at, after := " ", ""
 	if l.pos < len(l.r) {
 		at, after = string(l.r[l.pos]), string(l.r[l.pos+1:])
 	}
 	return before + ui.StyleSelected.Render(at) + after
 }
+
+// cursorMark stands where the cursor is in a frame drawn for the terminal. An APC string, so
+// anything that measures the line counts it as no width; render takes it out again and
+// puts the terminal's cursor there.
+const cursorMark = "\x1b_td-cursor\x1b\\"

@@ -25,8 +25,7 @@ import (
 // to a log rather than over the launcher, and it runs in its own process group, so leaving
 // the launcher or a ctrl+c in a game does not cut a build off halfway.
 //
-// An install that follows a branch is never updated here: a branch is somebody's choice. One
-// pinned to a commit is not either, nor asked about: being behind is what a pin is for. A
+// An install that follows a branch is never updated here: a branch is somebody's choice. A
 // binary run from a build tree is not either: there is no install to keep current.
 
 // checkInterval is how old a cached answer may be before the remote is asked again.
@@ -58,7 +57,6 @@ const (
 	UpdateUpdated   UpdateState = "updated"   // installed; this process is still the old one
 	UpdateFailed    UpdateState = "failed"    // see the log
 	UpdateFollowing UpdateState = "following" // following a branch: never updated here
-	UpdatePinned    UpdateState = "pinned"    // pinned to a commit: never updated or asked about
 )
 
 // SelfUpdate is the state with what the launcher shows next to it.
@@ -67,7 +65,6 @@ type SelfUpdate struct {
 	Version string      `json:"version"`          // the installed version when checked
 	Remote  string      `json:"remote,omitempty"` // main's tip
 	Branch  string      `json:"branch,omitempty"` // followed branch, "" is main
-	Pin     string      `json:"pin,omitempty"`    // the commit the install is pinned to
 	After   string      `json:"after,omitempty"`  // installed by a finished update
 	Log     string      `json:"log,omitempty"`
 	Error   string      `json:"error,omitempty"`
@@ -84,8 +81,6 @@ func (s SelfUpdate) Text() string {
 		return fmt.Sprintf("updated %s → %s", short(s.Version), short(s.After))
 	case UpdateFailed:
 		return "the background update failed: " + s.Error
-	case UpdatePinned:
-		return "pinned to " + short(s.Pin)
 	case UpdateFollowing:
 		if s.Remote != "" && !version.MatchesVersion(s.Version, s.Remote) {
 			return fmt.Sprintf("branch %s has moved on to %s · td update", s.Branch, short(s.Remote))
@@ -111,7 +106,6 @@ type AutoUpdater struct {
 	now       func() time.Time
 	installed func() string
 	branch    func() string
-	pin       func() string
 	remote    func(branch string) (string, error)
 	start     func(log string) error
 }
@@ -134,7 +128,6 @@ func NewAutoUpdater(enabled bool) *AutoUpdater {
 		now:       time.Now,
 		installed: func() string { return installedVersion(paths) },
 		branch:    paths.Branch,
-		pin:       paths.Pin,
 		remote: func(branch string) (string, error) {
 			repo, err := install.RepoURL()
 			if err != nil {
@@ -159,12 +152,8 @@ func installedVersion(paths *install.Paths) string {
 // about the installed version, the remote otherwise. It blocks for up to the 5 s the remote
 // is given, so the launcher calls it from a command.
 func (u *AutoUpdater) Check() SelfUpdate {
-	installed := u.installed()
-	// Before the cache: an answer cached before the pin would still say behind.
-	if pin := u.pinned(); pin != "" {
-		return SelfUpdate{State: UpdatePinned, Version: installed, Pin: pin}
-	}
 	snap := u.load()
+	installed := u.installed()
 	if !snap.CheckedAt.IsZero() && u.now().Sub(snap.CheckedAt) < checkInterval && snap.Status.Version == installed {
 		return snap.Status
 	}
@@ -190,7 +179,7 @@ func (u *AutoUpdater) Check() SelfUpdate {
 // autoupdate on, and no attempt in the last six hours. It records the attempt, so two
 // launchers opened together do not both start one.
 func (u *AutoUpdater) ShouldStart(s SelfUpdate) bool {
-	if s.State != UpdateBehind || !u.Enabled || s.Branch != "" || u.pinned() != "" {
+	if s.State != UpdateBehind || !u.Enabled || s.Branch != "" {
 		return false
 	}
 	snap := u.load()
@@ -201,15 +190,6 @@ func (u *AutoUpdater) ShouldStart(s SelfUpdate) bool {
 	snap.Status = s
 	u.save(snap)
 	return true
-}
-
-// pinned is the commit the install is pinned to, read afresh each time: a td update -c in
-// another terminal pins an install a launcher is already watching.
-func (u *AutoUpdater) pinned() string {
-	if u.pin == nil {
-		return ""
-	}
-	return u.pin()
 }
 
 // ErrUpdateRunning is another update holding the lock.

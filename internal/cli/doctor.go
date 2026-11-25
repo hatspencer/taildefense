@@ -204,9 +204,6 @@ func checkUpdates(p *ui.Printer) {
 		if b := paths.Branch(); b != "" {
 			line += ", following " + b
 		}
-		if c := paths.Pin(); c != "" {
-			line += ", pinned to " + short(c)
-		}
 		p.Pass("%s", line)
 		if paths.Replaced() {
 			p.Info("the installed binary is not the one td installed: it was replaced by hand since; td update puts a clean build back")

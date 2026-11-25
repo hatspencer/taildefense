@@ -3,7 +3,6 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -20,7 +19,6 @@ func TestParseUpdateArgs(t *testing.T) {
 		force     bool
 		branch    string
 		branchSet bool
-		commit    string
 		err       bool
 	}{
 		{args: nil},
@@ -33,19 +31,6 @@ func TestParseUpdateArgs(t *testing.T) {
 		{args: []string{"-b", "-f"}, err: true},
 		{args: []string{"--branch= "}, err: true},
 		{args: []string{"full"}, err: true},
-		{args: []string{"-c", "451fa65"}, commit: "451fa65"},
-		{args: []string{"--commit", "451FA65D0E"}, commit: "451fa65d0e"},
-		{args: []string{"--commit=" + full40}, commit: full40},
-		{args: []string{"-c", "451fa65", "-f"}, commit: "451fa65", force: true},
-		{args: []string{"-c"}, err: true},
-		{args: []string{"-c", "-f"}, err: true},
-		{args: []string{"-c", "451fa6"}, err: true},
-		{args: []string{"-c", full40 + "a"}, err: true},
-		{args: []string{"-c", "main"}, err: true},
-		{args: []string{"-c", "451fa65~1"}, err: true},
-		{args: []string{"--commit="}, err: true},
-		{args: []string{"-c", "451fa65", "-b", "f/x"}, err: true},
-		{args: []string{"-b", "main", "--commit=451fa65"}, err: true},
 	} {
 		o, err := ParseUpdateArgs(c.args)
 		if (err != nil) != c.err {
@@ -55,190 +40,29 @@ func TestParseUpdateArgs(t *testing.T) {
 		if c.err {
 			continue
 		}
-		if o.Force != c.force || o.Branch != c.branch || o.BranchSet != c.branchSet || o.Commit != c.commit {
+		if o.Force != c.force || o.Branch != c.branch || o.BranchSet != c.branchSet {
 			t.Errorf("%v: got %+v", c.args, o)
 		}
 	}
 }
 
-const full40 = "451fa65d0e1c2b3a4f5e6d7c8b9a0f1e2d3c4b5a"
-
 func TestUpdateTargetFollowsTheRecordUnlessTold(t *testing.T) {
 	for _, c := range []struct {
 		o        UpdateOptions
 		recorded string
-		pinned   string
-		want     target
+		branch   string
+		force    bool
 	}{
-		{UpdateOptions{}, "", "", target{}},
-		{UpdateOptions{}, "f/x", "", target{Branch: "f/x"}},
-		{UpdateOptions{Force: true}, "f/x", "", target{Force: true}},
-		{UpdateOptions{Branch: "f/y", BranchSet: true}, "f/x", "", target{Branch: "f/y", Force: true}},
-		{UpdateOptions{Branch: "", BranchSet: true}, "f/x", "", target{Force: true}},
-		// -c always reinstalls, forgets a followed branch, and moves a pin.
-		{UpdateOptions{Commit: "451fa65"}, "f/x", "", target{Commit: "451fa65", Force: true}},
-		{UpdateOptions{Commit: "451fa65", Force: true}, "", "", target{Commit: "451fa65", Force: true}},
-		{UpdateOptions{Commit: "abcdef1"}, "", full40, target{Commit: "abcdef1", Force: true}},
-		// A plain update stays on the pin; any other flag leaves it.
-		{UpdateOptions{}, "", full40, target{Commit: full40}},
-		{UpdateOptions{Force: true}, "", full40, target{Force: true}},
-		{UpdateOptions{Branch: "f/y", BranchSet: true}, "", full40, target{Branch: "f/y", Force: true}},
+		{UpdateOptions{}, "", "", false},
+		{UpdateOptions{}, "f/x", "f/x", false},
+		{UpdateOptions{Force: true}, "f/x", "", true},
+		{UpdateOptions{Branch: "f/y", BranchSet: true}, "f/x", "f/y", true},
+		{UpdateOptions{Branch: "", BranchSet: true}, "f/x", "", true},
 	} {
-		if got := updateTarget(c.o, c.recorded, c.pinned); got != c.want {
-			t.Errorf("%+v recorded %q pinned %q: got %+v, want %+v", c.o, c.recorded, c.pinned, got, c.want)
+		b, f := updateTarget(c.o, c.recorded)
+		if b != c.branch || f != c.force {
+			t.Errorf("%+v recorded %q: got (%q, %v), want (%q, %v)", c.o, c.recorded, b, f, c.branch, c.force)
 		}
-	}
-}
-
-func TestAPlainUpdateOnThePinnedCommitStaysWithoutAsking(t *testing.T) {
-	pinned := updateTarget(UpdateOptions{}, "", full40)
-	if !pinHolds(pinned, "451fa65") {
-		t.Error("the pinned commit is installed: nothing to do")
-	}
-	if pinHolds(pinned, "abcdef1") || pinHolds(pinned, "451fa65-dirty") {
-		t.Error("an install that is not the pinned commit should be rebuilt at it")
-	}
-	if pinHolds(updateTarget(UpdateOptions{Commit: "451fa65"}, "", full40), "451fa65") {
-		t.Error("-c always reinstalls")
-	}
-	if pinHolds(updateTarget(UpdateOptions{}, "", ""), "451fa65") {
-		t.Error("an install that is not pinned has no pin to hold")
-	}
-}
-
-// fakeGit answers resolveCommit's two questions the way git does in a clone of main.
-func fakeGit(known map[string]string, onMain map[string]bool, ambiguous string) func(args ...string) (string, error) {
-	return func(args ...string) (string, error) {
-		switch args[0] {
-		case "rev-parse":
-			given := strings.TrimSuffix(args[len(args)-1], "^{commit}")
-			if given == ambiguous {
-				return "", &gitError{code: 128, stderr: "error: short object ID " + given + " is ambiguous\nfatal: Needed a single revision"}
-			}
-			if full, ok := known[given]; ok {
-				return full, nil
-			}
-			return "", &gitError{code: 128, stderr: "fatal: Needed a single revision"}
-		case "merge-base":
-			if onMain[args[2]] {
-				return "", nil
-			}
-			return "", &gitError{code: 1}
-		}
-		return "", fmt.Errorf("unexpected git %v", args)
-	}
-}
-
-func TestResolveCommitTakesOnlyCommitsOfMain(t *testing.T) {
-	other := "abcdef1234567890abcdef1234567890abcdef12"
-	git := fakeGit(map[string]string{"451fa65": full40, full40: full40, "abcdef1": other},
-		map[string]bool{full40: true}, "1234567")
-	if got, err := resolveCommit(git, "451fa65"); err != nil || got != full40 {
-		t.Errorf("a short hash of main: %q, %v", got, err)
-	}
-	if got, err := resolveCommit(git, full40); err != nil || got != full40 {
-		t.Errorf("a full hash of main: %q, %v", got, err)
-	}
-	for commit, want := range map[string]string{
-		"abcdef1": "is not a commit on main",
-		"7777777": "is not a commit on main",
-		"1234567": "is ambiguous",
-	} {
-		if _, err := resolveCommit(git, commit); err == nil || !strings.Contains(err.Error(), want) {
-			t.Errorf("%s: err = %v, want %q", commit, err, want)
-		}
-	}
-	broken := func(args ...string) (string, error) {
-		if args[0] == "merge-base" {
-			return "", &gitError{code: 128, stderr: "fatal: bad object"}
-		}
-		return full40, nil
-	}
-	if _, err := resolveCommit(broken, "451fa65"); err == nil || strings.Contains(err.Error(), "not a commit on main") {
-		t.Errorf("a git that fails is not an answer: %v", err)
-	}
-}
-
-func TestKnowsPinsReadsTheClonesInstaller(t *testing.T) {
-	dir := t.TempDir()
-	if knowsPins(dir) {
-		t.Error("an empty tree knows nothing")
-	}
-	src := filepath.Join(dir, "internal", "install")
-	if err := os.MkdirAll(src, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(src, "install.go"), []byte(`EnvInstallBranch = "TAILDEFENSE_INSTALL_BRANCH"`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if knowsPins(dir) {
-		t.Error("an installer from before pins")
-	}
-	if err := os.WriteFile(filepath.Join(src, "install.go"), []byte(`EnvInstallPin = "TAILDEFENSE_INSTALL_PIN"`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if !knowsPins(dir) {
-		t.Error("an installer that reads the pin")
-	}
-}
-
-func TestInstallPinsOnlyWhenTheUpdaterSaysSo(t *testing.T) {
-	p := isolate(t)
-	if err := os.MkdirAll(p.Prefix, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := p.RecordBranch("f/x"); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv(install.EnvInstallVersion, "451fa65")
-	t.Setenv(install.EnvInstallBranch, "")
-	t.Setenv(install.EnvInstallPin, full40)
-	var b bytes.Buffer
-	if code := Install(&b, true); code != 0 {
-		t.Fatalf("exit %d: %s", code, b.String())
-	}
-	if p.Pin() != full40 || p.Branch() != "" {
-		t.Errorf("pin %q branch %q: a pin forgets the branch", p.Pin(), p.Branch())
-	}
-	if !strings.Contains(b.String(), "pinned to 451fa65") {
-		t.Errorf("the install does not say it pinned: %s", b.String())
-	}
-
-	t.Setenv(install.EnvInstallPin, "")
-	b.Reset()
-	if code := Install(&b, true); code != 0 {
-		t.Fatalf("second install exit %d: %s", code, b.String())
-	}
-	if p.Pin() != "" {
-		t.Errorf("an install without a pin should leave it, still on %q", p.Pin())
-	}
-}
-
-func TestVersionShowsThePin(t *testing.T) {
-	p := isolate(t)
-	if err := os.MkdirAll(p.Prefix, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := p.RecordPin(full40); err != nil {
-		t.Fatal(err)
-	}
-	var b bytes.Buffer
-	if code := PrintVersion(&b, VersionOptions{Offline: true, JSON: true}); code != 0 {
-		t.Fatalf("exit %d", code)
-	}
-	var res VersionResult
-	if err := json.Unmarshal(b.Bytes(), &res); err != nil {
-		t.Fatalf("%v: %s", err, b.String())
-	}
-	if res.Pin != full40 || res.Branch != "main" {
-		t.Errorf("got %+v", res)
-	}
-	b.Reset()
-	if code := PrintVersion(&b, VersionOptions{Offline: true}); code != 0 {
-		t.Fatalf("exit %d", code)
-	}
-	if !strings.Contains(b.String(), "pinned to 451fa65") || !strings.Contains(b.String(), "td update -f") {
-		t.Errorf("td version does not say it is pinned and how to leave: %s", b.String())
 	}
 }
 
