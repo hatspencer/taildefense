@@ -49,7 +49,7 @@ WebGL 2 where WebGPU isn't available. Any current Chrome, Edge, Firefox or Safar
 | `td frame [--width W] [--height H] [--view menu\|join\|settings\|changelog\|doctor\|help\|splash] [--at S]` | render one launcher frame from demo data, 160×48 unless told otherwise; `--at` is seconds into the splash |
 | `td doctor` | check tailscale, the browser, container engine, install |
 | `td config [KEY [VALUE]]` | show or change settings: NAME, PORT, DIFFICULTY, FOG, WAVES, MODE, VOLUME, MUSIC, RETICLE, RETICLE_SIZE, BROWSER, AUTOUPDATE; `td config KEY --reset` returns one to its default |
-| `td update [-f] [-b BRANCH]` | rebuild from the repo's main (or a branch) and reinstall |
+| `td update [-f] [-b BRANCH] [-c COMMIT]` | rebuild from the repo's main (or a branch, or one commit of main to stay pinned to) and reinstall |
 | `td install [-f]` | install this build |
 | `td version [--offline] [--json]` | this build and whether a newer one exists |
 

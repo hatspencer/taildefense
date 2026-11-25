@@ -267,6 +267,8 @@ func (m *Model) itemHint(it menuItem) string {
 			return "updating in the background already"
 		case st.State == cli.UpdateFollowing:
 			return "td update on the branch you follow, then back here"
+		case st.State == cli.UpdatePinned:
+			return "td is " + st.Text() + ": td update leaves it there, td update -f returns to main"
 		case m.updateWaiting():
 			return "a newer td is out · td update, then back here"
 		}
