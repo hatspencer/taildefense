@@ -34,10 +34,11 @@ usage:
                                  a dedicated game with no player of its own, until ctrl+c
   td ls [--json] [--port N]      the games on your tailnet
   td doctor                      check tailscale, the browser and what updates need
+  td keys                        the game's keys and what each does
   td config [KEY [VALUE]]        show, read or set name, port, difficulty, fog, waves, mode,
                                  volume, music, reticle, reticle_size, browser, autoupdate
                                  (td config KEY --reset returns one to its default)
-  td frame [--width W] [--height H] [--view menu|join|settings|changelog|doctor|help|splash] [--at S]
+  td frame [--width W] [--height H] [--view menu|join|settings|keys|changelog|doctor|help|splash] [--at S]
                                  render one launcher frame from demo data (--at: seconds
                                  into the splash)
   td bench [--wave N] [--players P] [--seconds S] [--seed S]
@@ -236,6 +237,8 @@ func run(args []string) int {
 		return cli.Ls(os.Stdout, cli.LsOptions{Port: prefs.Port(), JSON: o.json})
 	case "doctor":
 		return cli.Doctor(os.Stdout)
+	case "keys":
+		return cli.Keys(os.Stdout)
 	case "config":
 		return cli.Config(os.Stdout, prefs, pos)
 	case "frame":

@@ -172,6 +172,7 @@ const (
 	screenSettings
 	screenChangelog
 	screenDoctor
+	screenKeys
 )
 
 type menuItem int
@@ -180,6 +181,7 @@ const (
 	itemHost menuItem = iota
 	itemJoin
 	itemSettings
+	itemKeys
 	itemChangelog
 	itemDoctor
 	itemScreenshots
@@ -189,7 +191,7 @@ const (
 )
 
 var itemLabels = map[menuItem]string{
-	itemHost: "Host a game", itemJoin: "Join a game", itemSettings: "Settings",
+	itemHost: "Host a game", itemJoin: "Join a game", itemSettings: "Settings", itemKeys: "Keys",
 	itemChangelog: "Changelog", itemDoctor: "Doctor", itemScreenshots: "Screenshots",
 	itemUpdate: "Check for updates", itemRestart: "Restart into the new td", itemQuit: "Quit",
 }
@@ -230,6 +232,8 @@ type Model struct {
 	lscroll int
 	// doctor: the first row shown
 	dscroll int
+	// keys: the first row shown
+	kscroll int
 
 	// settings
 	scursor int
@@ -417,7 +421,7 @@ func (m *Model) ensureTick() tea.Cmd {
 }
 
 func (m *Model) menu() []menuItem {
-	items := []menuItem{itemHost, itemJoin, itemSettings, itemChangelog, itemDoctor, itemScreenshots}
+	items := []menuItem{itemHost, itemJoin, itemSettings, itemKeys, itemChangelog, itemDoctor, itemScreenshots}
 	if m.sess.Update().State == cli.UpdateUpdated {
 		items = append(items, itemRestart)
 	} else {
@@ -615,6 +619,8 @@ func (m *Model) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.changelogKey(k)
 	case screenDoctor:
 		return m.doctorKey(k)
+	case screenKeys:
+		return m.keysKey(k)
 	}
 	return m.menuKey(k)
 }
@@ -684,6 +690,8 @@ func (m *Model) menuKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, m.scan()
 		case itemSettings:
 			m.screen, m.notice = screenSettings, ""
+		case itemKeys:
+			m.screen, m.notice, m.kscroll = screenKeys, "", 0
 		case itemChangelog:
 			m.screen, m.notice, m.lscroll = screenChangelog, "", -1
 			if c, err, _ := m.sess.changelog(); c == nil && err == nil {
@@ -806,6 +814,25 @@ func (m *Model) doctorKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.dscroll = 0
 	case "r":
 		return m, m.runDoctor()
+	case "q", "esc":
+		m.screen = screenMenu
+	}
+	return m, nil
+}
+
+// keysKey scrolls the game's keys; the view stops it at the end.
+func (m *Model) keysKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch keyName(k) {
+	case "up", "k":
+		m.kscroll = max(m.kscroll-1, 0)
+	case "down", "j", "tab":
+		m.kscroll++
+	case "pgup":
+		m.kscroll = max(m.kscroll-10, 0)
+	case "pgdown":
+		m.kscroll += 10
+	case "home", "g":
+		m.kscroll = 0
 	case "q", "esc":
 		m.screen = screenMenu
 	}

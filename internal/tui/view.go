@@ -58,6 +58,8 @@ func (m *Model) title() string {
 		return "td · changelog"
 	case m.screen == screenDoctor:
 		return "td · doctor"
+	case m.screen == screenKeys:
+		return "td · game keys"
 	}
 	return "td"
 }
@@ -81,10 +83,14 @@ func (m *Model) render(live bool) (string, *tea.Cursor) {
 	}
 
 	// The help has the whole window to itself, under a one-line title.
+	// So do the game's keys: there are more of them than a window holds.
 	var head []string
-	if m.help {
+	switch {
+	case m.help:
 		head = []string{gutter + ui.StyleBrand.Render("TAIL DEFENSE") + ui.StyleDim.Render("  launcher keys"), ""}
-	} else {
+	case m.screen == screenKeys:
+		head = []string{gutter + ui.StyleBrand.Render("TAIL DEFENSE") + ui.StyleDim.Render("  the game's keys, in the browser · td keys prints them"), ""}
+	default:
 		head = m.header(w, h)
 	}
 	foot := m.footer()
@@ -104,6 +110,8 @@ func (m *Model) render(live bool) (string, *tea.Cursor) {
 		body = m.changelogView(elapsed, h-len(head)-1)
 	case m.screen == screenDoctor:
 		body = m.doctorView(elapsed, h-len(head)-1)
+	case m.screen == screenKeys:
+		body = m.keysView(h - len(head) - len(foot))
 	default:
 		body = m.menuView(w)
 	}
@@ -330,6 +338,8 @@ func (m *Model) itemHint(it menuItem) string {
 		return "td update: gets and installs a newer td if there is one, then back here"
 	case itemChangelog:
 		return "the latest commits, and which of them this td is"
+	case itemKeys:
+		return "the game's keys in the browser, and what each does"
 	case itemDoctor:
 		return "check tailscale, the browser and what updates need"
 	case itemScreenshots:
@@ -564,6 +574,20 @@ func (m *Model) settingsView(room int) []string {
 	return append(out, tail...)
 }
 
+// keysView is the game's keys (cli.GameKeys), scrolled to kscroll. room is the lines it has.
+func (m *Model) keysView(room int) []string {
+	lines := strings.Split(strings.TrimRight(ui.Table(cli.GameKeyRows(), gutter), "\n"), "\n")
+	if len(lines) <= room {
+		m.kscroll = 0
+		return lines
+	}
+	shown := max(room-1, 1) // the last line says where in the list this is
+	m.kscroll = min(m.kscroll, max(len(lines)-shown, 0))
+	end := min(m.kscroll+shown, len(lines))
+	out := append([]string{}, lines[m.kscroll:end]...)
+	return append(out, gutter+ui.StyleDim.Render(fmt.Sprintf("%d–%d of %d", m.kscroll+1, end, len(lines))))
+}
+
 func (m *Model) helpView() []string {
 	out := []string{gutter + ui.StyleBold.Render("Keys") + "  " + ui.StyleDim.Render("any key closes"), ""}
 	// The group named once, on its first row, so every binding fits on a line of its own.
@@ -597,6 +621,8 @@ func (m *Model) footer() []string {
 		keys = "↑↓ scroll · r read again · esc back · ? help"
 	case m.screen == screenDoctor:
 		keys = "↑↓ scroll · r check again · esc back · ? help"
+	case m.screen == screenKeys:
+		keys = "↑↓ pgup pgdn scroll · esc back · ? help"
 	default:
 		keys = "↑↓ move · enter choose · q quit · ? help"
 	}
@@ -643,6 +669,7 @@ const (
 	FrameHelp      = "help"
 	FrameChangelog = "changelog"
 	FrameDoctor    = "doctor"
+	FrameKeys      = "keys"
 	FrameSplash    = "splash"
 )
 
@@ -706,6 +733,8 @@ func Frame(o Options, width, height int, view string) string {
 			p.OK("ready: td opens the launcher, td host starts a game")
 			m.sess.setDoctor(strings.Split(strings.TrimRight(b.String(), "\n"), "\n"), true)
 		}
+	case FrameKeys:
+		m.screen = screenKeys
 	case FrameSplash:
 		at := o.SplashAt
 		if at <= 0 {
