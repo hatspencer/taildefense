@@ -43,7 +43,8 @@ usage:
   td bench [--wave N] [--players P] [--seconds S] [--seed S]
                                  a late, busy wave (12, 4 players) timed: sim, encode, relay
   td install [-f]                install this binary to ~/.taildefense, linked from ~/.local/bin
-  td update [-f] [-b BRANCH]     clone, build in a container, reinstall
+  td update [-f] [-b BRANCH] [-c COMMIT]
+                                 clone, build in a container, reinstall
   td version [--offline] [--json]  this build, its source, whether an update waits
 
 flags:
@@ -67,7 +68,10 @@ flags:
 
 update flags:
   -f, --force      reinstall from main even when up to date, forgetting a followed branch
+                   or a pin
   -b, --branch B   install branch B and keep following it
+  -c, --commit C   install commit C of main (7 to 40 hex digits) and stay pinned to it:
+                   no autoupdate, and a plain td update leaves it; -f returns to main
 `
 
 type opts struct {

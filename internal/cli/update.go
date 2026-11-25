@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -25,11 +26,14 @@ type UpdateOptions struct {
 	// Branch is the -b value; BranchSet tells "-b main" from no -b at all.
 	Branch    string
 	BranchSet bool
+	// Commit is the -c value in lower case: a commit of main to install and pin to, "" for none.
+	Commit string
 }
 
-// ParseUpdateArgs reads `update`'s arguments: -f/--force and -b/--branch NAME.
+// ParseUpdateArgs reads `update`'s arguments: -f/--force, -b/--branch NAME and -c/--commit HASH.
 func ParseUpdateArgs(args []string) (UpdateOptions, error) {
 	var o UpdateOptions
+	commitSet := false
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
@@ -43,8 +47,25 @@ func ParseUpdateArgs(args []string) (UpdateOptions, error) {
 			o.Branch, o.BranchSet = args[i], true
 		case strings.HasPrefix(a, "--branch="):
 			o.Branch, o.BranchSet = strings.TrimPrefix(a, "--branch="), true
+		case a == "-c" || a == "--commit":
+			if i+1 >= len(args) || strings.HasPrefix(args[i+1], "-") {
+				return o, fmt.Errorf("%s needs a commit hash", a)
+			}
+			i++
+			o.Commit, commitSet = args[i], true
+		case strings.HasPrefix(a, "--commit="):
+			o.Commit, commitSet = strings.TrimPrefix(a, "--commit="), true
 		default:
 			return o, fmt.Errorf("unknown argument %q  (try: td help)", a)
+		}
+	}
+	if commitSet {
+		o.Commit = strings.ToLower(strings.TrimSpace(o.Commit))
+		if !install.IsCommitHash(o.Commit) {
+			return o, fmt.Errorf("%q is not a commit hash: give 7 to 40 hex digits of one of main's commits", o.Commit)
+		}
+		if o.BranchSet {
+			return o, fmt.Errorf("-c and -b do not go together: -c names a commit of main")
 		}
 	}
 	if o.BranchSet {
@@ -59,17 +80,95 @@ func ParseUpdateArgs(args []string) (UpdateOptions, error) {
 	return o, nil
 }
 
-// updateTarget picks the branch to clone and whether to reinstall regardless: -b names a
-// branch and always reinstalls, -f returns to main and reinstalls, neither follows the record.
-func updateTarget(o UpdateOptions, recorded string) (branch string, force bool) {
+// target is what an update builds: a branch's tip, or a commit of main to pin the install to.
+type target struct {
+	Branch string // "" is main
+	Commit string // a commit of main, as given or as pinned; "" builds the branch's tip
+	Force  bool   // reinstall even when the build is already installed
+}
+
+// updateTarget picks what to clone and whether to reinstall regardless: -c names a commit and
+// -b a branch, and both always reinstall; -f returns to main and reinstalls; none of them
+// follows the record, which is the pinned commit when there is one, the followed branch
+// otherwise. Every flag leaves a pin behind except -c, which moves it.
+func updateTarget(o UpdateOptions, recorded, pinned string) target {
 	switch {
+	case o.Commit != "":
+		return target{Commit: o.Commit, Force: true}
 	case o.BranchSet:
-		return o.Branch, true
+		return target{Branch: o.Branch, Force: true}
 	case o.Force:
-		return "", true
+		return target{Force: true}
+	case pinned != "":
+		return target{Commit: pinned}
 	default:
-		return recorded, false
+		return target{Branch: recorded}
 	}
+}
+
+// pinHolds reports whether a plain update has nothing to do because the install is the
+// commit it is pinned to. It needs no network, so a pinned td says so at once.
+func pinHolds(t target, installed string) bool {
+	return t.Commit != "" && !t.Force && version.MatchesVersion(installed, t.Commit)
+}
+
+// gitError is a git command that failed: its exit code and what it said.
+type gitError struct {
+	code   int
+	stderr string
+}
+
+func (e *gitError) Error() string {
+	if e.stderr != "" {
+		return lastLine(e.stderr)
+	}
+	return fmt.Sprintf("git exited with %d", e.code)
+}
+
+// gitIn runs git in dir for its output, a failure as a *gitError when git ran at all.
+func gitIn(dir string) func(args ...string) (string, error) {
+	return func(args ...string) (string, error) {
+		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		cmd.Env = gitEnv()
+		var stderr strings.Builder
+		cmd.Stderr = &stderr
+		out, err := cmd.Output()
+		if ee, ok := err.(*exec.ExitError); ok {
+			return "", &gitError{code: ee.ExitCode(), stderr: strings.TrimSpace(stderr.String())}
+		}
+		return strings.TrimSpace(string(out)), err
+	}
+}
+
+// resolveCommit turns the hash given to -c into the full hash of a commit of main, in a
+// clone of main's history whose HEAD is main's tip. Anything else fails here, before a build.
+func resolveCommit(git func(args ...string) (string, error), commit string) (string, error) {
+	full, err := git("rev-parse", "--verify", commit+"^{commit}")
+	if err != nil {
+		var ge *gitError
+		if errors.As(err, &ge) && strings.Contains(ge.stderr, "ambiguous") {
+			return "", fmt.Errorf("%s is ambiguous: more than one commit starts with it; give more of the hash", commit)
+		}
+		if errors.As(err, &ge) {
+			return "", fmt.Errorf("%s is not a commit on %s", commit, install.DefaultBranch)
+		}
+		return "", err
+	}
+	if _, err := git("merge-base", "--is-ancestor", full, "HEAD"); err != nil {
+		var ge *gitError
+		if errors.As(err, &ge) && ge.code == 1 {
+			return "", fmt.Errorf("%s is not a commit on %s", commit, install.DefaultBranch)
+		}
+		return "", err
+	}
+	return full, nil
+}
+
+// knowsPins reports whether the tree in dir is a td that reads the pin. One from before pins
+// would let its launcher autoupdate it back to main's tip.
+func knowsPins(dir string) bool {
+	b, err := os.ReadFile(filepath.Join(dir, "internal", "install", "install.go"))
+	return err == nil && strings.Contains(string(b), install.EnvInstallPin)
 }
 
 // Update is `td update`: shallow-clone the recorded origin, build the clone with its
@@ -79,6 +178,20 @@ func Update(w io.Writer, o UpdateOptions) int {
 	p := ui.New(w)
 	p.Banner("")
 	p.Step("update")
+	paths, err := install.Resolve()
+	if err != nil {
+		p.Fail("%v", err)
+		return 1
+	}
+	recorded, pinned := paths.Branch(), paths.Pin()
+	t := updateTarget(o, recorded, pinned)
+	branch, force := t.Branch, t.Force
+	source := install.SourceName(branch)
+	if pinHolds(t, version.Current()) {
+		p.OK("pinned to %s, which is installed: no update moves it", ui.StyleCyan.Render(short(pinned)))
+		p.Note("another commit: td update -c COMMIT   ·   back to main: td update -f")
+		return 0
+	}
 	if _, err := exec.LookPath("git"); err != nil {
 		p.Fail("git is not installed; td update clones with it")
 		return 1
@@ -88,15 +201,17 @@ func Update(w io.Writer, o UpdateOptions) int {
 		p.Fail("%v", err)
 		return 1
 	}
-	paths, err := install.Resolve()
-	if err != nil {
-		p.Fail("%v", err)
-		return 1
-	}
-	recorded := paths.Branch()
-	branch, force := updateTarget(o, recorded)
-	source := install.SourceName(branch)
 	switch {
+	case t.Commit != "" && pinned != "" && !SameCommit(t.Commit, pinned):
+		p.Info("commit  %s on %s  %s", ui.StyleYellow.Render(short(t.Commit)), source, ui.StyleDim.Render("(moving the pin from "+short(pinned)+")"))
+	case t.Commit != "" && pinned != "":
+		p.Info("commit  %s on %s  %s", ui.StyleYellow.Render(short(t.Commit)), source, ui.StyleDim.Render("(pinned)"))
+	case t.Commit != "" && recorded != "":
+		p.Info("commit  %s on %s  %s", ui.StyleYellow.Render(short(t.Commit)), source, ui.StyleDim.Render("(leaving "+recorded+")"))
+	case t.Commit != "":
+		p.Info("commit  %s on %s", ui.StyleYellow.Render(short(t.Commit)), source)
+	case pinned != "":
+		p.Info("branch  %s  %s", ui.StyleBold.Render(source), ui.StyleDim.Render("(leaving the pin on "+short(pinned)+")"))
 	case branch != "" && branch == recorded:
 		p.Info("branch  %s  %s", ui.StyleYellow.Render(branch), ui.StyleDim.Render("(following)"))
 	case branch != "":
@@ -144,11 +259,19 @@ func Update(w io.Writer, o UpdateOptions) int {
 		return true
 	}
 
-	prog := ui.StartProgress("fetching " + repo)
+	label := "fetching " + repo
 	cloneArgs := []string{"clone", "--quiet", "--depth", "1"}
-	if branch != "" {
+	if t.Commit != "" {
+		// An older commit needs main's history to be found by a short hash and checked against
+		// main. Without blobs it costs commits and trees only; the checkout fetches the files
+		// of the one commit built. Only -c pays for it: an ordinary update stays one commit deep.
+		label = "fetching " + source + "'s history from " + repo
+		cloneArgs = []string{"clone", "--quiet", "--filter=blob:none", "--no-checkout",
+			"--single-branch", "--branch", install.DefaultBranch}
+	} else if branch != "" {
 		cloneArgs = append(cloneArgs, "--branch", branch)
 	}
+	prog := ui.StartProgress(label)
 	clone := exec.Command("git", append(cloneArgs, repo, tmp)...)
 	clone.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
 	var cloneErr strings.Builder
@@ -165,6 +288,31 @@ func Update(w io.Writer, o UpdateOptions) int {
 		}
 		return 1
 	}
+	pin := ""
+	if t.Commit != "" {
+		if pin, err = resolveCommit(gitIn(tmp), t.Commit); err != nil {
+			p.Fail("%v", err)
+			p.Detail("td update -c takes a commit of %s; td's changelog lists the latest", source)
+			return 1
+		}
+		prog = ui.StartProgress("checking out " + short(pin))
+		checkout := exec.Command("git", "-C", tmp, "checkout", "--quiet", "--detach", pin)
+		checkout.Env = gitEnv()
+		var checkoutErr strings.Builder
+		checkout.Stderr = &checkoutErr
+		err = intr.run(group(checkout))
+		prog.Stop()
+		if interrupted() {
+			return 130
+		}
+		if err != nil {
+			p.Fail("could not check out %s: %v", short(pin), err)
+			if d := strings.TrimSpace(checkoutErr.String()); d != "" {
+				p.Detail("%s", d)
+			}
+			return 1
+		}
+	}
 	head, err := exec.Command("git", "-C", tmp, "rev-parse", "--short", "HEAD").Output()
 	if err != nil {
 		p.Fail("%v", err)
@@ -174,7 +322,9 @@ func Update(w io.Writer, o UpdateOptions) int {
 
 	if !force && version.Matches(remote) {
 		p.OK("already up to date with %s (%s)", source, ui.StyleCyan.Render(version.Current()))
-		if branch != "" {
+		if t.Commit != "" {
+			p.Note("pinned to %s   ·   back to main: td update -f", short(remote))
+		} else if branch != "" {
 			p.Note("reinstall with: td update -b %s   ·   back to main: td update -f", branch)
 		} else {
 			p.Note("reinstall with: td update -f")
@@ -213,6 +363,7 @@ func Update(w io.Writer, o UpdateOptions) int {
 	inst.Env = append(os.Environ(),
 		install.EnvInstallVersion+"="+remote,
 		install.EnvInstallBranch+"="+branch,
+		install.EnvInstallPin+"="+pin,
 		ui.EnvNoBanner+"=1")
 	if err := intr.run(inst); err != nil {
 		if interrupted() {
@@ -221,10 +372,21 @@ func Update(w io.Writer, o UpdateOptions) int {
 		p.Fail("the installer failed; the previous version is still in place: %v", err)
 		return 1
 	}
+	// Recorded here as well as by the installer: a commit from before pins installs with an
+	// installer that knows nothing of them, and would leave a stale pin or none at all.
+	if err := paths.RecordPin(pin); err != nil {
+		p.Warn("could not record the pin: %v", err)
+	}
 	news := readNews(tmp, installed, remote)
 	printNews(p, news, source)
 	saveNews(news, source)
-	if branch != "" {
+	switch {
+	case pin != "" && !knowsPins(tmp):
+		p.Warn("%s is older than pinning: its launcher autoupdates to main's tip, and its td update goes there", short(pin))
+		p.Detail("to stay on it, turn autoupdate off with: td config autoupdate off, and run no plain td update")
+	case pin != "":
+		p.Note("pinned to %s: the launcher leaves it there and a plain td update stays; back to main: td update -f", short(pin))
+	case branch != "":
 		p.Note("following %s: a plain td update stays on it, td update -f returns to main", branch)
 	}
 	return 0

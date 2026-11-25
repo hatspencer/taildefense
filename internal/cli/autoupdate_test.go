@@ -70,6 +70,37 @@ func TestABranchIsNeverUpdated(t *testing.T) {
 	}
 }
 
+func TestAPinnedInstallIsNeverUpdatedNorAskedAbout(t *testing.T) {
+	u, _, asked := fakeUpdater(t, "aaaaaaa", "bbbbbbbbbbbbbbbb")
+	// A launcher that checked before the pin cached "behind" for this version.
+	if s := u.Check(); s.State != UpdateBehind {
+		t.Fatalf("got %+v", s)
+	}
+	pin := "aaaaaaa111111111111111111111111111111111"
+	u.pin = func() string { return pin }
+	s := u.Check()
+	if s.State != UpdatePinned || s.Pin != pin || s.Text() != "pinned to aaaaaaa" {
+		t.Errorf("got %+v %q", s, s.Text())
+	}
+	if *asked != 1 {
+		t.Errorf("a pinned install asked the remote: %d", *asked)
+	}
+	if u.ShouldStart(s) {
+		t.Error("started an update of a pinned install")
+	}
+	behind := SelfUpdate{State: UpdateBehind, Version: "aaaaaaa", Remote: "bbbbbbbbbbbbbbbb"}
+	if u.ShouldStart(behind) {
+		t.Error("a state from before the pin started an update")
+	}
+	if news, how := u.outdated(time.Second); news != "" || how != "" {
+		t.Errorf("a pinned td is not out of date: %q %q", news, how)
+	}
+	u.pin = func() string { return "" }
+	if s := u.Check(); s.State != UpdateBehind {
+		t.Errorf("unpinned, the install is behind again: %+v", s)
+	}
+}
+
 func TestStartBacksOffAndHonoursThePreference(t *testing.T) {
 	u, now, _ := fakeUpdater(t, "aaaaaaa", "bbbbbbbbbb")
 	s := u.Check()
