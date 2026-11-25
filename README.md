@@ -40,14 +40,15 @@ WebGL 2 where WebGPU isn't available. Any current Chrome, Edge, Firefox or Safar
 
 | command | what it does |
 |---|---|
-| `td` | launcher: host (←/→ picks the difficulty, w the game's length, f turns fog of war on or off, m the mode (standard, or blades: no guns), y copies the join command for your friends), join (lists the games on your tailnet), settings, a changelog of the latest commits with yours marked, the doctor's checks, update status. It opens with a short splash (any key skips it, `--no-splash` or `--no-anim` turns it off) |
+| `td` | launcher: host (←/→ picks the difficulty, w the game's length, f turns fog of war on or off, m the mode (standard, or blades: no guns), y copies the join command for your friends), join (lists the games on your tailnet), settings, the game's keys, a changelog of the latest commits with yours marked, the doctor's checks, update status. It opens with a short splash (any key skips it, `--no-splash` or `--no-anim` turns it off) |
 | `td host [--port N] [--seed S] [--name NAME] [--difficulty D] [--waves W] [--mode M] [--bots N]` | host a game and play it in the browser; `--bots N` brings up to 3 bots to play beside you (also for `td` and `td serve`) |
 | `td join HOST[:PORT] [--name NAME]` | join a game by tailnet name or address |
 | `td serve [--port N] [--seed S] [--difficulty D] [--waves W] [--mode M] [--bots N]` | headless dedicated host; logs to stdout until interrupted |
 | `td ls [--json] [--port N]` | games running on your tailnet, with ping and direct or relayed path |
 | `td bench [--wave N] [--players P] [--seconds S] [--seed S]` | time a busy wave offline: simulation, encoding, relay |
-| `td frame [--width W] [--height H] [--view menu\|join\|settings\|changelog\|doctor\|help\|splash] [--at S]` | render one launcher frame from demo data, 160×48 unless told otherwise; `--at` is seconds into the splash |
+| `td frame [--width W] [--height H] [--view menu\|join\|settings\|keys\|changelog\|doctor\|help\|splash] [--at S]` | render one launcher frame from demo data, 160×48 unless told otherwise; `--at` is seconds into the splash |
 | `td doctor` | check tailscale, the browser, container engine, install |
+| `td keys` | the game's keys and what each does, the table the launcher's Keys shows |
 | `td config [KEY [VALUE]]` | show or change settings: NAME, PORT, DIFFICULTY, FOG, WAVES, MODE, VOLUME, MUSIC, RETICLE, RETICLE_SIZE, BROWSER, AUTOUPDATE; `td config KEY --reset` returns one to its default |
 | `td update [-f] [-b BRANCH]` | rebuild from the repo's main (or a branch) and reinstall |
 | `td install [-f]` | install this build |
@@ -109,7 +110,7 @@ faces, however the camera is turned, and the camera follows while you walk.
 | X | while placing the catapult pit, turn it an eighth of a turn: it throws the way it faces, and the next one faces the same way |
 | H twice | between waves: rebuild every destroyed building (its ghost stays where it stood) and repair everything damaged; the first press shows the cost |
 | left-click | select a building, creep or player |
-| U / Delete twice | upgrade / sell the selected structure (a wall or gate gets 60% more HP a level); a turret upgrades a track at a time from its card |
+| U / Delete (or Backspace) twice | upgrade / sell the selected structure (a wall or gate gets 60% more HP a level); a turret upgrades a track at a time from its card |
 | C | armory: weapons, upgrade tracks, gear, abilities (you have to be standing by it) |
 | Y | ready for the next wave |
 | T | the next turret: selects it (its upgrade and sell card shows) and looks at it; again for the one after |
@@ -124,6 +125,9 @@ faces, however the camera is turned, and the camera follows while you walk.
 | Enter | chat with the team; in the chat, Tab adds where you are ("NE of the base, 40 m") |
 | Tab, F1 (or ?), F3, F4 | scoreboard (everyone's gold, kills and kit; give a teammate gold), help, performance readout, the pixel view on or off |
 | Esc, F10 | cancel the current mode or window, else the menu |
+
+The same keys, shorter, are under Keys in the launcher and printed by `td keys`; both come from
+one table in `internal/cli/keys.go`, kept with this one.
 
 
 The rest of the player's guide (loot sites, the dead and their kinds, bosses, weapons'

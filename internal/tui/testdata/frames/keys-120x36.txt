@@ -1,0 +1,36 @@
+  TAIL DEFENSE  the game's keys, in the browser · td keys prints them
+
+  moving    W A S D          walk, the way the view faces
+            Space hold       sprint, while stamina (the blue bar) lasts
+            E twice          walk to the nearest loot site in sight
+            N twice          walk back to the generator
+            right-click map  walk there, on the big map or the minimap
+  fighting  Q                the weapon's ultimate, once its meter is full
+            Shift            grenade: aim, then left-click; Esc puts it away
+            F                dash at the cursor; a blade's weapon art
+            V                airstrike at the cursor
+            R                reload now
+            1                medkit: heals over a few seconds
+            2-7              pistol, shotgun, SMG, rifle, minigun, launcher
+            0 8 9            crowbar, katana, greatsword, once you have them
+            right-click      on a creep: focus fire on it
+            J                taunt: every creep nearby comes for you
+  using     E                revive, pick up, search, repair, shop or board
+            G hold           drop the weapon in hand for a teammate
+            C                armory: weapons, gear, abilities
+  building  B                build bar: 1-0 and [ pick what to place
+            left-click       place; or select a building, creep or player
+            X                turn the catapult pit being placed
+            U                upgrade the selected structure
+            Delete twice     sell the selected structure (Backspace too)
+            H twice          rebuild what fell and repair the rest
+            T                select and look at the next turret
+            Y                ready for the next wave
+  camera    wheel            zoom
+            middle-drag      rotate the view
+            Alt+wheel        rotate the view
+            arrows, edges    look around; walking brings the view back
+            Space tap        back to your hero; twice locks the view to it
+            N hold           look at the generator
+  1–32 of 45
+  ↑↓ pgup pgdn scroll · esc back · ? help

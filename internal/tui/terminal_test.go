@@ -107,6 +107,7 @@ func TestTheWindowTitleNamesTheScreen(t *testing.T) {
 		{func() { m.screen = screenSettings }, "td · settings"},
 		{func() { m.screen = screenChangelog }, "td · changelog"},
 		{func() { m.screen = screenDoctor }, "td · doctor"},
+		{func() { m.screen = screenKeys }, "td · game keys"},
 		{func() { m.help = true }, "td · keys"},
 	} {
 		c.set()

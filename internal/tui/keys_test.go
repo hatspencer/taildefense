@@ -68,6 +68,27 @@ func TestEnterChoosesWhateverIsHeldWithIt(t *testing.T) {
 	}
 }
 
+// Keys on the menu opens the game's keys; esc and q come back, and nothing there quits.
+func TestKeysOpensAndEscComesBack(t *testing.T) {
+	for _, back := range []tea.KeyPressMsg{keyEsc, typed('q')} {
+		m := menuModel(t)
+		for m.menu()[m.cursor] != itemKeys {
+			send(m, keyTab)
+		}
+		send(m, keyEnter)
+		if m.screen != screenKeys {
+			t.Fatalf("enter on Keys: screen %v", m.screen)
+		}
+		send(m, typed('j'))
+		if m.kscroll != 1 {
+			t.Errorf("j: scroll %d, want 1", m.kscroll)
+		}
+		if cmd := send(m, back); quits(cmd) || m.screen != screenMenu {
+			t.Errorf("%s on keys: screen %v, quit %v", back.String(), m.screen, quits(cmd))
+		}
+	}
+}
+
 func TestTabMovesAndShiftTabDoesNot(t *testing.T) {
 	m := menuModel(t)
 	send(m, keyTab)

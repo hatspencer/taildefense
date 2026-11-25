@@ -19,7 +19,7 @@ import (
 func TestGoldenFrames(t *testing.T) {
 	isolate(t)
 	update := os.Getenv("TD_GOLDEN") == "update"
-	views := []string{FrameMenu, FrameJoin, FrameSettings, FrameChangelog, FrameDoctor, FrameHelp, FrameSplash}
+	views := []string{FrameMenu, FrameJoin, FrameSettings, FrameChangelog, FrameDoctor, FrameKeys, FrameHelp, FrameSplash}
 	for _, view := range views {
 		for _, size := range [][2]int{{80, 24}, {120, 36}} {
 			name := fmt.Sprintf("%s-%dx%d.txt", view, size[0], size[1])

@@ -13,12 +13,12 @@
       ←/→ difficulty · w waves · f fog · m mode · y copies: td join box
     Join a game
     Settings
+    Keys
     Changelog
     Doctor
     Screenshots
     Restart into the new td
     Quit
-
 
 
 

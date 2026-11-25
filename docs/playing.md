@@ -1,7 +1,8 @@
 # Playing
 
 The player's guide: what is out there, what comes for you and how a game runs. The keys are in
-the README; `docs/game-design.md` says why things work the way they do.
+the README, and in the terminal too: `td keys` prints them, and Keys in the launcher shows them;
+in the game F1 lists them. `docs/game-design.md` says why things work the way they do.
 
 ## Sound
 

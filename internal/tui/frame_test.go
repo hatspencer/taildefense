@@ -27,7 +27,7 @@ func isolate(t *testing.T) {
 
 func TestEveryScreenFitsTheWindow(t *testing.T) {
 	isolate(t)
-	for _, view := range []string{FrameMenu, FrameJoin, FrameSettings, FrameChangelog, FrameDoctor, FrameHelp, FrameSplash} {
+	for _, view := range []string{FrameMenu, FrameJoin, FrameSettings, FrameChangelog, FrameDoctor, FrameKeys, FrameHelp, FrameSplash} {
 		for _, size := range [][2]int{{80, 24}, {160, 48}, {80, 12}, {40, 20}} {
 			out := Frame(Options{}, size[0], size[1], view)
 			lines := strings.Split(out, "\n")
@@ -80,6 +80,19 @@ func TestFramesSayWhatMatters(t *testing.T) {
 		if !strings.Contains(doc, want) {
 			t.Errorf("doctor lacks %q:\n%s", want, doc)
 		}
+	}
+	keys := ansi.Strip(Frame(Options{}, 80, 24, FrameKeys))
+	for _, want := range []string{"the game's keys", "moving", "W A S D", "walk, the way the view faces", "of ", "esc back"} {
+		if !strings.Contains(keys, want) {
+			t.Errorf("keys lacks %q:\n%s", want, keys)
+		}
+	}
+	// Scrolled to the end, the last binding shows.
+	km := newModel(Options{Session: NewSession(nil), NoSplash: true})
+	km.width, km.height, km.screen, km.kscroll = 80, 24, screenKeys, 1000
+	last := cli.GameKeys[len(cli.GameKeys)-1]
+	if got := ansi.Strip(km.frame()); !strings.Contains(got, last.Does) {
+		t.Errorf("scrolled to the end, keys lacks %q:\n%s", last.Does, got)
 	}
 	set := ansi.Strip(Frame(Options{}, 80, 24, FrameSettings))
 	for _, want := range []string{"name", "tester", "port", "7787", "browser", "autoupdate"} {
