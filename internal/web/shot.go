@@ -44,9 +44,10 @@ func OpenScreenshots() (string, error) {
 	return dir, platform.OpenURL(dir)
 }
 
-// saveShot takes the page's PNG of the final scoreboard and keeps it. Like the socket it wants
-// the token and this server's origin, so no other page can fill the disk.
-func saveShot(token string, origins map[string]bool) http.HandlerFunc {
+// saveShot takes the page's PNG of the final scoreboard and keeps it, then hands it to keep
+// when that is set. Like the socket it wants the token and this server's origin, so no other
+// page can fill the disk.
+func saveShot(token string, origins map[string]bool, keep func([]byte, int)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if subtle.ConstantTimeCompare([]byte(r.URL.Query().Get("token")), []byte(token)) != 1 {
 			http.Error(w, "wrong token", http.StatusForbidden)
@@ -78,6 +79,10 @@ func saveShot(token string, origins map[string]bool) http.HandlerFunc {
 		if err := os.WriteFile(path, img, 0o644); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
+		}
+		if keep != nil {
+			// img is this request's own, read fresh above and never reused.
+			keep(img, max(wave, 0))
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{"path": tildePath(path)})

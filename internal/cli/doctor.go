@@ -13,6 +13,7 @@ import (
 	"taildefense/internal/install"
 	"taildefense/internal/netplay"
 	"taildefense/internal/platform"
+	"taildefense/internal/slack"
 	"taildefense/internal/tailnet"
 	"taildefense/internal/ui"
 	"taildefense/internal/version"
@@ -38,6 +39,7 @@ func DoctorReport(p *ui.Printer) int {
 	}
 	checkBrowser(p)
 	checkUpdates(p)
+	checkSlack(p, config.Load())
 	p.Plain("")
 	if n := p.Failures(); n > 0 {
 		p.Fail("%s to fix before friends can join: games are this machine only until then", plural(n, "thing"))
@@ -222,6 +224,37 @@ func checkUpdates(p *ui.Printer) {
 		p.Warn("preferences: %v", prefs.Err)
 	}
 	p.Info("updates: td says when a newer one is out; td update installs it")
+}
+
+// newSlackClient is the client td doctor checks the token with, a variable so tests point it
+// at a stand-in for Slack.
+var newSlackClient = func(token string) *slack.Client { return &slack.Client{Token: token} }
+
+// checkSlack asks Slack who the token is, when one is set. Slack is optional, so anything wrong
+// is a warning; with neither setting there is nothing to say.
+func checkSlack(p *ui.Printer, prefs *config.Prefs) {
+	token, channel, on := prefs.Slack()
+	switch {
+	case token == "" && channel == "":
+		return
+	case !on && token == "":
+		p.Warn("slack: a channel is set but no token, so nothing is announced; td config slack_token xoxb-…")
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), slackDoctorTimeout)
+	defer cancel()
+	team, user, err := newSlackClient(token).Whoami(ctx)
+	switch {
+	case err != nil:
+		p.Warn("slack: %s", oneLine(err.Error()))
+		if !on {
+			p.Detail("and no channel is set: td config slack_channel C0123ABCD")
+		}
+	case !on:
+		p.Warn("slack: %s as %s, but no channel is set, so nothing is announced; td config slack_channel C0123ABCD", team, user)
+	default:
+		p.Pass("slack: %s as %s, announcing in %s", team, user, channel)
+	}
 }
 
 func orDash(s string) string {

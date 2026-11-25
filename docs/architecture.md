@@ -146,5 +146,11 @@ Browser                   local td (web.Session)               host td (netplay.
   read" rather than ending `td`. `FuzzClientDecoders` is seeded with such frames.
 - **The launcher is Bubble Tea.** It hosts, finds games and holds settings, then opens the browser
   and shows the game's status until it ends.
+- **Slack is off to the side.** `cli.Slack` (`internal/cli/slack.go`) announces a hosted game
+  from `cli.StartHost` and replies in its thread at each game's end: with the PNG the host's page
+  POSTs to `/shot` (`web.Options.KeepShot`), or for `td serve` with text built from the
+  `netplay.ServerConfig.GameOver` hook, which the tick calls once on the turn into the game's
+  end and which only reads the world. Every Slack call is queued for one goroutine of its own,
+  in order, each with a timeout, so neither the tick nor the page ever waits on Slack.
 - **No tsnet.** The game uses the Tailscale already installed on the machine, so your identity
   and ACLs are the ones you already have.

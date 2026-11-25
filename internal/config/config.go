@@ -1,6 +1,7 @@
 // Package config is what td remembers about a player between runs: the name shown to the
 // others, the port games are hosted and looked for on, how the games they host are set up,
-// sound, the reticle and the browser that opens the game.
+// sound, the reticle, the browser that opens the game and the Slack channel the games they host
+// are announced in.
 //
 // One table of keys drives showing, reading and writing them, so `td config`, the launcher's
 // settings screen and the code that reads a value can never disagree about what a key is
@@ -23,6 +24,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"taildefense/internal/game"
 	"taildefense/internal/tailnet"
@@ -36,17 +38,19 @@ const File = "prefs"
 
 // The keys, as they are written in the file and typed after `td config`.
 const (
-	KeyName        = "NAME"
-	KeyPort        = "PORT"
-	KeyBrowser     = "BROWSER"
-	KeyDifficulty  = "DIFFICULTY"
-	KeyFog         = "FOG"
-	KeyWaves       = "WAVES"
-	KeyMode        = "MODE"
-	KeyVolume      = "VOLUME"
-	KeyMusic       = "MUSIC"
-	KeyReticle     = "RETICLE"
-	KeyReticleSize = "RETICLE_SIZE"
+	KeyName         = "NAME"
+	KeyPort         = "PORT"
+	KeyBrowser      = "BROWSER"
+	KeySlackToken   = "SLACK_TOKEN"
+	KeySlackChannel = "SLACK_CHANNEL"
+	KeyDifficulty   = "DIFFICULTY"
+	KeyFog          = "FOG"
+	KeyWaves        = "WAVES"
+	KeyMode         = "MODE"
+	KeyVolume       = "VOLUME"
+	KeyMusic        = "MUSIC"
+	KeyReticle      = "RETICLE"
+	KeyReticleSize  = "RETICLE_SIZE"
 )
 
 // DefaultVolume is VOLUME with nothing set: loud enough to hear, not so loud it startles.
@@ -100,6 +104,23 @@ type Key struct {
 	Default func() string
 	// Bool marks an on/off key, which the settings screen toggles rather than edits.
 	Bool bool
+	// Secret marks a value never shown in clear: `td config` and the settings screen show it
+	// through Show, and the settings screen edits it from an empty field.
+	Secret bool
+}
+
+// Show is a value as it may be shown: itself, or for a secret key its first five characters
+// and its last four with the rest elided, xoxb-…a1b2. A secret too short to keep most of it
+// hidden that way is all stars. Nothing set stays empty, so "not set" still reads as such.
+func (k Key) Show(v string) string {
+	if !k.Secret || v == "" {
+		return v
+	}
+	r := []rune(v)
+	if len(r) < 16 {
+		return strings.Repeat("*", len(r))
+	}
+	return string(r[:5]) + "…" + string(r[len(r)-4:])
 }
 
 // Keys is every setting, in the order they are shown.
@@ -126,6 +147,10 @@ var Keys = []Key{
 		Parse: parseReticleSize, Default: func() string { return strconv.Itoa(DefaultReticleSize) }},
 	{Name: KeyBrowser, Env: "TAILDEFENSE_BROWSER", Help: "what opens the game: auto (best browser, full screen), default, chrome, firefox…, none or a command",
 		Parse: parseBrowser, Default: func() string { return BrowserAuto }},
+	{Name: KeySlackToken, Env: "TAILDEFENSE_SLACK_TOKEN", Help: "the Slack bot token (xoxb-…) that announces the games you host; empty is off",
+		Parse: parseSlackToken, Default: func() string { return "" }, Secret: true},
+	{Name: KeySlackChannel, Env: "TAILDEFENSE_SLACK_CHANNEL", Help: "the Slack channel the games you host are announced in: #name or an ID such as C0123ABCD",
+		Parse: parseSlackChannel, Default: func() string { return "" }},
 }
 
 // Lookup finds a key by name, in any case.
@@ -342,7 +367,23 @@ func (p *Prefs) ReticleSize() int {
 	return n
 }
 
-// Set validates a value and writes it to the file. It returns the normalised value.
+// SlackToken is the Slack bot token, "" when none is set.
+func (p *Prefs) SlackToken() string { return p.Get(KeySlackToken).Value }
+
+// SlackChannel is the channel hosted games are announced in, "" when none is set: an ID as
+// typed, or a name starting with #.
+func (p *Prefs) SlackChannel() string { return p.Get(KeySlackChannel).Value }
+
+// Slack is the token and the channel, and whether both are set, which announcing a game
+// needs: one without the other is not half an announcement, it is none.
+func (p *Prefs) Slack() (token, channel string, on bool) {
+	token, channel = p.SlackToken(), p.SlackChannel()
+	return token, channel, token != "" && channel != ""
+}
+
+// Set validates a value and writes it to the file. It returns the normalised value. A value
+// that normalises to nothing, which only a key whose default is nothing accepts, is taken out
+// of the file as Unset does, rather than written as a blank.
 func Set(name, raw string) (string, error) {
 	k, ok := Lookup(name)
 	if !ok {
@@ -356,7 +397,11 @@ func Set(name, raw string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	file[k.Name] = n
+	if n == "" {
+		delete(file, k.Name)
+	} else {
+		file[k.Name] = n
+	}
 	return n, writeFile(file)
 }
 
@@ -422,8 +467,9 @@ func readFile() (map[string]string, error) {
 }
 
 // writeFile writes the whole file through a temporary file and a rename: a file half written
-// by an interrupted command would be read as a broken one on every run afterwards. Mode 644,
-// nothing in it is secret.
+// by an interrupted command would be read as a broken one on every run afterwards. Mode 600,
+// because SLACK_TOKEN is a secret; a file an older td wrote 644 is tightened on its next write,
+// since the rename puts this file, mode and all, in its place.
 func writeFile(values map[string]string) error {
 	path, err := Path()
 	if err != nil {
@@ -464,7 +510,7 @@ func writeFile(values map[string]string) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	if err := os.Chmod(tmp.Name(), 0o644); err != nil {
+	if err := os.Chmod(tmp.Name(), 0o600); err != nil {
 		return err
 	}
 	return os.Rename(tmp.Name(), path)
@@ -564,6 +610,53 @@ func parseBrowser(s string) (string, error) {
 		return "", fmt.Errorf("%q is not a command", s)
 	}
 	return s, nil
+}
+
+// parseSlackToken takes a Slack bot token, or nothing for none. Only a bot token: a user
+// token (xoxp-) would post as whoever pasted it, and an app token (xapp-) cannot post at all.
+func parseSlackToken(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", nil
+	}
+	if !strings.HasPrefix(s, "xoxb-") || len(s) == len("xoxb-") || strings.IndexFunc(s, unicode.IsSpace) >= 0 {
+		return "", fmt.Errorf("not a Slack bot token: a bot token (xoxb-…) is wanted, with no spaces in it")
+	}
+	return s, nil
+}
+
+// parseSlackChannel takes a channel ID as Slack shows it (C0123ABCD), kept as typed, or a
+// channel name with or without its #, kept with it; or nothing for none.
+func parseSlackChannel(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", nil
+	}
+	if strings.IndexFunc(s, unicode.IsSpace) >= 0 {
+		return "", fmt.Errorf("%q is not a Slack channel: a channel has no spaces", s)
+	}
+	if IsChannelID(s) {
+		return s, nil
+	}
+	name := strings.TrimPrefix(s, "#")
+	if name == "" || strings.Contains(name, "#") {
+		return "", fmt.Errorf("%q is not a Slack channel: #name or an ID such as C0123ABCD", s)
+	}
+	return "#" + name, nil
+}
+
+// IsChannelID is whether s reads as a Slack conversation ID: C for a channel, G for a private
+// one, D for a direct message, then upper-case letters and digits, nine or more in all.
+func IsChannelID(s string) bool {
+	if len(s) < 9 || !strings.ContainsRune("CGD", rune(s[0])) {
+		return false
+	}
+	for _, r := range s {
+		if (r < 'A' || r > 'Z') && (r < '0' || r > '9') {
+			return false
+		}
+	}
+	return true
 }
 
 // parseVolume takes 0 to 100, with or without a %, and off and on for 0 and the default.

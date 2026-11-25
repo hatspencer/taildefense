@@ -11,19 +11,27 @@ import (
 	"time"
 
 	"taildefense/internal/config"
+	"taildefense/internal/netplay"
 	"taildefense/internal/ui"
 )
 
 // Serve runs a dedicated host with no player of its own until SIGINT or SIGTERM: a game that
 // keeps going on an always-on machine while people come and go. Every event is one line, so
-// the output reads the same in a terminal, a log file or journalctl.
-func Serve(w io.Writer, o HostOptions) int {
+// the output reads the same in a terminal, a log file or journalctl. With Slack on in prefs the
+// game is announced, and each game's end is a line of text in the announcement's thread, as
+// there is no page to draw the scoreboard.
+func Serve(w io.Writer, o HostOptions, prefs *config.Prefs) int {
 	p := ui.New(w)
 	if !ui.BannerSuppressed() {
 		p.Step("td serve")
 	}
 	log := func(format string, a ...any) {
 		p.Plain("  %s %s", ui.StyleDim.Render(time.Now().Format("15:04:05")), oneLine(fmt.Sprintf(format, a...)))
+	}
+	o.Slack = NewSlack(prefs, log)
+	defer o.Slack.Close() // after srv.Close, which runs first, so a last game over is queued
+	if o.Slack != nil {
+		o.GameOver = func(e netplay.GameEnd) { o.Slack.Over(GameOverText(e)) }
 	}
 	srv, plan, err := StartHost(context.Background(), o, log)
 	for _, n := range plan.Notes {

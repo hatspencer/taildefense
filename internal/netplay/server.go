@@ -71,6 +71,20 @@ type ServerConfig struct {
 	Bots int
 	// NoUDP keeps every frame on TCP: no UDP socket, no offer (see udp.go). EnvNoUDP does too.
 	NoUDP bool
+	// GameOver is told how a game ended, once per game: when it ends, and again for each game
+	// after a restart. It runs on the tick goroutine, so it must return at once; nil discards.
+	GameOver func(GameEnd)
+}
+
+// GameEnd is how a game ended, as far as the world says cheaply: for a line in Slack.
+type GameEnd struct {
+	Wave     int      // the waves held out (World.Best)
+	LastWave int      // the wave that calls the evac; 0 endless
+	Kills    uint32   // every survivor's kills together
+	Players  []string // everyone who played it, bots included, in the order they joined
+	Bots     int      // how many of Players are bots
+	Evac     bool     // it ended with the Huey leaving, not with the generator falling
+	Aboard   int      // how many rode out with the Huey
 }
 
 // Server is a running host.
@@ -95,6 +109,8 @@ type Server struct {
 	// their stats.
 	lastTick, lastStats time.Time
 	tickGap             Window
+	// overTold is whether this game's end went to cfg.GameOver; a restart clears it.
+	overTold bool
 
 	// Frames over UDP (udp.go): a socket per listener (nil where there is none), what they
 	// read, the players by token, and what numbers the frames: the seq of this tick's, the
@@ -952,6 +968,7 @@ func (s *Server) restart(same bool) {
 	s.world = nw
 	// Nothing sent about the old map is a base for the new one: every peer gets a key frame.
 	s.enc = Encoder{}
+	s.overTold = false
 	s.epoch++
 	s.hist = nil
 	for _, p := range s.peers {
@@ -984,6 +1001,12 @@ func (s *Server) tick() {
 	w.Step()
 	for _, n := range w.Notes {
 		s.cfg.Log("%s", n.Text)
+	}
+	if w.Phase == game.PhaseOver && !s.overTold {
+		s.overTold = true
+		if s.cfg.GameOver != nil {
+			s.cfg.GameOver(s.gameEnd(w))
+		}
 	}
 	for _, t := range w.Toasts {
 		for _, p := range s.peers {
@@ -1064,6 +1087,25 @@ func (s *Server) tick() {
 	if w.Tick%game.TickRate == 0 {
 		s.publishInfo()
 	}
+}
+
+// gameEnd reads how the game in w ended. It only reads the world, so the game plays the same.
+func (s *Server) gameEnd(w *game.World) GameEnd {
+	e := GameEnd{Wave: w.Best, LastWave: w.LastWave, Kills: w.TotalKills, Evac: w.Evac.Stage == game.EvacGone}
+	bot := map[uint8]bool{}
+	for _, b := range s.bots {
+		bot[b.ID] = true
+	}
+	for _, p := range w.Players {
+		e.Players = append(e.Players, p.Name)
+		if bot[p.ID] {
+			e.Bots++
+		}
+		if p.Aboard {
+			e.Aboard++
+		}
+	}
+	return e
 }
 
 // sent notes that a player was sent this tick's frame, a keyframe if key, and queues the ack

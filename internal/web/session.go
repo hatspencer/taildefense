@@ -63,6 +63,10 @@ type Options struct {
 	Log func(format string, a ...any)
 	// Notice is shown in the page once it is up, such as that td is out of date.
 	Notice string
+	// KeepShot, when set, is handed the final scoreboard's PNG once the page's picture of it is
+	// kept on disk (shot.go), with the wave the game reached: the host posts it to Slack. It
+	// must return at once; the slice is the caller's to keep.
+	KeepShot func(png []byte, wave int)
 	// Volume is the page's sound, 0 (off) to 100, the VOLUME setting. SaveVolume, when set,
 	// keeps a volume the player chose in the page's menu, so the next game starts with it.
 	Volume     int
@@ -155,7 +159,7 @@ func Run(ctx context.Context, o Options) (Result, error) {
 	defer close(done)
 	url := fmt.Sprintf("http://127.0.0.1:%d/#%s", port, token)
 	var browsers launcher
-	srv := &http.Server{Handler: handler(token, port, conns, in, done, &browsers, url), ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{Handler: handler(token, port, conns, in, done, &browsers, url, o.KeepShot), ReadHeaderTimeout: 10 * time.Second}
 	go func() { _ = srv.Serve(ln) }()
 	defer srv.Close()
 	defer browsers.closeSoon(1500 * time.Millisecond)
@@ -688,7 +692,7 @@ func newToken() string {
 // handler serves the page and the socket. The socket wants the token from the page's URL
 // and an Origin of this server: any other page open in the browser could otherwise drive
 // the game, or read it.
-func handler(token string, port int, conns chan<- *browser, in chan<- inbound, done <-chan struct{}, browsers *launcher, url string) http.Handler {
+func handler(token string, port int, conns chan<- *browser, in chan<- inbound, done <-chan struct{}, browsers *launcher, url string, keep func([]byte, int)) http.Handler {
 	mux := http.NewServeMux()
 	// A launch link from the terminal: start the game in that browser, full screen. It needs
 	// the token too, or any page could start browsers.
@@ -714,7 +718,7 @@ func handler(token string, port int, conns chan<- *browser, in chan<- inbound, d
 		"http://127.0.0.1:" + strconv.Itoa(port): true,
 		"http://localhost:" + strconv.Itoa(port): true,
 	}
-	mux.HandleFunc("POST /shot", saveShot(token, origins))
+	mux.HandleFunc("POST /shot", saveShot(token, origins, keep))
 	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		if o := r.Header.Get("Origin"); o != "" && !origins[o] {
 			http.Error(w, "foreign origin", http.StatusForbidden)

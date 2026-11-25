@@ -245,6 +245,53 @@ func TestConfigCommandShowsGetsAndSets(t *testing.T) {
 	}
 }
 
+// The token goes into the file in clear, and out of every td config output masked.
+func TestConfigCommandMasksTheSlackToken(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(config.EnvConfigDir, dir)
+	t.Setenv("TAILDEFENSE_SLACK_TOKEN", "")
+	t.Setenv("TAILDEFENSE_SLACK_CHANNEL", "")
+	config.TailnetName = func() string { return "" }
+	const tok = "xoxb-1234567890-abcdefghijkl-a1b2"
+	const secret = "1234567890-abcdefghijkl"
+
+	var b bytes.Buffer
+	if code := Config(&b, config.Load(), []string{"slack_token", tok}); code != 0 {
+		t.Fatalf("set exit %d: %s", code, b.String())
+	}
+	if body, _ := os.ReadFile(filepath.Join(dir, config.File)); !strings.Contains(string(body), "SLACK_TOKEN="+tok) {
+		t.Errorf("file: %s", body)
+	}
+	set := b.String()
+	b.Reset()
+	if code := Config(&b, config.Load(), []string{"slack_token"}); code != 0 || strings.TrimSpace(b.String()) != "xoxb-…a1b2" {
+		t.Errorf("get: %d %q", code, b.String())
+	}
+	get := b.String()
+	b.Reset()
+	if code := Config(&b, config.Load(), nil); code != 0 {
+		t.Fatalf("show exit %d", code)
+	}
+	for name, out := range map[string]string{"set": set, "get": get, "show": b.String()} {
+		if strings.Contains(out, secret) || !strings.Contains(out, "xoxb-…a1b2") {
+			t.Errorf("%s does not mask the token:\n%s", name, out)
+		}
+	}
+	if !strings.Contains(b.String(), "slack_channel") {
+		t.Errorf("show lacks slack_channel:\n%s", b.String())
+	}
+	b.Reset()
+	if code := Config(&b, config.Load(), []string{"slack_token", "xoxp-123"}); code != 2 {
+		t.Errorf("a user token must be refused, got %d", code)
+	}
+	if code := Config(&b, config.Load(), []string{"slack_token", ""}); code != 0 {
+		t.Errorf("clear exit %d", code)
+	}
+	if v := config.Load().Get(config.KeySlackToken); v.Source != config.SourceDefault || v.Value != "" {
+		t.Errorf("after clearing: %+v", v)
+	}
+}
+
 func TestNeedsUpdate(t *testing.T) {
 	for _, c := range []struct {
 		err  error

@@ -331,7 +331,7 @@ func TestAStaleLinkIsToldToStop(t *testing.T) {
 	conns, in, done := make(chan *browser, 4), make(chan inbound, 4), make(chan struct{})
 	defer close(done)
 	var l launcher
-	srv := &http.Server{Handler: handler("secret", port, conns, in, done, &l, "http://"+addr+"/#secret")}
+	srv := &http.Server{Handler: handler("secret", port, conns, in, done, &l, "http://"+addr+"/#secret", nil)}
 	go func() { _ = srv.Serve(ln) }()
 	defer srv.Close()
 	origin := "http://" + addr
