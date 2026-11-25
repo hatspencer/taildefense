@@ -14,8 +14,7 @@ import (
 )
 
 // News is what an update says after installing: the commit subjects between the build that
-// was installed and the one that replaced it, read from the update's own clone. An update to
-// an older commit (td update -c) lists the commits it took out instead.
+// was installed and the one that replaced it, read from the update's own clone.
 //
 // The clone is shallow, so it is deepened first, blobs left out: commit messages are all this
 // needs, and a few hundred of them cost about a second. Everything here is best-effort. A
@@ -34,12 +33,9 @@ type change struct {
 }
 
 type updateNews struct {
-	From  string
-	To    string
-	Found bool
-	// Back is an update that went back, td update -c to an older commit: Changes are then the
-	// commits it took out, From's own history that To does not have.
-	Back    bool
+	From    string
+	To      string
+	Found   bool
 	Changes []change
 }
 
@@ -86,13 +82,6 @@ func readNews(dir, installed, to string) updateNews {
 		return n
 	}
 	n.Changes = parseLog(out)
-	if n.Found && len(n.Changes) == 0 {
-		// Nothing new: a reinstall of the same commit, or a step back to an older one.
-		if out, err := git("log", "--no-merges", "--format=%h%x1f%s", "HEAD.."+n.From); err == nil {
-			n.Changes = parseLog(out)
-			n.Back = len(n.Changes) > 0
-		}
-	}
 	return n
 }
 
@@ -138,8 +127,6 @@ func (n updateNews) headline(arrow, source string) string {
 	switch {
 	case n.Found && count == 0:
 		return ""
-	case n.Found && n.Back:
-		return "went back " + plural(count, "commit") + "  " + n.From + " " + arrow + " " + n.To + ", taking out"
 	case n.Found:
 		return "what's new  " + n.From + " " + arrow + " " + n.To + "  (" + plural(count, "commit") + ")"
 	case count == 0:

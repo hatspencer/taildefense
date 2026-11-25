@@ -14,7 +14,8 @@ func TestLinkIsAHyperlinkWithTheLabelVisible(t *testing.T) {
 
 	got := Link("https://ui.example/t?x=1", "Jump to kafbat")
 
-	if !strings.HasPrefix(got, "\x1b]8;;https://ui.example/t?x=1\x1b\\") || !strings.HasSuffix(got, "\x1b]8;;\x1b\\") {
+	// OSC 8, BEL-terminated as x/ansi writes it.
+	if !strings.HasPrefix(got, "\x1b]8;;https://ui.example/t?x=1\x07") || !strings.HasSuffix(got, "\x1b]8;;\x07") {
 		t.Fatalf("not an OSC 8 hyperlink: %q", got)
 	}
 	if visible := ansi.Strip(linkLabel(got)); visible != "Jump to kafbat" {
@@ -57,10 +58,10 @@ func linkLabel(s string) string {
 		if start < 0 {
 			return s
 		}
-		end := strings.Index(s[start:], "\x1b\\")
+		end := strings.Index(s[start:], "\x07")
 		if end < 0 {
 			return s
 		}
-		s = s[:start] + s[start+end+2:]
+		s = s[:start] + s[start+end+1:]
 	}
 }

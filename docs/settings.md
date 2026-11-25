@@ -103,19 +103,3 @@ clone deepened by 200 commits with blobs left out, about a second. An installed 
 find there (a dirty local build, a branch switch, an install over 200 commits old) gets the latest
 15 instead, labelled as such, rather than a guess. It is best-effort: a fetch that fails never
 fails the update. A background update writes the list to its log.
-
-`td update -c COMMIT` (or `--commit COMMIT`) builds and installs one commit of main, given as 7 to
-40 hex digits: to go back to a version that worked, or to bisect a regression by playing. It
-clones main's history without file contents (commits and trees only; the ordinary update stays
-one commit deep), and refuses a hash that is not on main, or that is too short to name one commit,
-before building anything. Going back, the list after installing is the commits it took out.
-
-The install is then pinned: `~/.taildefense/.pin` holds the commit, and a followed branch is
-forgotten. A pinned td is never autoupdated, and nothing calls it out of date; the launcher, `td
-version` and `td doctor` say "pinned to" the commit. A plain `td update` stays: it says so and
-does nothing, or rebuilds the pinned commit if something else was put in its place. `td update
--f` returns to main, `td update -b BRANCH` to a branch, and `-c` with another commit moves the
-pin. A host and its players still need the same commit, so a pinned host's players pin the same
-one. A commit from before pins existed knows nothing of the record: its launcher autoupdates
-back to main's tip unless `td config autoupdate off`, which `td update -c` says when it installs
-one.

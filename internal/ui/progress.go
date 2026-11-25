@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"taildefense/internal/platform"
 )
 
@@ -143,7 +145,7 @@ func (p *Progress) draw() {
 
 	// \r back to column zero, draw, then erase to end of line so a shorter line does
 	// not leave the tail of a longer one behind it.
-	fmt.Printf("\r%s\x1b[K", truncateVisible(line, termWidthOr(120)))
+	fmt.Print("\r" + truncateVisible(line, termWidthOr(120)) + ansi.EraseLineRight)
 }
 
 // Stop ends the progress line, clearing it so the caller's own result line takes
@@ -161,7 +163,7 @@ func (p *Progress) Stop() {
 	close(p.done)
 
 	if p.live {
-		fmt.Print("\r\x1b[K")
+		fmt.Print("\r" + ansi.EraseLineRight)
 	}
 }
 
@@ -190,7 +192,7 @@ func truncateVisible(s string, width int) string {
 	var b strings.Builder
 
 	for _, r := range s {
-		if r == '\x1b' {
+		if r == ansi.ESC {
 			inEscape = true
 			b.WriteRune(r)
 			continue
@@ -204,7 +206,7 @@ func truncateVisible(s string, width int) string {
 			continue
 		}
 		if visible >= width-1 {
-			b.WriteString("\x1b[0m")
+			b.WriteString(ansi.SGR(ansi.AttrReset))
 			return b.String()
 		}
 		b.WriteRune(r)

@@ -1,13 +1,12 @@
 package ui
 
 import (
-	"fmt"
 	"image/color"
 	"io"
 	"os"
-	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"taildefense/internal/platform"
 )
@@ -92,12 +91,14 @@ func PaintTerminal() {
 	if bg == "" {
 		return
 	}
-	var b strings.Builder
-	b.WriteString(osc(11, bg))
+	// BEL-terminated, as x/ansi writes them, rather than ST (ESC backslash): every terminal
+	// that supports these sequences at all accepts BEL, while a few older ones mishandle ST and
+	// print the backslash.
+	seq := ansi.SetBackgroundColor(bg)
 	if fg != "" {
-		b.WriteString(osc(10, fg))
+		seq += ansi.SetForegroundColor(fg)
 	}
-	fmt.Fprint(bgOut, b.String())
+	io.WriteString(bgOut, seq)
 	painted = true
 }
 
@@ -134,16 +135,8 @@ func ResetTerminal() {
 	// OSC 111 and 110 reset the background and the foreground to the terminal's configured
 	// values, rather than to a colour we would have to have remembered. Guessing white or
 	// black here would be worse than not resetting at all.
-	fmt.Fprint(bgOut, "\x1b]111\x07\x1b]110\x07")
+	io.WriteString(bgOut, ansi.ResetBackgroundColor+ansi.ResetForegroundColor)
 	painted = false
-}
-
-// osc builds one OSC colour-setting sequence, BEL-terminated.
-//
-// BEL rather than ST (ESC backslash): both are valid and every terminal that supports these
-// sequences at all accepts BEL, while a few older ones mishandle ST and print the backslash.
-func osc(code int, hex string) string {
-	return fmt.Sprintf("\x1b]%d;%s\x07", code, hex)
 }
 
 // resolve picks the side of an adaptive pair that applies. A full theme's pairs hold the same

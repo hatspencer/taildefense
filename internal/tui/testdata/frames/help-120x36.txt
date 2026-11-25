@@ -2,25 +2,25 @@
 
   Keys  any key closes
 
-  everywhere  ↑↓ k j tab    move
-              enter         choose
-              esc q         back; quit from the menu
-              ?             this help
-              u             td update now, when one waits or a host asks
-              R             restart into the new td after an update
-              ctrl+c        quit
-  host        ← →           the difficulty to host at
-              w             how long: 20, 30 or 40 waves, or endless
-              f             fog of war on or off
-              m             the mode: standard, or blades (no guns)
-              y             copy the command friends join with
-  join        r             look again now (it does every 5 s)
-              a             type an address: host, host:port or IP
-  changelog   ↑↓ pgup pgdn  scroll
-              r             read the changelog again
-  doctor      r             run the checks again
-  settings    enter         edit a setting, or flip an on/off one
-              esc           cancel an edit
+  everywhere  ↑↓ k j tab     move
+              enter          choose
+              esc q          back; quit from the menu
+              ?              this help
+              u              td update now, when one waits or a host asks
+              R              restart into the new td after an update
+              ctrl+c ctrl+z  quit; suspend to the shell (fg comes back)
+  host        ← →            the difficulty to host at
+              w              how long: 20, 30 or 40 waves, or endless
+              f              fog of war on or off
+              m              the mode: standard, or blades (no guns)
+              y              copy the command friends join with
+  join        r              look again now (it does every 5 s)
+              a              type an address: host, host:port or IP
+  changelog   ↑↓ pgup pgdn   scroll
+              r              read the changelog again
+  doctor      r              run the checks again
+  settings    enter          edit a setting, or flip an on/off one
+              esc            cancel an edit
 
 
 

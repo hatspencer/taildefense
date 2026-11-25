@@ -72,15 +72,6 @@ func Install(w io.Writer, force bool) int {
 	if branch != "" && branch != install.DefaultBranch {
 		p.OK("following branch %s", branch)
 	}
-	// Only the updater pins: any other install, a forced one included, leaves the pin behind.
-	pin := strings.TrimSpace(os.Getenv(install.EnvInstallPin))
-	if err := paths.RecordPin(pin); err != nil {
-		p.Fail("%v", err)
-		return 1
-	}
-	if pin != "" {
-		p.OK("pinned to %s", short(pin))
-	}
 	if err := paths.Link(); err != nil {
 		p.Fail("link %s: %v", tilde(paths.SymlinkPath()), err)
 		return 1
@@ -133,7 +124,6 @@ type VersionResult struct {
 	Prefix    string `json:"prefix,omitempty"`
 	Repo      string `json:"repo,omitempty"`
 	Branch    string `json:"branch"`
-	Pin       string `json:"pin,omitempty"` // the commit of main the install is pinned to
 	Head      string `json:"head,omitempty"`
 	Remote    string `json:"remote,omitempty"`
 	UpToDate  *bool  `json:"upToDate,omitempty"`
@@ -160,7 +150,6 @@ func PrintVersion(w io.Writer, o VersionOptions) int {
 		if b := paths.Branch(); b != "" {
 			res.Branch = b
 		}
-		res.Pin = paths.Pin()
 	}
 	if url, err := install.RepoURL(); err == nil {
 		res.Repo = url
@@ -203,21 +192,11 @@ func PrintVersion(w io.Writer, o VersionOptions) int {
 		rows = append(rows, [2]string{"tree HEAD", res.Head})
 	}
 	rows = append(rows, [2]string{"branch", res.Branch})
-	if res.Pin != "" {
-		rows = append(rows, [2]string{"pinned", short(res.Pin)})
-	}
 	if res.Repo != "" {
 		rows = append(rows, [2]string{"source", res.Repo})
 	}
 	p.Fields(rows)
 	switch {
-	case res.Pin != "":
-		if res.Remote != "" && !version.MatchesVersion(res.Pin, res.Remote) {
-			p.Info("pinned to %s; %s is at %s", short(res.Pin), res.Branch, short(res.Remote))
-		} else {
-			p.Info("pinned to %s", short(res.Pin))
-		}
-		p.Detail("no update moves a pinned td; back to main: td update -f")
 	case o.Offline:
 		p.Note("--offline: the remote was not asked")
 	case res.UpToDate == nil:

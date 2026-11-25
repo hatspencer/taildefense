@@ -1,5 +1,7 @@
 package ui
 
+import "github.com/charmbracelet/x/ansi"
+
 // Link renders label as a terminal hyperlink to url.
 //
 // OSC 8 is what makes a label clickable: the terminal shows the label and opens the url,
@@ -17,5 +19,5 @@ func Link(url, label string) string {
 	// The label is styled first and the link wrapped around the result, rather than the
 	// other way round, so lipgloss never sees the OSC sequence: it measures what it
 	// renders, and a url it cannot see is a url it cannot mangle.
-	return "\x1b]8;;" + url + "\x1b\\" + StyleLink.Render(label) + "\x1b]8;;\x1b\\"
+	return ansi.SetHyperlink(url) + StyleLink.Render(label) + ansi.ResetHyperlink()
 }

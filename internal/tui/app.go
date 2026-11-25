@@ -10,11 +10,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"taildefense/internal/cli"
 	"taildefense/internal/config"
@@ -157,6 +160,8 @@ type Options struct {
 	NoSplash bool
 	// SplashAt is the moment of the splash Frame draws for FrameSplash.
 	SplashAt time.Duration
+	// Context ends the launcher when it is done, as a quit; nil for none.
+	Context context.Context
 }
 
 type screen int
@@ -233,6 +238,10 @@ type Model struct {
 
 	ticking bool
 	splash  bool // the boot splash is playing
+
+	// markCursor is set while View draws, so a field being typed in leaves its cursor to the
+	// terminal (input.go).
+	markCursor bool
 }
 
 // internal messages
@@ -283,22 +292,47 @@ func (m *Model) whatsNew() *cli.News {
 	return m.news
 }
 
+// ErrInterrupted is a launcher ended from outside: an interrupt signal, or its Context done.
+var ErrInterrupted = errors.New("interrupted")
+
 // Run shows the launcher until the player picks something, and returns what.
 func Run(o Options) (Action, error) {
 	m := newModel(o)
 	// The profile is the one every line outside the launcher was printed with, decided once
 	// in ui.InitColor, so the two cannot disagree about what the terminal shows.
-	final, err := tea.NewProgram(m, tea.WithColorProfile(ui.Profile())).Run()
+	opts := []tea.ProgramOption{tea.WithColorProfile(ui.Profile())}
+	if o.Context != nil {
+		opts = append(opts, tea.WithContext(o.Context))
+	}
+	// The launcher titles the window, and the program blanks the title when it ends: there is
+	// no portable way to put the old one back. Terminals that keep a stack of titles (xterm,
+	// VTE, kitty, iTerm2) get theirs back from it; the rest ignore both sequences.
+	io.WriteString(os.Stdout, ansi.WindowOp(pushTitle, 0))
+	final, err := tea.NewProgram(m, opts...).Run()
+	io.WriteString(os.Stdout, ansi.WindowOp(popTitle, 0))
 	// The program hands the terminal's own colours back when it ends; whatever prints next
 	// still belongs to the theme.
 	ui.PaintTerminal()
 	if err != nil {
-		return Action{Kind: ActionQuit}, err
+		return Action{Kind: ActionQuit}, runErr(err)
 	}
 	if fm, ok := final.(*Model); ok {
 		return fm.action, nil
 	}
 	return Action{Kind: ActionQuit}, nil
+}
+
+// runErr is how a program that ended in err ended: ErrInterrupted for an interrupt signal or
+// a done Context, which are a quit nobody needs told about, and err itself for anything else,
+// a recovered panic included (Bubble Tea reports one as killed as well).
+func runErr(err error) error {
+	switch {
+	case errors.Is(err, tea.ErrProgramPanic):
+		return err
+	case errors.Is(err, tea.ErrInterrupted), errors.Is(err, tea.ErrProgramKilled):
+		return ErrInterrupted
+	}
+	return err
 }
 
 func (m *Model) Init() tea.Cmd {
@@ -476,6 +510,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.say(false, "td update installed nothing new")
 		}
 		return m, nil
+	case tea.ResumeMsg:
+		// Back from ctrl+z: the program has put the screen, the modes and the theme's colours
+		// back and asks for the size itself; the clock and the spinners pick up from now.
+		m.now = time.Now()
+		return m, m.ensureTick()
 	case tea.KeyPressMsg:
 		return m.key(msg)
 	case tea.PasteMsg:
@@ -504,16 +543,39 @@ func (m *Model) paste(s string) tea.Model {
 // keyName is the key as the screens below match it. Enter is enter whatever is held with it:
 // a terminal that reports keys in full says shift+enter where an older one says enter, and a
 // choice that works on one has to work on the other.
+//
+// A chord is named with its modifiers. String gives a key's text when it has any, and a
+// terminal that reports keys in full can give ctrl+k or alt+q the text of the letter, which
+// would then move the cursor or quit.
 func keyName(k tea.KeyPressMsg) string {
 	if k.Code == tea.KeyEnter {
 		return "enter"
 	}
+	if k.Mod&chordMods != 0 {
+		return k.Keystroke()
+	}
 	return k.String()
 }
+
+// chordMods are the modifiers that make a key a chord rather than a letter; shift only picks
+// the letter.
+const chordMods = tea.ModCtrl | tea.ModAlt | tea.ModMeta | tea.ModHyper | tea.ModSuper
+
+// XTWINOPS operations: push the window and icon titles on the terminal's stack, pop them.
+const (
+	pushTitle = 22
+	popTitle  = 23
+)
 
 func (m *Model) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if k.Code == 'c' && k.Mod.Contains(tea.ModCtrl) {
 		return m.quit(Action{Kind: ActionQuit})
+	}
+	// ctrl+z is a key in raw mode, not the terminal's stop; the program hands the terminal
+	// back, stops td, and takes the terminal again on fg. Nothing is lost: an update in the
+	// background stops with td and goes on with it.
+	if k.Code == 'z' && k.Mod.Contains(tea.ModCtrl) {
+		return m, tea.Suspend
 	}
 	// Any key skips the splash, and does nothing else.
 	if m.splash {

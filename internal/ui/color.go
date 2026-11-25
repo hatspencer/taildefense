@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"fmt"
 	"image/color"
 	"math"
@@ -197,7 +198,7 @@ func terminalIsDark(ask bool) bool {
 		if !term.IsTerminal(int(in.Fd())) {
 			in = os.Stdout
 		}
-		bg, err := lipgloss.BackgroundColor(in, os.Stdout)
+		bg, err := lipgloss.BackgroundColor(in, askedOnce{os.Stdout})
 		if err != nil || bg == nil {
 			bg = colorFGBG(os.Getenv("COLORFGBG"))
 		}
@@ -205,6 +206,17 @@ func terminalIsDark(ask bool) bool {
 	}
 	return termDark
 }
+
+// askedOnce is the terminal as lipgloss.BackgroundColor's second try sees it. That function
+// asks on its first file and, when no answer comes, asks again on its second, two seconds
+// each, though both are the same terminal here: a terminal that does not answer cost four
+// seconds and saw the question twice. A write that fails at once ends the second try before
+// it writes anything; the first never touches this file, since it reads and writes in.
+type askedOnce struct{ *os.File }
+
+func (askedOnce) Write([]byte) (int, error) { return 0, errAskedOnce }
+
+var errAskedOnce = errors.New("the terminal was asked once already")
 
 // colorFGBG reads the background from COLORFGBG ("15;0": white on black), nil when it is
 // unset or says nothing usable.
