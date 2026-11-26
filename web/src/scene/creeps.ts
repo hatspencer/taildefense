@@ -152,11 +152,13 @@ function material(r: CreepRig, scale: number, buf: THREE.InstancedInterleavedBuf
   col = mix(col, pick(PANTS, va.w), lo.mul(gHi).mul(bLo));
   col = mix(col, skin, lo.mul(gHi).mul(bHi));
   col = mix(col, pick(HAIRS, fract(seed.mul(13.7)), skin.mul(0.92)), hi.mul(gHi).mul(bLo));
-  col = mix(col, col.mul(vec3(1.5, 0.75, 0.35)).add(vec3(0.15, 0.04, 0)), st.x.mul(0.8));
+  // Burning: a warm cast, weak enough that the clothes and skin keep their own colours.
+  col = mix(col, col.mul(vec3(1.35, 0.85, 0.55)).add(vec3(0.06, 0.015, 0)), st.x.mul(0.4));
   col = mix(col, col.mul(vec3(0.6, 0.85, 1.25)).add(vec3(0.01, 0.04, 0.1)), st.y.mul(0.7));
   col = mix(col, vec3(1, 0.95, 0.85), st.z.mul(0.45));
-  // Hunting you: a red cast so you see what you pulled; asleep, or dead, a little darker.
-  col = mix(col, col.mul(vec3(1.5, 0.45, 0.4)).add(vec3(0.08, 0, 0)), mo.y.mul(0.6));
+  // Hunting you: a light red cast so you see what you pulled, weak enough that the shirt, skin
+  // and trousers keep their own colours; asleep, or dead, a little darker.
+  col = mix(col, col.mul(vec3(1.3, 0.7, 0.65)).add(vec3(0.04, 0, 0)), mo.y.mul(0.3));
   col = col.mul(float(1).sub(mo.x.mul(0.18)).sub(dieJ.mul(0.2)));
   // Sundered by a greatsword: the hide darkened and split, cracks glowing ember-orange through
   // it. Only the living: a corpse's de.w is how it was thrown.
@@ -167,10 +169,10 @@ function material(r: CreepRig, scale: number, buf: THREE.InstancedInterleavedBuf
   col = mix(col, col.mul(0.55), sunder.mul(0.5));
   mat.colorNode = col;
   const flicker = sin(time.mul(23).add(an.x.mul(7))).mul(0.25).add(0.75);
-  mat.emissiveNode = vec3(0.9, 0.3, 0.05).mul(st.x.mul(flicker).mul(0.45))
+  mat.emissiveNode = vec3(0.9, 0.3, 0.05).mul(st.x.mul(flicker).mul(0.18))
     .add(vec3(1, 0.9, 0.7).mul(st.z.mul(0.3)))
     .add(vec3(0.5, 0.45, 0.2).mul(st.w.mul(uHover)))
-    .add(vec3(0.35, 0.02, 0).mul(mo.y.mul(sin(time.mul(9)).mul(0.3).add(0.7))))
+    .add(vec3(0.09, 0.005, 0).mul(mo.y.mul(sin(time.mul(9)).mul(0.3).add(0.7))))
     .add(vec3(1, 0.42, 0.08).mul(cracks.mul(sin(time.mul(6)).mul(0.2).add(0.8))));
   return mat;
 }
