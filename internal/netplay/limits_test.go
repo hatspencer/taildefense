@@ -213,3 +213,171 @@ func TestAnOversizedCommandEndsTheConnection(t *testing.T) {
 		}
 	}
 }
+
+// The buckets never hold up what an honest player sends: a steer every frame at 360 Hz with
+// clicks at 15 a second, then all of a 3 s stall's backlog at once; then the same at 240 Hz
+// after a 5 s stall.
+func TestTheBucketsPassHonestPlay(t *testing.T) {
+	msgs := bucket{rate: msgRate, burst: msgBurst}
+	paths := bucket{rate: pathRate, burst: pathBurst}
+	now := time.Unix(1000, 0)
+	send := func(n int, every time.Duration, click int) {
+		for i := range n {
+			if w := msgs.take(now); w > 0 {
+				t.Fatalf("message %d held up %v", i, w)
+			}
+			if click > 0 && i%click == 0 {
+				if w := paths.take(now); w > 0 {
+					t.Fatalf("click %d held up %v", i, w)
+				}
+			}
+			now = now.Add(every)
+		}
+	}
+	send(360*30, time.Second/360, 24)
+	send(3*360, 0, 24) // the stall's backlog, arriving together
+	send(360*30, time.Second/360, 24)
+	send(5*240, 0, 16) // 5 s of a 240 Hz screen's
+	send(240*30, time.Second/240, 16)
+}
+
+// A flood waits: past the burst, at the bucket's rate.
+func TestTheBucketsSlowAFlood(t *testing.T) {
+	b := bucket{rate: pathRate, burst: pathBurst}
+	now := time.Unix(1000, 0)
+	for i := range pathBurst {
+		if w := b.take(now); w > 0 {
+			t.Fatalf("take %d of the burst waited %v", i, w)
+		}
+	}
+	// Each further one waits its turn, the reader sleeping as it would.
+	start := now
+	for range 3 * pathRate {
+		now = now.Add(b.take(now))
+	}
+	if got := now.Sub(start); got < 2900*time.Millisecond || got > 3100*time.Millisecond {
+		t.Fatalf("%d more took %v, want 3 s", 3*pathRate, got)
+	}
+}
+
+// Over a real connection: a flood of moves is acked at the path rate past its burst, and a
+// burst of steers as a stalled link delivers them is acked within a few ticks.
+func TestAFloodOfMovesIsSlowed(t *testing.T) {
+	t.Parallel()
+	s, err := Listen(ServerConfig{Addrs: []string{"127.0.0.1:0"}, Seed: 3, Version: "test", Host: "box"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	c, wel, err := Dial(ctx, s.Addrs()[0], Hello{Name: "tester", Version: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	r := NewReplica(wel.W, wel.H, wel.Terrain, wel.You, wel.Seed)
+	var acked uint16
+	// await reads until seq is acked or d is up, and says how long it took.
+	await := func(seq uint16, d time.Duration) time.Duration {
+		start := time.Now()
+		deadline := time.After(d)
+		for acked != seq {
+			select {
+			case m := <-c.Msgs():
+				if m.Err != nil {
+					t.Fatal(m.Err)
+				}
+				switch m.Type {
+				case MsgFrame:
+					_ = r.Apply(m.Payload)
+				case MsgAck:
+					a, err := DecodeAck(m.Payload)
+					if err != nil {
+						t.Fatal(err)
+					}
+					acked = a.Seq
+				}
+			case <-deadline:
+				return d
+			}
+		}
+		return time.Since(start)
+	}
+	for !r.Synced {
+		await(0xffff, 100*time.Millisecond)
+	}
+	me := r.Me()
+	seq := uint16(0)
+	for range 500 {
+		seq++
+		if err := c.Send(Cmd{Op: OpSteer, A: uint8(seq), B: 1, Seq: seq}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if d := await(seq, 2*time.Second); d > 300*time.Millisecond {
+		t.Fatalf("500 steers at once acked after %v", d)
+	}
+	// Moves to where the survivor stands, so the paths cost nothing and only the bucket counts.
+	const moves = pathBurst + 2*pathRate
+	start := time.Now()
+	for range moves {
+		seq++
+		if err := c.Send(Cmd{Op: OpMove, X: me.X, Y: me.Y, Seq: seq}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	await(seq, 4*time.Second)
+	if d := time.Since(start); d < 1800*time.Millisecond {
+		t.Fatalf("%d moves acked within %v, want about 2 s", moves, d)
+	}
+	if acked != seq {
+		t.Fatalf("acked %d of %d", acked, seq)
+	}
+}
+
+// Chat lines come chatBurst at once, then one a chatEvery; one past that is not sent, and the
+// sender is told.
+func TestChatIsMetered(t *testing.T) {
+	t.Parallel()
+	l := &hostLog{}
+	s, err := Listen(ServerConfig{Addrs: []string{"127.0.0.1:0"}, Seed: 3, Version: "test", Host: "box", Log: l.log})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	c, _, err := Dial(ctx, s.Addrs()[0], Hello{Name: "tester", Version: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	const lines = chatBurst + 3
+	for i := range lines {
+		if err := c.Send(Cmd{Op: OpChat, Text: "hello " + string(rune('a'+i)), Seq: uint16(i + 1)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	refused := 0
+	deadline := time.After(2 * time.Second)
+	for refused < lines-chatBurst {
+		select {
+		case m := <-c.Msgs():
+			if m.Err != nil {
+				t.Fatal(m.Err)
+			}
+			if m.Type == MsgToast {
+				if _, text := DecodeToast(m.Payload); strings.Contains(text, "too fast") {
+					refused++
+				}
+			}
+		case <-deadline:
+			t.Fatalf("%d lines refused, want %d", refused, lines-chatBurst)
+		}
+	}
+	time.Sleep(200 * time.Millisecond)
+	if n := l.count("tester: hello"); n != chatBurst {
+		t.Fatalf("%d lines said, want %d", n, chatBurst)
+	}
+}
