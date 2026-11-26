@@ -90,9 +90,41 @@ func (s *Server) listenUDP() {
 	}
 }
 
+// helloGap is the least time between two hellos with one token that the host looks at; the
+// one too soon after is dropped as if lost. A client says hello at most five times a second
+// (udpclient.go), so only a hello bunched up with the last on the way is dropped, and that
+// one's answer is already on its way.
+const helloGap = 100 * time.Millisecond
+
+// udpMovedEvery is how often at most a player's port moving is logged: a NAT moves it now
+// and then, a flood of hellos from many ports would move it ten times a second.
+const udpMovedEvery = time.Second
+
+// helloGate drops the hellos that come too soon after the last with their token.
+type helloGate map[uint64]time.Time
+
+func (g helloGate) allow(tok uint64, now time.Time) bool {
+	if last, ok := g[tok]; ok && now.Sub(last) < helloGap {
+		return false
+	}
+	g[tok] = now
+	return true
+}
+
+// forget drops what it knows of tokens no longer given out.
+func (g helloGate) forget(known func(tok uint64) bool) {
+	for tok := range g {
+		if !known(tok) {
+			delete(g, tok)
+		}
+	}
+}
+
 func (s *Server) udpLoop(i int, pc *net.UDPConn) {
 	defer s.wg.Done()
 	buf := make([]byte, 2048)
+	hellos := helloGate{}
+	known := func(tok uint64) bool { _, ok := s.toks.Load(tok); return ok }
 	for {
 		n, from, err := pc.ReadFromUDPAddrPort(buf)
 		if err != nil {
@@ -107,8 +139,17 @@ func (s *Server) udpLoop(i int, pc *net.UDPConn) {
 		}
 		// A token never given out is dropped here, so a flood of strangers' datagrams cannot
 		// crowd the players' out of udpCh.
-		if _, known := s.toks.Load(m.token); !known {
+		if !known(m.token) {
 			continue
+		}
+		// Nor can a player's own token flood it with hellos.
+		if m.typ == dgHello {
+			if len(hellos) > 4*game.MaxPlayers {
+				hellos.forget(known)
+			}
+			if !hellos.allow(m.token, time.Now()) {
+				continue
+			}
 		}
 		// The tick loop may be busy; a datagram dropped here is like one lost on the way.
 		select {
@@ -165,7 +206,8 @@ func (s *Server) udpDatagram(in udpIn, now time.Time) {
 		// A NAT may give the player's socket another port mid-game; its hello, from the same
 		// machine with the same token, moves the frames there before the old port's silence
 		// would put them on TCP.
-		if p.udpOn && in.from != p.udpAddr && p.udpAddr.IsValid() {
+		if p.udpOn && in.from != p.udpAddr && p.udpAddr.IsValid() && now.Sub(p.udpMovedAt) >= udpMovedEvery {
+			p.udpMovedAt = now
 			s.cfg.Log("%s's UDP moved from %s to %s", p.name, p.udpAddr, in.from)
 		}
 		p.udpAddr = in.from

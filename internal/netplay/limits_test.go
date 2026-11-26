@@ -381,3 +381,27 @@ func TestChatIsMetered(t *testing.T) {
 		t.Fatalf("%d lines said, want %d", n, chatBurst)
 	}
 }
+
+func TestHelloGate(t *testing.T) {
+	g := helloGate{}
+	now := time.Unix(1000, 0)
+	if !g.allow(1, now) || !g.allow(2, now) {
+		t.Fatal("a first hello dropped")
+	}
+	if g.allow(1, now.Add(helloGap/2)) {
+		t.Fatal("a hello bunched up with the last let through")
+	}
+	// The client's pace, five a second, and its least gap, half its interval.
+	for i := 1; i <= 50; i++ {
+		if !g.allow(2, now.Add(time.Duration(i)*200*time.Millisecond)) {
+			t.Fatalf("hello %d at five a second dropped", i)
+		}
+	}
+	if !g.allow(1, now.Add(helloGap)) {
+		t.Fatal("a hello helloGap after the last dropped")
+	}
+	g.forget(func(tok uint64) bool { return tok == 2 })
+	if _, ok := g[1]; ok || len(g) != 1 {
+		t.Fatalf("forget kept %v", g)
+	}
+}

@@ -167,8 +167,9 @@ type peer struct {
 	srtt       time.Duration
 	keyAt      time.Time
 	keyTCP     bool
-	// When its chat is free again (chatEvery).
-	chatFree time.Time
+	// When its chat is free again (chatEvery), and when a move of its UDP port was last logged.
+	chatFree   time.Time
+	udpMovedAt time.Time
 }
 
 type cmdMsg struct {
