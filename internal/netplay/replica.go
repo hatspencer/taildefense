@@ -238,8 +238,25 @@ func (r *Replica) Me() *PlayerView {
 	return nil
 }
 
-// Apply decodes one frame payload into the replica.
+// The most structures a frame may index, and the most notes kept between drains: the page
+// takes at most 255 notes a frame, so more would only pile up.
+const (
+	maxStructs = 4097
+	maxNotes   = 255
+)
+
+// Apply decodes one frame payload into the replica. A frame it cannot read adds no events:
+// they would only pile up, because the events are drained after a frame that reads.
 func (r *Replica) Apply(p []byte) error {
+	nt, nb, nd, nn, ng := len(r.Tracers), len(r.Blasts), len(r.Deaths), len(r.Notes), len(r.Pings)
+	err := r.apply(p)
+	if err != nil {
+		r.Tracers, r.Blasts, r.Deaths, r.Notes, r.Pings = r.Tracers[:nt], r.Blasts[:nb], r.Deaths[:nd], r.Notes[:nn], r.Pings[:ng]
+	}
+	return err
+}
+
+func (r *Replica) apply(p []byte) error {
 	d := &dec{b: p}
 	flags := d.u8()
 	key := flags&frameKey != 0
@@ -352,10 +369,12 @@ func (r *Replica) Apply(p []byte) error {
 	}
 	ns := int(d.uv())
 	for i := 0; i < ns && d.err == nil; i++ {
-		idx := int(d.uv())
-		if idx > 4096 {
-			return fmt.Errorf("structure index %d out of range", idx)
+		// Compared as read, before it is an int: a varint past 2^63 would be a negative one.
+		v := d.uv()
+		if v > maxStructs-1 {
+			return fmt.Errorf("structure index %d out of range", v)
 		}
+		idx := int(v)
 		for len(r.Structs) <= idx {
 			r.Structs = append(r.Structs, StructView{})
 		}
@@ -374,14 +393,17 @@ func (r *Replica) Apply(p []byte) error {
 		st = d.u8()
 		s.Open, s.Evo, s.Trap = st&1 != 0, st>>1&3, st>>3
 		s.Facing = d.u8() & 7
+		if d.err != nil {
+			break // a record cut short is not a structure
+		}
 		r.Structs[idx] = s
 	}
 	if !key {
 		nh := int(d.uv())
 		for i := 0; i < nh && d.err == nil; i++ {
-			idx := int(d.uv())
+			idx := d.uv()
 			hp := d.u16()
-			if idx < len(r.Structs) {
+			if d.err == nil && idx < uint64(len(r.Structs)) {
 				r.Structs[idx].HP = hp
 			}
 		}
@@ -424,7 +446,10 @@ func (r *Replica) Apply(p []byte) error {
 	nn := int(d.uv())
 	for i := 0; i < nn && d.err == nil; i++ {
 		lvl := d.u8()
-		r.Notes = append(r.Notes, game.Note{Level: lvl, Text: d.str()})
+		n := game.Note{Level: lvl, Text: d.str()}
+		if len(r.Notes) < maxNotes {
+			r.Notes = append(r.Notes, n)
+		}
 	}
 	ng := int(d.uv())
 	for i := 0; i < ng && d.err == nil; i++ {
@@ -448,10 +473,10 @@ func (r *Replica) Apply(p []byte) error {
 		if len(r.Seen) == 0 {
 			r.Seen = make(game.Seen, (r.W*r.H+63)/64)
 		}
-		i := 0
+		var i uint64 // unsigned, so no run of gaps makes it a negative index
 		for k := 0; k < nf && d.err == nil; k++ {
-			i += int(d.uv())
-			if i>>6 < len(r.Seen) {
+			i += d.uv()
+			if i>>6 < uint64(len(r.Seen)) {
 				r.Seen[i>>6] |= 1 << (i & 63)
 			}
 		}
@@ -492,11 +517,12 @@ func (r *Replica) header(d *dec) {
 	r.Affix, r.NextAffix, r.NextFrom = game.Affix(d.u8()), game.Affix(d.u8()), d.u8()
 	r.Tier, r.TierPaid, r.TierCost = d.u8(), d.u16(), d.u16()
 	r.OverloadReady = d.u8()&1 != 0
-	ns := int(d.uv())
-	if ns > 4096 {
-		d.err = fmt.Errorf("%d loot sites", ns)
+	nsv := d.uv()
+	if nsv > 4096 {
+		d.err = fmt.Errorf("%d loot sites", nsv)
 		return
 	}
+	ns := int(nsv)
 	if len(r.Searched) != ns {
 		r.Searched = make([]bool, ns)
 		r.Guards = make([]uint8, ns)
@@ -656,11 +682,14 @@ func (r *Replica) rebuildStructAt() {
 		if !s.Alive {
 			continue
 		}
-		for y := s.Y; y < s.Y+s.H; y++ {
-			for x := s.X; x < s.X+s.W; x++ {
-				if x >= 0 && y >= 0 && x < r.W && y < r.H {
-					r.structAt[y*r.W+x] = int16(i)
-				}
+		// Only the part on the map, worked out before the loop: a frame cannot make each of
+		// 4097 structures cost 255×255 steps by putting them off it.
+		x0, x1 := max(s.X, 0), min(s.X+s.W, r.W)
+		y0, y1 := max(s.Y, 0), min(s.Y+s.H, r.H)
+		for y := y0; y < y1; y++ {
+			row := r.structAt[y*r.W : (y+1)*r.W]
+			for x := x0; x < x1; x++ {
+				row[x] = int16(i)
 			}
 		}
 	}

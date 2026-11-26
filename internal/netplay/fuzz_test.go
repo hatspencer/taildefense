@@ -86,6 +86,10 @@ func FuzzClientDecoders(f *testing.F) {
 	f.Add(e.Delta(w, nil))
 	key := append([]byte(nil), e.Key(w, nil)...)
 	f.Add([]byte{2, 3, 'h', 'e', 'y'})
+	// Ten-byte varints, past 2^63, where frames have indices and counts.
+	for _, h := range hostileFrames() {
+		f.Add(h)
+	}
 	f.Fuzz(func(t *testing.T, b []byte) {
 		_, _ = DecodeWelcome(b)
 		_, _ = DecodeToast(b)

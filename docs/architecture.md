@@ -119,7 +119,10 @@ Browser                   local td (web.Session)               host td (netplay.
   game port, and a host may be broken or hostile, so every string a probe reply, a refusal or
   a welcome carries, and every name a peer reports about itself to tailscale, becomes one
   line of plain text (`internal/plain`) where `td` first reads it, before `td ls`, the
-  launcher or `td join` prints it.
+  launcher or `td join` prints it. `Replica.Apply` checks every wire index before it is an
+  int (a varint past 2^63 would be a negative one), caps every event list it keeps between
+  drains, drops a failed frame's events, and lays structures on the map only where they are
+  on it. `FuzzClientDecoders` is seeded with such frames.
 - **The launcher is Bubble Tea.** It hosts, finds games and holds settings, then opens the browser
   and shows the game's status until it ends.
 - **No tsnet.** The game uses the Tailscale already installed on the machine, so your identity
