@@ -99,10 +99,12 @@ func changelogOf(source, log, local string) Changelog {
 	return c
 }
 
+// gitEnv is git run with nobody to answer it: no password prompt, and ssh in batch mode, so a
+// host it does not know already fails rather than being trusted on first sight.
 func gitEnv() []string {
 	return append(os.Environ(),
 		"GIT_TERMINAL_PROMPT=0",
-		"GIT_SSH_COMMAND=ssh -oBatchMode=yes -oStrictHostKeyChecking=accept-new",
+		"GIT_SSH_COMMAND=ssh -oBatchMode=yes",
 	)
 }
 

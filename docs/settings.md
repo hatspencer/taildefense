@@ -107,7 +107,9 @@ What `td update` trusts: it clones the repository the install came from (`~/.tai
 or `TAILDEFENSE_REPO`), then builds and runs what is there: main's tip, or the branch (`-b`) or
 commit (`-c`) asked for. The clone's own `build.sh` runs the build, in a container, and the
 binary it builds installs itself. So whoever can push to that branch decides what runs on your
-machine the next time you update; nothing checks the code beyond git fetching it.
+machine the next time you update; nothing checks the code beyond git fetching it. Git runs with
+no prompts and ssh in batch mode, so a host ssh does not already know fails the fetch rather than
+being trusted on first sight.
 
 Earlier tds had an `AUTOUPDATE` setting that updated in the background. A prefs file that still
 holds it reads as if it did not; the next change to a setting drops the line.
