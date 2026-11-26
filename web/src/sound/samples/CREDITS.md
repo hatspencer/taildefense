@@ -36,8 +36,8 @@ Freesound files were taken from the page's high-quality preview.
 |---|---|---|---|---|
 | pistol_0 | Free Firearm Library, 1911 .45 (1911/A_42P.wav) | 0.94 | 0.55 | |
 | pistol_1 | Free Firearm Library, 1911 .45 (1911/A_42P.wav) | 5.00 | 0.55 | |
-| pistol_2 | Free Firearm Library, S&W 642 .38 (Smith & Wesson 642/V_27P.wav) | 0.80 | 0.55 | |
-| pistol_3 | Free Firearm Library, S&W 642 .38 (Smith & Wesson 642/V_27P.wav) | 6.22 | 0.55 | |
+| pistol_2 | Free Firearm Library, 1911 .45 (1911/A_34P.wav) | 1.537 | 0.55 | the other microphone |
+| pistol_3 | Free Firearm Library, 1911 .45 (1911/A_34P.wav) | 6.65 | 0.55 | the other microphone |
 | shotgun_0 | Free Firearm Library, Charles Daly pump 12 ga (CD/H_21P.wav) | 0.46 | 0.8 | |
 | shotgun_1 | Free Firearm Library, Winchester Model 12 pump 12 ga (Model 12/K_22P.wav) | 0.84 | 0.8 | |
 | shotgun_2 | Free Firearm Library, Benelli Nova pump 12 ga (Nova/O_21P.wav) | 0.43 | 0.8 | |
