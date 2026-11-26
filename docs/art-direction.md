@@ -119,28 +119,23 @@ hold beside it; `&fig=N` looks at one of them, `#lab=hN&still&plain&nohud&arch=A
 survivor archetype at rest and `#lab=kN&still&plain&nohud` at any creep kind, `&yaw=` from
 the side and the back.
 
-## The bosses
+## The heavy and special dead
 
-The abomination, the broodmother and the goliath (`web/src/scene/creeps/bosses.ts`) are built in
-metres against the 1.8 m survivor and set in the world by the rig's `scale`, so each stands at
-its true size: big enough to read as a boss and to cover its sim radius. They are grounded body
-horror made of people and what they wore, nothing that glows, dead skin from the palette,
-blotched with blood, and one small true accent each.
+The brute, mauler, hound, spitter and hurler are built in `web/src/scene/creeps/heavy.ts` at
+the survivors' own units, with `scale` set on each rig, so they stand beside a survivor at their
+true size whatever their sim radius. Their key colours (shirt, trousers, skin, hair) vary per
+creep; their kit is painted and stays as it is.
 
-- **Abomination**, about 3.1 m and as wide: four or five of the dead grown into one heap on two
-  legs that were never the same person's. A man in a bloodied white shirt leads out of the
-  front; a flannel shirt, a grey hoodie and an upside-down denim jacket (a leg in jeans kicking
-  out of it) are fused into the mass; heads sunk into the shoulders; arms everywhere, two long
-  ones it knuckles along on. The accent is a nurse's teal scrubs sleeve on a dead arm.
-- **Broodmother**, about 2.6 m long: a woman's chest and head rising out of the front of a belly
-  swollen to the ground and a back swollen behind it, the brood pressing out under the skin (a
-  hand, a face, a knee), on all fours on her own thin limbs. Her dress, burst down the back, is
-  stretched in strips over the swell; its faded plum is her accent.
-- **Goliath**, about 4.8 m, near three survivors: a giant man still in his work clothes, a
-  welder's leather apron and gauntlet, a rigger's harness, work trousers and steel-toed boots,
-  stitched where he split, a chain wound round his right fist and dragging, the welding hood
-  pushed up on his head with a yellow sticker on it, his accent.
-
-Each keeps under 1600 triangles near and 250 far: the big shapes are open-ended prisms and a
-lump or two, and anything long and thin that is not silhouette (veins, straps, a dead arm) is
-made of short pieces, so the far model drops it.
+- **Brute**: the picture's: a head taller than a survivor and wide, a grey work shirt under a
+  hi-vis orange vest with pale bands round the belly and up each front, a yellow hard hat,
+  heavy boots, torn knees, big hands hanging at the thigh, blood on the vest and trousers.
+- **Mauler**: a slaughterman, a different shape from the brute: bald and bull-necked, the head
+  sunk forward between hunched shoulders, a barrel of a belly under a long bloodied apron, bare
+  thick arms, wellingtons, a cleaver in the right fist.
+- **Hound**: a dead dog, lean and low-headed, its coat (the hair colour) worn through to bare
+  skin, the ribs and the spine showing, a wound in the flank.
+- **Spitter**: the grabber's posture, leaning in with both arms out, gaunt, the throat swollen
+  into a sac under a dropped jaw, a yellow-green stain down the front of the shirt and on the
+  hands.
+- **Hurler**: tall and rangy in a torn canvas work jacket, the left arm grown long and thick
+  from a swollen shoulder, a lump of concrete with rebar in that hand, the right arm thin.
