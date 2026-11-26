@@ -697,17 +697,21 @@ func handler(token string, port int, conns chan<- *browser, in chan<- inbound, d
 	}
 	mux.HandleFunc("POST /shot", saveShot(token, origins))
 	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		got := r.URL.Query().Get("token")
-		if subtle.ConstantTimeCompare([]byte(got), []byte(token)) != 1 {
-			http.Error(w, "wrong token", http.StatusForbidden)
-			return
-		}
 		if o := r.Header.Get("Origin"); o != "" && !origins[o] {
 			http.Error(w, "foreign origin", http.StatusForbidden)
 			return
 		}
+		got := r.URL.Query().Get("token")
+		wrong := subtle.ConstantTimeCompare([]byte(got), []byte(token)) != 1
 		ws, err := upgrade(w, r)
 		if err != nil {
+			return
+		}
+		// A wrong token is this page from an earlier td, or a link from another game. Refused
+		// before the handshake, the browser would see only 1006, the same as td being away for
+		// a moment, and the page would retry for ever; a 1008 close tells it to stop.
+		if wrong {
+			ws.refuse(1008, "refused by td: this link is from another game")
 			return
 		}
 		b := &browser{ws: ws, out: make(chan []byte, 4), text: make(chan []byte, 64), gone: make(chan struct{})}

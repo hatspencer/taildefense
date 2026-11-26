@@ -40,8 +40,11 @@ export class WsTransport implements Transport {
   private ended = false;
   private delay = 500;
   private timer = 0;
+  private url: string;
+  private h: Handlers;
 
-  constructor(private url: string, private h: Handlers) {
+  constructor(url: string, h: Handlers) {
+    this.url = url; this.h = h;
     this.connect(false);
   }
 
@@ -50,13 +53,20 @@ export class WsTransport implements Transport {
     const ws = new WebSocket(this.url);
     ws.binaryType = 'arraybuffer';
     this.ws = ws;
-    ws.onopen = () => { this.delay = 500; this.h.onConn('open'); };
-    ws.onmessage = (ev: MessageEvent<string | ArrayBuffer>) => { if (dispatch(this.h, ev.data)) this.ended = true; };
+    // Open once td has said something: a socket td refuses (a stale link) opens, then closes
+    // with 1008 and nothing in between, and should not lift the cover for that moment.
+    let open = false;
+    ws.onopen = () => { this.delay = 500; };
+    ws.onmessage = (ev: MessageEvent<string | ArrayBuffer>) => {
+      if (!open) { open = true; this.h.onConn('open'); }
+      if (dispatch(this.h, ev.data)) this.ended = true;
+    };
     ws.onclose = (ev) => {
       if (this.ws !== ws) return;
       this.ws = null;
       if (this.ended) return;
-      // 1008 is a policy refusal (bad token): retrying will not help.
+      // 1008 is td refusing the link (a wrong token: an old tab or another game's link), as a
+      // close after the handshake since a refused handshake reads as 1006: retrying will not help.
       if (ev.code === 1008) { this.ended = true; this.h.onConn('ended', ev.reason || 'refused by td'); return; }
       this.timer = window.setTimeout(() => this.connect(true), this.delay);
       this.delay = Math.min(this.delay * 2, 8000);
