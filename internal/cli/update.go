@@ -165,7 +165,8 @@ func resolveCommit(git func(args ...string) (string, error), commit string) (str
 }
 
 // knowsPins reports whether the tree in dir is a td that reads the pin. One from before pins
-// would let its launcher autoupdate it back to main's tip.
+// is also from before the launcher stopped updating itself, and would take itself back to
+// main's tip.
 func knowsPins(dir string) bool {
 	b, err := os.ReadFile(filepath.Join(dir, "internal", "install", "install.go"))
 	return err == nil && strings.Contains(string(b), install.EnvInstallPin)
@@ -382,10 +383,10 @@ func Update(w io.Writer, o UpdateOptions) int {
 	saveNews(news, source)
 	switch {
 	case pin != "" && !knowsPins(tmp):
-		p.Warn("%s is older than pinning: its launcher autoupdates to main's tip, and its td update goes there", short(pin))
-		p.Detail("to stay on it, turn autoupdate off with: td config autoupdate off, and run no plain td update")
+		p.Warn("%s is older than pinning: its launcher still updates itself to main's tip, and its td update goes there", short(pin))
+		p.Detail("to stay on it, turn that off with: td config autoupdate off, and run no plain td update")
 	case pin != "":
-		p.Note("pinned to %s: the launcher leaves it there and a plain td update stays; back to main: td update -f", short(pin))
+		p.Note("pinned to %s: the launcher says nothing of main and a plain td update stays; back to main: td update -f", short(pin))
 	case branch != "":
 		p.Note("following %s: a plain td update stays on it, td update -f returns to main", branch)
 	}
@@ -394,9 +395,9 @@ func Update(w io.Writer, o UpdateOptions) int {
 
 // interrupts turns a ctrl+c or a kill into an update that stops the way a failure does, so the
 // deferred cleanup still runs: the signal goes on to the step running at the time (build.sh
-// removes its container on it), that step fails, and Update returns through its defers. A
-// background update has its own process group, so a signal sent to it reaches only td and
-// would otherwise leave the build running and the clone behind.
+// removes its container on it), that step fails, and Update returns through its defers. Each
+// step runs in its own process group (group), so a signal sent to td alone would otherwise
+// leave the build running and the clone behind.
 type interrupts struct {
 	mu  sync.Mutex
 	sig chan os.Signal

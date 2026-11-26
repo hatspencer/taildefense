@@ -27,8 +27,8 @@ td update -c 451fa65          # one commit of main, pinned until -f: to find wha
   and `TAILDEFENSE_INSTALL_BRANCH`.
 - Everyone in a game runs the same build: a host refuses a player whose version differs. To play
   a flavour together, each player runs the same `td update -b`.
-- An install that follows a branch is never autoupdated. td says when the branch has moved on,
-  and `td update` brings it in.
+- td never updates itself. An install that follows a branch hears when the branch has moved on
+  (not main), and `td update` brings it in.
 
 Flavours are welcome to stay flavours for good: rebase on `main` when you want what is new there.
 

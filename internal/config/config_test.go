@@ -47,8 +47,8 @@ func TestDefaultsWithNoFile(t *testing.T) {
 	if p.Err != nil {
 		t.Fatal(p.Err)
 	}
-	if p.Port() != DefaultPort || p.Browser() != BrowserAuto || !p.AutoUpdate() {
-		t.Errorf("defaults: port %d browser %q autoupdate %v", p.Port(), p.Browser(), p.AutoUpdate())
+	if p.Port() != DefaultPort || p.Browser() != BrowserAuto {
+		t.Errorf("defaults: port %d browser %q", p.Port(), p.Browser())
 	}
 	if !p.Reticle() || p.ReticleSize() != DefaultReticleSize {
 		t.Errorf("defaults: reticle %v size %d", p.Reticle(), p.ReticleSize())
@@ -65,7 +65,7 @@ func TestPrecedenceFlagEnvFileDefault(t *testing.T) {
 	if err := os.MkdirAll(cfg, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	body := "# comment\nPORT=8000\nBROWSER = firefox\nNAME=\"Ada Lovelace\"\nAUTOUPDATE=no\nFUTURE=kept\n"
+	body := "# comment\nPORT=8000\nBROWSER = firefox\nNAME=\"Ada Lovelace\"\nFUTURE=kept\n"
 	if err := os.WriteFile(filepath.Join(cfg, File), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -73,8 +73,8 @@ func TestPrecedenceFlagEnvFileDefault(t *testing.T) {
 	if p.Port() != 8000 || p.Get(KeyPort).Source != SourceFile {
 		t.Errorf("file port: %+v", p.Get(KeyPort))
 	}
-	if p.Browser() != "firefox" || p.Name() != "Ada Lovelace" || p.AutoUpdate() {
-		t.Errorf("file values: browser %q name %q autoupdate %v", p.Browser(), p.Name(), p.AutoUpdate())
+	if p.Browser() != "firefox" || p.Name() != "Ada Lovelace" {
+		t.Errorf("file values: browser %q name %q", p.Browser(), p.Name())
 	}
 
 	t.Setenv("TAILDEFENSE_PORT", "9000")
@@ -98,26 +98,37 @@ func TestPrecedenceFlagEnvFileDefault(t *testing.T) {
 	}
 }
 
-func TestNoAutoupdateEnvTurnsItOff(t *testing.T) {
-	isolate(t)
+// An older td wrote AUTOUPDATE. It reads as nothing at all, and the next write drops it.
+func TestTheRetiredAutoupdateKeyIsReadQuietlyAndDropped(t *testing.T) {
+	cfg := isolate(t)
+	os.MkdirAll(cfg, 0o755)
+	os.WriteFile(filepath.Join(cfg, File), []byte("AUTOUPDATE=off\nPORT=8000\nFUTURE=kept\n"), 0o644)
 	t.Setenv("TAILDEFENSE_NO_AUTOUPDATE", "1")
 	p := Load()
-	if p.AutoUpdate() || p.Get(KeyAutoUpdate).Source != SourceEnv {
-		t.Errorf("got %+v", p.Get(KeyAutoUpdate))
+	if p.Err != nil || p.Port() != 8000 {
+		t.Fatalf("err %v port %d", p.Err, p.Port())
 	}
-	t.Setenv("TAILDEFENSE_NO_AUTOUPDATE", "0")
-	if p := Load(); !p.AutoUpdate() || p.Get(KeyAutoUpdate).Source != SourceDefault {
-		t.Errorf("NO_AUTOUPDATE=0 should leave the default: %+v", p.Get(KeyAutoUpdate))
+	for _, v := range p.All() {
+		if strings.EqualFold(v.Key.Name, "autoupdate") {
+			t.Errorf("AUTOUPDATE is still a setting: %+v", v)
+		}
+	}
+	if _, err := Set("name", "Ada"); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(filepath.Join(cfg, File))
+	if s := string(b); strings.Contains(s, "AUTOUPDATE") || !strings.Contains(s, "FUTURE=kept\n") || !strings.Contains(s, "PORT=8000\n") {
+		t.Errorf("after a write:\n%s", s)
 	}
 }
 
 func TestATypoKeepsTheDefault(t *testing.T) {
 	cfg := isolate(t)
 	os.MkdirAll(cfg, 0o755)
-	os.WriteFile(filepath.Join(cfg, File), []byte("AUTOUPDATE=of\nPORT=http\nRETICLE=of\nRETICLE_SIZE=1000\n"), 0o644)
+	os.WriteFile(filepath.Join(cfg, File), []byte("PORT=http\nRETICLE=of\nRETICLE_SIZE=1000\n"), 0o644)
 	p := Load()
-	if !p.AutoUpdate() || p.Port() != DefaultPort {
-		t.Errorf("typos changed values: autoupdate %v port %d", p.AutoUpdate(), p.Port())
+	if p.Port() != DefaultPort {
+		t.Errorf("typos changed values: port %d", p.Port())
 	}
 	if !p.Reticle() || p.ReticleSize() != DefaultReticleSize {
 		t.Errorf("typos changed values: reticle %v size %d", p.Reticle(), p.ReticleSize())
@@ -139,13 +150,13 @@ func TestSetWritesAndKeepsOtherKeys(t *testing.T) {
 	cfg := isolate(t)
 	os.MkdirAll(cfg, 0o755)
 	os.WriteFile(filepath.Join(cfg, File), []byte("FUTURE=kept\n"), 0o644)
-	if v, err := Set("autoupdate", "no"); err != nil || v != "off" {
+	if v, err := Set("fog", "no"); err != nil || v != "off" {
 		t.Fatalf("set: %q %v", v, err)
 	}
 	if _, err := Set("browser", "a\nb"); err == nil {
 		t.Error("a two-line browser accepted")
 	}
-	if _, err := Set("colour", "red"); err == nil || !strings.Contains(err.Error(), "name, port, difficulty, fog, waves, mode, volume, music, reticle, reticle_size, browser, autoupdate") {
+	if _, err := Set("colour", "red"); err == nil || !strings.Contains(err.Error(), "name, port, difficulty, fog, waves, mode, volume, music, reticle, reticle_size, browser") {
 		t.Errorf("unknown key: %v", err)
 	}
 	if v, err := Set("difficulty", "HARD"); err != nil || v != "hard" {
@@ -195,7 +206,7 @@ func TestSetWritesAndKeepsOtherKeys(t *testing.T) {
 	}
 	b, _ := os.ReadFile(filepath.Join(cfg, File))
 	s := string(b)
-	for _, want := range []string{"AUTOUPDATE=off\n", "NAME=Grace Hopper\n", "FUTURE=kept\n"} {
+	for _, want := range []string{"FOG=off\n", "NAME=Grace Hopper\n", "FUTURE=kept\n"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("file lacks %q:\n%s", want, s)
 		}

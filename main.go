@@ -36,7 +36,7 @@ usage:
   td doctor                      check tailscale, the browser and what updates need
   td keys                        the game's keys and what each does
   td config [KEY [VALUE]]        show, read or set name, port, difficulty, fog, waves, mode,
-                                 volume, music, reticle, reticle_size, browser, autoupdate
+                                 volume, music, reticle, reticle_size, browser
                                  (td config KEY --reset returns one to its default)
   td frame [--width W] [--height H] [--view menu|join|settings|keys|changelog|doctor|help|splash] [--at S]
                                  render one launcher frame from demo data (--at: seconds
@@ -72,7 +72,7 @@ update flags:
                    or a pin
   -b, --branch B   install branch B and keep following it
   -c, --commit C   install commit C of main (7 to 40 hex digits) and stay pinned to it:
-                   no autoupdate, and a plain td update leaves it; -f returns to main
+                   no notice of newer ones, and a plain td update leaves it; -f returns to main
 `
 
 type opts struct {
@@ -228,7 +228,7 @@ func run(args []string) int {
 		}
 		return joinCmd(prefs, pos[0])
 	case "serve":
-		if news, how := cli.Outdated(prefs.AutoUpdate(), 2*time.Second); news != "" {
+		if news, how := cli.Outdated(2 * time.Second); news != "" {
 			p := ui.New(os.Stdout)
 			p.Warn("%s", news)
 			p.Detail("%s", how)
@@ -279,7 +279,7 @@ func launcher(prefs *config.Prefs, noSplash bool, bots int) int {
 		ui.Errorf("the launcher needs an interactive terminal; without one: td ls, td host or td join HOST")
 		return 1
 	}
-	sess := tui.NewSession(cli.NewAutoUpdater(prefs.AutoUpdate()))
+	sess := tui.NewSession(cli.NewUpdateChecker())
 	var last *tui.Outcome
 	for {
 		// A closed terminal ends the launcher as a quit, so td exits through its own clean-up
@@ -347,7 +347,7 @@ func play(p *ui.Printer, prefs *config.Prefs, o web.Options) (web.Result, error)
 	if o.Browser == config.BrowserNone {
 		o.Browser = ""
 	}
-	if news, how := cli.Outdated(prefs.AutoUpdate(), 2*time.Second); news != "" {
+	if news, how := cli.Outdated(2 * time.Second); news != "" {
 		p.Warn("%s", news)
 		p.Detail("%s", how)
 		o.Notice = news + " · " + how

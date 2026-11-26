@@ -19,6 +19,6 @@
     reticle       on  (default)
     reticle_size  100  (default)
     browser       auto  (default)
-    autoupdate    on  (default)
+
 
   ↑↓ move · enter edit · esc back · ? help
