@@ -579,7 +579,8 @@ the Overload killing every small creep at waves 10 to 30 but no brute.
   opener. Up to three wait unopened. The surfboards on the Huey's side are for Kilgore, and
   the door gunner, sitting in the open doorway with his legs out over the skid in a red
   headband, aviators and crossed belts of brass, a cigar going, is for Tropic Thunder. He is
-  drawn where the camera above can see him, out past the roof's edge, and his minigun sits
+  drawn where the camera above can see him, in the doorway's dark with the cabin's red troop seat
+  behind him, and his minigun sits
   on an arm out from the doorframe and turns to what it fires at, his arms on its grips and his
   tracers leaving from its muzzle, so the shots read as his.
 - **Weapons change hands.** A survivor can drop a weapon they carry and a teammate pick it up,

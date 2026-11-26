@@ -119,30 +119,26 @@ hold beside it; `&fig=N` looks at one of them, `#lab=hN&still&plain&nohud&arch=A
 survivor archetype at rest and `#lab=kN&still&plain&nohud` at any creep kind, `&yaw=` from
 the side and the back.
 
-## The base's structures
+## The Huey and the traps
 
-Built from what a camp would have dragged in, at true size against a 1.8 m person
-(`scene/structs.ts`, `#lab=structs` to look at them; default throughout):
-
-- **Walls** are a palisade of sharpened logs on a low dirt berm, wired to split rails behind,
-  a thick post on each tile and half a run of logs towards each neighbour, so runs and corners
-  join by themselves. One half-run in five carries a sheet of rusted corrugated iron and one run
-  in nine a faded blue car door wired across it: three instanced arm meshes, chosen by a hash of
-  the tile, about 150 to 400 triangles a tile. **Gates** are welded scrap, a steel post with an
-  amber lamp on a concrete foot and leaves of square tube, plate, bars and a hazard-striped top
-  rail on a caster; lower than the logs, so a gate reads as a gap in the palisade.
-- **Turrets** are real guns on real mounts: a heavy machine gun on a tripod in a sandbag ring
-  (gun), a small wheeled field gun with its shield on a plank turntable (cannon), nitrogen
-  dewars and a reefer unit feeding a turning sprinkler head (frost), a home-made coil on an
-  insulator stack fed by car batteries (tesla), a timber watchtower with the AWM (sniper), two
-  helicopter rocket pods on a pedestal welded to a truck wheel (missile), a guyed scaffold mast
-  with a turning yagi (pylon). Each about 450 to 1050 triangles (the sniper 1700 with its
-  rifle). Their muzzles stand where `main.ts`'s `turretHeight` and the effects put the flash.
-- **The generator** is a diesel generator set in a faded yellow canopy on a skid and a cracked
-  slab, its fan turning under a roof grille, with fuel drums, red cans, a cable reel and a work
-  light; the old reactor's glow is gone, and its one light is a small running lamp on the
-  control panel, green while it holds and flickering red as it fails. Tier II adds a radio mast
-  on a scaffold tower, tier III floodlights at the corners. About 2100 triangles.
-- **The armory** is a rust-red ten-foot container with a hatch cut in its front, a rack of
-  rifles inside, a workbench, ammo crates and a solar panel and tarp on the roof. About 1500.
-- The owner's colour stays a kerb round each footprint, muted a little; the track pips stay.
+- **The Huey** (`scene/heli.ts`) is a UH-1 at its true size: 12.8 m from nose to fin, the rotor
+  14.6 m across with its hub 4 m up, skids 2.6 m apart, so it stands over a survivor as a real
+  one would and overhangs the 6-tile helipad (it was drawn at 0.75 of a smaller size). The hull
+  is lofted through cross-sections, so the nose is round and the cabin has a real open doorway
+  with a floor, jambs and the dark behind it, not boxes. Worn olive drab, faded on top and grimy
+  underneath, soot behind the exhaust, a faded U.S. ARMY and tail number in stencil blocks; the
+  accents are the tail rotor's red and white tips, the yellow rotor tips, the red troop seat in
+  the doorway, the gunner's headband and the surfboards. About 2 970 triangles with the gunner
+  and his gun (budget 3 000) (default).
+- **The main rotor is drawn as a blur, not blades** (default): at its speed a blade moves
+  several metres between frames, so solid blades would stutter round as two black bars across
+  whatever is under them. A faint disc, the yellow tips' thin ring, and each blade as a smear
+  in three stepped layers, darkest at its leading edge, turn over the solid hub, blade roots and
+  stabilizer bar, which throw the shadow. The tail rotor, small, keeps solid blades over a disc.
+- **The crate** comes in on a 3 m sling under the belly, then down under an olive and white
+  chute; the helipad is square concrete slabs a shade each, oil stains, a worn ring and H.
+- **The traps** (`scene/traps.ts`): the bait pit is dug earth, spoil heaped round its rim with
+  two sandbags, the floor wet and dark, four rough posts hanging haunches on chains; the
+  catapult pit is a plank-lined pit edged in steel angle with yellow corner pegs, a banded timber
+  arm, truck coil springs and a cut-down rusted drum for a bucket, the arrow sprayed on. The
+  charge lamps are small bulbs. About 600 and 480 triangles (default).

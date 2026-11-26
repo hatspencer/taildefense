@@ -136,12 +136,8 @@ and holding each heading for three rounds, `#lab=huey` at a supply Huey hovering
 (with a pause each lap, to see the gun go back to rest), `#lab=traps` at a bait pit and a catapult
 pit going off on a loop over a stream of creeps (the knot and its hold, the catapult turned to face
 south-west and its plank snapping up that way, the throw's arc along its facing, a second lying
-stunned where it lands and getting up to walk on, both charge rings filling), and `&dist=11` brings the camera in.
-`#lab=structs&plain&nohud&still` lines up one of each building on plain ground: the seven turrets
-with some tracks bought, a run of wall with a corner, a shut gate and an open one, the generator
-and the armory. `&fig=0`…`6` looks at a turret, `7` the walls, `8` the generator, `9` the armory
-(`&dist=4&px=2` for a close-up at full fineness); `&hp=0.2` shows their damage and `&tier=3` the
-generator's top tier. It needs `&plain`: without it the line-up stands inside the demo's base.
+stunned where it lands and getting up to walk on, both charge rings filling), `#lab=heli` at the evac Huey
+down on its helipad, its door towards the camera, with a survivor standing by it for scale, and `&dist=11` brings the camera in.
 The demo (`#demo`) has both traps on 9 and 0 to place, and its host plays them as `traps.go` does,
 less the wall test, so their sounds can be heard there; X turns a catapult being placed there too.
 `#lab=art` is the reference line-up, to hold beside `docs/artdirection.png`: the picture's four

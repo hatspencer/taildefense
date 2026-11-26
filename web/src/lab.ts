@@ -1,6 +1,6 @@
 import {
   Art, ART_TIME, BlastKind, CROWBAR, EffectKind, FISSURE_EVERY, GREAT, OWNED_BREAKER, OWNED_TEMPERED, TRACER_HELI, TRACER_SPLIT, TRACER_HOMERUN, TRACER_HOMERUN_ROUND, K_TESLA, KATANA, OWNED_DUAL, OWNED_DUAL_KATANA, TRACER_FLASH, TRACER_FOLLOW, TRACER_GREAT,
-  TRACER_KATANA, TRACER_MOON, THROW_FLIGHT, K_SNIPER, TURRET_TRACKS, TRACER_ARC, TRACER_NAPALM, CX_AIR, CX_HELD, K_BAIT, K_CATAPULT, K_ARMORY, K_CANNON, K_CORE, K_FROST, K_GATE, K_GUN, K_MISSILE, K_PYLON, K_WALL, CF_ASLEEP, CF_BURNING, CF_GUARD, CF_STRIKE, CF_WINDUP, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_FIRING, PF_HURT, PF_MOVING, PF_RELOADING, Player, RIFLE,
+  TRACER_KATANA, TRACER_MOON, THROW_FLIGHT, K_SNIPER, TURRET_TRACKS, TRACER_ARC, TRACER_NAPALM, CX_AIR, CX_HELD, K_BAIT, K_CATAPULT, CF_ASLEEP, CF_BURNING, CF_GUARD, CF_STRIKE, CF_WINDUP, Emote, EvacStage, Order, PF_ALIVE, PF_CONNECTED, PF_FIRING, PF_HURT, PF_MOVING, PF_RELOADING, Player, RIFLE,
 } from './protocol';
 import type { Game } from './state';
 
@@ -128,6 +128,7 @@ export class Lab {
       return i < 0 ? [sx + 11, sy + 3] : i < 7 ? [sx + i * 2 + 0.5, sy + 0.5] : ([[sx + 4.5, sy + 5], [sx + 16.5, sy + 1.5], [sx + 21.5, sy + 4.5]] as [number, number][])[i - 7];
     }
     if (at === 'traps') { const [bx, by] = this.trapsAt(); return [bx + 7, by]; }
+    if (at === 'heli') { this.heli = true; return this.heliAt(); }
     if (/^h\d+$/.test(at)) return this.spot(Number(at.slice(1)));
     if (at === 'crowbar') { const [x, y] = this.spot(16); return [x + 1.7, y]; }
     if (at === 'worldsplitter') return this.spot(18);
@@ -303,6 +304,7 @@ export class Lab {
     }
     if (fresh) this.shots();
     this.huey(t, fresh);
+    if (this.heli) this.landed();
     return fresh;
   }
 
@@ -462,6 +464,17 @@ export class Lab {
   // both.
   private trapsAt(): [number, number] { return [Math.floor(this.fx() + 40) + 0.5, Math.floor(this.y0 + 2) + 0.5]; }
   private trapSlots: [number, number] | null = null;
+
+  // #lab=heli: the evac Huey down on its pad, south of the hovering one, its door towards the
+  // camera, with the first survivor standing by its cabin for scale.
+  private heli = false;
+  private heliAt(): [number, number] { return [this.fx() + 22, this.y0 + 19]; }
+  private landed(): void {
+    const g = this.game, f = g.cur, [x, y] = this.heliAt(), p = f.players[0];
+    g.welcome!.evac ??= { pad: { x, y }, half: 3, reach: 3, board: 1, inbound: 60, flight: 20, settle: 4, wait: 90, last: 30, depart: 4, climb: 6 };
+    f.evac = EvacStage.Landed; f.evacLeft = 60; f.evacX = x; f.evacY = y; f.evacAlt = 0; f.evacYaw = 0.3;
+    p.x = g.prx[0] = x - 1.4; p.y = g.pry[0] = y + 2.6; p.aim = g.paim[0] = 1.2;
+  }
 
   // The two traps and their creeps for this moment, from creep slot n: the slots after them.
   // The bait pit's cycle is 10 s: eight walkers come down the road, at 2 s it takes them all
