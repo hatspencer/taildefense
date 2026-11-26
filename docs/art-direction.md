@@ -344,24 +344,38 @@ made of short pieces, so the far model drops it.
 
 ## The heavy and special dead
 
-The brute, mauler, hound, spitter and hurler are built in `web/src/scene/creeps/heavy.ts` at
-the survivors' own units, with `scale` set on each rig, so they stand beside a survivor at their
-true size whatever their sim radius. Their key colours (shirt, trousers, skin, hair) vary per
-creep; their kit is painted and stays as it is.
+The brute, mauler, hound, spitter and hurler (`web/src/scene/creeps/heavy.ts`) are built on the
+same footing as the common dead, so all the dead read as one family: in the survivors' units (an
+ordinary man 1.33 tall, seven heads, the walker's frame), limbs and trunks as tapered prisms
+between joint points, the same head (the walker's, a seventh of the height, a little less on
+the brute), bands, stains and blotches as plates lying on the prisms' faces. `scale` stands an
+ordinary man at a survivor's 1.8 in the world. The stoop, the reach, the hang of the arms and
+the bend of the knees are the joints' rest angles, so the gait moves the pose they are drawn in.
+Their key colours (shirt, trousers, skin, hair) vary per creep; their kit is painted and fixed.
 
-- **Brute**: the picture's: a head taller than a survivor and wide, a grey work shirt under a
-  hi-vis orange vest with pale bands round the belly and up each front, a yellow hard hat,
-  heavy boots, torn knees, big hands hanging at the thigh, blood on the vest and trousers.
-- **Mauler**: a slaughterman, a different shape from the brute: bald and bull-necked, the head
-  sunk forward between hunched shoulders, a barrel of a belly under a long bloodied apron, bare
-  thick arms, wellingtons, a cleaver in the right fist.
-- **Hound**: a dead dog, lean and low-headed, its coat (the hair colour) worn through to bare
-  skin, the ribs and the spine showing, a wound in the flank.
-- **Spitter**: the grabber's posture, leaning in with both arms out, gaunt, the throat swollen
-  into a sac under a dropped jaw, a yellow-green stain down the front of the shirt and on the
-  hands.
-- **Hurler**: tall and rangy in a torn canvas work jacket, the left arm grown long and thick
-  from a swollen shoulder, a lump of concrete with rebar in that hand, the right arm thin.
+- **Spitter**: the picture's grabber, an ordinary man of a survivor's build leaning in with both
+  arms out, elbows bent and hands drooping, one arm higher than the other, one foot ahead; a
+  torn bloodied shirt and dark trousers, the throat swollen into a sac under a dropped jaw, a
+  yellow-green run down the shirt from the mouth.
+- **Brute**: the picture's: about 2.05 m, a head taller and broad, but a man's head on a bull
+  neck, sloped shoulders, long arms hanging forward with the elbows out, real legs with the
+  knees soft; the trunk is the hi-vis vest itself, open down the middle on the blue-grey work
+  shirt, pale bands up each front and round the belly, the sleeves rolled, a yellow hard hat
+  sitting up on the crown so the face shows under the brim. He lumbers: the body dips on each
+  footfall and rolls over the standing leg, the shoulders counter the hips, and both fists come
+  down together.
+- **Mauler**: a slaughterman, a different shape from the brute: a barrel of a belly, hunched,
+  bald and bull-necked with the head sunk forward, a long pale rubber apron bloodied to the
+  knee, bare thick arms, wellingtons, a cleaver in the right fist. He charges low.
+- **Hound**: a big dead dog, 0.75 m at the shoulder: a deep chest and tucked waist in prisms, a
+  tan coat with a dark saddle (the instance's hair) worn through to ribs and raw skin, the head
+  carried low with the lips gone from the teeth. It gallops, crouches and leaps.
+- **Hurler**: tall and rangy in a torn canvas jacket open on the shirt, a swollen left shoulder
+  and a long thick bare arm with a lump of concrete and rebar in the hand at the knee, the right
+  arm thin in its sleeve.
+
+Near models 330 to 580 triangles, far ones under 250: the far model keeps the trunk, limbs,
+head and hat and drops the hands, boots, faces, bands and stains (default).
 
 ## The world's finds
 
