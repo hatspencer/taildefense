@@ -189,7 +189,11 @@ func (s *Server) udpDatagram(in udpIn, now time.Time) {
 			return
 		}
 		p.udpAck = now
-		if e := s.sentAt[in.m.newest%uint32(len(s.sentAt))]; e.seq == in.m.newest && !e.at.IsZero() {
+		// The round trip is timed on the frame the ack names, unless that went out before the
+		// frames came back to UDP: the client's answer to a hello still in flight then names
+		// its newest from before the fallback, and timed it would make the path seem seconds
+		// long and the next fallback wait that long.
+		if e := s.sentAt[in.m.newest%uint32(len(s.sentAt))]; e.seq == in.m.newest && !e.at.IsZero() && !e.at.Before(p.udpSince) {
 			rtt := now.Sub(e.at)
 			if p.srtt == 0 {
 				p.srtt = rtt
