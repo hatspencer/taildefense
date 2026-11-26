@@ -1,14 +1,17 @@
+import { PAL } from './palette';
+
 // What a survivor looks like, read from the u32 the host deals each player on joining (see
 // PROTOCOL.md). The archetype is the outfit, and so the silhouette you know a teammate by at a
 // glance; the player's colour is always the main garment, so teams still read by colour.
 // Everything else is the person in it: skin, body, build, height, hair, beard and glasses.
 
-export const SKIN = [0x3e261c, 0x5a3826, 0x7a4c32, 0x9a6440, 0xb87a4e, 0xd09068, 0xe2a882, 0xf0bf98];
+// Skin, darkest to fairest, warm and a little dusty as the picture's people are.
+export const SKIN = [0x3e2a1e, 0x573a28, 0x714c34, 0x8a6446, 0xa07a56, 0xb48f67, 0xc29c74, 0xcca986];
 // Black and dark brown come up most, the way they do.
-export const HAIR = [0x16120f, 0x16120f, 0x2e1f14, 0x4e3220, 0x7a3a1c, 0xc89c52, 0x8e8a82, 0xa85426];
+export const HAIR = [0x1c1812, 0x1c1812, 0x2e2016, 0x46301e, 0x6a3a1e, 0xa88a52, 0x8a8678, 0x8e4a24];
 
 // Headwraps come in their own cloth.
-const WRAP = [0x8a2a40, 0x2a5a6a, 0xc89040, 0x4a3a6a, 0xe0d8c8, 0x2a2a2a, 0x6a8a3a, 0xa04a20];
+const WRAP = [0x7a2e3a, 0x2e5660, 0xa8803e, 0x4a3e5e, 0xc8c0a8, 0x2e2a26, 0x5e7034, 0x8e4a24];
 
 export const enum Body { Masc, Fem, Andro }
 
@@ -20,33 +23,66 @@ const MASC: HairStyle[] = ['bald', 'buzz', 'short', 'crop', 'afro', 'curly', 'lo
 const FEM: HairStyle[] = ['long', 'ponytail', 'bun', 'bob', 'braids', 'afro', 'locs', 'headwrap', 'curly', 'short', 'sidecut', 'cornrows', 'long', 'ponytail', 'braids', 'buzz'];
 const ANDRO: HairStyle[] = ['short', 'crop', 'bob', 'mohawk', 'sidecut', 'afro', 'locs', 'curly', 'buzz', 'bun', 'ponytail', 'braids', 'headwrap', 'cornrows', 'long', 'bald'];
 
-type Hat = 'none' | 'cap' | 'hardhat' | 'helmet' | 'straw' | 'bandana' | 'beanie' | 'nursecap';
-type Back = 'none' | 'medbag' | 'wrench' | 'pack' | 'bigpack' | 'toolbelt' | 'satchel' | 'bedroll';
+export type Hat = 'none' | 'cap' | 'hardhat' | 'helmet' | 'straw' | 'bandana' | 'beanie' | 'scrubcap';
+// The shirt next to the skin: a work shirt with a collar and pockets, a crew-neck tee, a scrub
+// top's V, or a hoodie's bunched hood.
+export type Shirt = 'collar' | 'tee' | 'vneck' | 'hoodie';
+// What goes over it: overalls (a bib and straps, the legs the same cloth), an open jacket with
+// its lining showing, a leather vest, a hi-vis vest, a plate carrier.
+export type Over = 'overalls' | 'jacket' | 'vest' | 'hivis' | 'carrier';
+// What hangs on the belt.
+export type Belt = 'plain' | 'medic' | 'tools' | 'hunter' | 'chain' | 'thin' | 'fanny';
+// What is carried on the back or at the side.
+export type Back = 'none' | 'daypack' | 'rucksack' | 'bigpack' | 'satchel' | 'assault';
+export type Neck = 'none' | 'scarf' | 'stethoscope' | 'tie' | 'bandana';
 
-interface Archetype {
+export interface Archetype {
   name: string;
-  legs: number;         // trousers
-  boots: number;
-  over?: number;        // a vest or bib over the shirt
-  overKind?: 'vest' | 'bib' | 'plate' | 'open';
-  stripe?: number;      // reflective or plaid bands across the torso
+  shirt: Shirt;
+  sleeve: 'long' | 'rolled' | 'short';
+  shirtColor?: number;   // set when the player's colour is on the layer over it instead
+  over?: Over;
+  overColor?: number;    // unset: the over layer is the player's colour
+  lining?: number;       // an open jacket's lining
+  legs?: number;         // trousers; unset: the player's colour (overalls, scrubs)
+  cargo?: boolean;       // pockets on the thighs
+  knees?: number;        // knee pads or patches
+  shoes: 'boot' | 'sneaker' | 'shoe' | 'wellie';
+  shoeColor: number;
+  sole: number;
+  gloves?: number;
   hat: Hat; hatColor: number;
-  back: Back;
-  chest?: 'cross' | 'tie' | 'lanyard' | 'pocket';
-  pcLegs?: boolean;     // overalls and scrubs: the trousers are the player's colour too
+  hatMark?: number;      // a cross on the front of the cap
+  sleeveMark?: boolean;  // a cross on the sleeve
+  belt: Belt; beltColor: number;
+  back: Back; backColor: number;
+  neck: Neck; neckColor?: number;
 }
 
+// The four of the picture's top row first (paramedic, mechanic, hunter, hiker), then six more
+// with as much on them. The player's colour is the shirt, the overalls or the jacket: the
+// biggest piece of cloth.
 const ARCHETYPES: Archetype[] = [
-  { name: 'paramedic', legs: 0x272b38, boots: 0x16161a, stripe: 0xe8e8d8, hat: 'none', hatColor: 0, back: 'medbag', chest: 'cross' },
-  { name: 'mechanic', legs: 0, boots: 0x2a2018, hat: 'bandana', hatColor: 0x8a2a20, back: 'wrench', chest: 'pocket', pcLegs: true },
-  { name: 'hunter', legs: 0x585638, boots: 0x3e2c1c, stripe: 0x1c1a16, hat: 'cap', hatColor: 0xe0681c, back: 'bedroll' },
-  { name: 'student', legs: 0x34445e, boots: 0xd8d4c8, hat: 'beanie', hatColor: 0x2c2c34, back: 'bigpack' },
-  { name: 'builder', legs: 0x4a4036, boots: 0x6a4a22, over: 0xd6e03c, overKind: 'vest', stripe: 0xeeeee0, hat: 'hardhat', hatColor: 0xe8b818, back: 'toolbelt' },
-  { name: 'nurse', legs: 0, boots: 0xe0dcd0, hat: 'nursecap', hatColor: 0xeeeae0, back: 'none', chest: 'lanyard', pcLegs: true },
-  { name: 'biker', legs: 0x1e2128, boots: 0x141210, over: 0x221c1a, overKind: 'open', hat: 'bandana', hatColor: 0x1c1c22, back: 'none' },
-  { name: 'farmer', legs: 0x3e5680, boots: 0x4a3420, over: 0x3e5680, overKind: 'bib', hat: 'straw', hatColor: 0xd4b868, back: 'none' },
-  { name: 'ex-soldier', legs: 0x4e5238, boots: 0x22201a, over: 0x4a4e34, overKind: 'plate', hat: 'helmet', hatColor: 0x4a4e32, back: 'pack' },
-  { name: 'office worker', legs: 0x262830, boots: 0x18140f, hat: 'none', hatColor: 0, back: 'satchel', chest: 'tie' },
+  { name: 'paramedic', shirt: 'collar', sleeve: 'long', legs: PAL.denimDark, cargo: true, knees: 0x2a2a24, shoes: 'boot', shoeColor: PAL.leather, sole: PAL.leatherDark,
+    gloves: 0x2e2a24, hat: 'cap', hatColor: 0x2a3040, hatMark: PAL.medWhite, sleeveMark: true, belt: 'medic', beltColor: PAL.webbing, back: 'daypack', backColor: PAL.olive, neck: 'none' },
+  { name: 'mechanic', shirt: 'tee', sleeve: 'rolled', shirtColor: PAL.shirtWhite, over: 'overalls', knees: undefined, shoes: 'boot', shoeColor: PAL.leatherDark, sole: PAL.ink,
+    gloves: PAL.leather, hat: 'cap', hatColor: PAL.capOrange, belt: 'tools', beltColor: PAL.leather, back: 'none', backColor: 0, neck: 'none' },
+  { name: 'hunter', shirt: 'collar', sleeve: 'long', shirtColor: PAL.wool, over: 'jacket', lining: PAL.plaid, legs: PAL.denimDark, knees: PAL.leatherDark, shoes: 'boot', shoeColor: PAL.leather, sole: PAL.leatherDark,
+    hat: 'beanie', hatColor: 0x2e2c28, belt: 'hunter', beltColor: PAL.leather, back: 'rucksack', backColor: 0x5a4630, neck: 'scarf', neckColor: PAL.khaki },
+  { name: 'student', shirt: 'hoodie', sleeve: 'long', legs: 0x55603e, shoes: 'sneaker', shoeColor: 0x8a7e66, sole: PAL.medWhite,
+    hat: 'beanie', hatColor: 0x5a2e2e, belt: 'thin', beltColor: PAL.leatherDark, back: 'bigpack', backColor: PAL.packYellow, neck: 'none' },
+  { name: 'builder', shirt: 'tee', sleeve: 'short', over: 'hivis', overColor: PAL.hiVis, legs: PAL.denim, shoes: 'boot', shoeColor: 0x7a5a32, sole: PAL.leatherDark,
+    gloves: 0x8a7a50, hat: 'hardhat', hatColor: PAL.hardHat, belt: 'tools', beltColor: PAL.leather, back: 'none', backColor: 0, neck: 'none' },
+  { name: 'nurse', shirt: 'vneck', sleeve: 'short', shoes: 'sneaker', shoeColor: PAL.medWhite, sole: 0xa8a290,
+    hat: 'scrubcap', hatColor: 0, belt: 'fanny', beltColor: 0x2e3238, back: 'none', backColor: 0, neck: 'stethoscope' },
+  { name: 'biker', shirt: 'tee', sleeve: 'long', over: 'vest', overColor: PAL.leatherDark, legs: PAL.denim, shoes: 'boot', shoeColor: PAL.rubber, sole: PAL.ink,
+    gloves: PAL.leatherDark, hat: 'bandana', hatColor: 0x2a2626, belt: 'chain', beltColor: PAL.leatherDark, back: 'none', backColor: 0, neck: 'none' },
+  { name: 'farmer', shirt: 'collar', sleeve: 'rolled', over: 'overalls', overColor: PAL.denim, legs: PAL.denim, knees: PAL.denimDark, shoes: 'wellie', shoeColor: 0x3e4630, sole: PAL.rubber,
+    hat: 'straw', hatColor: 0xa8905a, belt: 'plain', beltColor: PAL.leather, back: 'none', backColor: 0, neck: 'bandana', neckColor: 0x8a3424 },
+  { name: 'ex-soldier', shirt: 'collar', sleeve: 'rolled', over: 'carrier', overColor: PAL.olive, legs: PAL.khaki, cargo: true, knees: PAL.oliveDark, shoes: 'boot', shoeColor: 0x3a2e20, sole: PAL.ink,
+    gloves: PAL.oliveDark, hat: 'helmet', hatColor: PAL.olive, belt: 'plain', beltColor: PAL.webbing, back: 'assault', backColor: PAL.oliveDark, neck: 'none' },
+  { name: 'office worker', shirt: 'collar', sleeve: 'rolled', legs: 0x2e3036, shoes: 'shoe', shoeColor: 0x2a1c14, sole: PAL.ink,
+    hat: 'none', hatColor: 0, belt: 'thin', beltColor: 0x2a1c14, back: 'satchel', backColor: PAL.leather, neck: 'tie', neckColor: 0x6a2626 },
 ];
 
 export interface Look {
@@ -68,8 +104,8 @@ export function readLook(v: number): Look {
     arch: ARCHETYPES[archIndex], archIndex,
     skin: SKIN[bits(4, 3)], hair: HAIR[bits(13, 3)], wrap: WRAP[bits(13, 3)], style: styles[bits(9, 4)],
     body, beard: body === Body.Masc ? (bits(16, 2) as 0 | 1 | 2 | 3) : 0,
-    width: [0.88, 1, 1.1, 1.2][build] * (body === Body.Fem ? 0.93 : 1),
-    height: [0.93, 0.97, 1.01, 1.05][bits(20, 2)] * (body === Body.Fem ? 0.97 : 1),
+    width: [0.92, 1, 1.07, 1.14][build] * (body === Body.Fem ? 0.95 : 1),
+    height: [0.94, 0.98, 1.01, 1.04][bits(20, 2)] * (body === Body.Fem ? 0.97 : 1),
     glasses: bits(22, 2) === 0,
   };
 }
