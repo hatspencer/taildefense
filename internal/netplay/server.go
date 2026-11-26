@@ -167,6 +167,8 @@ type peer struct {
 	srtt       time.Duration
 	keyAt      time.Time
 	keyTCP     bool
+	// When its chat is free again (chatEvery).
+	chatFree time.Time
 }
 
 type cmdMsg struct {
@@ -270,6 +272,19 @@ const (
 	// MsgUDPOK and MsgResync empty.
 	maxCmdMsg   = 512
 	maxSmallMsg = 64
+	// Every message a player sends spends a token of the first bucket; a command that walks a
+	// path (A*, up to 12 ms for one across the map) spends one of the second too. A message
+	// with no token left waits for one in that player's reader, so a flood slows only the
+	// connection it comes on. The honest peaks are a steer every rendered frame while WASD is
+	// held and the camera turns (240 a second on a 240 Hz screen) and clicks, at most about 15
+	// a second; the bursts hold several seconds of either queued behind a stalled link (5 s of
+	// steers at 360 Hz, 6 s of clicks).
+	msgRate, msgBurst   = 1000, 2000
+	pathRate, pathBurst = 30, 90
+	// Chat lines: chatBurst back to back, then one every chatEvery; past that a line is not
+	// sent and the sender is told.
+	chatEvery = time.Second
+	chatBurst = 5
 )
 
 // msgLimit is the most bytes a joined player's message of type typ may claim.
@@ -278,6 +293,38 @@ func msgLimit(typ byte) uint64 {
 		return maxCmdMsg
 	}
 	return maxSmallMsg
+}
+
+// routes says whether a command plans a path at once (game.World.order).
+func routes(op uint8) bool {
+	switch op {
+	case OpMove, OpAttackMove, OpBuild, OpRepair, OpLoot, OpRevive, OpPickup, OpBoard, OpGate:
+		return true
+	}
+	return false
+}
+
+// bucket is a token bucket: rate tokens a second, up to burst saved.
+type bucket struct {
+	rate, burst float64
+	tokens      float64
+	at          time.Time
+}
+
+// take spends a token and says how long to wait before acting on it: zero while one was saved.
+// A token not yet there is owed, so what waits pays for itself.
+func (b *bucket) take(now time.Time) time.Duration {
+	if b.at.IsZero() {
+		b.tokens = b.burst
+	} else {
+		b.tokens = min(b.burst, b.tokens+now.Sub(b.at).Seconds()*b.rate)
+	}
+	b.at = now
+	b.tokens--
+	if b.tokens >= 0 {
+		return 0
+	}
+	return time.Duration(-b.tokens / b.rate * float64(time.Second))
 }
 
 // handshakes counts the connections still in their handshake.
@@ -493,18 +540,36 @@ func (s *Server) reader(p *peer, br *bufio.Reader) {
 		case <-s.done:
 		}
 	}()
+	msgs := bucket{rate: msgRate, burst: msgBurst}
+	paths := bucket{rate: pathRate, burst: pathBurst}
+	var cmd Cmd
 	for {
 		// A message larger than any a client sends ends the connection.
 		typ, b, err := readMsgMax(br, msgLimit)
 		if err != nil {
 			return
 		}
-		switch typ {
-		case MsgCmd:
-			cmd, err := decodeCmd(b)
-			if err != nil {
+		if typ == MsgCmd {
+			if cmd, err = decodeCmd(b); err != nil {
 				return
 			}
+		}
+		now := time.Now()
+		wait := msgs.take(now)
+		if typ == MsgCmd && routes(cmd.Op) {
+			wait = max(wait, paths.take(now))
+		}
+		if wait > 0 {
+			t := time.NewTimer(wait)
+			select {
+			case <-t.C:
+			case <-s.done:
+				t.Stop()
+				return
+			}
+		}
+		switch typ {
+		case MsgCmd:
 			select {
 			case s.cmdCh <- cmdMsg{p, cmd}:
 			case <-s.done:
@@ -699,6 +764,23 @@ func (s *Server) command(p *peer, c Cmd) {
 			break
 		}
 		s.restart(c.A == 1)
+	case OpChat:
+		if ChatLine(c.Text) == "" {
+			break
+		}
+		// Metered as pings are (game.World.Ping), but here: it is the host's log and every
+		// player's frame that a flood of lines would fill.
+		now := time.Now()
+		free := p.chatFree
+		if free.Before(now) {
+			free = now
+		}
+		if free.After(now.Add((chatBurst - 1) * chatEvery)) {
+			err = errors.New("chatting too fast: that line was not sent")
+			break
+		}
+		p.chatFree = free.Add(chatEvery)
+		msg, err = Exec(w, pl, c)
 	case OpDifficulty:
 		if s.cfg.Owner == "" || p.id.Login != s.cfg.Owner {
 			err = errors.New("only the host can change the difficulty")

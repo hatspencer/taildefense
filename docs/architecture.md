@@ -68,6 +68,15 @@ Browser                   local td (web.Session)               host td (netplay.
     At most 4 `tailscale whois` run at once; a join waits for a slot within its time.
   - After the join a message is refused, and the connection ended, past its type's cap: 512
     bytes for a command (at most 268), 64 for anything else (an echo is 12).
+  - Each player's messages draw on a bucket of 1000 a second with 2000 saved, and a command
+    that plans a path at once (a move, a build, a loot: up to 12 ms of A* across the map) on
+    one of 30 a second with 90 saved. The honest peaks are a steer every rendered frame while
+    the camera turns (240 a second on a 240 Hz screen) and clicks (15 a second); the savings
+    hold 5 s of steers and 6 s of clicks queued behind a stalled link. Past that the
+    player's reader waits for a token: nothing is dropped, the acks stay in order, and only
+    the flooding connection slows.
+  - Chat: 5 lines at once, then one a second; a line past that is not sent, and the sender
+    gets a toast saying so.
 - **Every command is acked.** The local `td` numbers the commands it relays; after a tick the host
   tells each player the last one it applied, so the page can tell which of its orders a frame
   already shows, the base a prediction needs. F3 shows the link: the round trip, command to ack,
