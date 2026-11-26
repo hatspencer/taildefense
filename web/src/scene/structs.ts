@@ -5,6 +5,7 @@ import type { Game } from '../state';
 import { isTrapKind, trapFace, trapGhost, trapMake, trapModel, trapUpdate } from './traps';
 import { box, concat, cone, cyl, dodeca, ico, merge, octa, part, playerColor, sphere, torus, writeMatrix, type Part } from './util';
 import { AWM_LENS, AWM_MUZZLE, awmParts } from './awm';
+import { painted } from './paint';
 
 export { K_ARMORY, K_CANNON, K_CORE, K_FROST, K_GATE, K_GUN, K_MISSILE, K_SNIPER, K_TESLA, K_WALL };
 
@@ -12,7 +13,7 @@ export { K_ARMORY, K_CANNON, K_CORE, K_FROST, K_GATE, K_GUN, K_MISSILE, K_SNIPER
 const hl = uniform(0).onObjectUpdate((frame) => (frame.object?.userData.hl as number | undefined) ?? 0);
 
 export function litMaterial(): THREE.MeshLambertNodeMaterial {
-  const m = new THREE.MeshLambertNodeMaterial();
+  const m = painted(new THREE.MeshLambertNodeMaterial());
   m.colorNode = vertexColor().rgb;
   m.emissiveNode = vec3(0.32, 0.3, 0.18).mul(hl);
   return m;

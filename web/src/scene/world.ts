@@ -3,23 +3,41 @@ import { FLASH_CONE } from '../protocol';
 import { Retro } from './retro';
 import type { WeatherLook } from './weather';
 
-// A dark, smoky haze: the edge of the view fades into it like a blackout town.
-export const SKY = 0x2a2d26;
+// A warm, dusty haze by day: the far edge of the view fades into dry ground, not into gloom.
+export const SKY = 0x5a5236;
 const DUSK_SKY = 0x161a20;
+// The picture's daylight: a warm low sun, and a sky that fills the shade with olive brown, so
+// a cast shadow on lit ground (#5e512a) comes out near #342d1a and never grey.
+// In linear light, on ground facing up: the sun gives 0.75 and the sky and the fill 0.27
+// (a little bluer), so a colour in the sun comes out as painted, a touch warm, and its cast
+// shadow at 0.55 of that on screen. A wall's side gets 0.95 facing the sun, about 0.4 facing
+// the camera and 0.3 turned away: the three tones a figure is shaded in.
+const DAY_SUN = 0xfff8e4, DUSK_SUN = 0xff9a58, DAY_HEMI = 0x9fa5c5, DUSK_HEMI = 0x8a9ab8, HEMI_GROUND = 0xd3c7b2;
+const SUN_DAY = 2.48, HEMI_DAY = 1, FILL_DAY = 0.85;
+// Where the sun stands, seen from the camera: this far round from the screen's right towards
+// its top, and this high. Shadows fall the other way, to the lower left, about as long on
+// screen as what throws them is tall.
+const SUN_ROUND = 28 * Math.PI / 180, SUN_HIGH = 52 * Math.PI / 180;
 const RAIN_SKY = new THREE.Color(0x343a40), FOG_SKY = new THREE.Color(0x7a807c), SNOW_SKY = new THREE.Color(0xaab0b8);
 const FLASH_SKY = new THREE.Color(0xd8e0ff), COOL_SUN = new THREE.Color(0xa8b8d0), WET_HEMI = new THREE.Color(0x9aa6b4);
-const SNOW_GROUND = new THREE.Color(0xc8ccd2), GROUND = new THREE.Color(0x4a4632);
+const SNOW_GROUND = new THREE.Color(0xc8ccd2), GROUND = new THREE.Color(HEMI_GROUND);
 
 interface Backend { name: 'WebGPU' | 'WebGL2'; }
+const TMP = new THREE.Color();
 
 // The renderer, scene, camera and lights. The sun's shadow camera follows the view target
 // so the shadow map only covers what is on screen and stays crisp.
 export class World {
   renderer: THREE.WebGPURenderer;
   scene = new THREE.Scene();
-  camera = new THREE.PerspectiveCamera(42, 1, 0.5, 400);
-  sun = new THREE.DirectionalLight(0xffe2b8, 2.9);
-  hemi = new THREE.HemisphereLight(0xc4cbc2, 0x4a4632, 1.4);
+  // The rig (camera.ts) sets the lens. Near and far hold the long lens's distances: 44 to 275
+  // from the ground it looks at, and the far edge of the view 1.14 of that away.
+  camera = new THREE.PerspectiveCamera(12, 1, 4, 520);
+  sun = new THREE.DirectionalLight(DAY_SUN, SUN_DAY);
+  hemi = new THREE.HemisphereLight(DAY_HEMI, HEMI_GROUND, HEMI_DAY);
+  // A weak light from the camera's left, with no shadow: it tells the side that faces the
+  // camera from the side turned away from the sun, which the sky alone lights the same.
+  fill = new THREE.DirectionalLight(0xfff9f0, FILL_DAY);
   // Lights that matter at dusk: the player's flashlight and the generator's lamp. They are
   // always in the scene, so switching mood never recompiles a shader.
   flashlight = new THREE.SpotLight(0xfff0c8, 0, 26, FLASH_CONE, 0.55, 1);
@@ -57,8 +75,8 @@ export class World {
     this.sun.shadow.bias = -0.0006;
     this.sun.shadow.normalBias = 0.03;
     const sc = this.sun.shadow.camera;
-    sc.near = 1; sc.far = 160;
-    this.scene.add(this.sun, this.sun.target, this.hemi, this.flashlight, this.flashlight.target, this.lamp);
+    sc.near = 1; sc.far = 200;
+    this.scene.add(this.sun, this.sun.target, this.fill, this.fill.target, this.hemi, this.flashlight, this.flashlight.target, this.lamp);
   }
 
   // pixel: the size of one scene pixel in CSS pixels, 0 for the plain full-resolution view.
@@ -69,19 +87,22 @@ export class World {
     this.resize(this.cssW, this.cssH);
   }
 
-  // The automatic block size keeps about 320 scene pixels from top to bottom.
-  static autoPixel(cssH: number): number { return Math.max(2, Math.round(cssH / 320)); }
+  // The automatic block size: two screen pixels to a scene pixel up to a 1250 px high window,
+  // then one more for every 500, so the scene is 400 to 650 pixels from top to bottom. The
+  // default zoom (CameraRig.restDist) goes by that count, so a survivor is 40 of them tall on
+  // any window.
+  static autoPixel(cssH: number): number { return Math.max(2, Math.round(cssH / 500)); }
 
   // m: 0 in daylight, 1 at dusk. hx/hy/aim place the flashlight; the lamp sits on the generator.
   setMood(m: number, hx: number, hy: number, aim: number, hero: boolean, cx: number, cy: number): void {
     this.night = m;
-    const day = new THREE.Color(0xffe2b8), dusk = new THREE.Color(0xff9a58);
-    this.sun.color.copy(day).lerp(dusk, m);
-    this.sun.intensity = 2.9 - 1.2 * m;
-    this.hemi.intensity = 1.4 - 0.4 * m;
-    this.hemi.color.setHex(0xc4cbc2).lerp(new THREE.Color(0x8a9ab8), m);
+    this.sun.color.setHex(DAY_SUN).lerp(TMP.setHex(DUSK_SUN), m);
+    this.sun.intensity = SUN_DAY * (1 - 0.42 * m);
+    this.hemi.intensity = HEMI_DAY * (1 - 0.3 * m);
+    this.hemi.color.setHex(DAY_HEMI).lerp(TMP.setHex(DUSK_HEMI), m);
+    this.fill.intensity = FILL_DAY * (1 - 0.5 * m);
     const bg = this.scene.background as THREE.Color;
-    bg.setHex(SKY).lerp(new THREE.Color(DUSK_SKY), m);
+    bg.setHex(SKY).lerp(TMP.setHex(DUSK_SKY), m);
     (this.scene.fog as THREE.Fog).color.copy(bg);
     this.flashlight.intensity = hero ? 70 * m : 0;
     this.flashlight.position.set(hx - Math.cos(aim) * 0.5, 3, hy - Math.sin(aim) * 0.5);
@@ -94,6 +115,7 @@ export class World {
       // Rain and storms: darker and cooler. Fog: a grey wash. Snow: a pale sky and bright
       // ground bounce. Lightning lights everything for an instant.
       this.sun.intensity *= Math.max(0.3, 1 - 0.4 * w.rain - 0.2 * w.storm - 0.3 * w.fog);
+      this.fill.intensity *= 1 - 0.3 * w.rain;
       this.sun.color.lerp(COOL_SUN, 0.6 * w.rain);
       this.hemi.color.lerp(WET_HEMI, 0.6 * w.rain);
       this.hemi.intensity *= 1 - 0.2 * w.rain + 0.3 * w.snow;
@@ -149,8 +171,10 @@ export class World {
     this.resize(this.cssW, this.cssH);
   }
 
-  // Keeps the sun and its shadow frustum over the view target; span grows with zoom.
-  followSun(tx: number, tz: number, span: number): void {
+  // Keeps the sun and its shadow frustum over the view target; span grows with zoom. The sun
+  // turns with the camera (yaw, the rig's): it always stands to the screen's upper right and
+  // shadows always fall to the lower left, so the picture's light holds from every side.
+  followSun(tx: number, tz: number, span: number, yaw = 0): void {
     span = Math.ceil(span / 4) * 4;
     const sc = this.sun.shadow.camera;
     if (span !== this.shadowSpan) {
@@ -161,14 +185,32 @@ export class World {
     // Snap to shadow texels so shadows do not shimmer while panning.
     const texel = (2 * span) / this.sun.shadow.mapSize.x;
     tx = Math.round(tx / texel) * texel; tz = Math.round(tz / texel) * texel;
-    this.sun.position.set(tx - 30, 60, tz - 18);
+    // In the camera's frame: x to the screen's right, z towards the camera.
+    const sx = Math.cos(SUN_ROUND) * Math.cos(SUN_HIGH), sz = -Math.sin(SUN_ROUND) * Math.cos(SUN_HIGH);
+    const c = Math.cos(yaw), s = Math.sin(yaw), far = 90;
+    this.sun.position.set(tx + (sx * c + sz * s) * far, Math.sin(SUN_HIGH) * far, tz + (-sx * s + sz * c) * far);
     this.sun.target.position.set(tx, 0, tz);
+    // The fill: from the camera, a little to its left and above.
+    const fx = -0.3, fz = 0.84;
+    this.fill.position.set(tx + (fx * c + fz * s) * far, 0.45 * far, tz + (-fx * s + fz * c) * far);
+    this.fill.target.position.set(tx, 0, tz);
   }
 
-  setFog(dist: number): void {
+  // reach: the camera's real distance from the ground it looks at (the rig's reach). The view
+  // runs from 0.9 of it at the bottom of the screen to 1.14 at the top.
+  setFog(reach: number): void {
     const f = this.scene.fog as THREE.Fog;
     const wf = this.look?.fog ?? 0;
-    f.near = dist * 1.1 * (1 - 0.6 * wf); f.far = dist * 2.6 * (1 - 0.45 * wf);
+    f.near = reach * (1.16 - 0.4 * wf); f.far = reach * (1.8 - 0.42 * wf);
+    if (this.retro) this.retro.reach = reach;
+  }
+
+  // Stops the shaders' clock (TSL's time), for a lab's still pose: idle sways, flickers and
+  // ripples hold where they are. Three's frame clock is reached past its private name (three
+  // is pinned).
+  freezeTime(): void {
+    const nf = (this.renderer as unknown as { _nodes?: { nodeFrame?: { update(): void; frameId: number; deltaTime: number } } })._nodes?.nodeFrame;
+    if (nf) nf.update = function () { this.frameId++; this.deltaTime = 0; };
   }
 
   // Builds the shaders ahead of the game, behind the splash. The first frame would otherwise

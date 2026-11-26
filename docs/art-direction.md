@@ -52,15 +52,56 @@ marked "default".
 The player's colour stays on the main garment (teams read by colour), but muted to sit in this
 palette: about 55% saturation and worn, not a flat primary (default).
 
-## How the client gets there (defaults)
+## How the client gets there
 
-- The world stays 3D and the camera still turns; the picture is reached by how it is drawn:
-  a small render target shown with nearest filtering, banded light, outlines from depth and
-  normals, a grade to the palette above, and long sun shadows.
-- **Size on screen:** a standing survivor is about 40 scene pixels tall at the default zoom
-  (the picture's figures are about 45). That is the measure for pixel size and camera distance.
-- **Light:** daylight is the picture: warm and clear, no gloom, no heavy vignette. Dusk and the
-  weathers darken and cool it but keep the outlines and the palette.
+The world stays 3D and the camera still turns; the picture is reached by how it is drawn. What
+is settled, with the file that holds it; "default" marks a choice the owner has not made.
+
+- **Size on screen** (`world.ts` `autoPixel`, `camera.ts` `restDist`): a standing survivor is
+  about 40 scene pixels tall at the default zoom (the picture's figures are about 45). A scene
+  pixel is 2 screen pixels up to a 1250 px high window, then `round(height / 500)`: 2 at 800,
+  1080 and 1200, 3 at 1440, 4 at 2160, so the scene is 400 to 650 pixels high. The default zoom
+  goes by that count, so the figure is 40 pixels on any window and a bigger window shows more
+  of the world: the ground in view is about 23 tiles wide and 21 deep on a 1280×800 window,
+  34 by 29 at 1080p (it was 46 by 32 at any size) (default).
+- **Camera** (`camera.ts`): 42° above the horizon (`TILT`) through a 12° lens (`FOV`), close to
+  orthographic: the top of the screen is drawn at 0.8 of the scale of the bottom (it was 55°
+  through 42°, and 0.58). A wall hides 1.1 times its height of ground behind it. Distances everywhere else
+  (`rig.dist`, `#cam=`, `&dist=`, the zoom limits 12 to 75) still mean what a 42° lens would
+  need for the same view; the real camera stands 3.65 times further (`LENS`), which only the
+  fog, the far plane and the creeps' far model have to know (default).
+- **Sun** (`world.ts`): one directional light 52° high, standing 28° round from the screen's
+  right towards its top, so shadows fall to the lower left, about as long on screen as the
+  figure is tall. It **turns with the camera**: the light and the shadows are the picture's
+  from every side, and a model looked at from behind in the lab is lit as it is from the front.
+  The cost is that shadows swing while the view is being turned (default). A weak second light
+  from the camera's left, with no shadow, separates the side facing the camera from the side
+  turned from the sun. In linear light on level ground the sun gives 0.75 and sky and fill
+  0.27: a palette colour in the sun shows as painted, a touch warm, and its cast shadow at
+  0.55 of it, a little bluer (`#5e512a` to `#342d1a`). A wall's side gets about 0.95 facing
+  the sun, 0.4 facing the camera, 0.3 turned away. The shadow map is 2048 over 2.3 times the
+  view's distance, 32 to 43 texels a tile at the default zoom against 28 scene pixels.
+- **Painted light** (`scene/paint.ts`): `painted(material)` steps a lit material's diffuse
+  light in three (none, 0.55, full; full within about 60° of the light), so a round limb has a
+  lit side and a shaded side, not a gradient. The shared `litMaterial` (structures, survivors),
+  the creeps and the ground use it; every new lit material should (default).
+- **Lines** (`scene/retro.ts`): drawn after the scene, from depth and normals, one scene pixel
+  wide. A silhouette's line lies outside the figure, on what is behind it, in the figure's own
+  colour at 0.24 towards the ink `#18150f`; so it does not eat a 40-pixel figure's limbs.
+  Where one part overlaps another (an arm over the chest, a strap that stands 4 cm or more
+  proud of a shirt) the same line at 0.46; where a surface turns (a box's edge) its own colour
+  at 0.74. So a model gets its creases by giving parts real depth, not by painting lines
+  (default).
+- **Grade** (`scene/retro.ts`): nearly none, since colours are painted from the palette and lit
+  to show as painted: saturation at 0.95, blue taken out of the darks (to 0.88 at black), a
+  vignette of 16% in the very corners, 40 levels a channel behind unpatterned noise. Dusk and
+  rain multiply by a cold `(0.5, 0.6, 0.86)`, up to half way; the sun, sky and fill dim and
+  cool with them from the daylight values (default).
+- **Palette** (`scene/palette.ts`): the table above as `PAL`, with `darker`, `lighter`, `blend`,
+  `stained`, and `mute`/`garment` for a player's colour. Models take their colours from it.
+- **Ground**: the terrain's grass is the picture's lit ground, `#5e532a`, and the ground's
+  colours are no longer multiplied in twice (which was most of the old gloom). Its patches,
+  tufts and props are still the old ones.
 - **Models** are built in code from parts on the shared 12-joint skeleton (`web/src/scene/rig.ts`),
   realistic in proportion, with the kit that makes each one readable. A horde still draws in one
   call per kind, so a creep's detail is paid in vertices: see the budgets in
@@ -72,5 +113,8 @@ palette: about 55% saturation and worn, not a flat primary (default).
 ## Checking a look
 
 `tools/shot.py '<hash>' screenshots/<name>.png` takes screenshots of the built client from a
-headless Chrome (see `docs/development.md`). `#lab=art` lays the survivors and the dead out as
-the picture does, at its camera, to hold beside it.
+headless Chrome (see `docs/development.md`, which also lists the lab's parameters). `#lab=art`
+lays the survivors and the dead out as the picture does, at its camera and on plain ground, to
+hold beside it; `&fig=N` looks at one of them, `#lab=hN&still&plain&nohud&arch=A` at any
+survivor archetype at rest and `#lab=kN&still&plain&nohud` at any creep kind, `&yaw=` from
+the side and the back.

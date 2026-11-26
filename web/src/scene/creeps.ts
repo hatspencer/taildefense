@@ -6,9 +6,11 @@ import {
 import {
   CF_ASLEEP, CF_BURNING, CX_FRENZY, CX_SAPPER, CX_SPLITTER, CX_SUNDER, CX_AIR, CX_HELD, CF_HUNTING, CF_SIEGE, CF_SLOWED, CF_STRIKE, CF_WINDUP, type CreepDef, K_CATAPULT, MAX_CREEPS, PF_ALIVE,
 } from '../protocol';
+import { LENS } from '../camera';
 import type { Game } from '../state';
 import { type CreepRig, creepRig } from './creepModels';
 import { FAR } from './detail';
+import { painted } from './paint';
 import { farParts, indexed, J, JOINTS, mergeRig, turnTowards } from './rig';
 import { box, lin, merge, octa, part, writeMatrix } from './util';
 
@@ -132,7 +134,7 @@ function material(r: CreepRig, scale: number, buf: THREE.InstancedInterleavedBuf
     return turn(p.mul(scale)).add(pl.xyz);
   })();
 
-  const mat = new THREE.MeshLambertNodeMaterial();
+  const mat = painted(new THREE.MeshLambertNodeMaterial());
   mat.positionNode = pose;
   let col = vertexColor().rgb;
   const cl = (hex: number) => { const k = lin(hex); return vec3(k.r, k.g, k.b); };
@@ -291,8 +293,11 @@ export class Creeps {
   }
 
   // Which model a figure at squared distance d2 from the camera takes, from the one it had.
+  // farFrom is a distance through the 42° lens it was set for; the long lens stands LENS
+  // times further back for the same figure on screen.
   private farAt(d2: number, was: number): number {
     const f = this.farFrom;
+    d2 /= LENS * LENS;
     return d2 > (was ? f - HYST : f + HYST) ** 2 ? 1 : 0;
   }
 

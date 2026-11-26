@@ -24,8 +24,32 @@ import type { Game } from './state';
 // with the state bits the host sends: the pit knotting eight walkers and letting them go, the
 // catapult throwing three at a time back up the road. It takes the demo's world over after
 // its first frame and stops it, then poses everything itself.
+//
+// 'art' is another thing: the reference line-up, held beside docs/artdirection.png. Nothing of
+// the bench, only the picture's four survivors (paramedic, mechanic, hunter, student) in a row
+// above five of the dead (walker, swarmer for the crawler, spitter for the grabber, brute,
+// runner), standing at rest where the picture has them and turned as it turns them.
+// &fig=0..8 looks at one of them. With `still` the bench's survivors stand at rest too
+// instead of their poses, and `arch` (0..9) puts every one of them in that archetype's outfit.
 
 const COLS = ['walk', 'idle', 'attack', 'hit', 'burn', 'sleep', 'die'] as const;
+
+// A survivor's look from its parts (see scene/look.ts for the bits); no glasses.
+const look = (arch: number, skin: number, body: number, style: number, hair: number, beard: number, build: number, height: number) =>
+  (arch | skin << 4 | body << 7 | style << 9 | hair << 13 | beard << 16 | build << 18 | height << 20 | 1 << 22) >>> 0;
+// The line-up's survivors: across (tiles from the middle), the player slot (its colour: teal,
+// blue, orange, purple), the look and the way each faces (0 east, a quarter turn south, towards
+// the camera).
+const ART_LIVING: [number, number, number, number][] = [
+  [-2.7, 5, look(0, 5, 0, 2, 0, 0, 1, 2), 0.6],
+  [-1.0, 0, look(1, 4, 0, 2, 2, 1, 2, 2), 0.9],
+  [0.8, 6, look(2, 5, 0, 3, 2, 2, 2, 2), 0.35],
+  [2.7, 4, look(3, 5, 1, 1, 3, 0, 0, 1), 0.3],
+];
+// The dead below them: across, the creep kind, the way it faces.
+const ART_DEAD: [number, number, number][] = [[-3.4, 0, 0.9], [-1.8, 2, 0.7], [-0.25, 4, 0.25], [1.6, 3, 1.3], [3.45, 1, 1.9]];
+// The rows are this far apart on the ground, the dead nearer the camera.
+const ART_ROWS = 3.05;
 const DX = 3.2, DY = 3.6;
 // The way #lab=traps's catapult faces: 3 eighths of a turn from east towards south.
 const LAB_FACING = 3;
@@ -45,15 +69,54 @@ export class Lab {
   private split = new Map<string, number>();
 
   // gun, when 0 or more, puts that weapon in every survivor's hands (#lab=h&gun=6).
-  constructor(private game: Game, cx: number, cy: number, private gun = -1) {
+  // art: the reference line-up instead of the bench. still: survivors at rest, not posing.
+  // fig: the one figure of the line-up to look at. arch: every survivor's archetype.
+  constructor(private game: Game, cx: number, cy: number, private gun = -1, private art = false, private still = false, private fig = -1, private arch = -1) {
     this.x0 = cx - 3 * DX;
     this.y0 = cy + 9;
+  }
+
+  // The line-up's middle, between its two rows.
+  private artAt(): [number, number] { return [this.x0 + 3 * DX, this.y0 + 4]; }
+  // Where figure i of the line-up stands: 0..3 the survivors, 4..8 the dead.
+  private artSpot(i: number): [number, number] {
+    const [mx, my] = this.artAt();
+    return i < ART_LIVING.length ? [mx + ART_LIVING[i][0], my - ART_ROWS / 2] : [mx + ART_DEAD[(i - ART_LIVING.length) % ART_DEAD.length][0], my + ART_ROWS / 2];
+  }
+
+  // The line-up for this moment: everyone standing where the picture has them.
+  private stepArt(): void {
+    const g = this.game, f = g.cur;
+    f.nBlasts = 0; f.nTracers = 0; f.nDeaths = 0; f.nEffects = 0;
+    ART_DEAD.forEach(([, kind, heading], n) => {
+      const id = 100 + n, [x, y] = this.artSpot(ART_LIVING.length + n);
+      f.cId[n] = id; f.cKind[n] = Math.min(kind, g.welcome!.creeps.length - 1); f.cFlags[n] = 0; f.cFx[n] = 0; f.cTarget[n] = 255; f.cHp[n] = 255;
+      f.cX[n] = x; f.cY[n] = y; g.rx[n] = x; g.ry[n] = y; g.heading[id] = heading; g.indexById[id] = n;
+    });
+    f.nCreeps = ART_DEAD.length;
+    while (f.players.length < 8) f.players.push(new Player());
+    f.nPlayers = 8;
+    for (let i = 0; i < 8; i++) {
+      const p = f.players[i], who = ART_LIVING.findIndex((a) => a[1] === i);
+      p.id = i; p.flags = 0; p.hp = 100; p.maxHp = 100; p.heal = 0;
+      p.order = Order.Idle; p.channel = 0; p.emote = Emote.None; p.emoteLeft = 0; p.sprinting = false;
+      p.held = false; p.airborne = false; p.stunned = false; p.owned = 0; p.evo.fill(0); p.art = Art.None; p.artFrac = 0; p.artCool = 0;
+      if (who < 0) continue;
+      const [x, y] = this.artSpot(who);
+      p.look = ART_LIVING[who][2]; p.cur = this.gun >= 0 ? this.gun : who === 2 ? RIFLE : 0;
+      p.flags = PF_CONNECTED | PF_ALIVE;
+      p.x = x; p.y = y; p.aim = ART_LIVING[who][3];
+      g.prx[i] = x; g.pry[i] = y; g.paim[i] = p.aim;
+    }
   }
 
   // Where to look: the whole bench, or one creep row (0..10), or the survivors ('h'), or one
   // of them ('h0'..'h19'), or the crowbar's Home Run ('crowbar'), or Worldsplitter
   // ('worldsplitter'), or the turret shots ('fx').
   center(at = ''): [number, number] {
+    if (this.art) return this.fig >= 0 ? this.artSpot(this.fig) : this.artAt();
+    // One kind at rest: its idle column.
+    if (/^k\d+$/.test(at)) return [this.x0 + DX, this.y0 + Number(at.slice(1)) * DY];
     if (at === 'fx') return [this.fx() + 4.5, this.y0 + 2.5];
     if (at === 'sniper') { const s = this.dressSniper(); if (s) return [s[0], s[1] - 3.5]; }
     if (at === 'awm') return this.spot(19);
@@ -127,6 +190,7 @@ export class Lab {
     // A new frame at the welcome's tick rate, for what keys off frames (the dead).
     let fresh = false;
     if (now - this.last >= 1000 / (wd.tickRate || 20)) { this.last = now; g.frames++; this.tick++; fresh = true; }
+    if (this.art) { this.stepArt(); return fresh; }
     const kinds = wd.creeps.length;
     let n = 0;
     for (let k = 0; k < kinds; k++) {
@@ -171,15 +235,18 @@ export class Lab {
     while (f.players.length < this.poses.length) f.players.push(new Player());
     f.nPlayers = this.poses.length;
     for (let i = 0; i < this.poses.length; i++) {
-      const p = f.players[i], pose = this.poses[i];
+      const p = f.players[i], pose = this.still ? 'rest' : this.poses[i];
       // Health varies so the portraits show their wounds; the sprinter has a medkit working.
-      p.id = i; p.look = (i * 2654435761) >>> 0; p.cur = this.gun >= 0 ? this.gun : i % 6; p.hp = [80, 50, 55, 80, 22, 80, 0, 45, 70, 35, 90, 75, 60, 85, 65, 95, 70, 88, 100, 90][i]; p.maxHp = 100;
+      p.id = i; p.look = (i * 2654435761) >>> 0;
+      if (this.arch >= 0) p.look = ((p.look & ~15) | (this.arch & 15)) >>> 0;
+      p.cur = this.gun >= 0 ? this.gun : i % 6; p.hp = [80, 50, 55, 80, 22, 80, 0, 45, 70, 35, 90, 75, 60, 85, 65, 95, 70, 88, 100, 90][i]; p.maxHp = 100;
       p.heal = pose === 'sprint' ? 5 : 0;
       p.flags = PF_CONNECTED | PF_ALIVE; p.order = Order.Idle; p.channel = 0; p.emote = Emote.None; p.emoteLeft = 0; p.sprinting = false;
       p.held = false; p.airborne = false; p.stunned = false; p.owned = 0;
       p.evo.fill(0); p.art = Art.None; p.artFrac = 0; p.artCool = 0;
-      let [x, y] = this.spot(i), aim = Math.PI / 2;
+      let [x, y] = this.spot(i), aim = this.still ? 0.6 : Math.PI / 2;
       switch (pose) {
+        case 'rest': break;
         case 'circle': {
           const a = t * 0.9;
           x += Math.cos(a) * 1.3; y += Math.sin(a) * 1.3; aim = Math.PI / 2;

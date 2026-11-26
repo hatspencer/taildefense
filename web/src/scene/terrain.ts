@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { color, dot, floor, fract, mix, normalWorld, positionWorld, sin, smoothstep, time, vec2, vec3, vertexColor, float } from 'three/tsl';
 import { Ruin, SiteKind, Tile, type SiteDef } from '../protocol';
 import { indexed } from './rig';
+import { painted } from './paint';
 import { SHRINE_PLAN, shrineTile } from './shrine';
 import { box, cone, cyl, dodeca, merge, part, writeMatrix } from './util';
 import { uSnow, uWet } from './weather';
@@ -12,10 +13,11 @@ function hash(x: number, y: number, s = 0): number {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
-// Overgrown suburbia: olive grass, trodden dirt, cracked concrete, murky ponds.
+// Dry suburbia in the picture's colours (scene/palette.ts): olive, sun-dried grass, trodden
+// dirt, cracked concrete, murky ponds. These are the colours as they show in the sun.
 const GROUND: Record<number, number> = {
-  [Tile.Grass]: 0x5c7a32, [Tile.Dirt]: 0x76603f, [Tile.Floor]: 0x7f7c72, [Tile.Sand]: 0xab9a6c,
-  [Tile.Water]: 0x3c4a3a, [Tile.Tree]: 0x4e6a2c, [Tile.Rock]: 0x6a6456,
+  [Tile.Grass]: 0x5e532a, [Tile.Dirt]: 0x5a4628, [Tile.Floor]: 0x6b675a, [Tile.Sand]: 0x857548,
+  [Tile.Water]: 0x2a3026, [Tile.Tree]: 0x4b4a27, [Tile.Rock]: 0x57534a,
 };
 
 // Per-texel noise in world space, four texels to a tile: chunky ground texture with no image.
@@ -176,14 +178,16 @@ export class Terrain {
       }
       ch[y * (w + 1) + x] = n ? (water && water < n ? Math.min(s / n, -0.3) : s / n) : 0;
     }
-    const mat = new THREE.MeshLambertNodeMaterial({ vertexColors: true });
+    // No vertexColors flag: the colour node below already is the vertex colour, and the flag
+    // would multiply it in a second time (which is what made the old ground so dark).
+    const mat = painted(new THREE.MeshLambertNodeMaterial());
     const fine = texelNoise(4, 0), coarse = texelNoise(2, 7);
     const base = vertexColor().rgb.mul(fine.mul(0.07).add(0.965)).mul(coarse.mul(0.06).add(0.97));
     // Rain leaves puddles in the low spots: dark, with a cold sheen that ripples.
     const puddle = smoothstep(0.55, 0.75, texelNoise(0.5, 13).mul(0.6).add(texelNoise(1, 17).mul(0.4))).mul(uWet);
     const ripple = sin(time.mul(7).add(texelNoise(6, 23).mul(40))).mul(0.5).add(0.5);
     const sheen = vec3(0.24, 0.28, 0.32).mul(ripple.mul(0.25).add(0.85));
-    mat.colorNode = mix(weathered(base, float(1)), sheen, puddle.mul(float(1).sub(uSnow)).mul(0.8));
+    mat.colorNode = mix(weathered(base, float(1)), sheen.mul(0.4), puddle.mul(float(1).sub(uSnow)).mul(0.8));
     this.disposables.push(mat);
     // In square pieces, so three's frustum culling draws only those in view: the whole map
     // as one mesh was its every tile, 128k triangles on a 256 map, however close the camera.
@@ -199,7 +203,7 @@ export class Terrain {
     }
 
     // The world beyond the map edge, so the fog has something to fade.
-    const outer = new THREE.Mesh(new THREE.PlaneGeometry(w * 6, h * 6), new THREE.MeshLambertNodeMaterial({ color: 0x3e4f26 }));
+    const outer = new THREE.Mesh(new THREE.PlaneGeometry(w * 6, h * 6), new THREE.MeshLambertNodeMaterial({ color: 0x4d4325 }));
     outer.rotation.x = -Math.PI / 2;
     outer.position.set(w / 2, -0.12, h / 2);
     outer.receiveShadow = true;

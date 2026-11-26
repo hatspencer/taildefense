@@ -139,6 +139,41 @@ south-west and its plank snapping up that way, the throw's arc along its facing,
 stunned where it lands and getting up to walk on, both charge rings filling), and `&dist=11` brings the camera in.
 The demo (`#demo`) has both traps on 9 and 0 to place, and its host plays them as `traps.go` does,
 less the wall test, so their sounds can be heard there; X turns a catapult being placed there too.
+`#lab=art` is the reference line-up, to hold beside `docs/artdirection.png`: the picture's four
+survivors (paramedic, mechanic, hunter, student) above five of the dead (walker, swarmer for the
+crawler, spitter for the grabber, brute, runner), standing at rest where the picture has them, on
+plain ground, at the picture's framing, with no HUD and no splash. `&fig=0`…`8` looks at one of
+them (0 to 3 the survivors, 4 to 8 the dead). Every lab view takes these:
+
+| | |
+|---|---|
+| `&dist=N` | the view's size (the default zoom is about 18 on an 800 px high window, 25 on 1080p; a figure fills the height at 3) |
+| `&yaw=N` | the camera turned N degrees round the figure: 90 and 270 the sides, 180 the back. The sun turns with the camera, so the light is the same from every side |
+| `&still` | survivors stand at rest instead of posing, and after two seconds every pose, sway and flicker holds, so two screenshots are the same picture |
+| `&plain` | the bench out on a flat stage in the picture's ground colours, with no terrain, props or loot |
+| `&nohud` | the scene alone (also on `#demo`), and no splash |
+| `&arch=N` | every survivor in archetype N's outfit (0 paramedic, 1 mechanic, 2 hunter, 3 student, 4 builder, 5 nurse, 6 biker, 7 farmer, 8 ex-soldier, 9 office worker) |
+| `&gun=N` | weapon N in every survivor's hands |
+| `&px=N` | the scene pixel's size on screen |
+
+`#lab=kN` looks at creep kind N's idle column, so `#lab=k3&still&plain&nohud&dist=5` is a brute at
+rest and `#lab=h0&still&plain&nohud&arch=4&dist=4&yaw=180` a builder from behind. Nearer than the
+default zoom a lab's scene pixel grows by as much as the view shrinks, so a close-up is the
+game's 40-pixel figure enlarged, not a finer one; `&px=2` shows the model at full fineness.
+
+`tools/shot.py '<hash>' screenshots/<name>.png` takes the screenshot: it loads the built client
+(`./build.sh web` first) from `file://` in a headless Chrome of its own, waits (`--wait`, 22 s
+by default; 14 is enough for a lab) and writes the PNG. `--size 1920x1080` sets the window,
+`--frames N --every S` takes a run of them, `--keys` and `--click` press and click first,
+`--eval` prints a JavaScript value, `--page` loads another build's `index.html` to compare
+with. Each run is its own Chrome, so several can run at once. Headless Chrome loses its WebGPU
+device, so always add `&webgl` (and `&vol=0`):
+
+    tools/shot.py '#lab=art&vol=0&webgl' screenshots/art-lineup.png --wait 14 --size 1672x941
+    tools/shot.py '#demo&nosplash&vol=0&webgl&phase=build' screenshots/art-demo.png
+
+Read the PNG enlarged with `magick in.png -crop 640x400+160+20 +repage -filter point -resize 200% out.png`.
+
 `#lab=sound` puts the sound bench over it: every recipe in the bank and every set of recordings,
 clicked (or Enter) to play as the game does, or the recipe, the recording or both alone (s, r, b),
 at the level the game plays it and the volume on its slider. Recordings come in through

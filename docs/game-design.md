@@ -10,7 +10,10 @@ it here along with the code.
   some go out and loot, and someone has to come back for the downed.
 - **Fast.** Short breaks, waves that don't wait, no long downtime. A game is meant to be
   played through in an evening.
-- **Readable.** An 8-bit look with chunky shapes. Every threat has to be readable at a glance,
+- **Readable.** Pixel art of real people in daylight, after one picture
+  (`docs/art-direction.md`): a three-quarter view through a long lens, a survivor about 40
+  scene pixels tall, one warm low sun with long shadows, every figure outlined in a darker
+  shade of itself. Every threat has to be readable at a glance by its silhouette and posture,
   even with thousands of creeps on screen.
 - **Risk for reward.** The good stuff is far out, guarded and noisy to get. Staying home is safe
   and poor.
@@ -576,7 +579,7 @@ the Overload killing every small creep at waves 10 to 30 but no brute.
   opener. Up to three wait unopened. The surfboards on the Huey's side are for Kilgore, and
   the door gunner, sitting in the open doorway with his legs out over the skid in a red
   headband, aviators and crossed belts of brass, a cigar going, is for Tropic Thunder. He is
-  drawn where the top-down camera can see him, out past the roof's edge, and his minigun sits
+  drawn where the camera above can see him, out past the roof's edge, and his minigun sits
   on an arm out from the doorframe and turns to what it fires at, his arms on its grips and his
   tracers leaving from its muzzle, so the shots read as his.
 - **Weapons change hands.** A survivor can drop a weapon they carry and a teammate pick it up,
