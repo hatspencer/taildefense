@@ -1,6 +1,6 @@
 import {
   Art, ART_TIME, BlastKind, CROWBAR, EffectKind, FISSURE_EVERY, GREAT, OWNED_BREAKER, OWNED_TEMPERED, TRACER_HELI, TRACER_SPLIT, TRACER_HOMERUN, TRACER_HOMERUN_ROUND, K_TESLA, KATANA, OWNED_DUAL, OWNED_DUAL_KATANA, TRACER_FLASH, TRACER_FOLLOW, TRACER_GREAT,
-  TRACER_KATANA, TRACER_MOON, THROW_FLIGHT, K_SNIPER, TURRET_TRACKS, TRACER_ARC, TRACER_NAPALM, CX_AIR, CX_HELD, K_BAIT, K_CATAPULT, CF_ASLEEP, CF_BURNING, CF_GUARD, CF_STRIKE, CF_WINDUP, Emote, EvacStage, Order, PF_ALIVE, PF_CONNECTED, PF_FIRING, PF_HURT, PF_MOVING, PF_RELOADING, Player, RIFLE,
+  TRACER_KATANA, TRACER_MOON, THROW_FLIGHT, K_SNIPER, TURRET_TRACKS, TRACER_ARC, TRACER_NAPALM, CX_AIR, CX_HELD, K_BAIT, K_CATAPULT, CF_ASLEEP, CF_BURNING, CF_GUARD, CF_STRIKE, CF_WINDUP, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_FIRING, PF_HURT, PF_MOVING, PF_RELOADING, Player, RIFLE, type SiteDef, SiteKind,
 } from './protocol';
 import type { Game } from './state';
 
@@ -53,6 +53,11 @@ const ART_ROWS = 3.05;
 const DX = 3.2, DY = 3.6;
 // The way #lab=traps's catapult faces: 3 eighths of a turn from east towards south.
 const LAB_FACING = 3;
+// #lab=loot: every loot prop in a row, unsearched, and the same row searched behind it, with
+// survivors among them for scale (&fig=N looks at prop N; &plain puts them on the stage).
+const LOOT_ROW: [number, number][] = [[SiteKind.Crate, 2.6], [SiteKind.Car, 3.4], [SiteKind.Pickup, 3.6], [SiteKind.Police, 4.2], [SiteKind.Ambulance, 4.4],
+  [SiteKind.Bus, 4.8], [SiteKind.Army, 4.2], [SiteKind.Fire, 4.6], [SiteKind.Armored, 3.8], [SiteKind.Camper, 4.2], [SiteKind.Moto, 2.6], [SiteKind.Pump, 2.6],
+  [SiteKind.Tank, 3.4], [SiteKind.Station, 3], [SiteKind.House, 3], [SiteKind.Shrine, 24]];
 
 export class Lab {
   private x0: number; private y0: number;
@@ -78,6 +83,42 @@ export class Lab {
 
   // The line-up's middle, between its two rows.
   private artAt(): [number, number] { return [this.x0 + 3 * DX, this.y0 + 4]; }
+
+  // The loot line-up's props, as sites added to the welcome's (scene/loot.ts lays them anew).
+  private loot: { at: number[]; first: number } | null = null;
+  private lootRow(): { at: number[]; first: number } {
+    if (this.loot) return this.loot;
+    const wd = this.game.welcome!, sites: SiteDef[] = [], at: number[] = [], y = this.y0 - 14;
+    let x = this.x0;
+    for (const [kind, len] of LOOT_ROW) {
+      x += len / 2; at.push(x);
+      for (const dy of [0, 5]) {
+        const sx = x + (kind === SiteKind.Shrine ? 8 : 0), sy = y + dy;
+        sites.push({ kind, x: Math.floor(sx) - (kind === SiteKind.Station || kind === SiteKind.House ? 3 : 0), y: Math.floor(sy) - (kind === SiteKind.Station || kind === SiteKind.House ? 3 : 0), w: kind === SiteKind.Station || kind === SiteKind.House ? 7 : 1, h: kind === SiteKind.Station || kind === SiteKind.House ? 7 : 1, sx, sy, tier: 0, guard: 0, yaw: kind === SiteKind.Shrine ? Math.PI : 0 });
+      }
+      x += len / 2;
+    }
+    this.loot = { at, first: wd.sites.length };
+    wd.sites = [...wd.sites, ...sites];
+    return this.loot;
+  }
+
+  private stepLoot(): void {
+    const f = this.game.cur, { at, first } = this.lootRow(), n = first + at.length * 2;
+    while (f.sites.length < n) f.sites = new Uint8Array(f.sites.length * 2);
+    for (let i = first; i < n; i++) f.sites[i] = (i - first) % 2 ? 0x80 : 0;
+    f.nSites = n; f.nCreeps = 0; f.nBlasts = 0; f.nTracers = 0; f.nDeaths = 0; f.nEffects = 0;
+    while (f.players.length < 8) f.players.push(new Player());
+    f.nPlayers = 8;
+    for (let i = 0; i < 8; i++) {
+      const p = f.players[i], [x, y] = [at[i * 2] + 0.2, this.y0 - 14 + 1.6];
+      p.id = i; p.flags = PF_CONNECTED | PF_ALIVE; p.hp = 100; p.maxHp = 100; p.order = Order.Idle; p.emote = Emote.None; p.owned = 0; p.art = Art.None;
+      p.look = ART_LIVING[i % 4][2]; p.cur = 0; p.x = x; p.y = y; p.aim = Math.PI / 2;
+      this.game.prx[i] = x; this.game.pry[i] = y; this.game.paim[i] = p.aim;
+    }
+    // A weapon of each kind dropped at the survivors' feet, beside the row.
+    f.guns = Array.from({ length: 8 }, (_, k) => ({ id: k + 1, kind: k, x: at[k * 2] + 1.2, y: this.y0 - 14 + 2.4, lv: [0, 0, 0], evo: 0, by: k }));
+  }
   // Where figure i of the line-up stands: 0..3 the survivors, 4..8 the dead.
   private artSpot(i: number): [number, number] {
     const [mx, my] = this.artAt();
@@ -115,6 +156,7 @@ export class Lab {
   // ('worldsplitter'), or the turret shots ('fx').
   center(at = ''): [number, number] {
     if (this.art) return this.fig >= 0 ? this.artSpot(this.fig) : this.artAt();
+    if (at === 'loot') { const { at: xs } = this.lootRow(), i = Math.max(0, Math.min(xs.length - 1, this.fig)); return [this.fig >= 0 ? xs[i] + (LOOT_ROW[i][0] === SiteKind.Shrine ? 8 : 0) : (xs[0] + xs[xs.length - 2]) / 2, this.y0 - 14 + 2.5]; }
     // One kind at rest: its idle column.
     if (/^k\d+$/.test(at)) return [this.x0 + DX, this.y0 + Number(at.slice(1)) * DY];
     if (at === 'fx') return [this.fx() + 4.5, this.y0 + 2.5];
@@ -198,6 +240,7 @@ export class Lab {
     let fresh = false;
     if (now - this.last >= 1000 / (wd.tickRate || 20)) { this.last = now; g.frames++; this.tick++; fresh = true; }
     if (this.art) { this.stepArt(); return fresh; }
+    if (this.loot) { this.stepLoot(); return fresh; }
     const kinds = wd.creeps.length;
     let n = 0;
     for (let k = 0; k < kinds; k++) {

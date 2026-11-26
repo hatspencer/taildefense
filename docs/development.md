@@ -144,7 +144,11 @@ less the wall test, so their sounds can be heard there; X turns a catapult being
 survivors (paramedic, mechanic, hunter, student) above five of the dead (walker, swarmer for the
 crawler, spitter for the grabber, brute, runner), standing at rest where the picture has them, on
 plain ground, at the picture's framing, with no HUD and no splash. `&fig=0`…`8` looks at one of
-them (0 to 3 the survivors, 4 to 8 the dead). Every lab view takes these:
+them (0 to 3 the survivors, 4 to 8 the dead). `#lab=loot` lines up every find in the world:
+the wrecks, the supply crate, the pump and the shop counter, the plane's engine, the house's
+fridge and the shrine, unsearched along the top and searched below, with a survivor beside
+every other one for scale and a dropped weapon of each kind at their feet; `&fig=N` stands at
+survivor N. Every lab view takes these:
 
 | | |
 |---|---|

@@ -119,23 +119,36 @@ hold beside it; `&fig=N` looks at one of them, `#lab=hN&still&plain&nohud&arch=A
 survivor archetype at rest and `#lab=kN&still&plain&nohud` at any creep kind, `&yaw=` from
 the side and the back.
 
-## The heavy and special dead
+## The world's finds
 
-The brute, mauler, hound, spitter and hurler are built in `web/src/scene/creeps/heavy.ts` at
-the survivors' own units, with `scale` set on each rig, so they stand beside a survivor at their
-true size whatever their sim radius. Their key colours (shirt, trousers, skin, hair) vary per
-creep; their kit is painted and stays as it is.
+Everything a survivor searches or picks up is in `web/src/scene/loot.ts` (sites) and
+`web/src/scene/guns.ts` (dropped weapons), and `#lab=loot&plain&nohud` lines it all up, closed
+above and searched below, with survivors among it for scale.
 
-- **Brute**: the picture's: a head taller than a survivor and wide, a grey work shirt under a
-  hi-vis orange vest with pale bands round the belly and up each front, a yellow hard hat,
-  heavy boots, torn knees, big hands hanging at the thigh, blood on the vest and trousers.
-- **Mauler**: a slaughterman, a different shape from the brute: bald and bull-necked, the head
-  sunk forward between hunched shoulders, a barrel of a belly under a long bloodied apron, bare
-  thick arms, wellingtons, a cleaver in the right fist.
-- **Hound**: a dead dog, lean and low-headed, its coat (the hair colour) worn through to bare
-  skin, the ribs and the spine showing, a wound in the flank.
-- **Spitter**: the grabber's posture, leaning in with both arms out, gaunt, the throat swollen
-  into a sac under a dropped jaw, a yellow-green stain down the front of the shirt and on the
-  hands.
-- **Hurler**: tall and rangy in a torn canvas work jacket, the left arm grown long and thick
-  from a swollen shoulder, a lump of concrete with rebar in that hand, the right arm thin.
+- **Scale.** Props (the fridge, the crate, the pump, the counter) are built in metres at 0.85
+  units to the metre, which is the survivors' own size (a 1.8 m person is about 1.53 units). Vehicles are built in metres too, but at 0.55 units to the metre:
+  the sim's solid box for each wreck (`wreckHalf` in `internal/game/wreck.go`) is about two
+  thirds of a real car against a survivor, and the model has to fit the box a survivor walks
+  round. So a wreck is a true-proportioned vehicle at two thirds of its size beside a person;
+  growing the boxes would change play and the golden game, which is a decision for the game,
+  not the art. The motorbike, whose box is small, gets 0.7 units to the metre, nearer its true
+  size, upright on its side stand. The plane, its engine, the church and the shrine's altar are
+  built in tiles, at the size their walls take on the map.
+- **What makes them read.** Wheels sit in cut arches, with glass, door seams, handles, mirrors,
+  lights and bumpers as real steps in depth (about 4 cm or more), so the outline pass draws them.
+  Paint is one faded body colour per car, picked per instance from a dusty list; a company
+  colour is the only bright thing on a vehicle: the cruiser's light bar, the ambulance's red
+  band, the bus's yellow, the armoured van's teal stripe.
+- **Searched.** The open model swings doors, bonnets, boots, lids and fridge doors on their
+  hinges, empties what was inside onto the ground, and is drawn at 0.72 of its colour with no
+  glint. The glint sits 0.4 over the closed model's top, measured from its geometry.
+- **Cost.** Each kind and state is one instanced mesh in one material, so the finds cost at most
+  one draw per kind and state on screen, plus one for the glints and one for the station's
+  canopy. Closed / open triangles: house 276/308, car 1036/1168, crate 432/420, pickup
+  1072/1064, cruiser 1072/1216, ambulance 1004/1112, bus 1056/1116, army truck 1352/1464, counter
+  396/300, pump 364/196, fire engine 1492/1840, armoured van 1056/1128, camper 1066/1138,
+  motorbike 532/568, plane 1564/1576, engine 232/88, church 1844/1812, shrine 656/468.
+- **Not here.** The ruins' walls and the shrine's court are `web/src/scene/terrain.ts` (the
+  shrine's plan is shared from `shrine.ts`); the airdropped crate on its way down and the Huey
+  are the helicopter's and the effects'. A dropped weapon is the model the survivor carries
+  (`gunParts` in `heroes.ts`), lying on its side on the ground, drawn at 1.3 where the hand holds it at 1.15.

@@ -632,6 +632,11 @@ Wrecks on the roads come in kinds, so you know what to expect at a glance:
 richer further out: the near roads are mostly cars and pickups, and the far roads hold most of
 the army trucks.
 
+Each kind is drawn as the vehicle it is (`web/src/scene/loot.ts`), so the table can be read off
+the road: the cruiser's light bar, the ambulance's red band and crosses, the bus's yellow, the
+army truck's tilt, the fire engine's ladder and lockers. A searched wreck stands with its doors,
+bonnet and boot open and its contents on the ground, darker, and with no glint over it.
+
 A survivor walks round a wreck, not through it, so none is placed where it would close a way:
 a car across a one-tile track or a gap between rocks would leave the other side reachable only
 the long way round, or not at all. Map generation tries the spot again elsewhere.
