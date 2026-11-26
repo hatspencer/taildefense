@@ -119,33 +119,27 @@ hold beside it; `&fig=N` looks at one of them, `#lab=hN&still&plain&nohud&arch=A
 survivor archetype at rest and `#lab=kN&still&plain&nohud` at any creep kind, `&yaw=` from
 the side and the back.
 
-## Effects, overlays, labels and weather
+## Survivors
 
-Effects are drawn in the scene's own pixels, in the palette, as things rather than light.
+A survivor is a real person, 1.8 m tall and seven heads high, with shoulders two heads wide and
+hands and boots a little large so they read at game zoom. The head is drawn 1.08 times true
+size about the neck, for the face's sake. The body is built in metres in `figure()`
+(`web/src/scene/heroes.ts`) from many small tapered boxes hung on the same joints the poses
+use, so every animation and hold still fits it; `K` turns metres into the group's units.
 
-- **Coverage is dithered, never blended.** Effects, overlays and the fog-of-war edge cut
-  their coverage against a 4x4 ordered dither (`scene/dither.ts`, alpha test at 0.5), so a
-  thin puff is a sparse pattern of whole pixels, not a see-through smear. There is no additive
-  blending; effects write no normal, so the outline pass leaves them alone. Colours go through
-  `tame()`: saturation pulled to 0.78 and 6% of the canvas tone over them.
-- **Gunfire**: a muzzle flash of two or three frames (a pale diamond, an orange one, a short
-  tongue) and a wisp of smoke; short pale tracers; brass casings kicked out to the right; dust
-  and a chip where a shot lands.
-- **Gore**: dark blood (`#5a1810` and its neighbours; bile is olive) as specks that fall and a
-  spatter on the ground that stays and dries away in patches.
-- **Explosions**: a short ball of flash, rising tongues of fire stepped pale, orange and ember,
-  black smoke, debris, a ring of dust and a scorch mark. Smoke is solid inside with a dithered
-  rim, lit a step brighter on its sun side.
-- **Domes and auras** (taunt, frost, overload...) are sparse dithered shells, not glowing
-  bubbles.
-- **Overlays** (`scene/overlays.ts`): one-pixel lines with a dark underline, dashed for range
-  rings, area previews and footprints (crawling where something is about to happen), solid for
-  the selection; bone `#d8cca0` for fine, `#c8402a` for not. Ghosts are dithered.
-- **Labels and bars** (`hud/labels.ts`): a 3x5 pixel font and bars two scene pixels high in a
-  one-pixel ink edge, snapped to the scene pixel grid, just over the head; names in the
-  player's colour, tamed. A name the font cannot set falls back to the HUD face.
-- **Weather**: rain is short grey-green streaks, snow small bone flakes. The haze gathers past
-  the survivor's sight and in noise banks that drift with the wind (`scene/fow.ts`), instead of
-  a wash by distance from the camera, which the long lens made even over the whole view.
-- **Fog of war**: its edge is cut against a dither laid on the ground in cells of about two
-  scene pixels (it stays put as the view moves); out of sight goes to a dark olive, not grey.
+- **Archetypes** (`web/src/scene/look.ts`) are the picture's people: the paramedic (collar shirt,
+  cap with a cross, medic belt, daypack, knee pads), the mechanic (white tee under overalls,
+  tool belt), the hunter (jacket over plaid, beanie, rucksack, scarf), the student (hoodie,
+  beanie, a big yellow pack), then the builder (hi-vis vest, hard hat), the nurse (scrubs,
+  scrub cap, stethoscope), the biker (leather vest, bandana, chain), the farmer (denim
+  overalls, straw hat, wellies), the ex-soldier (plate carrier, helmet, assault pack, cargo
+  trousers) and the office worker (shirt, tie, satchel).
+- **Detail** is in many parts rather than texture: collars, rolled sleeves, belts with
+  buckles, pockets, straps, boot soles, a brow shadow and a nose, eyes no bigger than a pixel.
+  Every colour is muted from `PAL`; the player's colour stays on the main garment through
+  `garment()`.
+- **Held weapons** are at true size, in wood and steel with a sling or magazine where the real
+  thing has one (`gunParts`). The held AWM is 1.2 m long.
+- **Budget**: at most 2500 triangles per survivor with the held weapon; they come to about
+  1500-2200.
+- **Portraits** use the same figure from the chest up, with the face placed from `FACE`.

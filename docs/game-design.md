@@ -1099,8 +1099,10 @@ choice, not a cheat guard.
 ## Survivors
 
 - **Archetypes.** Ten of them: paramedic, mechanic, hunter, student, builder, nurse, biker,
-  farmer, ex-soldier and office worker. Each has its own outfit, and the archetype shows on the
-  scoreboard.
+  farmer, ex-soldier and office worker. Each has its own outfit and kit (a paramedic's medic
+  belt and daypack, a builder's hi-vis vest and hard hat, a soldier's plate carrier and
+  helmet), so the ten read apart by silhouette, and the archetype shows on the scoreboard.
+  Survivors are real people, 1.8 m tall, and hold their weapons at true size.
 - **Looks are random.** Skin, body, hair, beard, build, height and glasses vary independently,
   so a team of eight looks like eight different people of any race and gender. It's all
   cosmetic. No archetype plays differently, so nobody feels stuck with a bad pick.
