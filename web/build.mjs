@@ -43,6 +43,9 @@ await esbuild.build({
 copyFileSync('index.html', `${out}/index.html`);
 copyFileSync('app.css', `${out}/app.css`);
 copyFileSync('menus.css', `${out}/menus.css`);
+// The HUD's face, beside the page that app.css loads it from, with its licence.
+mkdirSync(`${out}/fonts`, { recursive: true });
+for (const f of ['FiraCode-VF.woff2', 'OFL.txt']) copyFileSync(`fonts/${f}`, `${out}/fonts/${f}`);
 // The music, files of their own beside the page rather than inlined: a few megabytes the page
 // streams once it needs them, so nothing waits on them (src/sound/music.ts).
 mkdirSync(`${out}/music`, { recursive: true });
