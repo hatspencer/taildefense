@@ -25,6 +25,8 @@ three.js browser client embedded from `internal/web/dist`.
   - `animator` (Opus): how one family of figures moves, judged on frame strips.
   - `art-critic` (Sonnet): holds screenshots beside the picture and lists the differences; a
     read that is not the author's. Edits nothing.
+  - `sound-engineer` (Opus): designs or redesigns sounds in `web/src/sound`, judged by
+    render, measurement and spectrogram; the owner's ear is the last judge.
   - `docs-sync` (Sonnet): updates the docs after a verified change.
 - `tools/shot.py '<hash>' screenshots/<name>.png` screenshots the built client from a headless
   Chrome of its own, so agents can each look at their work at once (`&webgl` in the hash:
