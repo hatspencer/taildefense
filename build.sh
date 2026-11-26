@@ -25,17 +25,22 @@
 # the engines with TAILDEFENSE_CONTAINER_ENGINE.
 #
 # This is also the build half of `taildefense update`: it clones the repository and runs the
-# clone's build.sh, then the new binary's install. The host module cache is mounted, so a
-# warm machine builds with no network beyond the git fetch.
+# clone's build.sh, then the new binary's install. The host module cache is mounted into the
+# Go container, so a warm machine builds with no network beyond the git fetch.
 set -eu
 
 cd "$(dirname "$0")"
 
-# The same image mf, slip and hive build with, so one pull serves all four. Qualified with
-# its registry because Podman enforcing short names would otherwise ask which registry
-# "golang" means, and `taildefense update` runs this with no terminal to answer on.
-IMAGE=${TAILDEFENSE_GO_IMAGE:-docker.io/library/golang:1.27-alpine}
-NODE_IMAGE=${TAILDEFENSE_NODE_IMAGE:-docker.io/library/node:26-alpine}
+# Pinned by digest, so a tag moved upstream cannot change what every `td update` builds with.
+# The digest is the multi-arch index's, not one platform's, so arm64 and amd64 each pull their
+# own image from it; docs/development.md says how to bump it. The tag is there for readers and
+# is the one mf, slip and hive build with: while theirs resolves to this same index the layers
+# are shared and one pull serves all four, and once the tag moves on, td keeps its own copy
+# until the digest here is bumped. Qualified with its registry because Podman enforcing short
+# names would otherwise ask which registry "golang" means, and `taildefense update` runs this
+# with no terminal to answer on.
+IMAGE=${TAILDEFENSE_GO_IMAGE:-docker.io/library/golang:1.27-alpine@sha256:70bd7ddea8b6cbe5d6943cde279d6b67feb10cc924fb9100d1d8757c1575b280}
+NODE_IMAGE=${TAILDEFENSE_NODE_IMAGE:-docker.io/library/node:26-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5}
 BINARY=td
 PLATFORMS="darwin/arm64 darwin/amd64 linux/amd64 linux/arm64"
 
@@ -138,6 +143,8 @@ host_target() {
 
 # The host's module cache, so a warm machine builds with no network. The fallback lives
 # outside the tree because Go writes the cache read-only, and an update deletes its clone.
+# Only the Go container mounts it, writable because a cold cache is filled there; Go checks
+# every module it downloads against go.sum.
 modcache() {
   if [ -d "${GOMODCACHE:-$HOME/go/pkg/mod}" ]; then
     echo "${GOMODCACHE:-$HOME/go/pkg/mod}"
@@ -182,15 +189,20 @@ sweep_containers() {
   fi
 }
 
-# run executes a command in the golang image as the calling user. HOME is a mounted
-# directory, not /tmp, so tests that shorten $HOME to ~ see a realistic home.
-# -d=fmahash=qn quietly keeps the compiler from fusing a*b+c into one rounding on arm64,
-# which amd64 never does, so the game plays the same tick for tick on every machine and the
-# golden game recorded on one passes on the other.
-run() {
-  mkdir -p "$GOCACHE_DIR/build" "$GOCACHE_DIR/home"
+# contain runs one container as the calling user with the checkout at /src and HOME at the
+# directory given first: a mounted one, not /tmp, so tests that shorten $HOME to ~ see a
+# realistic home. The commit is stamped on the host (above) and nothing inside needs git, so
+# .git is mounted over itself read-only; in a git worktree that is the file naming the main
+# checkout's git directory, which is never mounted at all.
+contain() {
+  home=$1
+  shift
+  mkdir -p "$home"
   need_engine
   z=$(engine_mount_suffix)
+  if [ -e .git ]; then
+    set -- -v "$PWD/.git:/src/.git:ro${z:+,z}" "$@"
+  fi
   sweep_containers
   BUILD_SEQ=$((BUILD_SEQ + 1))
   CONTAINER="$BINARY-build-$$-$BUILD_SEQ"
@@ -200,21 +212,38 @@ run() {
   "$ENGINE" run --rm --name "$CONTAINER" --label "$BUILD_LABEL" \
     $(engine_id_flags) \
     -e HOME=/gohome \
-    -e CGO_ENABLED=0 \
-    -e "GOFLAGS=-mod=readonly -gcflags=all=-d=fmahash=qn" \
-    -e GOCACHE=/gobuild \
-    -e GOMODCACHE=/gomodcache \
-    -e TD_SOAK -e TD_SOAK_ONE -e TD_GOLDEN -e TD_NETSIM -e TD_NETSIM_SECS \
     -v "$PWD:/src$z" \
-    -v "$GOCACHE_DIR/build:/gobuild$z" \
-    -v "$GOCACHE_DIR/home:/gohome$z" \
-    -v "$(modcache):/gomodcache$z" \
+    -v "$home:/gohome$z" \
     -w /src \
     ${TTY_FLAGS:-} \
     "$@" || status=$?
   trap - INT TERM HUP
   remove_container
   return "$status"
+}
+
+# run executes a command in the golang image, with the compiler and module caches.
+# -d=fmahash=qn quietly keeps the compiler from fusing a*b+c into one rounding on arm64,
+# which amd64 never does, so the game plays the same tick for tick on every machine and the
+# golden game recorded on one passes on the other.
+run() {
+  mkdir -p "$GOCACHE_DIR/build"
+  z=$(engine_mount_suffix)
+  contain "$GOCACHE_DIR/home" \
+    -e CGO_ENABLED=0 \
+    -e "GOFLAGS=-mod=readonly -gcflags=all=-d=fmahash=qn" \
+    -e GOCACHE=/gobuild \
+    -e GOMODCACHE=/gomodcache \
+    -e TD_SOAK -e TD_SOAK_ONE -e TD_GOLDEN -e TD_NETSIM -e TD_NETSIM_SECS \
+    -v "$GOCACHE_DIR/build:/gobuild$z" \
+    -v "$(modcache):/gomodcache$z" \
+    "$@"
+}
+
+# run_node executes a command in web/ in the node image. Its home, where npm keeps its cache,
+# is its own, and none of Go's caches is mounted.
+run_node() {
+  contain "$GOCACHE_DIR/node" -w /src/web "$NODE_IMAGE" "$@"
 }
 
 build_one() {
@@ -227,10 +256,13 @@ build_one() {
 }
 
 # web_build bundles the browser client into internal/web/dist, which the binary embeds. npm's
-# cache lives in the mounted home, so a warm machine installs with no network.
+# cache lives in the mounted home, so a warm machine installs with no network. No package's
+# install script runs: esbuild's is the only one, and esbuild's binary comes as an optional
+# dependency without it.
+NPM_CI='npm ci --ignore-scripts --no-audit --no-fund --loglevel=error'
 web_build() {
   echo "  client -> internal/web/dist"
-  run -w /src/web "$NODE_IMAGE" sh -c 'npm ci --no-audit --no-fund --loglevel=error && npm run --silent build'
+  run_node sh -c "$NPM_CI && npm run --silent build"
 }
 
 GO_FILES='find . -name "*.go" -not -path "./.gocache/*" -not -path "./dist/*" -not -path "./web/*"'
@@ -271,7 +303,7 @@ case "$cmd" in
       out=$(gofmt -l $('"$GO_FILES"'));
       if [ -n "$out" ]; then echo "gofmt needed:"; echo "$out"; exit 1; fi
       go vet -mod=readonly ./... && go test -mod=readonly ./...'
-    run -w /src/web "$NODE_IMAGE" sh -c 'npm ci --no-audit --no-fund --loglevel=error && npm run --silent check'
+    run_node sh -c "$NPM_CI && npm run --silent check"
     ;;
   web)
     need_engine
@@ -279,7 +311,7 @@ case "$cmd" in
     ;;
   npm)
     need_engine
-    run -w /src/web "$NODE_IMAGE" npm "$@"
+    run_node npm "$@"
     ;;
   test)
     need_engine
