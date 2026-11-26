@@ -13,6 +13,7 @@ import (
 	"taildefense/internal/config"
 	"taildefense/internal/game"
 	"taildefense/internal/netplay"
+	"taildefense/internal/plain"
 	"taildefense/internal/tailnet"
 	"taildefense/internal/ui"
 	"taildefense/internal/web"
@@ -651,7 +652,7 @@ func plural(n int, noun string) string {
 	return fmt.Sprintf("%d %ss", n, noun)
 }
 
-func oneLine(s string) string { return strings.Join(strings.Fields(ansi.Strip(s)), " ") }
+func oneLine(s string) string { return plain.Line(s) }
 
 func prefsPath() string {
 	p, err := config.Path()

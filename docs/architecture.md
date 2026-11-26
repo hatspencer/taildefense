@@ -115,6 +115,11 @@ Browser                   local td (web.Session)               host td (netplay.
   carries no audio, and the binary no sound files. A worker renders the bank, so making it never
   costs a frame; `web/build.mjs` inlines the worker into `app.js`, because a separate script
   would not load as a worker when the demo is opened from disk.
+- **A player's `td` does not trust what comes back.** Any tailnet device can answer on the
+  game port, and a host may be broken or hostile, so every string a probe reply, a refusal or
+  a welcome carries, and every name a peer reports about itself to tailscale, becomes one
+  line of plain text (`internal/plain`) where `td` first reads it, before `td ls`, the
+  launcher or `td join` prints it.
 - **The launcher is Bubble Tea.** It hosts, finds games and holds settings, then opens the browser
   and shows the game's status until it ends.
 - **No tsnet.** The game uses the Tailscale already installed on the machine, so your identity

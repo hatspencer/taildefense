@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"taildefense/internal/plain"
 )
 
 // EnvTailscale overrides the tailscale executable.
@@ -174,7 +176,7 @@ func parseStatus(out []byte) (Self, []Peer, error) {
 	}
 	if st.Self != nil {
 		s.DNSName = strings.TrimSuffix(st.Self.DNSName, ".")
-		s.Host = st.Self.HostName
+		s.Host = plain.Line(st.Self.HostName)
 		s.IPs = st.Self.TailscaleIPs
 		s.Login, s.Name = login(st.Self.UserID)
 		s.Relay = st.Self.Relay
@@ -183,8 +185,10 @@ func parseStatus(out []byte) (Self, []Peer, error) {
 	for _, p := range st.Peer {
 		l, _ := login(p.UserID)
 		path, via := p.path()
-		peers = append(peers, Peer{Host: p.HostName, DNSName: strings.TrimSuffix(p.DNSName, "."), IPs: p.TailscaleIPs, OS: p.OS, Online: p.Online, Login: l,
-			Path: path, Via: via})
+		// A device reports its own host name and OS, so a hostile one could put escape
+		// sequences in them: they are cleaned here, once, for every place that shows them.
+		peers = append(peers, Peer{Host: plain.Line(p.HostName), DNSName: plain.Line(strings.TrimSuffix(p.DNSName, ".")), IPs: p.TailscaleIPs,
+			OS: plain.Line(p.OS), Online: p.Online, Login: plain.Line(l), Path: path, Via: plain.Line(via)})
 	}
 	sort.Slice(peers, func(i, j int) bool { return peers[i].Host < peers[j].Host })
 	return s, peers, nil
