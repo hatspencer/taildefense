@@ -18,6 +18,7 @@ A change doesn't have to be merged to be played. Keep it on a branch and install
 td update -b your-branch      # build and install that branch
 td update                     # later: pick up the branch's new commits
 td update -f                  # back to main
+td update -c 451fa65          # one commit of main, pinned until -f: to find what broke a thing
 ```
 
 - `td update` builds from the repository the install came from. For a branch in your fork, name
