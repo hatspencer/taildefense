@@ -34,7 +34,7 @@ const (
 	ActionQuit    ActionKind = iota
 	ActionHost               // host a game on the PORT setting and play it
 	ActionJoin               // join Addr
-	ActionRestart            // re-exec the installed td after an update
+	ActionRestart            // re-exec the installed td after the player's update
 )
 
 // Action is the launcher's answer.
@@ -52,11 +52,10 @@ type Outcome struct {
 }
 
 // Session is what outlives one launcher run: the tailnet answer and td's own update state.
-// A background update started by one launcher keeps going while a game is played, and the
-// next launcher shows how it ended, so the state lives here under a lock rather than in a
-// model that is gone by then.
+// The check for a newer td runs once per session and may answer after a launcher has closed
+// for a game, so the state lives here under a lock rather than in a model gone by then.
 type Session struct {
-	Updater *cli.AutoUpdater // nil when td is not installed
+	Checker *cli.UpdateChecker // nil when td is not installed
 
 	mu         sync.Mutex
 	update     cli.SelfUpdate
@@ -75,8 +74,8 @@ type Session struct {
 }
 
 // NewSession starts a session. u may be nil.
-func NewSession(u *cli.AutoUpdater) *Session {
-	return &Session{Updater: u, update: cli.SelfUpdate{State: cli.UpdateUnknown}}
+func NewSession(u *cli.UpdateChecker) *Session {
+	return &Session{Checker: u, update: cli.SelfUpdate{State: cli.UpdateUnknown}}
 }
 
 func (s *Session) Update() cli.SelfUpdate {
@@ -284,7 +283,7 @@ func newModel(o Options) *Model {
 }
 
 // whatsNew is the update news to show: a launch's own (newModel), or, once an update this
-// launcher ran or watched has installed, what that one brought.
+// launcher ran has installed, what that one brought.
 func (m *Model) whatsNew() *cli.News {
 	st := m.sess.Update()
 	if st.State == cli.UpdateUpdated && st.After != "" && st.After != m.newsFor {
@@ -341,7 +340,7 @@ func runErr(err error) error {
 
 func (m *Model) Init() tea.Cmd {
 	cmds := []tea.Cmd{m.loadTailnet()}
-	if m.sess.Updater != nil {
+	if m.sess.Checker != nil {
 		m.sess.mu.Lock()
 		first := !m.sess.checked
 		m.sess.checked = true
@@ -365,19 +364,13 @@ func (m *Model) loadTailnet() tea.Cmd {
 	}
 }
 
-// checkSelf asks whether td is behind main and, when autoupdate allows, updates in the
-// background. The update goroutine writes the session, not the model, so the result
-// survives this launcher closing for a game.
+// checkSelf asks whether a newer td is out, off the launcher's start, and only says so: the
+// update is the player's to start (u, or Update td now). It writes the session, not the model,
+// so the answer survives this launcher closing for a game.
 func (m *Model) checkSelf() tea.Cmd {
-	sess, u := m.sess, m.sess.Updater
+	sess, u := m.sess, m.sess.Checker
 	return func() tea.Msg {
-		s := u.Check()
-		sess.setUpdate(s)
-		if u.ShouldStart(s) {
-			s.State = cli.UpdateUpdating
-			sess.setUpdate(s)
-			go func() { sess.setUpdate(u.Run(s)) }()
-		}
+		sess.setUpdate(u.Check())
 		return selfMsg{}
 	}
 }
@@ -400,12 +393,12 @@ func (m *Model) scan() tea.Cmd {
 	}, m.ensureTick())
 }
 
-// animating is whether anything on screen moves: a spinner while looking for games or while
-// an update runs. An idle launcher sends no frames.
+// animating is whether anything on screen moves: a spinner while looking for games, reading
+// the changelog or running the doctor. An idle launcher sends no frames.
 func (m *Model) animating() bool {
 	_, _, reading := m.sess.changelog()
 	_, _, checking := m.sess.doctor()
-	return m.splash || m.scanning || reading || checking || m.sess.Update().State == cli.UpdateUpdating
+	return m.splash || m.scanning || reading || checking
 }
 
 func (m *Model) ensureTick() tea.Cmd {
@@ -434,7 +427,7 @@ func (m *Model) menu() []menuItem {
 // updateWaiting is whether an update is known to be there to install.
 func (m *Model) updateWaiting() bool {
 	st := m.sess.Update().State
-	return st == cli.UpdateBehind || st == cli.UpdateFailed || m.updateOffered()
+	return st == cli.UpdateBehind || m.updateOffered()
 }
 
 func (m *Model) updateOffered() bool {
@@ -499,8 +492,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case fgUpdateMsg:
 		before := m.sess.Update()
 		var after cli.SelfUpdate
-		if m.sess.Updater != nil {
-			after = m.sess.Updater.Updated(before)
+		if m.sess.Checker != nil {
+			after = m.sess.Checker.Updated(before)
 		} else {
 			after = cli.ForegroundUpdated(before)
 		}
@@ -576,8 +569,8 @@ func (m *Model) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.quit(Action{Kind: ActionQuit})
 	}
 	// ctrl+z is a key in raw mode, not the terminal's stop; the program hands the terminal
-	// back, stops td, and takes the terminal again on fg. Nothing is lost: an update in the
-	// background stops with td and goes on with it.
+	// back, stops td, and takes the terminal again on fg. Nothing is lost: a check for a newer
+	// td still under way stops with td and goes on with it.
 	if k.Code == 'z' && k.Mod.Contains(tea.ModCtrl) {
 		return m, tea.Suspend
 	}
@@ -601,8 +594,7 @@ func (m *Model) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.help = true
 		return m, nil
 	case "u":
-		st := m.sess.Update().State
-		if st != cli.UpdateUpdating && st != cli.UpdateUpdated {
+		if m.sess.Update().State != cli.UpdateUpdated {
 			return m, m.foregroundUpdate()
 		}
 	case "R":
@@ -707,10 +699,6 @@ func (m *Model) menuKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				m.say(false, "opened %s", dir)
 			}
 		case itemUpdate:
-			if m.sess.Update().State == cli.UpdateUpdating {
-				m.say(false, "an update is already running in the background")
-				return m, nil
-			}
 			return m, m.foregroundUpdate()
 		case itemRestart:
 			return m.quit(Action{Kind: ActionRestart})
@@ -909,9 +897,6 @@ func (m *Model) save(key config.Key, raw string) bool {
 		return false
 	}
 	m.prefs.Reload()
-	if key.Name == config.KeyAutoUpdate && m.sess.Updater != nil {
-		m.sess.Updater.Enabled = m.prefs.AutoUpdate()
-	}
 	m.say(false, "saved %s = %s", strings.ToLower(key.Name), v)
 	if cur := m.prefs.Get(key.Name); cur.Source == config.SourceEnv {
 		m.say(true, "saved %s = %s, but %s overrides it in this shell", strings.ToLower(key.Name), v, cur.Key.Env)

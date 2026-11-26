@@ -201,14 +201,10 @@ func (m *Model) versionLine() string {
 	}
 	text := s.Text()
 	switch s.State {
-	case cli.UpdateUpdating:
-		line += "  " + ui.StyleCyan.Render(spinner(m.now.Sub(m.started))+" "+text)
 	case cli.UpdateUpdated:
 		line += "  " + ui.StyleGreen.Render("✔ "+text) + ui.StyleDim.Render(" · R restart now")
 	case cli.UpdateBehind:
-		line += "  " + ui.StyleYellow.Render(text) + ui.StyleDim.Render(" · u update")
-	case cli.UpdateFailed:
-		line += "  " + ui.StyleRed.Render(text)
+		line += "  " + ui.StyleYellow.Render(text) + ui.StyleDim.Render(" · or press u")
 	case cli.UpdateCurrent:
 		line += "  " + ui.StyleDim.Render("up to date")
 	default:
@@ -329,8 +325,6 @@ func (m *Model) itemHint(it menuItem) string {
 		return "name " + m.prefs.Name() + " · port " + fmt.Sprint(m.prefs.Port()) + " · browser " + m.prefs.Browser()
 	case itemUpdate:
 		switch st := m.sess.Update(); {
-		case st.State == cli.UpdateUpdating:
-			return "updating in the background already"
 		case st.State == cli.UpdateFollowing:
 			return "td update on the branch you follow, then back here"
 		case st.State == cli.UpdatePinned:
@@ -731,7 +725,7 @@ func Frame(o Options, width, height int, view string) string {
 			p.Warn("browser: none td knows is installed; the game opens in the system's browser")
 			p.Pass("container engine podman, for td update")
 			p.Pass("git, for td update")
-			p.Info("autoupdate on (default)")
+			p.Info("updates: td says when a newer one is out; td update installs it")
 			p.Plain("")
 			p.OK("ready: td opens the launcher, td host starts a game")
 			m.sess.setDoctor(strings.Split(strings.TrimRight(b.String(), "\n"), "\n"), true)

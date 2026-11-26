@@ -160,9 +160,9 @@ func (n updateNews) shown() ([]change, int) {
 }
 
 // News is the last update's news as the launcher shows it. The update also keeps it beside
-// the install (newsFile), because a background update's own output goes to a log nobody
-// reads: the launcher lists it once the update is in, and again the first time the new td
-// starts.
+// the install (newsFile): the launcher lists it once an update it ran is in, and again the
+// first time the new td starts, since a td update run from a shell said it where nobody
+// may still be looking.
 type News struct {
 	To      string      `json:"to"`
 	Head    string      `json:"head"`

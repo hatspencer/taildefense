@@ -49,14 +49,13 @@ WebGL 2 where WebGPU isn't available. Any current Chrome, Edge, Firefox or Safar
 | `td frame [--width W] [--height H] [--view menu\|join\|settings\|keys\|changelog\|doctor\|help\|splash] [--at S]` | render one launcher frame from demo data, 160×48 unless told otherwise; `--at` is seconds into the splash |
 | `td doctor` | check tailscale, the browser, container engine, install |
 | `td keys` | the game's keys and what each does, the table the launcher's Keys shows |
-| `td config [KEY [VALUE]]` | show or change settings: NAME, PORT, DIFFICULTY, FOG, WAVES, MODE, VOLUME, MUSIC, RETICLE, RETICLE_SIZE, BROWSER, AUTOUPDATE; `td config KEY --reset` returns one to its default |
-| `td update [-f] [-b BRANCH] [-c COMMIT]` | rebuild from the repo's main (or a branch, or one commit of main to stay pinned to) and reinstall |
+| `td config [KEY [VALUE]]` | show or change settings: NAME, PORT, DIFFICULTY, FOG, WAVES, MODE, VOLUME, MUSIC, RETICLE, RETICLE_SIZE, BROWSER; `td config KEY --reset` returns one to its default |
+| `td update [-f] [-b BRANCH] [-c COMMIT]` | rebuild from the repo's main (or a branch, or one commit of main to stay pinned to) and reinstall; td never updates itself, the launcher only says when a newer one is out |
 | `td install [-f]` | install this build |
 | `td version [--offline] [--json]` | this build and whether a newer one exists |
 
 Every setting can also come from the environment (`TAILDEFENSE_NAME`, `TAILDEFENSE_PORT`,
-`TAILDEFENSE_DIFFICULTY`, `TAILDEFENSE_FOG`, `TAILDEFENSE_WAVES`, `TAILDEFENSE_VOLUME`, `TAILDEFENSE_MUSIC`, `TAILDEFENSE_RETICLE`, `TAILDEFENSE_RETICLE_SIZE`, `TAILDEFENSE_BROWSER`,
-and `TAILDEFENSE_NO_AUTOUPDATE` to turn autoupdate off), and `td config` says where
+`TAILDEFENSE_DIFFICULTY`, `TAILDEFENSE_FOG`, `TAILDEFENSE_WAVES`, `TAILDEFENSE_VOLUME`, `TAILDEFENSE_MUSIC`, `TAILDEFENSE_RETICLE`, `TAILDEFENSE_RETICLE_SIZE`, `TAILDEFENSE_BROWSER`), and `td config` says where
 each value in force came from. `--theme NAME` (or `TAILDEFENSE_THEME`) picks the colour theme of the
 launcher and td's output, `--no-color` turns colour off, and `--no-browser` prints the game's
 URL instead of opening it.

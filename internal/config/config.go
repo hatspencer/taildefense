@@ -1,6 +1,6 @@
 // Package config is what td remembers about a player between runs: the name shown to the
-// others, the port games are hosted and looked for on, the frame rate, and whether td keeps
-// itself current in the background.
+// others, the port games are hosted and looked for on, how the games they host are set up,
+// sound, the reticle and the browser that opens the game.
 //
 // One table of keys drives showing, reading and writing them, so `td config`, the launcher's
 // settings screen and the code that reads a value can never disagree about what a key is
@@ -39,7 +39,6 @@ const (
 	KeyName        = "NAME"
 	KeyPort        = "PORT"
 	KeyBrowser     = "BROWSER"
-	KeyAutoUpdate  = "AUTOUPDATE"
 	KeyDifficulty  = "DIFFICULTY"
 	KeyFog         = "FOG"
 	KeyWaves       = "WAVES"
@@ -127,8 +126,6 @@ var Keys = []Key{
 		Parse: parseReticleSize, Default: func() string { return strconv.Itoa(DefaultReticleSize) }},
 	{Name: KeyBrowser, Env: "TAILDEFENSE_BROWSER", Help: "what opens the game: auto (best browser, full screen), default, chrome, firefox…, none or a command",
 		Parse: parseBrowser, Default: func() string { return BrowserAuto }},
-	{Name: KeyAutoUpdate, Env: "TAILDEFENSE_NO_AUTOUPDATE", Help: "update td in the background when main moves on",
-		Parse: parseOnOff, Default: func() string { return "on" }, Bool: true},
 }
 
 // Lookup finds a key by name, in any case.
@@ -214,17 +211,10 @@ func Load() *Prefs {
 	return p
 }
 
-// envValue reads a key's override. AUTOUPDATE's variable is a negative, the shape every
-// NO_ variable in this family has: set to anything true, autoupdate is off for this run.
+// envValue reads a key's override.
 func envValue(k Key) (string, bool) {
 	raw, ok := os.LookupEnv(k.Env)
 	if !ok || strings.TrimSpace(raw) == "" {
-		return "", false
-	}
-	if k.Name == KeyAutoUpdate {
-		if ParseOnOff(raw, false) {
-			return "off", true
-		}
 		return "", false
 	}
 	n, err := k.Parse(raw)
@@ -352,9 +342,6 @@ func (p *Prefs) ReticleSize() int {
 	return n
 }
 
-// AutoUpdate is whether td may update itself in the background.
-func (p *Prefs) AutoUpdate() bool { return ParseOnOff(p.Get(KeyAutoUpdate).Value, true) }
-
 // Set validates a value and writes it to the file. It returns the normalised value.
 func Set(name, raw string) (string, error) {
 	k, ok := Lookup(name)
@@ -391,8 +378,13 @@ func unknownKey(name string) error {
 	return fmt.Errorf("unknown setting %q; settings: %s", name, strings.Join(KeyNames(), ", "))
 }
 
+// retired are keys an older td wrote that mean nothing now. Reading one is no error, and the
+// next write leaves it out. AUTOUPDATE went with the background update: td now only says
+// when a newer one is out.
+var retired = map[string]bool{"AUTOUPDATE": true}
+
 // readFile reads the raw KEY=VALUE pairs. Unknown keys are kept, so a newer td's setting
-// survives an older td writing the file.
+// survives an older td writing the file; retired ones are dropped.
 func readFile() (map[string]string, error) {
 	out := map[string]string{}
 	path, err := Path()
@@ -417,7 +409,11 @@ func readFile() (map[string]string, error) {
 		if !ok {
 			continue
 		}
-		out[strings.ToUpper(strings.TrimSpace(key))] = trimQuotes(strings.TrimSpace(value))
+		name := strings.ToUpper(strings.TrimSpace(key))
+		if retired[name] {
+			continue
+		}
+		out[name] = trimQuotes(strings.TrimSpace(value))
 	}
 	if err := sc.Err(); err != nil {
 		return out, fmt.Errorf("cannot read %s: %w", path, err)

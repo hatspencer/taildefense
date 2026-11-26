@@ -91,18 +91,32 @@ to the machine). `tailscale ping HOST` nudges a direct path and shows which one 
 
 ## Updates
 
-The version is the git commit. With `AUTOUPDATE` on (the default), the launcher checks
-the repo's main at most once an hour and updates in the background, then offers a restart.
-`td host`, `td join` and `td serve` say when td is out of date and how to update, in the
-terminal and in the game page. A host and its players must run the same td: a host refuses a player whose version differs from
-its own, and the refusal names both versions and says to run `td update` on both machines. The
+The version is the git commit. td never updates itself: only `td update` does, run by you,
+from the shell or from the launcher (`u`, or Update td now on its menu). At most once an hour the
+launcher asks the repo (`git ls-remote` of main) whether main has moved past the installed
+commit, without holding up its start; the answer is cached in `~/.taildefense/selfcheck`. When
+main has moved on, the launcher's header says "a newer td is out: OLD → NEW · td update installs
+it · or press u". Offline, or when the remote does not answer, it says nothing. `td host`, `td
+join` and `td serve` say the same in the terminal and in the game page. An install following a
+branch hears about its branch, never main, and a pinned one (below) hears about nothing. A host
+and its players must run the same td: a host refuses a player whose version differs from its
+own, and the refusal names both versions and says to run `td update` on both machines. The
 launcher's join list and `td ls` mark such games with ✗.
+
+What `td update` trusts: it clones the repository the install came from (`~/.taildefense/.repo`,
+or `TAILDEFENSE_REPO`), then builds and runs what is there: main's tip, or the branch (`-b`) or
+commit (`-c`) asked for. The clone's own `build.sh` runs the build, in a container, and the
+binary it builds installs itself. So whoever can push to that branch decides what runs on your
+machine the next time you update; nothing checks the code beyond git fetching it.
+
+Earlier tds had an `AUTOUPDATE` setting that updated in the background. A prefs file that still
+holds it reads as if it did not; the next change to a setting drops the line.
 
 After installing, `td update` lists the commits it brought in, newest first, read from its own
 clone deepened by 200 commits with blobs left out, about a second. An installed commit it cannot
 find there (a dirty local build, a branch switch, an install over 200 commits old) gets the latest
 15 instead, labelled as such, rather than a guess. It is best-effort: a fetch that fails never
-fails the update. A background update writes the list to its log.
+fails the update.
 
 `td update -c COMMIT` (or `--commit COMMIT`) builds and installs one commit of main, given as 7 to
 40 hex digits: to go back to a version that worked, or to bisect a regression by playing. It
@@ -111,11 +125,11 @@ one commit deep), and refuses a hash that is not on main, or that is too short t
 before building anything. Going back, the list after installing is the commits it took out.
 
 The install is then pinned: `~/.taildefense/.pin` holds the commit, and a followed branch is
-forgotten. A pinned td is never autoupdated, and nothing calls it out of date; the launcher, `td
-version` and `td doctor` say "pinned to" the commit. A plain `td update` stays: it says so and
+forgotten. A pinned td is never told of a newer one, nor asks; the launcher, `td version` and
+`td doctor` say "pinned to" the commit. A plain `td update` stays: it says so and
 does nothing, or rebuilds the pinned commit if something else was put in its place. `td update
 -f` returns to main, `td update -b BRANCH` to a branch, and `-c` with another commit moves the
 pin. A host and its players still need the same commit, so a pinned host's players pin the same
-one. A commit from before pins existed knows nothing of the record: its launcher autoupdates
-back to main's tip unless `td config autoupdate off`, which `td update -c` says when it installs
-one.
+one. A commit from before pins existed knows nothing of the record, and is also from when the
+launcher updated itself: it goes back to main's tip on its own unless `td config autoupdate off`
+(a setting that td still had), which `td update -c` says when it installs one.

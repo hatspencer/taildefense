@@ -221,8 +221,7 @@ func checkUpdates(p *ui.Printer) {
 	if prefs.Err != nil {
 		p.Warn("preferences: %v", prefs.Err)
 	}
-	au := prefs.Get(config.KeyAutoUpdate)
-	p.Info("autoupdate %s (%s)", au.Value, au.Source)
+	p.Info("updates: td says when a newer one is out; td update installs it")
 }
 
 func orDash(s string) string {

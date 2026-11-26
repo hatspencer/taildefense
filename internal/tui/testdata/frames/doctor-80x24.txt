@@ -17,7 +17,7 @@
   ▲ browser: none td knows is installed; the game opens in the system's browser
   PASS container engine podman, for td update
   PASS git, for td update
-  INFO autoupdate on (default)
+  INFO updates: td says when a newer one is out; td update installs it
 
   ✔ ready: td opens the launcher, td host starts a game
 

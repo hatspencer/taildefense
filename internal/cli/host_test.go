@@ -229,7 +229,7 @@ func TestConfigCommandShowsGetsAndSets(t *testing.T) {
 		t.Fatalf("show exit %d", code)
 	}
 	out := b.String()
-	for _, want := range []string{"name", "port", "8100", "file", "browser", "firefox", "env TAILDEFENSE_BROWSER", "autoupdate", "default"} {
+	for _, want := range []string{"name", "port", "8100", "file", "browser", "firefox", "env TAILDEFENSE_BROWSER", "difficulty", "default"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("show lacks %q:\n%s", want, out)
 		}

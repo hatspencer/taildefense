@@ -63,6 +63,23 @@ func TestFramesSayWhatMatters(t *testing.T) {
 	if got := ansi.Strip(strings.Join(m.menuView(80), "\n")); !strings.Contains(got, "Check for updates") {
 		t.Errorf("no update item when current:\n%s", got)
 	}
+	// Behind main, the launcher says a newer td is out and how to get it, and offers the
+	// update; it starts nothing itself.
+	m.sess.setUpdate(cli.SelfUpdate{State: cli.UpdateBehind, Version: "abc1234", Remote: "def5678abcdef"})
+	if got := ansi.Strip(m.versionLine()); !strings.Contains(got, "a newer td is out: abc1234 → def5678 · td update installs it") || !strings.Contains(got, "press u") {
+		t.Errorf("no notice when behind: %q", got)
+	}
+	if got := ansi.Strip(strings.Join(m.menuView(80), "\n")); !strings.Contains(got, "Update td now") {
+		t.Errorf("no update item when behind:\n%s", got)
+	}
+	if m.animating() {
+		t.Error("a notice is not an update running")
+	}
+	// Pinned, it says only that.
+	m.sess.setUpdate(cli.SelfUpdate{State: cli.UpdatePinned, Version: "abc1234", Pin: "abc1234" + strings.Repeat("0", 33)})
+	if got := ansi.Strip(m.versionLine()); strings.Contains(got, "newer") || !strings.Contains(got, "pinned to abc1234") {
+		t.Errorf("pinned: %q", got)
+	}
 	join := ansi.Strip(Frame(Options{}, 80, 24, FrameJoin))
 	for _, want := range []string{"pal", "2/4", "wave 7", "14ms", "✗", "enter address"} {
 		if !strings.Contains(join, want) {
@@ -95,7 +112,7 @@ func TestFramesSayWhatMatters(t *testing.T) {
 		t.Errorf("scrolled to the end, keys lacks %q:\n%s", last.Does, got)
 	}
 	set := ansi.Strip(Frame(Options{}, 80, 24, FrameSettings))
-	for _, want := range []string{"name", "tester", "port", "7787", "browser", "autoupdate"} {
+	for _, want := range []string{"name", "tester", "port", "7787", "browser"} {
 		if !strings.Contains(set, want) {
 			t.Errorf("settings lacks %q:\n%s", want, set)
 		}
