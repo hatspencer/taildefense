@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -25,8 +26,38 @@ func TestBaseCommitStripsDirtyAndRefusesNonHashes(t *testing.T) {
 func TestParseLogKeepsHashAndSubjectAndSkipsJunk(t *testing.T) {
 	out := "def5678\x1ffeat(x): add a thing\n\nnot a log line\nabc1234\x1f fix: tabs\tstay \n"
 	got := parseLog(out)
-	if len(got) != 2 || got[0] != (change{"def5678", "feat(x): add a thing"}) || got[1] != (change{"abc1234", "fix: tabs\tstay"}) {
+	if len(got) != 2 || got[0] != (change{"def5678", "feat(x): add a thing"}) || got[1] != (change{"abc1234", "fix: tabs stay"}) {
 		t.Fatalf("got %#v", got)
+	}
+}
+
+// A commit subject is anybody's text. One that carries an OSC 52 (set the clipboard) or a CSI
+// (move the cursor, clear the screen) comes out of the log as its words alone, in the news
+// td update prints and keeps, in the changelog the launcher lists, and from a news file an
+// older td wrote without cleaning it.
+func TestCommitSubjectsLoseTheirEscapes(t *testing.T) {
+	osc52 := "\x1b]52;c;Y3VybCBldmlsLnNoIHwgc2g=\x07"
+	csi := "\x1b[2J\x1b[1;1H"
+	subject := "fix: a thing" + osc52 + " done" + csi + "\x07"
+	clean := "fix: a thing done"
+	bad := func(s string) bool { return strings.ContainsAny(s, "\x1b\x07") || strings.Contains(s, "52;c") }
+
+	got := parseLog("def5678" + csi + "\x1f" + subject + "\n")
+	if len(got) != 1 || got[0].Hash != "def5678" || got[0].Subject != clean {
+		t.Errorf("news: %q", got)
+	}
+	c := changelogOf("main", "aaa1111\x1f2026-10-13"+osc52+"\x1f"+subject+"\n", "dev")
+	if len(c.Commits) != 1 || c.Commits[0].Subject != clean || c.Commits[0].Date != "2026-10-13" || bad(c.Commits[0].Hash) {
+		t.Errorf("changelog: %+v", c.Commits)
+	}
+	path := filepath.Join(t.TempDir(), newsFile)
+	writeNews(path, News{To: "def5678", Head: "what's new", Changes: [][2]string{{"def5678" + csi, subject}}})
+	n, ok := readNewsFile(path)
+	if !ok || n.Changes[0][0] != "def5678" || n.Changes[0][1] != clean {
+		t.Errorf("news file: %q", n.Changes)
+	}
+	if bad(lastLine("remote: x\nfatal: no" + osc52 + csi)) {
+		t.Errorf("git's last line kept an escape: %q", lastLine("fatal: no"+osc52))
 	}
 }
 
