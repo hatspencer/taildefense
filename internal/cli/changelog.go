@@ -77,17 +77,24 @@ func ReadChangelog(ctx context.Context) (Changelog, error) {
 	return changelogOf(install.SourceName(branch), string(out), version.Current()), nil
 }
 
+// changelogOf reads git log's hash, date and subject lines. Every field is cleaned here, where
+// it comes in: a subject is anybody's text, and one carrying escapes must not reach a terminal
+// that would act on them (set the clipboard, move the cursor, fake output).
 func changelogOf(source, log, local string) Changelog {
 	c := Changelog{Source: source, Local: -1}
 	for _, line := range strings.Split(log, "\n") {
 		f := strings.SplitN(strings.TrimSpace(line), "\x1f", 3)
-		if len(f) != 3 || f[0] == "" {
+		if len(f) != 3 {
 			continue
 		}
-		if c.Local < 0 && SameCommit(f[0], local) {
+		hash := oneLine(f[0])
+		if hash == "" {
+			continue
+		}
+		if c.Local < 0 && SameCommit(hash, local) {
 			c.Local = len(c.Commits)
 		}
-		c.Commits = append(c.Commits, Commit{Hash: f[0], Date: f[1], Subject: strings.TrimSpace(f[2])})
+		c.Commits = append(c.Commits, Commit{Hash: hash, Date: oneLine(f[1]), Subject: oneLine(f[2])})
 	}
 	return c
 }
@@ -99,10 +106,11 @@ func gitEnv() []string {
 	)
 }
 
-// lastLine is git's last word on a failure, which is the one that says why.
+// lastLine is git's last word on a failure, which is the one that says why, cleaned for the
+// terminal since a remote has a say in it.
 func lastLine(s string) string {
 	if i := strings.LastIndexByte(s, '\n'); i >= 0 {
 		s = s[i+1:]
 	}
-	return strings.TrimPrefix(strings.TrimSpace(s), "fatal: ")
+	return oneLine(strings.TrimPrefix(strings.TrimSpace(s), "fatal: "))
 }

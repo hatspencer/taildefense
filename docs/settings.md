@@ -116,7 +116,9 @@ After installing, `td update` lists the commits it brought in, newest first, rea
 clone deepened by 200 commits with blobs left out, about a second. An installed commit it cannot
 find there (a dirty local build, a branch switch, an install over 200 commits old) gets the latest
 15 instead, labelled as such, rather than a guess. It is best-effort: a fetch that fails never
-fails the update.
+fails the update. Commit subjects are anybody's text, so their escapes and control characters are
+stripped where git's log is read, before the list is printed, kept for the launcher, or shown in
+its changelog.
 
 `td update -c COMMIT` (or `--commit COMMIT`) builds and installs one commit of main, given as 7 to
 40 hex digits: to go back to a version that worked, or to bisect a regression by playing. It

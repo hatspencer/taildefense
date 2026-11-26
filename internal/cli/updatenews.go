@@ -111,14 +111,17 @@ func baseCommit(v string) string {
 	return v
 }
 
+// parseLog reads git log's hash and subject lines, cleaned where they come in (see
+// changelogOf): td update prints them, and the launcher shows them from the news file.
 func parseLog(out string) []change {
 	var cs []change
 	for _, line := range strings.Split(out, "\n") {
 		hash, subject, ok := strings.Cut(strings.TrimSpace(line), "\x1f")
+		hash = oneLine(hash)
 		if !ok || hash == "" {
 			continue
 		}
-		cs = append(cs, change{Hash: hash, Subject: clip(strings.TrimSpace(subject), newsSubjectWidth)})
+		cs = append(cs, change{Hash: hash, Subject: clip(oneLine(subject), newsSubjectWidth)})
 	}
 	return cs
 }
@@ -208,6 +211,10 @@ func readNewsFile(path string) (News, bool) {
 	b, err := os.ReadFile(path)
 	if err != nil || json.Unmarshal(b, &n) != nil || n.Head == "" {
 		return News{}, false
+	}
+	// An older td wrote the file without cleaning the commits git listed.
+	for i := range n.Changes {
+		n.Changes[i] = [2]string{oneLine(n.Changes[i][0]), oneLine(n.Changes[i][1])}
 	}
 	return n, true
 }
