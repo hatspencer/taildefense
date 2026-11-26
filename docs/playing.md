@@ -385,8 +385,8 @@ The dead come in kinds, and new ones join the waves as the game goes on: walkers
 start, runners from wave 2, swarmers (small, fast, weak, many) from wave 3, brutes from wave 4,
 spitters, which spit from a few steps off, from wave 6, and hurlers, which throw shards of bone
 from twice as far, from wave 8. Hounds, dead dogs in packs, come from wave 5: they run you down
-even at a sprint, so turn and shoot. Bursters, runners with a charge strapped round their chests,
-come from wave 7: they sprint at you, and the one that reaches you stops, its charge blinking
+even at a sprint, so turn and shoot. Bursters, the dead swollen to bursting with a light blinking over them,
+come from wave 7: they sprint at you, and the one that reaches you stops, its light blinking
 fast with a hiss, and blows up half a second later. Shoot them before they get there (shot
 down, they just fall), or run the moment one lights: the blast hurts and stuns you close in, but
 2.4 tiles away you're clear. The fire it leaves burns the creeps behind it. Maulers, brutes

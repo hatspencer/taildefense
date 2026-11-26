@@ -17,15 +17,17 @@ import { box, lin, merge, octa, part, writeMatrix } from './util';
 type F = THREE.Node<'float'>;
 type V3 = THREE.Node<'vec3'>;
 
-// Drab clothes: rust, navy, khaki, olive, grey, off-white, black, brown, faded blue, hi-vis
-// orange gone brown, a hospital gown, a white shirt.
-const CLOTHES = [0x6a2a24, 0x2e3a56, 0x8a7e62, 0x4a5636, 0x5a5a58, 0x9a968a, 0x26262a, 0x5e4a32, 0x4e6a80, 0x9a5a22, 0x7a96a4, 0xb4b0a4];
-// Jeans, black, khaki, grey, brown, navy, olive, faded denim.
-const PANTS = [0x3a4458, 0x26262a, 0x7a6e52, 0x55555a, 0x4e3e2c, 0x2a3046, 0x4a5236, 0x56687e];
-// How far gone: grey-green, pallid, grey, dead brown, dark green, waxen, dark, bruised blue.
-const SKINS = [0x8c9478, 0x9a9a88, 0x7a7a6a, 0x8a7e6a, 0x6e7a6a, 0xa09888, 0x5e5a4e, 0x7e8a80];
-// Hair; the last is bald, the scalp the skin.
-const HAIRS = [0x2e2620, 0x16120f, 0x4e3220, 0x8e8a82, 0xa88a52, 0x6a2e1a, 0x2e2620, -1];
+// The picture's dead wear what they died in, worn, torn and stained: white shirts gone dirty (the
+// most), a work shirt in khaki, faded light blue, a denim shirt, a teal gone grey, a red-brown
+// plaid, grey, olive, rust, faded navy, a dark vest.
+const CLOTHES = [0xb4ac90, 0xa29a80, 0x8a7a56, 0x8096a0, 0x52626c, 0x4c6660, 0xbab49c, 0x6a3a2a, 0x76746a, 0x5a5c3a, 0x7a4a2c, 0x3e4a5c, 0x9c9a88, 0x3a3a36];
+// Dark worn trousers: dark denim, near black, brown, khaki, grey, faded denim, olive, a grey-brown.
+const PANTS = [0x3a4450, 0x2a2824, 0x4e3e2c, 0x6e6448, 0x55534c, 0x56646e, 0x4a4c30, 0x3e3830];
+// Dead skin, how far gone: ashen tan, grey-green, pallid, sallow, a darker dead brown, grey,
+// waxen, bruised. Never a living colour, never bright.
+const SKINS = [0xa1845c, 0x898c66, 0xb2a684, 0xa08c66, 0x7c6c4c, 0x928e78, 0xb4a07a, 0x80806a];
+// Hair, matted dark mostly; the last is bald, the scalp the skin.
+const HAIRS = [0x1c1812, 0x2e2418, 0x3a2a1a, 0x4e3a24, 0x77715f, 0x8a6a3a, 0x2a2420, -1];
 
 // Floats per instance: seven vec4s.
 //   st  burning, slowed, flash, hovered

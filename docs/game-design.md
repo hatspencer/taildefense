@@ -141,9 +141,9 @@ it here along with the code.
   outrun a pack; you turn and shoot it. From wave 5 one wandering pack in six is hounds, and an
   ambush may bring some. They're there to make the open ground between the sites dangerous in
   a way walkers can't: walkers you walk away from.
-- **Bursters** are runners wired with a charge: from wave 7 in groups of two to five, 8% of
+- **Bursters** are the dead swollen to bursting, a light blinking over them: from wave 7 in groups of two to five, 8% of
   the wave's budget on top of it (none on the swarm waves), 30 health, every one a sprinter, and they hunt from 12 tiles. One that
-  reaches a survivor stops and lights its fuse: 0.45 s of the charge blinking fast and a hiss,
+  reaches a survivor stops and swells: 0.45 s of its light blinking fast and a hiss,
   then it blows up where it stands, whoever stayed. The blast does 45 at its heart, half at its
   edge 2.4 tiles out, slows, and stuns 0.6 s within 1.2 tiles; it takes 90 off every structure
   in reach but the armory, sets off fuel pumps, and leaves 1.8 tiles of ground burning 4 s at
