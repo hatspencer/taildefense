@@ -1,6 +1,6 @@
-import { box, cone, dodeca, part, sphere } from './util';
+import { box, cone, part, sphere } from './util';
 import { J, JOINTS, rp, type RigPart } from './rig';
-import { burster, runner, swarmer, walker } from './creeps/common';
+import { abomination, broodmother, goliath } from './creeps/bosses';
 
 // The creeps as puppets: each model facing +x, standing on y = 0, every part hung on a joint
 // of the shared skeleton, and per joint how it moves. Angles are radians: z swings a limb
@@ -174,89 +174,39 @@ function hurler(): CreepRig {
   }, { stride: 1.05, bob: 0.03, drop: 0.26, turn: 5, flinch: 0.9 });
 }
 
-// A mound of fused bodies, bone breaking through, four arms clawing out of it; it rears up
-// and sweeps them through everything in front.
-function abomination(): CreepRig {
+// A runner wired with a charge: a vest of taped bricks strapped round its chest, wires looped
+// up to a detonator in its fist, a red light on the front. It runs bent low; lit, it stands up
+// straight, arms flung wide, and throws its head back.
+function burster(): CreepRig {
   const p: RigPart[] = [];
-  for (const s of [1, -1]) {
-    const z = 0.42 * s;
-    p.push(rp(s > 0 ? J.THIGH_L : J.THIGH_R, B(0.36, 0.34, 0.36, 0x4a1c18, 0, 0.45, z)));
-    p.push(rp(s > 0 ? J.SHIN_L : J.SHIN_R, B(0.34, 0.26, 0.34, 0x4a1c18, 0, 0.16, z)));
-    p.push(rp(s > 0 ? J.SHIN_L : J.SHIN_R, B(0.46, 0.08, 0.38, 0x3a1410, 0.06, 0.04, z)));
+  const VEST = 0x3a4030, BRICK = 0x6a6a4a, TAPE = 0x8a8478, WIRE = 0xb8281c, LIGHT = 0xff3010, DET = 0x1e1e20;
+  legs(p, 0.56, 0.29, 0.1, 0.14, 0.12);
+  p.push(rp(-1, B(0.25, 0.13, 0.32, PANTS, 0, 0.57)));
+  p.push(rp(J.CHEST, B(0.24, 0.36, 0.36, SHIRT, 0, 0.82)));
+  p.push(rp(J.CHEST, B(0.22, 0.1, 0.44, SHIRT, 0, 0.99)));
+  // The vest: a band of bricks front and back, taped round, wires over the shoulder.
+  p.push(rp(J.CHEST, B(0.3, 0.26, 0.42, VEST, 0, 0.8)));
+  for (const z of [-0.13, 0, 0.13]) {
+    p.push(rp(J.CHEST, B(0.06, 0.18, 0.11, BRICK, 0.16, 0.8, z)));
+    p.push(rp(J.CHEST, B(0.06, 0.18, 0.11, BRICK, -0.16, 0.8, z)));
   }
-  p.push(rp(J.CHEST, part(dodeca(0.75), 0x7a3a32, 0, 1.05, 0, 0, 0, 0, 1, 1.05, 1)));
-  p.push(rp(J.CHEST, part(dodeca(0.45), 0x8c4a3e, 0.4, 1.5, 0.2)));
-  p.push(rp(J.CHEST, part(dodeca(0.4), 0x5a2620, -0.35, 1.4, -0.35)));
-  p.push(rp(J.CHEST, B(0.5, 0.5, 0.5, SHIRT, -0.15, 1.0, 0.38, 0.3, 0.4, 0)));
-  p.push(rp(J.CHEST, B(0.22, 0.22, 0.22, SKIN, 0.3, 1.2, 0.62, 0.6, 0, 0.2)));
-  p.push(rp(J.CHEST, B(0.22, 0.22, 0.22, SKIN, -0.2, 1.8, 0.2, -0.3, 0.5, 0)));
-  for (const a of [0.4, 1.6, 2.8, 4.0, 5.2]) p.push(rp(J.CHEST, part(cone(0.1, 0.5, 4), BONE, Math.cos(a) * 0.45, 1.75, Math.sin(a) * 0.45, Math.sin(a) * 0.6, 0, -Math.cos(a) * 0.6)));
-  head(p, J.HEAD, 0.58, 1.3, 1.3);
-  for (const s of [1, -1]) {
-    const z = 0.66 * s, u = s > 0 ? J.UARM_L : J.UARM_R, f = s > 0 ? J.FARM_L : J.FARM_R;
-    p.push(rp(u, B(0.2, 0.6, 0.2, SKIN, 0.3, 0.92, z)));
-    p.push(rp(f, B(0.17, 0.5, 0.17, SKIN, 0.3, 0.37, z)));
-    for (const dz of [-0.06, 0.06]) p.push(rp(f, part(cone(0.04, 0.22, 4), BONE, 0.32, 0.04, z + dz, Math.PI, 0, 0)));
-  }
-  // Two more arms out of the back of the mass.
-  p.push(rp(J.X, B(0.15, 0.7, 0.15, SKIN, -0.1, 1.35, 0.3)));
-  p.push(rp(J.X, part(cone(0.05, 0.25, 4), BONE, -0.1, 0.92, 0.3, Math.PI, 0, 0)));
-  p.push(rp(J.X2, B(0.14, 0.6, 0.14, 0x6e7860, 0.1, 1.2, -0.4)));
-  p.push(rp(J.X2, part(cone(0.05, 0.22, 4), BONE, 0.1, 0.84, -0.4, Math.PI, 0, 0)));
+  p.push(rp(J.CHEST, B(0.33, 0.04, 0.45, TAPE, 0, 0.84)));
+  p.push(rp(J.CHEST, B(0.04, 0.05, 0.05, LIGHT, 0.2, 0.92, 0.05)));
+  p.push(rp(J.CHEST, B(0.03, 0.26, 0.03, WIRE, 0.12, 0.98, 0.17, 0.4, 0, 0)));
+  p.push(rp(J.CHEST, B(0.03, 0.03, 0.2, WIRE, 0.17, 0.7, 0.12)));
+  head(p, J.HEAD, 0.02, 1.06, 0.95);
+  arms(p, 1.0, 0.77, 0.26, 0.11, 0.09, SHIRT);
+  // The detonator in its right fist.
+  p.push(rp(J.FARM_R, B(0.08, 0.12, 0.06, DET, 0.04, 0.43, -0.26)));
+  p.push(rp(J.FARM_R, B(0.03, 0.03, 0.03, LIGHT, 0.04, 0.5, -0.26)));
   return rig(p, {
-    [J.CHEST]: { p: [0, 0.6, 0], walk: [0.1, 0, 0.12, -0.05], flex: [0, 0, 0.2, 0.04], wind: [0.4, 0, 0, 0], strike: [-0.5, 0, 0, 0], die: [-0.6, 0, 0, 0], misc: [0.08, 0.15, 0, 0] },
-    [J.HEAD]: { p: [0.58, 1.3, 0], walk: [0.1, 1, 0.2, 0], flex: [0, 0, 0, 0.1], wind: [0.4, 0, 0, 0], strike: [-0.5, 0, 0, 0], die: [-0.4, 0, 0, 0], misc: [0.1, 0.2, 0, 0] },
-    [J.UARM_L]: { p: [0.3, 1.22, 0.66], walk: [0.5, Math.PI, 0, 0.6], wind: [2.0, -0.2, 0.6, 0], strike: [0.4, 0, -1.2, 0], die: [-0.4, -0.5, 0, 0], misc: [-0.1, 0.8, 0.3, 1] },
-    [J.FARM_L]: { p: [0.3, 0.62, 0.66], walk: [0.3, Math.PI + 0.6, 0, 0.4], wind: [0.6, 0, 0, 0], strike: [-0.3, 0, 0, 0], die: [0, 0, 0, 0], misc: [0, 0.6, 0.3, 1] },
-    [J.X]: { p: [-0.1, 1.7, 0.3], walk: [0.4, 0.5, 0, 1.8], wind: [0.8, 0, 0, 0], strike: [-1.2, 0, 0, 0], die: [-1.5, 0, 0, 0], misc: [0, 0.8, 0, 1] },
-    [J.X2]: { p: [0.1, 1.5, -0.4], walk: [0.4, 0.5 + Math.PI, 0, 1.5], wind: [0.9, 0, 0, 0], strike: [-1.0, 0, 0, 0], die: [-1.2, 0, 0, 0], misc: [0, 0.8, 0, 1] },
-    [J.THIGH_L]: { p: [0, 0.6, 0.42], walk: [0.3, 0, 0, 0], wind: [-0.15, 0, 0, 0], strike: [0.25, 0, 0, 0], die: [1.0, 0, 0, 0], misc: [0, 0.2, 1, 2] },
-    [J.SHIN_L]: { p: [0, 0.3, 0.42], flex: [-0.6, Math.PI / 2, 0, 0], die: [-1.6, 0, 0, 0], misc: [0, 0.2, 1, 2] },
-  }, { stride: 1.4, bob: 0.06, drop: 0.25, turn: 2.5, flinch: 0.1 });
-}
-
-// A woman once, swollen past bursting: a hunched torso on long spindly legs, a vast sagging
-// belly sac veined and sickly, things moving in it, egg sacs clustered on her back. She rears
-// back, throat bulging, and heaves one up.
-function broodmother(): CreepRig {
-  const p: RigPart[] = [];
-  const SAC = 0x8a9a52, VEIN = 0x4a3a2a, EGG = 0xb8c070;
-  for (const s of [1, -1]) {
-    const z = 0.4 * s;
-    p.push(rp(s > 0 ? J.THIGH_L : J.THIGH_R, B(0.16, 0.62, 0.16, SKIN, 0, 0.98, z)));
-    p.push(rp(s > 0 ? J.SHIN_L : J.SHIN_R, B(0.13, 0.62, 0.13, SKIN, 0, 0.36, z)));
-    p.push(rp(s > 0 ? J.SHIN_L : J.SHIN_R, part(cone(0.07, 0.18, 4), BONE, 0.08, 0.03, z, 0, 0, -Math.PI / 2)));
-  }
-  // The belly: a great sac hanging low, veins over it, something pressing out of it.
-  p.push(rp(J.CHEST, part(sphere(0.8, 10, 8), SAC, 0.2, 1.05, 0, 0, 0, 0, 1.05, 0.85, 0.95)));
-  for (const a of [0.3, 1.5, 2.7, 4.1, 5.3]) p.push(rp(J.CHEST, B(0.04, 0.9, 0.03, VEIN, 0.2 + Math.cos(a) * 0.78, 1.05, Math.sin(a) * 0.74, Math.sin(a) * 0.3, 0, 0.2)));
-  p.push(rp(J.CHEST, B(0.14, 0.12, 0.2, SKIN, 0.95, 1.0, 0.18, 0, 0.4, 0)));
-  p.push(rp(J.CHEST, B(0.1, 0.16, 0.14, SKIN, 0.88, 1.2, -0.3, 0, -0.3, 0)));
-  // Hunched shoulders over it, the torn dress, the egg sacs on her back.
-  p.push(rp(J.CHEST, B(0.5, 0.5, 0.62, SHIRT, -0.05, 1.75, 0, 0, 0, -0.35)));
-  p.push(rp(J.CHEST, B(0.3, 0.2, 0.7, SKIN, 0.05, 2.0, 0, 0, 0, -0.35)));
-  for (const [x, y, z, r] of [[-0.45, 1.9, 0.18, 0.24], [-0.5, 1.65, -0.15, 0.28], [-0.32, 2.15, -0.1, 0.2], [-0.62, 1.4, 0.2, 0.18]]) {
-    p.push(rp(J.CHEST, part(sphere(r, 7, 5), EGG, x, y, z)));
-  }
-  p.push(rp(J.CHEST, part(cone(0.06, 0.4, 4), BONE, -0.2, 2.15, 0.3, 0.6, 0, 0.5)));
-  head(p, J.HEAD, 0.35, 2.12, 1.05);
-  p.push(rp(J.HEAD, B(0.2, 0.3, 0.26, HAIR, 0.22, 2.12, 0)));
-  p.push(rp(J.HEAD, part(sphere(0.13, 6, 4), SAC, 0.5, 1.98, 0)));
-  // Long thin arms, the hands all claw.
-  for (const s of [1, -1]) {
-    const z = 0.42 * s, u = s > 0 ? J.UARM_L : J.UARM_R, f = s > 0 ? J.FARM_L : J.FARM_R;
-    p.push(rp(u, B(0.12, 0.6, 0.12, SKIN, 0.1, 1.68, z)));
-    p.push(rp(f, B(0.1, 0.6, 0.1, SKIN, 0.1, 1.1, z)));
-    for (const dz of [-0.05, 0, 0.05]) p.push(rp(f, part(cone(0.025, 0.24, 4), BONE, 0.12, 0.72, z + dz, Math.PI, 0, 0)));
-  }
-  return rig(p, {
-    [J.CHEST]: { p: [0, 0.95, 0], walk: [0.05, 0, 0.15, -0.05], flex: [0, 0, 0.12, 0.05], wind: [0.55, 0, 0, 0], strike: [-0.55, 0, 0, 0], die: [-0.4, 0.5, 0, 0], misc: [0.06, 0.12, 0, 0] },
-    [J.HEAD]: { p: [0.35, 2.05, 0], walk: [0.1, 1, 0.15, -0.15], flex: [0, 0, 0, 0.08], wind: [0.6, 0, 0, 0], strike: [-0.8, 0, 0, 0], die: [-0.5, 0.3, 0, 0], misc: [0.1, 0.3, 0, 0] },
-    [J.UARM_L]: { p: [0.1, 1.98, 0.42], walk: [0.3, Math.PI, 0, 0.3], wind: [-1.6, -0.3, 0, 0], strike: [1.2, 0, 0, 0], die: [-0.6, -0.4, 0, 0], misc: [-0.1, 1.0, 0.5, 1] },
-    [J.FARM_L]: { p: [0.1, 1.4, 0.42], walk: [0.3, Math.PI + 0.6, 0, 0.5], wind: [0.8, 0, 0, 0], strike: [-0.2, 0, 0, 0], die: [0, 0, 0, 0], misc: [0, 0.8, 0.5, 1] },
-    [J.THIGH_L]: { p: [0, 1.3, 0.4], walk: [0.3, 0, 0, 0], wind: [-0.2, 0, 0, 0], strike: [0.2, 0, 0, 0], die: [1.1, 0, 0, 0], misc: [0, 0.3, 1, 2] },
-    [J.SHIN_L]: { p: [0, 0.68, 0.4], flex: [-0.7, Math.PI / 2, 0, 0], die: [-1.8, 0, 0, 0], misc: [0, 0.3, 1, 2] },
-  }, { stride: 1.6, bob: 0.07, drop: 0.2, turn: 2.2, flinch: 0.15 });
+    [J.CHEST]: { p: [0, 0.6, 0], walk: [0, 0, 0.06, -0.55], flex: [0, 0, 0.22, 0.02], wind: [0.3, 0, 0, 0], strike: [0.5, 0, 0, 0], die: [-0.4, 0, 0.3, 0], misc: [0.4, 0.3, 0, 0] },
+    [J.HEAD]: { p: [0.02, 1.07, 0], walk: [0.05, 0, 0.05, 0.4], flex: [0, 0, 0, 0.06], wind: [0.6, 0, 0, 0], strike: [0.3, 0, 0, 0], die: [-0.6, -0.3, 0, 0], misc: [0.5, 0.3, 0, 0] },
+    [J.UARM_L]: { p: [0, 1.0, 0.26], walk: [0.6, Math.PI, 0, -0.7], wind: [0.2, -1.4, 0, 0], strike: [0.2, -1.6, 0, 0], die: [-0.6, -0.4, 0, 0], misc: [-0.3, 1.6, 1, 1] },
+    [J.FARM_L]: { p: [0, 0.77, 0.26], walk: [0.3, Math.PI + 0.6, 0, 1.0], wind: [0.2, 0, 0, 0], strike: [0.1, 0, 0, 0], die: [-0.8, 0, 0, 0], misc: [0, 1, 1, 1] },
+    [J.THIGH_L]: { p: [0, 0.56, 0.1], walk: [0.8, 0, 0, 0.05], wind: [0.1, 0, 0, 0], strike: [0, 0, 0, 0], die: [1.3, 0, 0, 0], misc: [0, 0.6, 1, 2] },
+    [J.SHIN_L]: { p: [0, 0.29, 0.1], walk: [0, 0, 0, -0.1], flex: [-1.5, Math.PI / 2, 0, 0], wind: [-0.2, 0, 0, 0], strike: [0, 0, 0, 0], die: [-2.0, 0, 0, 0], misc: [0, 0.4, 1, 2] },
+  }, { stride: 1.6, bob: 0.08, drop: 0.24, turn: 12, flinch: 1.1 });
 }
 
 // A dead dog, mangy and gaunt, ribs through the hide, the lips gone from its teeth; it runs
@@ -345,54 +295,6 @@ function mauler(): CreepRig {
     [J.THIGH_L]: { p: [0, 0.5, 0.24], walk: [0.45, 0, 0, 0.1], wind: [0.25, 0, 0, 0], strike: [-0.2, 0, 0, 0], die: [1.2, 0, 0, 0], misc: [0, 0.3, 1, 2] },
     [J.SHIN_L]: { p: [0, 0.26, 0.24], flex: [-0.8, Math.PI / 2, 0, 0], wind: [-0.5, 0, 0, 0], die: [-1.9, 0, 0, 0], misc: [0, 0.2, 1, 2] },
   }, { stride: 1.6, bob: 0.08, drop: 0.2, turn: 5, flinch: 0.25 });
-}
-
-// A giant stitched together from the dead, twice a man's height, a tiny head sunk between
-// its shoulders, one arm grown monstrous; iron shackles on its wrists with the chains broken
-// off. It charges, and what it catches it throws.
-function goliath(): CreepRig {
-  const p: RigPart[] = [];
-  const FLESH = 0x8e7a70, DARK = 0x6a564e, STITCH = 0x2a1a16, IRON = 0x4a4a46, RAG = SHIRT;
-  for (const s of [1, -1]) {
-    const z = 0.42 * s;
-    p.push(rp(s > 0 ? J.THIGH_L : J.THIGH_R, B(0.42, 0.6, 0.42, FLESH, 0, 0.98, z)));
-    p.push(rp(s > 0 ? J.SHIN_L : J.SHIN_R, B(0.36, 0.62, 0.36, DARK, 0, 0.36, z)));
-    p.push(rp(s > 0 ? J.SHIN_L : J.SHIN_R, B(0.5, 0.1, 0.4, STITCH, 0.08, 0.05, z)));
-  }
-  p.push(rp(-1, B(0.6, 0.3, 1.05, PANTS, 0, 1.3)));
-  // A barrel of a chest, stitched down the middle, the ribs open on one side, rags hanging.
-  p.push(rp(J.CHEST, B(0.85, 0.7, 1.3, FLESH, 0.02, 1.75)));
-  p.push(rp(J.CHEST, B(0.75, 0.55, 1.8, FLESH, -0.02, 2.3)));
-  p.push(rp(J.CHEST, B(0.03, 1.1, 0.06, STITCH, 0.44, 1.95)));
-  for (const y of [1.6, 1.8, 2.0, 2.2]) p.push(rp(J.CHEST, B(0.03, 0.04, 0.22, STITCH, 0.44, y)));
-  for (const y of [1.65, 1.8, 1.95]) p.push(rp(J.CHEST, B(0.04, 0.05, 0.4, BONE, 0.44, y, -0.38)));
-  p.push(rp(J.CHEST, B(0.05, 0.35, 0.35, BLOOD, 0.43, 1.8, -0.38)));
-  p.push(rp(J.CHEST, B(0.6, 0.4, 0.3, RAG, -0.05, 1.5, 0.52, 0.2, 0, 0)));
-  for (const [x, z, a] of [[-0.35, 0.5, 0.4], [-0.4, 0, 0], [-0.35, -0.5, -0.4]] as const) p.push(rp(J.CHEST, part(cone(0.1, 0.45, 4), BONE, x, 2.55, z, a, 0, 0.5)));
-  head(p, J.HEAD, 0.3, 2.5, 1.0, FLESH);
-  p.push(rp(J.HEAD, B(0.03, 0.2, 0.03, STITCH, 0.47, 2.7, 0.06)));
-  // The left arm big; the right one huge, the fist a boulder.
-  const arm = (s: number, k: number) => {
-    const z = 1.0 * s * (s < 0 ? 1.1 : 1), u = s > 0 ? J.UARM_L : J.UARM_R, f = s > 0 ? J.FARM_L : J.FARM_R;
-    p.push(rp(u, B(0.5 * k, 0.4 * k, 0.5 * k, FLESH, 0.05, 2.5, z)));
-    p.push(rp(u, B(0.38 * k, 0.75, 0.38 * k, FLESH, 0.05, 2.0, z)));
-    p.push(rp(f, B(0.36 * k, 0.75, 0.36 * k, DARK, 0.05, 1.25, z)));
-    p.push(rp(f, B(0.42 * k, 0.15, 0.42 * k, IRON, 0.05, 1.05, z)));
-    p.push(rp(f, B(0.06, 0.3, 0.06, IRON, 0.12, 0.85, z + 0.1)));
-    p.push(rp(f, B(0.5 * k, 0.42 * k, 0.5 * k, FLESH, 0.08, 0.75 - 0.1 * k, z)));
-  };
-  arm(1, 1);
-  arm(-1, 1.45);
-  return rig(p, {
-    [J.CHEST]: { p: [0, 1.35, 0], walk: [0.05, 0, 0.12, -0.15], flex: [0, 0, 0.16, 0.04], wind: [0.45, 0, -0.4, 0], strike: [-0.6, 0, 0.5, 0], die: [-0.5, 0, 0, 0], misc: [0.06, 0.12, 0, 0] },
-    [J.HEAD]: { p: [0.3, 2.55, 0], walk: [0.06, 1, 0.12, 0.15], flex: [0, 0, 0, 0.06], wind: [0.3, 0, 0, 0], strike: [-0.3, 0, 0, 0], die: [-0.4, 0, 0, 0], misc: [0.1, 0.2, 0, 0] },
-    [J.UARM_L]: { p: [0.05, 2.6, 1.0], walk: [0.4, Math.PI, -0.05, 0.1], wind: [2.5, -0.6, 0, 0], strike: [0.7, 0.2, 0, 0], die: [-0.4, -0.4, 0, 0], misc: [-0.1, 0.6, 0.2, 1] },
-    [J.FARM_L]: { p: [0.05, 1.62, 1.0], walk: [0.2, Math.PI + 0.5, 0, 0.2], wind: [0.8, 0, 0, 0], strike: [-0.2, 0, 0, 0], die: [0, 0, 0, 0], misc: [0, 0.5, 0.2, 1] },
-    [J.UARM_R]: { p: [0.05, 2.6, -1.1], walk: [0.35, 0, 0.05, 0.1], wind: [2.7, 0.6, 0, 0], strike: [0.9, -0.2, 0, 0], die: [-0.4, 0.4, 0, 0], misc: [-0.1, 0.6, -0.2, 1] },
-    [J.FARM_R]: { p: [0.05, 1.62, -1.1], walk: [0.2, 0.5, 0, 0.2], wind: [0.8, 0, 0, 0], strike: [-0.2, 0, 0, 0], die: [0, 0, 0, 0], misc: [0, 0.5, -0.2, 1] },
-    [J.THIGH_L]: { p: [0, 1.28, 0.42], walk: [0.38, 0, 0, 0], wind: [-0.15, 0, 0, 0], strike: [0.25, 0, 0, 0], die: [1.1, 0, 0, 0], misc: [0, 0.2, 1, 2] },
-    [J.SHIN_L]: { p: [0, 0.67, 0.42], flex: [-0.7, Math.PI / 2, 0, 0], die: [-1.8, 0, 0, 0], misc: [0, 0.2, 1, 2] },
-  }, { stride: 2.2, bob: 0.08, drop: 0.25, turn: 3, flinch: 0.1 });
 }
 
 // The rig for a creep kind; the bosses are known by name, whatever their index.

@@ -119,17 +119,28 @@ hold beside it; `&fig=N` looks at one of them, `#lab=hN&still&plain&nohud&arch=A
 survivor archetype at rest and `#lab=kN&still&plain&nohud` at any creep kind, `&yaw=` from
 the side and the back.
 
-## The common dead
+## The bosses
 
-`web/src/scene/creeps/common.ts`: the walker, the runner, the crawler (the swarmer) and the
-burster, built in the survivors' units (a person 1.33 tall, seven heads) and drawn at a
-survivor's height (`CreepRig.scale`, the survivors' 1.15 and a twentieth more, as a survivor
-stands 1.4 to the top of its hair), whatever their radius in the sim. Limbs are tapered prisms
-between joints, five-sided (four on the burster), so a limb has a lit and a shaded side without
-being a block; stains, blotches and hand prints are single-sided plates of two triangles. The
-stoop, the head thrust forward and the hang of the arms are the joints' rest angles, so the
-animation moves the pose they are drawn in; the crawler's pose is built in. Shirt, trousers,
-skin and hair are the per-creep key colours (`creeps.ts`): mostly dirty white shirts and work
-shirts, dark trousers, ashen and grey-green skin; the dark red blotches on arms and faces are
-fixed. Near models 418 to 594 triangles, far ones 212 to 250: the hands, face, hems, boots and
-blotches are each under a tenth of the figure's height, so `farParts` drops them (default).
+The abomination, the broodmother and the goliath (`web/src/scene/creeps/bosses.ts`) are built in
+metres against the 1.8 m survivor and set in the world by the rig's `scale`, so each stands at
+its true size: big enough to read as a boss and to cover its sim radius. They are grounded body
+horror made of people and what they wore, nothing that glows, dead skin from the palette,
+blotched with blood, and one small true accent each.
+
+- **Abomination**, about 3.1 m and as wide: four or five of the dead grown into one heap on two
+  legs that were never the same person's. A man in a bloodied white shirt leads out of the
+  front; a flannel shirt, a grey hoodie and an upside-down denim jacket (a leg in jeans kicking
+  out of it) are fused into the mass; heads sunk into the shoulders; arms everywhere, two long
+  ones it knuckles along on. The accent is a nurse's teal scrubs sleeve on a dead arm.
+- **Broodmother**, about 2.6 m long: a woman's chest and head rising out of the front of a belly
+  swollen to the ground and a back swollen behind it, the brood pressing out under the skin (a
+  hand, a face, a knee), on all fours on her own thin limbs. Her dress, burst down the back, is
+  stretched in strips over the swell; its faded plum is her accent.
+- **Goliath**, about 4.8 m, near three survivors: a giant man still in his work clothes, a
+  welder's leather apron and gauntlet, a rigger's harness, work trousers and steel-toed boots,
+  stitched where he split, a chain wound round his right fist and dragging, the welding hood
+  pushed up on his head with a yellow sticker on it, his accent.
+
+Each keeps under 1600 triangles near and 250 far: the big shapes are open-ended prisms and a
+lump or two, and anything long and thin that is not silhouette (veins, straps, a dead arm) is
+made of short pieces, so the far model drops it.
