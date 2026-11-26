@@ -118,3 +118,15 @@ lays the survivors and the dead out as the picture does, at its camera and on pl
 hold beside it; `&fig=N` looks at one of them, `#lab=hN&still&plain&nohud&arch=A` at any
 survivor archetype at rest and `#lab=kN&still&plain&nohud` at any creep kind, `&yaw=` from
 the side and the back.
+
+## The HUD and menus
+
+The HUD is field kit, not a terminal (`web/app.css`, `web/menus.css`, the splash's palette in
+`web/src/hud/splash.ts`). Panels are worn olive-brown canvas (`--soot` `#2a2615`, the ground's
+`#62552c` for edges), labels are kraft-paper tape (`#b4905a`), all text is the pale band colour
+`#c8c2a0`, outlines are the ink `#18150f`. Accents keep one job each: hard-hat yellow for
+readouts and what can be spent, medkit red for danger, teal for state (stamina, reload), grass
+green for health. No gradients, glows or blurred shadows; bars are chunky segmented pixels.
+The bottom console is only as tall as its content and no longer has a backdrop, the top bar is
+32 px, and the map, console and orders card are separate pieces so the world shows between
+them (default).
