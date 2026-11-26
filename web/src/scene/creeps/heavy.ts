@@ -7,12 +7,12 @@ import { box, part } from '../util';
 // The heavy and the special dead: the brute, the mauler, the hound, the spitter and the
 // hurler. Each is built in the survivors' units (a man's hips at 0.58, shoulders at 1.0, the
 // top of his head at 1.35) and stands beside them at its true size, whatever its radius in
-// the sim: the rig's scale is the survivors' own (heroes.ts scales a survivor by 1.15).
+// the sim: the rig's scale makes a man here a survivor's 1.8 in the world.
 //
 // The far model keeps the parts at least a tenth of the figure's height across (farParts), so
 // each figure is a few big volumes in its main colours, which is all the far model draws, and
 // every detail on them is smaller than that: a long band or stain is cut short or in pieces.
-const UNIT = 1.15;
+const UNIT = 1.8 / 1.35; // a man is built 1.35 of these units tall, and a survivor is 1.8 in the world
 
 // Fixed colours, from the picture's palette. Everything painted in SHIRT, PANTS, SKIN or HAIR
 // takes the instance's own.
