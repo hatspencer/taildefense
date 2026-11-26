@@ -26,7 +26,6 @@ import coins2 from './world/coins_2.mp3';
 import coins3 from './world/coins_3.mp3';
 import coins4 from './world/coins_4.mp3';
 import coins5 from './world/coins_5.mp3';
-import coins6 from './world/coins_6.mp3';
 import lootFound0 from './world/lootFound_0.mp3';
 import lootFound1 from './world/lootFound_1.mp3';
 import jackpot0 from './world/jackpot_0.mp3';
@@ -49,6 +48,9 @@ import sizzle1 from './world/sizzle_1.mp3';
 import dash0 from './world/dash_0.mp3';
 import dash1 from './world/dash_1.mp3';
 import dash2 from './world/dash_2.mp3';
+import warHorn0 from './world/warHorn_0.mp3';
+import warHorn1 from './world/warHorn_1.mp3';
+import warHornBoss0 from './world/warHornBoss_0.mp3';
 import bell0 from './world/bell_0.mp3';
 import bell1 from './world/bell_1.mp3';
 import jets0 from './world/jets_0.mp3';
@@ -70,15 +72,16 @@ registerSamples('upgrade', { files: [upgrade0, upgrade1, upgrade2], gain: 0.6, m
 registerSamples('crumble', { files: [crumble0, crumble1, crumble2], gain: 0.8, mode: 'over', jitter: 0.05 });
 // A supply crate landing: heavy wood.
 registerSamples('crateLand', { files: [crateLand0, crateLand1, crateLand2], gain: 0.8, mode: 'over', jitter: 0.04 });
-// Paying: coins handled and dropped onto coins.
-registerSamples('coins', { files: [coins0, coins1, coins2, coins3, coins4, coins5, coins6], gain: 1, mode: 'replace', jitter: 0.05 });
-// A find: a chest opening under the recipe's glockenspiel.
-registerSamples('lootFound', { files: [lootFound0, lootFound1], gain: 0.7, mode: 'over', jitter: 0.03 });
-// A jackpot: a slot machine paying out, a coin pile.
-registerSamples('jackpot', { files: [jackpot0, jackpot1], gain: 0.7, mode: 'over', jitter: 0.02 });
+// Paying: coins handled, dropped, and counted out on a desk and a table, the brightest
+// dulled.
+registerSamples('coins', { files: [coins0, coins1, coins2, coins3, coins4, coins5], gain: 1, mode: 'replace', jitter: 0.05 });
+// A find: a bag unzipped and dug through.
+registerSamples('lootFound', { files: [lootFound0, lootFound1], gain: 1, mode: 'replace', jitter: 0.03 });
+// A jackpot: a bag unzipped and a heap of coins poured out onto a table.
+registerSamples('jackpot', { files: [jackpot0, jackpot1], gain: 1, mode: 'replace', jitter: 0.02 });
 // A medkit: cloth and a belt.
 registerSamples('medkit', { files: [medkit0, medkit1, medkit2], gain: 1, mode: 'replace', jitter: 0.04 });
-// A survivor's footstep.
+// A survivor's footstep: boots on gritty gravel.
 registerSamples('step', { files: [step0, step1, step2, step3, step4, step5], gain: 1, mode: 'replace', jitter: 0.08 });
 // A frost blast: ice spells.
 registerSamples('frost', { files: [frost0, frost1, frost2], gain: 0.7, mode: 'over', jitter: 0.04 });
@@ -86,21 +89,25 @@ registerSamples('frost', { files: [frost0, frost1, frost2], gain: 0.7, mode: 'ov
 registerSamples('ignite', { files: [ignite0], gain: 0.7, mode: 'over', jitter: 0.04 });
 // Burning: acid sizzle.
 registerSamples('sizzle', { files: [sizzle0, sizzle1], gain: 0.7, mode: 'over', jitter: 0.04 });
-// A dash: whooshes.
-registerSamples('dash', { files: [dash0, dash1, dash2], gain: 0.7, mode: 'over', jitter: 0.06 });
+// A dash: a shoe pushing off and skidding.
+registerSamples('dash', { files: [dash0, dash1, dash2], gain: 1, mode: 'replace', jitter: 0.06 });
+// The dead's war horn as a wave comes: a ram's horn, slowed; a boss wave's slowed further.
+registerSamples('warHorn', { files: [warHorn0, warHorn1], gain: 1, mode: 'replace', jitter: 0.02 });
+registerSamples('warHornBoss', { files: [warHornBoss0], gain: 1, mode: 'replace' });
 // The bell: a tolling bell and a church bell.
 registerSamples('bell', { files: [bell0, bell1], gain: 1, mode: 'replace', jitter: 0.02 });
 // The jets of an airstrike: a recorded flyby.
 registerSamples('jets', { files: [jets0], gain: 0.7, mode: 'over', jitter: 0.02 });
 // Lightning: thunder claps rolling away.
 registerSamples('thunder', { files: [thunder0, thunder1, thunder2, thunder3], gain: 1, mode: 'replace', jitter: 0.05 });
-// Loop: heavy rain (crossfaded into its own start).
+// Loop: heavy rain (crossfaded into its own start). The weather's loops play in the game, not
+// only the lab: ../synth.ts loop takes them.
 registerSamples('rain', { files: [rain0], gain: 1, mode: 'replace' });
-// Loop: winter wind.
-registerSamples('wind', { files: [wind0], gain: 1, mode: 'replace' });
+// Loop: winter wind, darker than the recipe and so lifted to its loudness.
+registerSamples('wind', { files: [wind0], gain: 1.3, mode: 'replace' });
 // Loop: a fire crackling.
 registerSamples('fire', { files: [fire0], gain: 1, mode: 'replace' });
 // Loop: crickets at night.
-registerSamples('crickets', { files: [crickets0], gain: 1, mode: 'replace' });
+registerSamples('crickets', { files: [crickets0], gain: 0.7, mode: 'replace' });
 // Loop: a helicopter's rotor under the recipe's Huey.
 registerSamples('rotor', { files: [rotor0], gain: 0.7, mode: 'over' });
