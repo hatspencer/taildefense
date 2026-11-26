@@ -164,7 +164,16 @@ Built from what a camp would have dragged in, at true size against a 1.8 m perso
   on a scaffold tower, tier III floodlights at the corners. About 2100 triangles.
 - **The armory** is a rust-red ten-foot container with a hatch cut in its front, a rack of
   rifles inside, a workbench, ammo crates and a solar panel and tarp on the roof. About 1500.
-- The owner's colour stays a kerb round each footprint, muted a little; the track pips stay.
+- **Turrets are drawn bigger than their tile**: the kit grows by 1.25 to 1.35 (`GROW` in
+  `structs.ts`) while the pallet, platform or sandbags it stands on keep their size, so a turret
+  stands chest to head high among the survivors and still sits inside its tile. The sniper's
+  tower is tall enough already. The sim's footprint is unchanged; the effects' muzzle heights
+  grow with them (`turretDrawnY`).
+- **The generator's slab** is worn concrete the colour of the dust round it (`#665839`),
+  mottled with darker and paler patches, oil stains and drifted dirt, its edge sunk in dirt.
+- The owner's colour stays as a line of paint on the ground round each footprint, flush and
+  worn: half the ground's colour and darkened, so a pale player colour is no white selection
+  box. The track pips stay.
 
 ## The Huey and the traps
 
@@ -267,9 +276,17 @@ use, so every animation and hold still fits it; `K` turns metres into the group'
   the border between grass and road wanders and breaks into dabs instead of following tiles.
   Roads are trodden brown dirt with stones; dry ground paler ochre; the forest floor darker;
   shores mud.
-- **The base's yard** is old concrete in warm greys (`#5e5643` to `#7d725a`), stained, with
-  short cracks and dirt drifted over it in patches: the yard of a camp, not a floor of tiles.
-  House floors take the same.
+- **The base's yard** is the same ground trodden bare, in the same palette: the lit ground
+  (`#5e512a` `#62552c`) with darker scuffs (`#4d4325`), paler ochre where it has dried, browner
+  bare dirt (`#5a4628`) where it is walked most, a rare dark crack, and no green but along its
+  edge, where a straw tuft or a stone holds on (painted, and as props on the yard's edge tiles).
+  It reads worn next to the grass by being flatter and browner, not by being another colour.
+  House floors take the same (default).
+- **The map's edge** is a forest: past the last tile the ground comes down to the world
+  beyond with no step (a step drew the outline pass's black line along it), the floor there
+  goes damp and dark, and a band of about 22 tiles of dark pines and broadleaves stands on it,
+  thin at first and shoulder to shoulder further in, both its sides wandering by a few tiles.
+  Zoomed right out, bare ground shows again past the band (default).
 - **Trees** stand on tree tiles, sized against the survivors: dry pines about 2.6 to 3.6 m
   (tiers of drooping boughs, darker below, some thinning with dead stubs), broadleaves about
   2.4 to 3.3 m (a forked trunk under eleven lumps of olive), and a few dead grey ones. Crowns

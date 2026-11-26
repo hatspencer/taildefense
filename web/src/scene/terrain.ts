@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { float, mix, normalWorld, positionWorld, sin, smoothstep, step, texture, time, vec2, vec3, vertexColor } from 'three/tsl';
+import { float, max, mix, normalWorld, positionWorld, sin, smoothstep, step, texture, time, vec2, vec3, vertexColor } from 'three/tsl';
 import { Ruin, SiteKind, Tile, type SiteDef } from '../protocol';
 import { indexed } from './rig';
 import { painted } from './paint';
@@ -83,6 +83,7 @@ function groundColor(kinds: GroundKinds | null): THREE.Node<'vec3'> {
   const v = dab.r.mul(0.6).add(fleck.r.mul(0.3)).add(patch.r.mul(0.25)).sub(0.075);
   let damp: THREE.Node<'float'> = float(0), mud: THREE.Node<'float'> = float(0);
   let road: THREE.Node<'float'> = float(0), yard: THREE.Node<'float'> = float(0), dry: THREE.Node<'float'> = float(0);
+  let yardK: THREE.Node<'float'> = float(0);
   if (kinds) {
     // Read through a warp of about a metre, then cut with a little dab noise: borders wander
     // and break into dabs instead of following the tiles.
@@ -90,8 +91,12 @@ function groundColor(kinds: GroundKinds | null): THREE.Node<'vec3'> {
     const uv = positionWorld.xz.add(warp.xy.sub(0.5).mul(1.3)).add(dab.zw.sub(0.5).mul(0.35)).div(vec2(kinds.w, kinds.h));
     const k = texture(kinds.tex, uv) as unknown as THREE.Node<'vec4'>;
     const jit = fleck.b.sub(0.5).mul(0.22);
-    road = step(0.5, k.r.add(jit)); yard = step(0.5, k.g.add(jit.mul(0.4))); dry = step(0.5, k.b.add(jit));
-    damp = k.a; mud = step(0.75, k.a.add(jit));
+    road = step(0.5, k.r.add(jit)); yardK = k.g.add(jit.mul(0.4)); yard = step(0.5, yardK); dry = step(0.5, k.b.add(jit));
+    // Beyond the map's edge, under the forest there: its damp floor, darker the deeper in.
+    const p = positionWorld.xz, out = max(max(p.x.negate(), p.x.sub(kinds.w)), max(p.y.negate(), p.y.sub(kinds.h)));
+    const wood = smoothstep(0.5, 4, out.add(warp.z.sub(0.5).mul(2)));
+    damp = max(k.a.mul(float(1).sub(wood)), wood.mul(0.8)); mud = step(0.75, k.a.add(jit)).mul(float(1).sub(wood));
+    road = road.mul(float(1).sub(wood)); yard = yard.mul(float(1).sub(wood)); dry = dry.mul(float(1).sub(wood));
   }
 
   // Open ground: olive ochre in four values, then green, rust and damp dabs over it.
@@ -114,15 +119,22 @@ function groundColor(kinds: GroundKinds | null): THREE.Node<'vec3'> {
   d = mix(d, C(0x766e5a), step(0.935, fleck.a));
   d = mix(d, C(0x3f3220), step(0.73, wet));
 
-  // The yard of a camp: old concrete, stained and cracked, dirt drifted over it in patches.
-  let y = levels(v, [0x5e5643, 0x6a614c, 0x746a53, 0x7d725a], [0.33, 0.6, 0.74]);
-  y = mix(y, C(0x58513f), step(0.66, patch.a.mul(0.6).add(dab.b.mul(0.4))));
+  // The yard of a camp: the same ground trodden bare. The open ground's olive and ochre with
+  // its green worn out of it, in flatter, broader dabs: darker scuffs, paler ochre where it has
+  // dried, browner bare dirt where it is walked most, now and then a dark crack in the hardpan.
+  let y = levels(v, [PAL.groundDark, PAL.ground, PAL.ground, PAL.groundLight], [0.34, 0.5, 0.72]);
+  y = mix(y, C(0x544a27), step(0.66, patch.a.mul(0.6).add(dab.b.mul(0.4))));
   const drift = patch.g.mul(0.62).add(dab.g.mul(0.25)).add(fleck.g.mul(0.13));
-  y = mix(y, levels(v, [0x4f4129, 0x5b4b2d, 0x665634], [0.42, 0.66]), step(0.6, drift));
-  // Cracks: short runs of the level lines of a noise, broken where another noise is low.
+  y = mix(y, levels(v, [0x5e4d2a, PAL.groundDry, 0x726033], [0.42, 0.68]), step(0.62, drift));
+  const bare = patch.r.mul(0.55).add(zone.g.mul(0.25)).add(dab.r.mul(0.2));
+  y = mix(y, levels(v, [PAL.dirtDark, PAL.dirt, 0x60502c], [0.4, 0.66]), step(0.64, bare));
   const crack = field(1.2, 0.3, 0.9), gate = field(0.8, 1.7, 0.33);
-  const line = float(1).sub(step(0.011, crack.r.sub(0.5).abs())).mul(step(0.58, gate.b));
-  y = mix(y, C(0x433b2b), line.mul(float(1).sub(step(0.6, drift))));
+  const line = float(1).sub(step(0.008, crack.r.sub(0.5).abs())).mul(step(0.74, gate.b));
+  y = mix(y, C(0x463c22), line.mul(float(1).sub(step(0.62, drift))));
+  // At its edges the grass holds on: a tuft and a stone here and there where the yard meets it.
+  const rim = step(0.5, yardK).mul(float(1).sub(step(0.82, yardK)));
+  y = mix(y, mix(C(PAL.grass), C(PAL.grassLit), step(0.5, fleck.g)), step(0.9, dab.a).mul(rim));
+  y = mix(y, C(PAL.stone), step(float(0.975).sub(rim.mul(0.03)), fleck.a).mul(step(0.5, patch.a)));
 
   let c = mix(g, s, dry);
   c = mix(c, d, road);
@@ -161,14 +173,19 @@ function propMaterial(): THREE.MeshLambertNodeMaterial {
 }
 
 const WATER_Y = -0.24;
+// The ground beyond the map, a little under the map's own.
+const OUTER_Y = -0.12;
 // The ground's pieces, in tiles a side.
 const GROUND_PIECE = 64;
+// How many tiles of forest stand beyond the map's edge.
+const BEYOND = 22;
 
 // One prop's instances over the whole map, sorted into blocks of it. Only the blocks in view,
 // or near enough to throw a shadow into it, are packed into the mesh and drawn. One mesh per
 // prop rather than one per block: three builds every instanced mesh its own shaders, so a
 // mesh per block meant a burst of shader builds whenever zooming out brought new blocks in.
-const BLOCK = 32, REACH = 4, TALL = 5;
+// KEY0 shifts a block's key so the forest beyond the map's edge, at negative x and z, keys too.
+const BLOCK = 32, REACH = 4, TALL = 5, KEY0 = 8;
 class Scatter {
   private mats: number[] = []; private cols: number[] = []; private keys: number[] = [];
   private m = new Float32Array(16);
@@ -182,7 +199,7 @@ class Scatter {
     writeMatrix(this.m, 0, x, 0, z, heading, s, sy);
     for (let i = 0; i < 16; i++) this.mats.push(this.m[i]);
     if (col) this.cols.push(col[0], col[1], col[2]);
-    this.keys.push(Math.floor(x / BLOCK) * 1024 + Math.floor(z / BLOCK));
+    this.keys.push((Math.floor(x / BLOCK) + KEY0) * 1024 + Math.floor(z / BLOCK) + KEY0);
   }
 
   build(group: THREE.Group, geo: THREE.BufferGeometry, mat: THREE.Material, shadow: boolean): void {
@@ -197,7 +214,7 @@ class Scatter {
       if (this.allC) for (let e = 0; e < 3; e++) this.allC[j * 3 + e] = this.cols[i * 3 + e];
       const k = this.keys[i];
       if (j === 0 || this.keys[order[j - 1]] !== k) {
-        const bx = Math.floor(k / 1024) * BLOCK, bz = (k - Math.floor(k / 1024) * 1024) * BLOCK;
+        const bx = (Math.floor(k / 1024) - KEY0) * BLOCK, bz = (k % 1024 - KEY0) * BLOCK;
         this.blocks.push({ from: j, to: j, box: new THREE.Box3(new THREE.Vector3(bx - REACH, 0, bz - REACH), new THREE.Vector3(bx + BLOCK + REACH, TALL, bz + BLOCK + REACH)) });
       }
       this.blocks[this.blocks.length - 1].to = j + 1;
@@ -469,6 +486,9 @@ export class Terrain {
         if (t === Tile.Water) water++;
       }
       ch[y * (w + 1) + x] = n ? (water && water < n ? Math.min(s / n, -0.3) : s / n) : 0;
+      // The map's rim comes down to the ground beyond it, so no step shows (the outline pass
+      // drew one as a black line along the edge).
+      if (x === 0 || y === 0 || x === w || y === h) ch[y * (w + 1) + x] = Math.min(ch[y * (w + 1) + x], OUTER_Y);
     }
     const kinds = kindTexture(tiles, w, h);
     const mat = groundMaterial(kinds);
@@ -489,7 +509,7 @@ export class Terrain {
     // kinds those of the map's edge carried on.
     const outer = new THREE.Mesh(new THREE.PlaneGeometry(w * 6, h * 6), mat);
     outer.rotation.x = -Math.PI / 2;
-    outer.position.set(w / 2, -0.12, h / 2);
+    outer.position.set(w / 2, OUTER_Y, h / 2);
     outer.receiveShadow = true;
     this.group.add(outer);
     this.disposables.push(outer.geometry);
@@ -549,6 +569,21 @@ export class Terrain {
       const col = k === 3 ? tint(b) : tint(b, 1 + dryness * 0.14, 1, 0.92 - dryness * 0.1);
       scs[k].add(x + 0.5 + (hash(x, y, 2) - 0.5) * 0.4, y + 0.5 + (hash(x, y, 3) - 0.5) * 0.4, hash(x, y, 4) * 6.28,
         s, s * (0.9 + hash(x, y, 6) * 0.2), col);
+    }
+    // Beyond the map's edge the world goes on as a forest, close and dark: thin for a tile or
+    // two, then shoulder to shoulder, so the edge reads as a treeline and not a cut.
+    for (let y = -BEYOND; y < h + BEYOND; y++) for (let x = -BEYOND; x < w + BEYOND; x++) {
+      const out = Math.max(-x, x + 1 - w, -y, y + 1 - h);
+      if (out <= 0) continue;
+      // How deep in, wandering by a few tiles so neither side of the band is a ruled line.
+      const e = out + (hash(x >> 2, y >> 2, 21) - 0.5) * 3 + (hash(x >> 1, y >> 1, 22) - 0.5) * 1.5;
+      const p = e < 0.6 ? 0 : Math.min(0.9, 0.2 + e * 0.2) * Math.min(1, (BEYOND - e) / 5);
+      if (hash(x, y, 19) > p) continue;
+      const stand = hash(x >> 3, y >> 3, 5), r = hash(x, y, 18);
+      const k = r < 0.04 ? 3 : r < 0.12 ? 1 : stand < 0.7 ? 0 : 2;
+      const s = 0.85 + hash(x, y, 1) * 0.35, b = 0.78 + hash(x, y, 8) * 0.16;
+      scs[k].add(x + 0.5 + (hash(x, y, 2) - 0.5) * 0.6, y + 0.5 + (hash(x, y, 3) - 0.5) * 0.6, hash(x, y, 4) * 6.28,
+        s, s * (0.9 + hash(x, y, 6) * 0.25), tint(b, 1, 1, 0.94));
     }
     scs.forEach((sc, k) => { sc.build(this.group, geos[k], mat, true); this.scatters.push(sc); });
     this.disposables.push(...geos);
@@ -612,9 +647,16 @@ export class Terrain {
     const jx = (x: number, y: number, s: number) => x + 0.15 + hash(x, y, s) * 0.7;
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       const t = tiles[y * w + x];
-      if (t !== Tile.Grass && t !== Tile.Sand && t !== Tile.Dirt) continue;
+      if (t !== Tile.Grass && t !== Tile.Sand && t !== Tile.Dirt && t !== Tile.Floor) continue;
       const r = hash(x, y, 31), r2 = hash(x, y, 36), b = 0.88 + hash(x, y, 37) * 0.24, head = hash(x, y, 35) * 6.28;
       const px = jx(x, y, 33), pz = jx(y, x, 34), s = 0.8 + hash(x, y, 32) * 0.5;
+      if (t === Tile.Floor) {
+        // The yard is trodden bare, but along its edge a tuft or a stone holds on.
+        const edge = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => tiles[(y + dy) * w + x + dx] !== Tile.Floor);
+        if (edge && r < 0.06) scs[S.Stones].add(px, pz, head, s * 0.8, s * 0.8, tint(b));
+        if (edge && r2 < 0.25) scs[S.DryTuft].add(jx(x, y, 39), jx(y, x, 40), head, 0.7 + hash(x, y, 41) * 0.5, 0.6 + hash(x, y, 42) * 0.5, tint(b));
+        continue;
+      }
       if (t === Tile.Dirt) {
         if (r < 0.05) scs[S.Stones].add(px, pz, head, s, s, tint(b));
         continue;

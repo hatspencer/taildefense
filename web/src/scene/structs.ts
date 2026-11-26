@@ -55,7 +55,23 @@ function glowMaterial(hex: number, pulse = 0): THREE.MeshBasicNodeMaterial {
 
 // dmg: extra wreckage shown below 60% and 30% hp. gun: a part of the head that recoils in it,
 // pivoting at gunX along the head's +x. spin turns about the upright through spinAt (x, y, z).
-interface Model { body: Part[]; head?: Part[]; headY?: number; gun?: Part[]; gunX?: number; glow?: { parts: Part[]; color: number; pulse: number }; spin?: Part[]; spinAt?: [number, number, number]; dmg?: [Part[], Part[]] }
+interface Model { body: Part[]; base?: Part[]; head?: Part[]; headY?: number; gun?: Part[]; gunX?: number; glow?: { parts: Part[]; color: number; pulse: number }; spin?: Part[]; spinAt?: [number, number, number]; dmg?: [Part[], Part[]] }
+
+// The turrets are drawn bigger than their tile would make them, so they stand among the
+// survivors and the walls as the weapons they are, not as props at knee height: each grows by s
+// about the point `at` above the ground. What a model lists as its base (its pallet, platform or
+// sandbags, which already fill the tile) keeps its size, so no turret spills onto the next tile.
+// Drawing only: the sim's footprint is the tile it always was.
+const GROW: Record<number, { s: number; at: number }> = {
+  [K_GUN]: { s: 1.35, at: 0 }, [K_CANNON]: { s: 1.25, at: 0.1 }, [K_FROST]: { s: 1.25, at: 0.14 },
+  [K_TESLA]: { s: 1.3, at: 0.14 }, [K_MISSILE]: { s: 1.3, at: 0 }, [K_PYLON]: { s: 1.25, at: 0 },
+};
+
+// A height on a turret's model as it is drawn, grown: where the effects put a muzzle's flash.
+export function turretDrawnY(kind: number, y: number): number {
+  const g = GROW[kind];
+  return g ? g.at + (y - g.at) * g.s : y;
+}
 
 // The colours of a turret's tracks: damage, fire rate, range, special.
 const PIP = [0xc8502a, 0xd8b040, 0x5aa0c8, 0xb070d0];
@@ -66,7 +82,15 @@ const GUN = 0x2c2e29, GUN_L = 0x45473e, OD = 0x4f5634, OD_D = darker(0x4f5634, 0
 const BAG = 0x7d7048, BAG2 = 0x6c6040, BAG3 = 0x766a46;
 const WOOD = PAL.wood, WOOD_D = PAL.woodDark, WOOD_W = 0x6e604a, WOOD_G = 0x5c5444, CUT = 0xa08660;
 const PALLET = 0x7e6a4c, PALLET_D = 0x655438;
-const RUST = PAL.rust, RUST_L = 0x8a4e2a, CONC = PAL.concrete, CONC_D = 0x67635a, SLAB = 0x6c685a;
+const RUST = PAL.rust, RUST_L = 0x8a4e2a, CONC = PAL.concrete, CONC_D = 0x67635a;
+// The generator's slab: worn concrete the colour of the ground's dust, mottled and stained.
+const SLAB = 0x665839, SLAB_EDGE = 0x51462d, SLAB_CRACK = 0x3e3524;
+const SLAB_MOTTLE: [number, number, number, number, number, number][] = [
+  [-1.6, -1.7, 1.2, 0.9, 0.3, 0x584a30], [1.5, -1.9, 1.0, 0.7, -0.4, 0x6c5d40], [-1.9, 0.6, 0.8, 1.3, 0.2, 0x544629],
+  [1.8, 0.4, 0.9, 0.8, 0.6, 0x5a4c31], [-0.4, 1.9, 1.4, 0.6, -0.2, 0x6c5d40], [0.9, 1.6, 0.6, 0.5, 0.9, 0x4f432b],
+  [-1.2, 1.4, 0.5, 0.5, 0.4, 0x4a3f28], [2.0, -0.9, 0.5, 0.7, 0.1, 0x564830], [0.2, 2.1, 0.9, 0.35, 0.05, PAL.dirt],
+  [-2.15, -0.6, 0.35, 1.2, 0.1, PAL.dirt], [2.1, 1.9, 0.5, 0.5, 0.3, PAL.groundDark],
+];
 const BRASS = 0xa8883a, COPPER = 0xa0602e, COPPER_L = 0xb8743a;
 const HAZ = PAL.hardHat, RED = PAL.medRed;
 const X = Math.PI / 2, UP = new THREE.Vector3(0, 1, 0);
@@ -181,12 +205,14 @@ function ammoCan(x: number, y: number, z: number, a = 0): Part[] {
 function coreModel(): Model {
   const Y = 0xa8873a, Y_D = darker(Y, 0.72), Y_L = lighter(Y, 0.12), gz = -0.35, top = 1.82;
   const body: Part[] = [
-    // The slab, its cracks and an oil stain.
+    // The slab: old concrete gone the colour of the dirt round it, mottled with what has been
+    // spilt and trodden into it, cracked, an oil stain under the skid, its edge sunk in dirt.
     part(box(4.7, 0.14, 4.7), SLAB, 0, 0.07, 0),
-    part(box(4.74, 0.05, 4.74), CONC_D, 0, 0.025, 0),
-    part(box(1.6, 0.012, 0.03), CONC_D, 1.2, 0.145, 1.7, 0, 0.5, 0), part(box(1.1, 0.012, 0.03), CONC_D, -0.9, 0.145, 2.0, 0, -0.3, 0),
-    part(box(0.03, 0.012, 1.3), CONC_D, 2.0, 0.145, -0.9, 0, 0.2, 0),
-    part(box(1.1, 0.01, 0.6), 0x3e3a30, 0.4, 0.145, 0.65, 0, 0.25, 0),
+    part(box(4.78, 0.05, 4.78), SLAB_EDGE, 0, 0.025, 0),
+    ...SLAB_MOTTLE.map(([x, z, w, d, a, c]) => part(box(w, 0.008, d), c, x, 0.141, z, 0, a, 0)),
+    part(box(1.6, 0.01, 0.03), SLAB_CRACK, 1.2, 0.143, 1.7, 0, 0.5, 0), part(box(1.1, 0.01, 0.03), SLAB_CRACK, -0.9, 0.143, 2.0, 0, -0.3, 0),
+    part(box(0.03, 0.01, 1.3), SLAB_CRACK, 2.0, 0.143, -0.9, 0, 0.2, 0),
+    part(box(1.3, 0.01, 0.7), 0x3a3222, 0.4, 0.144, 0.65, 0, 0.25, 0), part(box(0.5, 0.01, 0.4), 0x3a3222, -0.5, 0.144, 0.9, 0, 0.7, 0),
     // The skid and its forklift pockets, a hazard band along the front.
     part(box(3.7, 0.18, 1.56), STEEL_D, 0, 0.23, gz),
     ...[-1.1, 1.1].map((x) => part(box(0.34, 0.1, 1.58), INK, x, 0.22, gz)),
@@ -429,11 +455,12 @@ function sniperKick(s: number, decay: number): number {
 // for a shield, its ammo can hung on the left with the belt running into the feed, spare cans
 // and spent brass on the bags. The bore is 0.05 over the head's pivot, the muzzle 0.62 out.
 function gunModel(): Model {
-  const body: Part[] = [...bagRing(0.39, 8, 0.072, 0.2, 0.29), ...bagRing(0.36, 8, 0.2, 0.2 + Math.PI / 8, 0.27)];
-  for (const a of [Math.PI, Math.PI / 3, -Math.PI / 3]) body.push(rod([Math.cos(a) * 0.3, 0.02, Math.sin(a) * 0.3], [0, 0.5, 0], 0.022, GUN_L));
+  const base: Part[] = [...bagRing(0.39, 8, 0.072, 0.2, 0.29), ...bagRing(0.36, 8, 0.2, 0.2 + Math.PI / 8, 0.27)];
+  base.push(...ammoCan(-0.3, 0.27, 0.22, 0.9), ...ammoCan(0.05, 0.27, -0.36, 0.2));
+  const body: Part[] = [];
+  for (const a of [Math.PI, Math.PI / 3, -Math.PI / 3]) body.push(rod([Math.cos(a) * 0.2, 0.02, Math.sin(a) * 0.2], [0, 0.5, 0], 0.022, GUN_L));
   body.push(part(cyl(0.035, 0.045, 0.16, 6), GUN, 0, 0.55, 0));
-  body.push(...ammoCan(-0.3, 0.27, 0.22, 0.9), ...ammoCan(0.05, 0.27, -0.36, 0.2));
-  for (const [x, z] of [[0.12, 0.12], [-0.1, 0.18], [0.18, -0.08], [-0.05, -0.15]]) body.push(part(box(0.06, 0.025, 0.025), BRASS, x, 0.03, z, 0, x * 9, 0));
+  for (const [x, z] of [[0.12, 0.12], [-0.1, 0.18], [0.18, -0.08], [-0.05, -0.15]]) base.push(part(box(0.06, 0.025, 0.025), BRASS, x, 0.015, z, 0, x * 9, 0));
   const head: Part[] = [
     // Cradle and pintle head.
     part(box(0.14, 0.08, 0.08), GUN_L, 0, -0.08, 0),
@@ -454,14 +481,14 @@ function gunModel(): Model {
     ...ammoCan(0.02, -0.16, 0.14),
     ...[0, 1, 2].map((k) => part(box(0.05, 0.02, 0.05), BRASS, 0.04, 0.04 + k * 0.012, 0.105 - k * 0.02, 0.5)),
   ];
-  return { body, head, headY: 0.7 };
+  return { base, body, head, headY: 0.7 };
 }
 
 // The cannon: a small field gun on two rubber-tyred wheels, its shield up, the split trail
 // spread behind on a plank turntable ringed with a course of sandbags, a crate of shells by it.
 // The bore is 0.62 over the head's pivot (the platform's top), the muzzle 0.66 out.
 function cannonModel(): Model {
-  const body: Part[] = [
+  const base: Part[] = [
     part(box(0.96, 0.05, 0.96), WOOD_G, 0, 0.025, 0),
     ...[-0.36, -0.18, 0, 0.18, 0.36].map((z, i) => part(box(0.92, 0.05, 0.16), i % 2 ? WOOD_W : blend(WOOD_W, WOOD, 0.3), 0, 0.075, z)),
     ...bagRing(0.5, 10, 0.07, 0.1, 0.3),
@@ -478,8 +505,8 @@ function cannonModel(): Model {
     part(box(0.12, 0.08, 0.6), OD_D, 0, 0.25, 0),
     part(box(0.32, 0.12, 0.18), OD, 0.02, 0.38, 0),
     // The split trail, spread to two spades on the planks.
-    rod([-0.05, 0.3, 0.06], [-0.52, 0.03, 0.2], 0.03, OD, 4), rod([-0.05, 0.3, -0.06], [-0.52, 0.03, -0.2], 0.03, OD, 4),
-    part(box(0.03, 0.1, 0.12), STEEL_D, -0.53, 0.06, 0.2), part(box(0.03, 0.1, 0.12), STEEL_D, -0.53, 0.06, -0.2),
+    rod([-0.05, 0.3, 0.06], [-0.4, 0.03, 0.18], 0.03, OD, 4), rod([-0.05, 0.3, -0.06], [-0.4, 0.03, -0.18], 0.03, OD, 4),
+    part(box(0.03, 0.1, 0.12), STEEL_D, -0.41, 0.06, 0.18), part(box(0.03, 0.1, 0.12), STEEL_D, -0.41, 0.06, -0.18),
     // The shield in three plates round the barrel, its top edge rusted.
     part(box(0.03, 0.34, 0.68), OD, 0.12, 0.42, 0, 0, 0, 0.1),
     part(box(0.03, 0.2, 0.24), OD, 0.1, 0.68, 0.22, 0, 0, 0.1), part(box(0.03, 0.2, 0.24), OD, 0.1, 0.68, -0.22, 0, 0, 0.1),
@@ -493,7 +520,7 @@ function cannonModel(): Model {
     part(box(0.12, 0.05, 0.04), GUN, -0.02, 0.72, 0.12),
     part(torus(0.05, 0.012, 4, 8), STEEL, -0.1, 0.5, -0.13),
   );
-  return { body, head, headY: 0.1 };
+  return { base, body: [], head, headY: 0.1 };
 }
 
 // The frost tower: a rack of nitrogen dewars, frosted half way up, strapped on a pallet with a
@@ -501,8 +528,8 @@ function cannonModel(): Model {
 // turns as it sprays. Pale ice is its only colour.
 function frostModel(): Model {
   const ICE = 0xc8d0cc, TANK = 0x8a989a, ICE_B = 0x9cbcc4;
-  const body: Part[] = [...pallet(0, 0, 0.94, 0.94)];
-  const tanks: [number, number][] = [[-0.25, 0.22], [-0.27, -0.2], [0.05, -0.3]];
+  const base: Part[] = pallet(0, 0, 0.94, 0.94), body: Part[] = [];
+  const tanks: [number, number][] = [[-0.21, 0.19], [-0.23, -0.17], [0.04, -0.26]];
   for (const [x, z] of tanks) {
     body.push(
       part(cyl(0.12, 0.12, 0.9, 8), TANK, x, 0.6, z),
@@ -513,18 +540,18 @@ function frostModel(): Model {
     body.push(rod([x, 1.18, z], [0.0, 1.25, 0.0], 0.018, RUB));
   }
   // The strap round the dewars.
-  body.push(part(box(0.5, 0.04, 0.03), INK, -0.15, 0.85, 0.36, 0, 0.6, 0), part(box(0.03, 0.04, 0.62), INK, -0.4, 0.85, 0));
+  body.push(part(box(0.45, 0.04, 0.03), INK, -0.12, 0.85, 0.31, 0, 0.6, 0), part(box(0.03, 0.04, 0.56), INK, -0.35, 0.85, 0));
   // The refrigeration unit: a white box with a fan grille, the compressor's pipe up the mast.
   body.push(
-    part(box(0.38, 0.42, 0.4), 0xa8a89a, 0.24, 0.35, 0.2),
-    part(box(0.02, 0.3, 0.3), INK, 0.44, 0.35, 0.2), part(cyl(0.12, 0.12, 0.02, 8), 0x4a4c46, 0.455, 0.35, 0.2, 0, 0, X),
-    part(box(0.4, 0.03, 0.42), 0x8a8a7c, 0.24, 0.575, 0.2),
-    part(box(0.08, 0.06, 0.02), ICE_B, 0.12, 0.5, 0.41),
+    part(box(0.38, 0.42, 0.4), 0xa8a89a, 0.18, 0.35, 0.18),
+    part(box(0.02, 0.3, 0.3), INK, 0.38, 0.35, 0.18), part(cyl(0.12, 0.12, 0.02, 8), 0x4a4c46, 0.395, 0.35, 0.18, 0, 0, X),
+    part(box(0.4, 0.03, 0.42), 0x8a8a7c, 0.18, 0.575, 0.18),
+    part(box(0.08, 0.06, 0.02), ICE_B, 0.06, 0.5, 0.39),
   );
   // The mast, its brace and the frost down it.
   body.push(
     rod([0.0, 0.14, 0.0], [0.0, 1.46, 0.0], 0.035, STEEL, 6),
-    rod([0.3, 0.58, 0.05], [0.0, 1.05, 0.0], 0.018, STEEL),
+    rod([0.24, 0.58, 0.04], [0.0, 1.05, 0.0], 0.018, STEEL),
     part(cyl(0.045, 0.045, 0.3, 6), ICE, 0, 1.25, 0),
     part(cyl(0.12, 0.2, 0.012, 10), ICE, 0.05, 0.135, 0.05),
   );
@@ -535,14 +562,14 @@ function frostModel(): Model {
     spin.push(part(box(0.28, 0.03, 0.03), STEEL, Math.cos(a) * 0.17, 0, -Math.sin(a) * 0.17, 0, a, 0));
     spin.push(part(box(0.05, 0.06, 0.05), ICE_B, Math.cos(a) * 0.31, -0.02, -Math.sin(a) * 0.31, 0, a, 0));
   }
-  return { body, spin, spinAt: [0, 1.5, 0] };
+  return { base, body, spin, spinAt: [0, 1.5, 0] };
 }
 
 // The tesla coil: a home-made one, on a pallet. The secondary wound in copper on an insulator
 // stack, a dryer-duct toroid on top, the primary's heavy turns round its foot; a bank of car
 // batteries and a transformer feeding it, a striped warning plate leaning on the side.
 function teslaModel(): Model {
-  const body: Part[] = [...pallet(0, 0, 0.94, 0.94)];
+  const base: Part[] = pallet(0, 0, 0.94, 0.94), body: Part[] = [];
   body.push(
     ...battery(-0.3, 0.14, 0.22, X), ...battery(-0.3, 0.14, -0.08, X),
     part(box(0.24, 0.22, 0.24), OD, 0.26, 0.25, -0.26), part(cyl(0.07, 0.07, 0.16, 8), COPPER, 0.26, 0.38, -0.26, X, 0, 0),
@@ -560,8 +587,8 @@ function teslaModel(): Model {
     part(cyl(0.008, 0.02, 0.14, 4), STEEL_L, 0, 1.53, 0),
   );
   // The warning plate.
-  for (let k = 0; k < 4; k++) body.push(part(box(0.025, 0.09, 0.3), k % 2 ? INK : HAZ, 0.45, 0.2 + k * 0.08, 0.22, 0, 0, -0.25));
-  return { body };
+  for (let k = 0; k < 4; k++) base.push(part(box(0.025, 0.09, 0.3), k % 2 ? INK : HAZ, 0.45, 0.2 + k * 0.08, 0.22, 0, 0, -0.25));
+  return { base, body };
 }
 
 // The sniper tower: a rough timber watchtower on four splayed legs, cross-braced with planks and
@@ -619,8 +646,11 @@ function missileModel(): Model {
     part(cyl(0.22, 0.22, 0.21, 10), STEEL, 0, 0.105, 0),
     part(cyl(0.06, 0.07, 0.5, 6), STEEL_D, 0, 0.45, 0),
     ...[0, 1, 2].map((k) => { const a = k * 2.094 + 0.5; return rod([Math.cos(a) * 0.2, 0.21, Math.sin(a) * 0.2], [0, 0.5, 0], 0.016, STEEL_D); }),
+  ];
+  // The battery and the sandbags keep their size; its leads reach the grown pedestal.
+  const base: Part[] = [
     ...battery(-0.32, 0, 0.3, 0.6),
-    rod([-0.3, 0.2, 0.3], [-0.05, 0.55, 0.04], 0.012, RED), rod([-0.36, 0.2, 0.26], [-0.05, 0.5, -0.04], 0.012, INK),
+    rod([-0.3, 0.2, 0.3], [-0.065, 0.715, 0.05], 0.012, RED), rod([-0.36, 0.2, 0.26], [-0.065, 0.65, -0.05], 0.012, INK),
     ...bagRing(0.45, 9, 0.07, 0.3, 0.32).filter((_, i) => i !== 3),
   ];
   const head: Part[] = [part(box(0.16, 0.08, 0.5), STEEL_D, 0, 0.0, 0), part(box(0.1, 0.18, 0.06), STEEL, 0, 0.08, 0)];
@@ -633,7 +663,7 @@ function missileModel(): Model {
     for (const [dy, dz] of [[0.07, 0.04], [-0.07, -0.04], [0, 0]]) head.push(part(cone(0.022, 0.05, 4), RED, 0.385, 0.17 + dy, z + dz, 0, 0, -X));
     head.push(part(box(0.2, 0.025, 0.03), 0xc8c2a0, 0.05, 0.31, z));
   }
-  return { body, head, headY: 0.78 };
+  return { base, body, head, headY: 0.78 };
 }
 
 // The amplifier pylon: a scaffold pipe mast on a concrete-filled tyre, guyed three ways, a
@@ -645,11 +675,11 @@ function pylonModel(): Model {
     part(cyl(0.3, 0.3, 0.2, 10), RUB, 0, 0.1, 0), part(cyl(0.2, 0.2, 0.205, 10), CONC, 0, 0.105, 0),
     rod([0, 0.2, 0], [0, H, 0], 0.035, STEEL, 6),
     part(box(0.16, 0.24, 0.1), 0x7a7868, 0.06, 0.95, 0), part(box(0.04, 0.05, 0.02), RED, 0.06, 1.0, 0.055),
-    ...[0, 1, 2].flatMap((k) => { const a = k * 2.094 + 0.8; const g: V3 = [Math.cos(a) * 0.46, 0.02, Math.sin(a) * 0.46]; return [rod([0, H - 0.4, 0], g, 0.008, STEEL_D), part(box(0.04, 0.08, 0.04), STEEL_D, g[0], 0.04, g[2])]; }),
-    part(box(0.3, 0.2, 0.18), OD, 0.25, 0.1, -0.3, 0, 0.4, 0), part(box(0.1, 0.03, 0.03), INK, 0.22, 0.21, -0.25, 0, 0.4, 0),
-    part(cyl(0.006, 0.006, 0.5, 3), INK, 0.3, 0.45, -0.38),
-    ...battery(-0.3, 0, 0.25, 1.2),
-    rod([0.06, 0.82, 0], [0.2, 0.2, -0.24], 0.012, RUB), rod([-0.3, 0.2, 0.25], [0.04, 0.86, 0], 0.012, RED),
+    ...[0, 1, 2].flatMap((k) => { const a = k * 2.094 + 0.8; const g: V3 = [Math.cos(a) * 0.38, 0.02, Math.sin(a) * 0.38]; return [rod([0, H - 0.4, 0], g, 0.008, STEEL_D), part(box(0.04, 0.08, 0.04), STEEL_D, g[0], 0.04, g[2])]; }),
+    part(box(0.3, 0.2, 0.18), OD, 0.19, 0.1, -0.22, 0, 0.4, 0), part(box(0.1, 0.03, 0.03), INK, 0.16, 0.21, -0.17, 0, 0.4, 0),
+    part(cyl(0.006, 0.006, 0.5, 3), INK, 0.24, 0.45, -0.3),
+    ...battery(-0.24, 0, 0.2, 1.2),
+    rod([0.06, 0.82, 0], [0.15, 0.2, -0.17], 0.012, RUB), rod([-0.24, 0.2, 0.2], [0.04, 0.86, 0], 0.012, RED),
   ];
   const spin: Part[] = [part(box(0.8, 0.025, 0.025), STEEL_L, 0, 0, 0), part(box(0.06, 0.08, 0.06), STEEL_D, 0, -0.03, 0)];
   [0.34, 0.16, -0.02, -0.2, -0.34].forEach((x, i) => spin.push(part(box(0.015, 0.015, 0.4 - i * 0.03), STEEL_L, x, 0, 0)));
@@ -824,13 +854,20 @@ export class Structs {
   private buildKind(kind: number): Built {
     let b = this.built.get(kind);
     if (b) return b;
-    const m = modelFor(kind);
-    b = { body: merge(m.body), headY: m.headY ?? 0, gunX: m.gunX ?? 0, spinAt: m.spinAt ?? [0, 0, 0] };
-    if (m.head) b.head = merge(m.head);
+    const m = modelFor(kind), g = GROW[kind] ?? { s: 1, at: 0 };
+    // The kit grows about (0, at, 0); a head and a spinner about their own pivots, which move.
+    const kit = new THREE.Matrix4().makeTranslation(0, g.at, 0).multiply(new THREE.Matrix4().makeScale(g.s, g.s, g.s)).multiply(new THREE.Matrix4().makeTranslation(0, -g.at, 0));
+    const grown = (ps: Part[]) => merge(ps).applyMatrix4(kit);
+    const at = m.spinAt ?? [0, 0, 0];
+    b = {
+      body: m.base ? concat([merge(m.base), grown(m.body)]) : grown(m.body),
+      headY: turretDrawnY(kind, m.headY ?? 0), gunX: m.gunX ?? 0, spinAt: [at[0] * g.s, turretDrawnY(kind, at[1]), at[2] * g.s],
+    };
+    if (m.head) b.head = merge(m.head).scale(g.s, g.s, g.s);
     if (m.gun) b.gun = merge(m.gun);
-    if (m.glow) { b.glow = merge(m.glow.parts); b.glowMat = kind === K_CORE ? coreLampMaterial() : glowMaterial(m.glow.color, m.glow.pulse); }
-    if (m.spin) b.spin = merge(m.spin);
-    if (m.dmg) b.dmg = m.dmg.map((d) => merge(d));
+    if (m.glow) { b.glow = grown(m.glow.parts); b.glowMat = kind === K_CORE ? coreLampMaterial() : glowMaterial(m.glow.color, m.glow.pulse); }
+    if (m.spin) b.spin = merge(m.spin).scale(g.s, g.s, g.s);
+    if (m.dmg) b.dmg = m.dmg.map(grown);
     this.built.set(kind, b);
     return b;
   }
@@ -855,11 +892,13 @@ export class Structs {
     const key = owner * 16 + w;
     let g = this.ringGeo.get(key);
     if (!g) {
-      // The owner's colour, a little worn, as a painted kerb round the footprint.
-      const r = w * 0.5 + 0.02, c = mute(playerColor(owner), 0.8, 0.05);
+      // The owner's colour as a line of paint on the ground round the footprint, worn into the
+      // dirt: dark and dusty, so a light player colour is no white box, and flush enough that
+      // the outline pass draws no edge along it.
+      const r = w * 0.5 - 0.04, c = darker(blend(mute(playerColor(owner), 0.7, 0.05), PAL.ground, 0.55), 0.85);
       g = merge([
-        part(box(r * 2, 0.06, 0.07), c, 0, 0.03, r), part(box(r * 2, 0.06, 0.07), c, 0, 0.03, -r),
-        part(box(0.07, 0.06, r * 2), c, r, 0.03, 0), part(box(0.07, 0.06, r * 2), c, -r, 0.03, 0),
+        part(box(r * 2, 0.05, 0.05), c, 0, 0.025, r), part(box(r * 2, 0.05, 0.05), c, 0, 0.025, -r),
+        part(box(0.05, 0.05, r * 2), c, r, 0.025, 0), part(box(0.05, 0.05, r * 2), c, -r, 0.025, 0),
       ]);
       this.ringGeo.set(key, g);
     }
