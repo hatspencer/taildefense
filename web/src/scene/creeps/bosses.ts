@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { box, dodeca, ico } from '../util';
 import { J, rp, type RigPart } from '../rig';
 import { PAL, blend, darker, stained } from '../palette';
-import { rig, type CreepRig } from '../creepModels';
+import { type CreepRig, type JointDef, mirror, rig } from '../creepModels';
 
 // The three bosses, built in metres against a 1.8 m survivor and stood at their true size:
 // the abomination, several of the dead grown into one mass; the broodmother, a woman swollen
@@ -267,16 +267,25 @@ export function abomination(): CreepRig {
   k.box(0.18, 0.06, 0.16, DUSK, 1.38, 1.4, -1.0);
   k.box(0.14, 0.03, 0.12, darker(DUSK, 0.85), 1.5, 1.36, -1.0, 0, 0, -0.5);
 
+  // It heaves along on its two odd legs and the two long arms, a leg and the arm across from
+  // it together, the knuckles planted; the whole mass rolls from side to side and lags the
+  // step, the heads in it lolling, the arm over the top and the one out of its flank groping
+  // out of time. A blow: it rears back and twists, both long arms up, then slams down and
+  // across, lunging. Dying, its legs fold under it and the heap goes over on its face.
+  const uarm: JointDef = { p: [0.45, 2.45, 1.0], walk: [0.22, Math.PI + 0.2, 0.05, -0.08], flex: [0, 0, 0, 0.04], wind: [1.9, -0.35, 0.5, 0], strike: [0.2, 0, -1.0, 0], die: [-0.2, -0.7, 0, 0], misc: [-0.1, 0.8, 1, 1] };
+  const farm: JointDef = { p: [0.6, 1.45, 1.1], walk: [0.14, Math.PI + 0.9, 0, 0.28], flex: [0.25, 0.4, 0, 0], wind: [0.6, 0, 0, 0], strike: [-0.3, 0, 0, 0], die: [0.5, 0, 0, 0], misc: [0, 0.6, 1, 1] };
   return rig(k.p, {
-    [J.CHEST]: { p: [0, 1.05, 0], walk: [0.06, 0, 0.12, -0.08], flex: [0, 0, 0.16, 0.04], wind: [0.38, 0, 0.25, 0], strike: [-0.45, 0, -0.35, 0], die: [-0.5, 0.25, 0, 0], misc: [0.08, 0.15, 0, 0] },
-    [J.HEAD]: { p: [0.55, 2.4, 0.02], walk: [0.1, 1, 0.2, 0.05], flex: [0, 0, 0, 0.12], wind: [0.4, 0, 0, 0], strike: [-0.5, 0, 0, 0], die: [-0.4, 0.4, 0, 0], misc: [0.15, 0.3, 0, 0] },
-    [J.UARM_L]: { p: [0.45, 2.45, 1.0], walk: [0.42, Math.PI, 0, 0], flex: [0, 0, 0, 0.04], wind: [1.9, -0.35, 0.5, 0], strike: [0.25, 0, -1.0, 0], die: [-0.4, -0.6, 0, 0], misc: [-0.1, 0.8, 1, 1] },
-    [J.FARM_L]: { p: [0.6, 1.45, 1.1], walk: [0.25, Math.PI + 0.6, 0, 0], wind: [0.6, 0, 0, 0], strike: [-0.3, 0, 0, 0], die: [0.3, 0, 0, 0], misc: [0, 0.6, 1, 1] },
-    [J.X]: { p: [-0.3, 2.65, 0.3], walk: [0.3, 0.5, 0, 0], flex: [0, 0, 0, 0.1], wind: [0.8, 0, 0, 0], strike: [-1.0, 0, 0, 0], die: [-1.2, 0, 0, 0], misc: [0, 0.8, 0, 1] },
-    [J.X2]: { p: [0.25, 1.65, -0.85], walk: [0.3, Math.PI + 0.5, 0, 0], flex: [0, 0, 0, 0.1], wind: [0.9, 0, 0, 0], strike: [-0.6, 0, 0, 0], die: [-0.8, 0, 0, 0], misc: [0, 0.8, 0, 1] },
-    [J.THIGH_L]: { p: [0, 1.1, 0.5], walk: [0.32, 0, 0, 0], wind: [-0.12, 0, 0, 0], strike: [0.22, 0, 0, 0], die: [1.0, 0, 0, 0], misc: [0, 0.2, 1, 2] },
-    [J.SHIN_L]: { p: [0.06, 0.58, 0.5], flex: [-0.6, Math.PI / 2, 0, 0], die: [-1.6, 0, 0, 0], misc: [0, 0.2, 1, 2] },
-  }, { stride: 2.0, bob: 0.06, drop: 0.32, turn: 2.5, flinch: 0.1, scale: M });
+    [J.CHEST]: { p: [0, 1.05, 0], walk: [0.07, 0.6, 0.14, -0.06], flex: [0.05, 0.9, 0.16, 0.05], wind: [0.38, 0, 0.25, 0], strike: [-0.5, 0, -0.35, 0], die: [-0.45, 0.25, 0.1, 0], misc: [0.08, 0.15, 0, 0], tilt: [0.05, 0, 0.04, 0.05] },
+    [J.HEAD]: { p: [0.55, 2.4, 0.02], walk: [0.12, 1.4, 0.2, 0.05], flex: [0, 0, 0.1, 0.12], wind: [0.4, 0, 0, 0], strike: [-0.5, 0, 0, 0], die: [-0.4, 0.4, 0, 0], misc: [0.15, 0.3, 0, 0], tilt: [0.2, 0.15, 0.12, 0.1] },
+    [J.UARM_L]: uarm, [J.FARM_L]: farm,
+    // The big right arm, bent harder at the elbow and held out wider: no two of its limbs alike.
+    [J.UARM_R]: { ...mirror(uarm), walk: [0.2, 0.3, -0.05, -0.14], tilt: [0.12, -0.1, 0.03, 0] },
+    [J.FARM_R]: { ...mirror(farm), walk: [0.14, 1.1, 0, 0.42] },
+    [J.X]: { p: [-0.3, 2.65, 0.3], walk: [0.3, 0.5, 0.1, 0], flex: [0, 0, 0, 0.14], wind: [0.8, 0, 0, 0], strike: [-1.0, 0, 0, 0], die: [-1.2, 0, 0, 0], misc: [0, 0.8, 0, 1], tilt: [0, 0, 0.15, 0.1] },
+    [J.X2]: { p: [0.25, 1.65, -0.85], walk: [0.3, Math.PI + 0.5, 0.08, 0], flex: [0, 0, 0, 0.14], wind: [0.9, 0, 0, 0], strike: [-0.6, 0, 0, 0], die: [-0.8, 0, 0, 0], misc: [0, 0.8, 0, 1], tilt: [0, 0, 0.12, 0.12] },
+    [J.THIGH_L]: { p: [0, 1.1, 0.5], walk: [0.44, 0, 0.04, 0.1], wind: [0.2, 0, 0, 0], strike: [0.22, 0, 0, 0], die: [0.55, 0, -0.1, 0], misc: [0, 0.2, 1, 2] },
+    [J.SHIN_L]: { p: [0.06, 0.58, 0.5], walk: [0, 0, 0, -0.18], flex: [-0.75, Math.PI / 2, 0, 0], wind: [-0.4, 0, 0, 0], die: [-1.35, 0, 0, 0], misc: [0, 0.2, 1, 2] },
+  }, { stride: 2.0, bob: 0.08, drop: 0.45, turn: 2.5, flinch: 0.1, scale: M, fall: 1.15, edge: 0.9, lie: 0.3, crouch: 0.12, lunge: 0.3 });
 }
 
 // ---------------------------------------------------------------------------------------
@@ -378,16 +387,24 @@ export function broodmother(): CreepRig {
   k.box(0.2, 0.07, 0.22, HAIR, 0.96, 2.5, 0, 0, 0, -0.45);
   for (const s of [1, -1]) k.box(0.1, 0.2, 0.06, HAIR, 0.96, 2.28, 0.14 * s, 0, 0, -0.2);
 
+  // She walks like a beast, hind leg then the foreleg on that side, the belly and the swollen
+  // back slung between swinging and rolling after her steps, her head hanging and lolling. A
+  // blow: she rears, the arms drawn back, and comes down on them. Dying, her limbs give and
+  // she slumps flat, rolling half onto her side.
+  const uarm: JointDef = { p: [0.82, 2.18, 0.4], walk: [0.22, Math.PI * 0.5, 0.04, -0.16], wind: [-0.5, -0.4, 0, 0], strike: [0.55, 0, 0, 0], die: [0.3, -0.8, 0, 0], misc: [-0.1, 1.0, 1, 1], tilt: [-0.22, 0, 0.03, 0] };
+  const farm: JointDef = { p: [1.08, 1.12, 0.55], walk: [0.1, Math.PI * 0.5 + 0.6, 0, 0.36], flex: [0.35, 0.97, 0, 0], wind: [-0.6, 0, 0, 0], strike: [0.3, 0, 0, 0], die: [0.6, 0, 0, 0], misc: [0, 0.8, 1, 1] };
   return rig(k.p, {
-    [J.CHEST]: { p: [-0.95, 1.35, 0], walk: [0.03, 0, 0.08, 0], flex: [0, 0, 0.08, 0.03], wind: [0.38, 0, 0, 0], strike: [-0.25, 0, 0, 0], die: [-0.3, 0.45, 0, 0], misc: [0.06, 0.12, 0, 0] },
-    [J.X]: { p: [0.05, 1.5, 0], walk: [0.04, 0.5, 0.06, 0], flex: [0, 0, 0, 0.03], wind: [0, 0, 0, 0.05], strike: [0, 0, 0, -0.06], die: [0.1, 0.2, 0, -0.08], misc: [0.05, 0.1, 0, 0] },
-    [J.X2]: { p: [-0.75, 1.3, 0], walk: [0.03, 1.2, 0.05, 0], flex: [0, 0, 0, 0.04], wind: [-0.1, 0, 0, 0.04], strike: [0.1, 0, 0, -0.03], die: [0.15, 0, 0, -0.06], misc: [0.05, 0.1, 0, 0] },
-    [J.HEAD]: { p: [0.86, 2.25, 0], walk: [0.06, 1, 0.12, 0], flex: [0, 0, 0, 0.08], wind: [0.9, 0, 0, 0], strike: [-0.9, 0, 0, 0], die: [-0.5, 0.3, 0, 0], misc: [0.1, 0.3, 0, 0] },
-    [J.UARM_L]: { p: [0.82, 2.18, 0.4], walk: [0.3, Math.PI * 0.5, 0, 0], wind: [-0.6, -0.4, 0, 0], strike: [0.5, 0, 0, 0], die: [-0.3, -0.6, 0, 0], misc: [-0.1, 1.0, 1, 1] },
-    [J.FARM_L]: { p: [1.08, 1.12, 0.55], walk: [0.18, Math.PI * 0.5 + 0.6, 0, 0], wind: [-0.6, 0, 0, 0], strike: [0.3, 0, 0, 0], die: [0.9, 0, 0, 0], misc: [0, 0.8, 1, 1] },
-    [J.THIGH_L]: { p: [-0.95, 1.4, 0.66], walk: [0.28, 0, 0, 0], wind: [0.15, 0, 0, 0], strike: [-0.1, 0, 0, 0], die: [0.6, 0.3, 0, 0], misc: [0, 0.3, 1, 2] },
-    [J.SHIN_L]: { p: [-0.45, 0.72, 0.72], flex: [-0.5, Math.PI / 2, 0, 0], wind: [-0.25, 0, 0, 0], die: [-0.9, 0, 0, 0], misc: [0, 0.3, 1, 2] },
-  }, { stride: 1.7, bob: 0.05, drop: 0.35, turn: 2.2, flinch: 0.15, scale: M });
+    [J.CHEST]: { p: [-0.95, 1.35, 0], walk: [0.04, 0.4, 0.09, 0], flex: [0, 0, 0.09, 0.04], wind: [0.38, 0, 0, 0], strike: [-0.28, 0, 0, 0], die: [-0.15, 0.4, 0, 0], misc: [0.06, 0.12, 0, 0], tilt: [0, 0, 0.03, 0.03] },
+    [J.X]: { p: [0.05, 1.5, 0], walk: [0.05, 1.6, 0.12, 0], flex: [0, 0, 0, 0.04], wind: [0, 0, 0, 0.06], strike: [0, 0, 0, -0.06], die: [0.1, 0.2, 0, -0.08], misc: [0.05, 0.1, 0, 0] },
+    [J.X2]: { p: [-0.75, 1.3, 0], walk: [0.04, 2.0, 0.08, 0], flex: [0, 0, 0, 0.04], wind: [-0.1, 0, 0, 0.04], strike: [0.1, 0, 0, -0.03], die: [0.15, 0, 0, -0.06], misc: [0.05, 0.1, 0, 0] },
+    [J.HEAD]: { p: [0.86, 2.25, 0], walk: [0.1, 1.3, 0.15, 0], flex: [0, 0, 0.12, 0.1], wind: [0.9, 0, 0, 0], strike: [-0.9, 0, 0, 0], die: [-0.4, 0.3, 0, 0], misc: [0.1, 0.3, 0, 0], tilt: [0.25, 0.2, 0.12, 0.1] },
+    // Her arms splayed, the elbows out and bent like a crab's, the right more than the left.
+    [J.UARM_L]: uarm, [J.FARM_L]: farm,
+    [J.UARM_R]: { ...mirror(uarm), walk: [0.22, Math.PI * 1.5, -0.04, -0.24], tilt: [0.3, 0.1, 0.03, 0] },
+    [J.FARM_R]: { ...mirror(farm), walk: [0.1, Math.PI * 1.5 + 0.6, 0, 0.5] },
+    [J.THIGH_L]: { p: [-0.95, 1.4, 0.66], walk: [0.32, 0, 0.03, 0], wind: [0.15, 0, 0, 0], strike: [-0.1, 0, 0, 0], die: [0.5, 0.4, 0, 0], misc: [0, 0.3, 1, 2] },
+    [J.SHIN_L]: { p: [-0.45, 0.72, 0.72], walk: [0, 0, 0, 0], flex: [-0.5, Math.PI / 2, 0, 0], wind: [-0.25, 0, 0, 0], die: [-0.7, 0, 0, 0], misc: [0, 0.3, 1, 2] },
+  }, { stride: 1.7, bob: 0.06, drop: 0.32, turn: 2.2, flinch: 0.15, scale: M, fall: 0, lunge: 0.25 });
 }
 
 // ---------------------------------------------------------------------------------------
@@ -517,12 +534,20 @@ export function goliath(): CreepRig {
   k.box(0.18, 0.06, 0.22, PAL.ink, 0.32, 4.79, 0, 0, 0, 0.55);
   k.box(0.1, 0.06, 0.1, PAL.hardHat, 0.08, 4.62, 0.12, 0, 0, 0.55);
 
+  // A slow, heavy tread: the weight thrown onto each foot in turn, the body rolling over it and
+  // sinking as it lands, the hanging arms swinging late, the chained fist less than the other.
+  // A blow: he rears back and twists, the gauntleted fist high, and brings it down overhand
+  // with his whole weight. Dying, his knees go, and he falls on his face like a tree.
+  const thigh: JointDef = { p: [0, 2.45, 0.38], walk: [0.37, 0, 0.04, 0.08], wind: [-0.12, 0, 0, 0], strike: [0.25, 0, 0, 0], die: [0.5, 0, -0.08, 0], misc: [0, 0.2, 1, 2] };
+  const shin: JointDef = { p: [0.04, 1.33, 0.38], walk: [0, 0, 0, -0.14], flex: [-0.7, Math.PI / 2, 0, 0], wind: [-0.3, 0, 0, 0], strike: [-0.15, 0, 0, 0], die: [-1.4, 0, 0, 0], misc: [0, 0.2, 1, 2] };
+  const uarm: JointDef = { p: [0, 3.85, 0.96], walk: [0.2, Math.PI + 0.5, -0.04, 0.14], flex: [0, 0, 0, 0.04], wind: [2.5, -0.5, 0, 0], strike: [0.6, 0.15, 0, 0], die: [-0.2, -0.6, 0, 0], misc: [-0.1, 0.6, 1, 1], tilt: [-0.08, 0, 0.03, 0] };
+  const farm: JointDef = { p: [0.04, 2.72, 0.96], walk: [0.14, Math.PI + 1.2, 0, 0.5], flex: [0.15, 0.6, 0, 0.05], wind: [0.9, 0, 0, 0], strike: [-0.15, 0, 0, 0], die: [0.5, 0, 0, 0], misc: [0, 0.5, 1, 1] };
   return rig(k.p, {
-    [J.CHEST]: { p: [0, 2.5, 0], walk: [0.03, 0, 0.08, -0.16], flex: [0, 0, 0.1, 0.03], wind: [0.35, 0, 0.3, 0], strike: [-0.55, 0, -0.25, 0], die: [-0.45, 0, 0.15, 0], misc: [0.06, 0.12, 0, 0] },
-    [J.HEAD]: { p: [0.3, 4.0, 0], walk: [0.04, 1, 0.06, 0.12], flex: [0, 0, 0, 0.05], wind: [0.3, 0, 0, 0], strike: [-0.35, 0, 0, 0], die: [-0.5, 0.2, 0, 0], misc: [0.12, 0.2, 0, 0] },
-    [J.UARM_L]: { p: [0, 3.85, 0.96], walk: [0.26, Math.PI, -0.04, 0.05], flex: [0, 0, 0, 0.04], wind: [2.5, -0.5, 0, 0], strike: [0.6, 0.15, 0, 0], die: [-0.3, -0.35, 0, 0], misc: [-0.1, 0.6, 1, 1] },
-    [J.FARM_L]: { p: [0.04, 2.72, 0.96], walk: [0.15, Math.PI + 0.5, 0, 0.25], wind: [0.9, 0, 0, 0], strike: [-0.15, 0, 0, 0], die: [0.1, 0, 0, 0], misc: [0, 0.5, 1, 1] },
-    [J.THIGH_L]: { p: [0, 2.45, 0.38], walk: [0.34, 0, 0, 0], wind: [-0.12, 0, 0, 0], strike: [0.2, 0, 0, 0], die: [1.15, 0, 0, 0], misc: [0, 0.2, 1, 2] },
-    [J.SHIN_L]: { p: [0.04, 1.33, 0.38], walk: [0, 0, 0, -0.04], flex: [-0.65, Math.PI / 2, 0, 0], strike: [-0.15, 0, 0, 0], die: [-1.9, 0, 0, 0], misc: [0, 0.2, 1, 2] },
-  }, { stride: 3.6, bob: 0.09, drop: 0.55, turn: 3, flinch: 0.1, scale: M });
+    [J.CHEST]: { p: [0, 2.5, 0], walk: [0.04, 0.5, 0.11, -0.27], flex: [0.03, 0.5, 0.1, 0.03], wind: [0.35, 0, 0.3, 0], strike: [-0.55, 0, -0.25, 0], die: [-0.6, 0, 0.15, 0], misc: [0.06, 0.12, 0, 0], tilt: [0.03, 0, 0.02, 0.03] },
+    [J.HEAD]: { p: [0.3, 4.0, 0], walk: [0.06, 1.3, 0.1, 0.16], flex: [0, 0, 0.06, 0.06], wind: [0.3, 0, 0, 0], strike: [-0.35, 0, 0, 0], die: [-0.5, 0.2, 0, 0], misc: [0.12, 0.2, 0, 0], tilt: [0.12, 0.1, 0.06, 0.08] },
+    [J.UARM_L]: uarm, [J.FARM_L]: farm,
+    // The chained arm swings less, dragged by its weight.
+    [J.UARM_R]: { ...mirror(uarm), walk: [0.12, Math.PI * 2 + 0.6, 0.04, -0.02], tilt: [0.14, -0.1, 0.02, 0] }, [J.FARM_R]: { ...mirror(farm), walk: [0.08, Math.PI * 2 + 1.3, 0, 0.22] },
+    [J.THIGH_L]: thigh, [J.SHIN_L]: shin,
+  }, { stride: 3.6, bob: 0.13, drop: 0.95, turn: 3, flinch: 0.1, scale: M, edge: 0.8, lie: 0.35, crouch: 0.2, lunge: 0.4 });
 }

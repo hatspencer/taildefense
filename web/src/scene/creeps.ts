@@ -42,6 +42,9 @@ const STRIDE = 28;
 const MARKS = 2048;
 // The dead lie a while, then sink away.
 const CORPSES = 1024, LIE = 3.4, SINK = 1.3, FALL = 0.7;
+// How much of its fold a body lets go of as it comes to lie on the ground: the trunk and legs,
+// the arms.
+const SETTLE = 0.7, SETTLE_ARM = 0.3;
 
 // One kind's figures at one level of detail.
 interface Lod { mesh: THREE.InstancedMesh; fx: Float32Array; buf: THREE.InstancedInterleavedBuffer; n: number }
@@ -67,13 +70,18 @@ function material(r: CreepRig, scale: number, buf: THREE.InstancedInterleavedBuf
   for (let j = 0; j < JOINTS; j++) {
     const d = r.joints[j];
     pivots.push(new THREE.Vector3(...(d?.p ?? [0, 0, 0])));
-    for (const v of [d?.walk, d?.flex, d?.wind, d?.strike, d?.die, d?.misc]) pars.push(new THREE.Vector4(...(v ?? [0, 0, 0, 0])));
+    for (const v of [d?.walk, d?.flex, d?.wind, d?.strike, d?.die, d?.misc, d?.tilt]) pars.push(new THREE.Vector4(...(v ?? [0, 0, 0, 0])));
   }
   const uPiv = uniformArray<'vec3'>(pivots, 'vec3'), uPar = uniformArray<'vec4'>(pars, 'vec4');
 
   const phase = an.x, move = an.y, seed = an.w;
   const wind = at.x, strike = at.y, flinch = at.z;
-  const die = de.x, dieJ = smoothstep(0, 0.45, die);
+  // Dying crumples: the knees give and the body folds (the joints' die pose, dieJ), then it
+  // tips over (tip) and, as it goes down, the fold lets go to lie on the ground. A rig that does
+  // not tip (fall 0) just collapses where it is.
+  // The tip speeds up as it goes, as a fall does, and stops on the ground.
+  const die = de.x, dieJ = smoothstep(0, 0.45, die), tip = die.sub(0.32).div(0.68).clamp(0, 1);
+  const tipDown = tip.mul(tip);
   const flail = st.x.mul(sin(time.mul(17).add(seed.mul(40))));
 
   const rot = (v: V3, a: V3): V3 => {
@@ -93,9 +101,9 @@ function material(r: CreepRig, scale: number, buf: THREE.InstancedInterleavedBuf
     for (const id of [rj.x, rj.y, rj.z] as F[]) {
       const ok = step(-0.5, id);
       const i = int(max(id, 0));
-      const b = i.mul(6);
+      const b = i.mul(7);
       const P0 = uPar.element(b), P1 = uPar.element(b.add(1)), P2 = uPar.element(b.add(2));
-      const P3 = uPar.element(b.add(3)), P4 = uPar.element(b.add(4)), P5 = uPar.element(b.add(5));
+      const P3 = uPar.element(b.add(3)), P4 = uPar.element(b.add(4)), P5 = uPar.element(b.add(5)), P6 = uPar.element(b.add(6));
       const cls = P5.w, side = P5.z;
       const arm = step(0.5, cls).mul(step(cls, 1.5)), leg = step(1.5, cls);
       const ph = phase.add(P0.y);
@@ -108,8 +116,12 @@ function material(r: CreepRig, scale: number, buf: THREE.InstancedInterleavedBuf
         .add(P1.x.mul(max(sin(ph.add(P1.y)), 0)).mul(move).mul(limp))
         .add(idle);
       const head = float(1).sub(step(0.5, abs(id.sub(J.HEAD))));
-      let a: V3 = vec3(z, P0.z.mul(s).mul(move).add(at.w.mul(head)), P1.z.mul(s).mul(move));
-      const slump = dieJ.add(mo.x.mul(0.3));
+      // Held off true: a constant roll and twist, and a slow loll in each, out of step joint to joint.
+      const loll = time.mul(1.1).add(seed.mul(9.1)).add(id.mul(2.3));
+      let a: V3 = vec3(z, P0.z.mul(s).mul(move).add(at.w.mul(head)).add(P6.x).add(P6.z.mul(sin(loll))),
+        P1.z.mul(s).mul(move).add(P6.y).add(P6.w.mul(cos(loll.mul(0.8)))));
+      // Down on the ground the limbs and the trunk keep a little of the fold, the arms more.
+      const slump = (r.fall ?? 1) > 0 ? dieJ.mul(float(1).sub(tipDown.mul(float(SETTLE).sub(arm.mul(SETTLE - SETTLE_ARM))))).add(mo.x.mul(0.3)) : dieJ.add(mo.x.mul(0.3));
       a = a.add(P2.xyz.mul(wind).mul(lead)).add(P3.xyz.mul(strike).mul(lead)).add(P4.xyz.mul(slump))
         .add(vec3(P5.x.mul(flinch), P5.y.mul(flail).mul(0.5), P5.y.mul(flail).mul(0.3)));
       const k = float(1).add(P2.w.mul(wind)).add(P3.w.mul(strike)).add(P4.w.mul(slump));
@@ -119,16 +131,17 @@ function material(r: CreepRig, scale: number, buf: THREE.InstancedInterleavedBuf
       n = mix(n, rot(n, a), ok);
     }
     // The pelvis: a rise and fall with each step, sinking as the knees give.
+    // Winding up it crouches, if its rig says so, and the blow carries it forward.
     const bob = abs(sin(phase)).oneMinus().mul(move).mul(r.bob);
-    p = p.add(vec3(0, bob.sub(dieJ.add(mo.x.mul(0.3)).mul(r.drop)), 0));
+    p = p.add(vec3(strike.mul(r.lunge ?? 0), bob.sub(dieJ.add(mo.x.mul(0.3)).mul(r.drop)).sub(wind.mul(r.crouch ?? 0)), 0));
     // Falling: over the front or back edge, flung high when blown off its feet.
     const thrown = de.w, dir = de.y;
-    const fall = smoothstep(0.3, 1, die).mul(dir.negate()).mul(float(1.45).add(thrown.mul(1.6)));
-    const edge = vec3(dir.mul(0.32), 0, 0);
+    const fall = tipDown.mul(dir.negate()).mul(float(r.fall ?? 1.45).add(thrown.mul(1.6)));
+    const edge = vec3(dir.mul(r.edge ?? 0.32), 0, 0);
     const fz = vec3(fall, 0, 0);
     p = rot(p.sub(edge), fz).add(edge);
     n = rot(n, fz);
-    p = p.add(vec3(0, sin(min1(die.mul(1.3)).mul(Math.PI)).mul(thrown).mul(0.9).sub(de.z), 0));
+    p = p.add(vec3(0, sin(min1(die.mul(1.3)).mul(Math.PI)).mul(thrown).mul(0.9).sub(de.z).sub(tipDown.mul(r.lie ?? 0)), 0));
     // Scaled to its size and placed, heading 0 facing +x and turning towards +z.
     const c = cos(pl.w), sn = sin(pl.w);
     const turn = (v: V3) => vec3(v.x.mul(c).sub(v.z.mul(sn)), v.y, v.x.mul(sn).add(v.z.mul(c)));

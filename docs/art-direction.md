@@ -342,6 +342,32 @@ Each keeps under 1600 triangles near and 250 far: the big shapes are open-ended 
 lump or two, and anything long and thin that is not silhouette (veins, straps, a dead arm) is
 made of short pieces, so the far model drops it.
 
+## How the dead move
+
+The common dead and the bosses are animated in their joint tables (`common.ts`, `bosses.ts`)
+and the shared shader (`creeps.ts`); the picture's postures are the rest poses, and the motion
+keeps them broken rather than square:
+
+- **Never a straight limb or a square pose.** Every elbow and knee rests bent; a joint's `tilt`
+  holds it off true (a listing spine, a head hung to one side, an elbow turned out) and lolls it
+  slowly, each joint out of step with the next; the right side gets its own rest angles where a
+  mirrored twin would stand too even.
+- **Gaits** match each rig's `stride` so the planted foot does not skate: the walker steps with
+  its left and drags its stiff, turned-out right, lurching over the good leg, one arm hanging
+  loose and swinging late, the other half raised with the elbow bent; the runner sprints bent
+  double, heels kicked up, the arms pumping with the claws hooked; the crawler goes hand and
+  opposite knee together, the reaching hand lifting; the burster waddles on wide legs, the
+  belly rolling after the hips; the abomination heaves on a leg and the opposite knuckled arm,
+  its extra arms groping out of time; the broodmother walks like a beast, the elbows out like
+  a crab's and the belly and back swinging after her steps; the goliath treads slowly, sinking
+  into each step, the chained arm swinging less than the other.
+- **Blows** wind up the other way first (an optional `crouch` sinks the pelvis) and land fast,
+  the body carried forward (`lunge`); the burster swells, arms flung wide.
+- **Deaths crumple** (default): the knees give and the body folds over 0.3 s, then it tips over
+  (accelerating, as a fall does) about an edge ahead of the feet (`edge`), letting go of most
+  of the fold, the arms less, and sinks (`lie`) to lie on the ground. A rig with `fall` 0 (the
+  crawler, the broodmother) collapses flat where it is, its limbs giving.
+
 ## The heavy and special dead
 
 The brute, mauler, hound, spitter and hurler (`web/src/scene/creeps/heavy.ts`) are built on the

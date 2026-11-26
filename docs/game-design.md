@@ -1133,8 +1133,18 @@ choice, not a cheat guard.
   one has its own gait offset and head tilt. A badly hurt walker or runner may lose an arm.
 - **Creeps are skinned on the GPU** so thousands can animate at once. The CPU only writes a few
   numbers per creep each frame.
-- **The dead stay a while.** A killed creep falls the way it was facing, or is thrown by a
-  blast, lies there, then sinks into the ground.
+- **The dead move like the dead.** Nothing is held square: elbows and knees are always bent,
+  a body lists and its head hangs off to one side and lolls (each joint can be held off true
+  and swayed slowly, out of step with the next), the left and right limbs are posed apart, and
+  the arms swing late after the hips. The walker drags its stiff right leg; the runner sprints
+  bent double, heels kicked up, clawing; the crawler goes hand and opposite knee together; the
+  burster waddles, its belly rolling after it; the bosses heave, stalk on splayed limbs or tread
+  with their weight sinking into each step.
+- **The dead crumple and stay a while.** A killed creep's knees give and its body folds, then it
+  goes over the way it was facing (or is thrown by a blast), letting go of the fold as it comes
+  to lie on the ground, lies there, then sinks into the ground. One already on all fours, the
+  crawler or the broodmother, just collapses flat where it is. Winding up, the bigger kinds
+  sink into a crouch, and the blow carries the body forward.
 - **Blows are telegraphed.** Every creep winds up before it hits: walkers claw and bite, runners
   coil and pounce, swarmers rear and lunge, brutes slam both fists down (with a dust ring),
   spitters swell and whip the head forward, and the abomination rears and sweeps several arms.

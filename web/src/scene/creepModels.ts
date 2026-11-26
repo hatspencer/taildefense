@@ -20,7 +20,8 @@ type V4 = [number, number, number, number];
 //   strike [z, x, y, scale]                              the pose as it lands
 //   die    [z, x, y, scale]                              crumpling; also the sleeper's slump
 //   misc   [flinch, flail, side, class]                  side: +1 left, -1 right; class: 0 body, 1 arm, 2 leg
-export interface JointDef { p: [number, number, number]; walk?: V4; flex?: V4; wind?: V4; strike?: V4; die?: V4; misc?: V4 }
+//   tilt   [roll, twist, roll loll, twist loll]          held off true, and a slow loll about it
+export interface JointDef { p: [number, number, number]; walk?: V4; flex?: V4; wind?: V4; strike?: V4; die?: V4; misc?: V4; tilt?: V4 }
 
 export interface CreepRig {
   parts: RigPart[];
@@ -31,6 +32,17 @@ export interface CreepRig {
   turn: number;   // turning rate, per second
   flinch: number; // how hard a hit rocks it
   scale?: number; // world units per model unit; unset, the footprint is fitted to the sim radius
+  // Dying (all optional; unset, as an upright figure): how far it tips over once its knees
+  // have given, radians (1.45; 0 for one already on the ground, which collapses where it is),
+  // the edge it tips over, model units ahead of or behind the feet (0.32), and how far it sinks
+  // as it tips, so the fallen body lies on the ground (0).
+  fall?: number;
+  edge?: number;
+  lie?: number;
+  // A blow (optional, 0 unset): how far the pelvis sinks as it winds up, and how far forward
+  // the blow carries the body, model units.
+  crouch?: number;
+  lunge?: number;
 }
 
 // The right-hand twin of a left joint: across the body, the other half of the gait.
@@ -44,6 +56,7 @@ export function mirror(d: JointDef): JointDef {
     strike: m(d.strike, (v) => [v[0], -v[1], -v[2], v[3]]),
     die: m(d.die, (v) => [v[0], -v[1], -v[2], v[3]]),
     misc: m(d.misc, (v) => [v[0], v[1], -v[2], v[3]]),
+    tilt: m(d.tilt, (v) => [-v[0], -v[1], v[2], v[3]]),
   };
 }
 
