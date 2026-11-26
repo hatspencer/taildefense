@@ -224,7 +224,10 @@ func Run(ctx context.Context, o Options) (Result, error) {
 				s.end(reason)
 				return s.result(reason), nil
 			}
-			s.host(m)
+			if reason := s.hostSafely(m, o.Log); reason != "" {
+				s.end(reason)
+				return s.result(reason), nil
+			}
 		case <-status.C:
 			if o.Status != nil && s.b != nil {
 				s.text(s.b, map[string]any{"t": "status", "text": o.Status()})
@@ -319,6 +322,22 @@ func (s *session) reset(wel netplay.Welcome) {
 	if s.b != nil {
 		s.b.ready = false
 	}
+}
+
+// hostSafely is host, with a message td cannot read ending the game rather than td: a frame
+// from a broken or hostile host that panics in decoding gives a reason to end the session
+// with, "" when the message was taken.
+func (s *session) hostSafely(m netplay.Msg, log func(string, ...any)) (reason string) {
+	defer func() {
+		if p := recover(); p != nil {
+			if log != nil {
+				log("message %d from the host broke td: %v", m.Type, p)
+			}
+			reason = "the host sent a frame td could not read"
+		}
+	}()
+	s.host(m)
+	return ""
 }
 
 // host takes one message from the host.
