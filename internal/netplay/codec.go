@@ -73,6 +73,12 @@ func writeMsg(w io.Writer, typ byte, payload []byte) error {
 
 // readMsg reads one framed message.
 func readMsg(r *bufio.Reader) (byte, []byte, error) {
+	return readMsgMax(r, func(byte) uint64 { return maxMessage })
+}
+
+// readMsgMax reads one framed message of at most limit(typ) bytes. The length is checked
+// before anything is allocated for it, so a peer's claim costs the host nothing.
+func readMsgMax(r *bufio.Reader, limit func(typ byte) uint64) (byte, []byte, error) {
 	typ, err := r.ReadByte()
 	if err != nil {
 		return 0, nil, err
@@ -81,8 +87,8 @@ func readMsg(r *bufio.Reader) (byte, []byte, error) {
 	if err != nil {
 		return 0, nil, err
 	}
-	if n > maxMessage {
-		return 0, nil, fmt.Errorf("message of %d bytes is too large", n)
+	if n > limit(typ) {
+		return 0, nil, fmt.Errorf("message %d of %d bytes is too large", typ, n)
 	}
 	buf := make([]byte, n)
 	if _, err := io.ReadFull(r, buf); err != nil {

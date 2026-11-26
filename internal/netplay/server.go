@@ -90,6 +90,7 @@ type Server struct {
 	wg      sync.WaitGroup
 	started time.Time
 	once    sync.Once
+	hs      handshakes
 	// When the last tick ran, the time between ticks, and when the players were last sent
 	// their stats.
 	lastTick, lastStats time.Time
@@ -251,6 +252,82 @@ func (s *Server) Close() {
 	s.wg.Wait()
 }
 
+// What a peer may cost the host, each set well above what honest play does so that no player,
+// probe, bot or test ever meets one (docs/architecture.md, "What a peer may cost the host").
+const (
+	// A hello is a line of JSON, a hundred bytes or so; it is read with its own small cap, and
+	// nothing more is allocated for a connection until it has parsed.
+	maxHello = 4 << 10
+	// The hello must come within helloWait of the connection; the rest of the handshake, the
+	// whois and the join, then has handshakeWait.
+	helloWait     = 5 * time.Second
+	handshakeWait = 10 * time.Second
+	// Connections still in their handshake, in all and from one address. Loopback (the host's
+	// own player, the tests, netsim's proxy) is held only to the total.
+	maxHandshakes      = 128
+	maxHandshakesPerIP = 8
+	// After the join: a command is at most 268 bytes (its text is cut to 255), an echo 12,
+	// MsgUDPOK and MsgResync empty.
+	maxCmdMsg   = 512
+	maxSmallMsg = 64
+)
+
+// msgLimit is the most bytes a joined player's message of type typ may claim.
+func msgLimit(typ byte) uint64 {
+	if typ == MsgCmd {
+		return maxCmdMsg
+	}
+	return maxSmallMsg
+}
+
+// handshakes counts the connections still in their handshake.
+type handshakes struct {
+	mu   sync.Mutex
+	all  int
+	byIP map[netip.Addr]int
+}
+
+// admit counts in a connection from ip, or says it is one too many. Loopback counts only to the
+// total.
+func (h *handshakes) admit(ip netip.Addr) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.all >= maxHandshakes {
+		return false
+	}
+	if !ip.IsLoopback() {
+		if h.byIP[ip] >= maxHandshakesPerIP {
+			return false
+		}
+		if h.byIP == nil {
+			h.byIP = map[netip.Addr]int{}
+		}
+		h.byIP[ip]++
+	}
+	h.all++
+	return true
+}
+
+func (h *handshakes) done(ip netip.Addr) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.all--
+	if !ip.IsLoopback() {
+		if h.byIP[ip]--; h.byIP[ip] <= 0 {
+			delete(h.byIP, ip)
+		}
+	}
+}
+
+func remoteIP(addr net.Addr) netip.Addr {
+	if ta, ok := addr.(*net.TCPAddr); ok {
+		if ip, ok := netip.AddrFromSlice(ta.IP); ok {
+			return ip.Unmap()
+		}
+	}
+	return netip.Addr{}
+}
+
 func (s *Server) acceptLoop(ln net.Listener, i int) {
 	defer s.wg.Done()
 	for {
@@ -258,7 +335,17 @@ func (s *Server) acceptLoop(ln net.Listener, i int) {
 		if err != nil {
 			return
 		}
-		go s.handshake(c, i)
+		// Over the cap the connection is closed at once, before a goroutine or a byte of
+		// buffer is spent on it.
+		ip := remoteIP(c.RemoteAddr())
+		if !s.hs.admit(ip) {
+			c.Close()
+			continue
+		}
+		go func() {
+			defer s.hs.done(ip)
+			s.handshake(c, i)
+		}()
 	}
 }
 
@@ -272,11 +359,19 @@ func isLoopback(addr net.Addr) bool {
 // handshake reads the hello, answers a probe, or identifies the player and hands them to the
 // tick loop.
 func (s *Server) handshake(c net.Conn, ln int) {
-	_ = c.SetDeadline(time.Now().Add(10 * time.Second))
+	_ = c.SetDeadline(time.Now().Add(helloWait))
 	br := bufio.NewReader(c)
-	bw := bufio.NewWriterSize(c, 64<<10)
-	zw, _ := flate.NewWriter(bw, flate.BestSpeed)
+	// The writers, a 64 KB buffer and a deflater, are made once there is something to send.
+	var bw *bufio.Writer
+	var zw *flate.Writer
+	writers := func() {
+		if zw == nil {
+			bw = bufio.NewWriterSize(c, 64<<10)
+			zw, _ = flate.NewWriter(bw, flate.BestSpeed)
+		}
+	}
 	send := func(typ byte, p []byte) error {
+		writers()
 		if err := writeMsg(zw, typ, p); err != nil {
 			return err
 		}
@@ -289,11 +384,12 @@ func (s *Server) handshake(c net.Conn, ln int) {
 		_ = send(MsgReject, []byte(fmt.Sprintf(format, a...)))
 		c.Close()
 	}
-	typ, p, err := readMsg(br)
+	typ, p, err := readMsgMax(br, func(byte) uint64 { return maxHello })
 	if err != nil || typ != MsgHello {
 		c.Close()
 		return
 	}
+	_ = c.SetDeadline(time.Now().Add(handshakeWait))
 	var h Hello
 	if err := json.Unmarshal(p, &h); err != nil {
 		reject("bad hello: %v", err)
@@ -349,6 +445,7 @@ func (s *Server) handshake(c net.Conn, ln int) {
 	}
 	_ = c.SetDeadline(time.Time{})
 	s.cfg.Log("%s (%s) joined from %s", name, id.Login, c.RemoteAddr())
+	writers()
 	go s.writer(pr, zw, bw)
 	go s.reader(pr, br)
 }
@@ -397,7 +494,8 @@ func (s *Server) reader(p *peer, br *bufio.Reader) {
 		}
 	}()
 	for {
-		typ, b, err := readMsg(br)
+		// A message larger than any a client sends ends the connection.
+		typ, b, err := readMsgMax(br, msgLimit)
 		if err != nil {
 			return
 		}

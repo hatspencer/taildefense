@@ -211,9 +211,29 @@ type Identity struct {
 	Host  string // their machine
 }
 
+// whoisSlots is how many `tailscale whois` may run at once. One takes tens of milliseconds, so
+// eight friends joining together wait a moment for a slot, within their handshake's time,
+// and a burst of connections cannot start a process each.
+var whoisSlots = make(chan struct{}, 4)
+
+// whoisSlot waits for a slot, or until ctx is done.
+func whoisSlot(ctx context.Context) (release func(), err error) {
+	select {
+	case whoisSlots <- struct{}{}:
+		return func() { <-whoisSlots }, nil
+	case <-ctx.Done():
+		return nil, fmt.Errorf("tailscale whois: too many at once: %w", ctx.Err())
+	}
+}
+
 // Whois asks tailscaled who is behind a remote address.
 func Whois(ctx context.Context, addr string) (Identity, error) {
+	release, err := whoisSlot(ctx)
+	if err != nil {
+		return Identity{}, err
+	}
 	out, err := run(ctx, "whois", "--json", addr)
+	release()
 	if err != nil {
 		return Identity{}, err
 	}
