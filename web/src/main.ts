@@ -120,7 +120,11 @@ async function main(): Promise<void> {
   let lostBefore = false;
   try { lostBefore = sessionStorage.getItem('td.webgl') === '1'; } catch { /* storage blocked */ }
   splash?.progress(0.05);
+  // The HUD's face (web/fonts) loads while the renderer starts, so the canvas labels are in it
+  // from their first frame; the one variable file holds every weight.
+  const face = document.fonts.load('600 14px "Fira Code"').catch(() => []);
   const world = await makeWorld(app, P.has('webgl') ? '#webgl' : lostBefore ? 'GPU device lost earlier' : '');
+  await face;
   splash?.progress(0.15);
   const canvas = world.renderer.domElement;
   const game = new Game();

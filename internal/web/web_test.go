@@ -304,10 +304,14 @@ func parseFrame(t *testing.T, p []byte) frameSummary {
 	return f
 }
 
-// The music is served as audio whatever the machine's own table of types says.
+// The music is served as audio, and the font as a font, whatever the machine's own table of
+// types says.
 func TestMusicIsServedAsAudio(t *testing.T) {
 	if got := mime.TypeByExtension(".ogg"); got != "audio/ogg" {
 		t.Errorf(".ogg is %q, want audio/ogg", got)
+	}
+	if got := mime.TypeByExtension(".woff2"); got != "font/woff2" {
+		t.Errorf(".woff2 is %q, want font/woff2", got)
 	}
 }
 

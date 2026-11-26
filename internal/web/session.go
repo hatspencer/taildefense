@@ -37,8 +37,11 @@ var dist embed.FS
 
 // The music under dist/music is Ogg Opus, which Go's own table of types does not know, and
 // a machine's mime.types may not either; served as anything else, a nosniff browser may
-// refuse it.
-func init() { _ = mime.AddExtensionType(".ogg", "audio/ogg") }
+// refuse it. The same goes for the HUD's font under dist/fonts.
+func init() {
+	_ = mime.AddExtensionType(".ogg", "audio/ogg")
+	_ = mime.AddExtensionType(".woff2", "font/woff2")
+}
 
 // Options are how a player joins a game in the browser.
 type Options struct {

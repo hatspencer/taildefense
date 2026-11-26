@@ -1,6 +1,16 @@
 /* taildefense HUD: scavenged field kit. Olive drab panels with 2px pixel bevels, masking
    tape labels, amber CRT readouts, hard 2px shadows instead of blur. One face, Fira Code,
    for everything: the words you read and the numbers that tick. */
+/* Fira Code ships with td (web/fonts, under the OFL), so the page fetches nothing from outside:
+   one variable file holds every weight the HUD uses. Loaded from beside the page, it is there
+   at once, so text waits for it rather than flashing in a stand-in first. */
+@font-face {
+  font-family: "Fira Code";
+  src: url("fonts/FiraCode-VF.woff2") format("woff2");
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: block;
+}
 :root {
   /* Base palette: what the kit is made of. */
   --black: #07080a;
