@@ -283,7 +283,10 @@ use, so every animation and hold still fits it; `K` turns metres into the group'
   It reads worn next to the grass by being flatter and browner, not by being another colour.
   House floors take the same (default).
 - **The map's edge** is a forest: past the last tile the ground comes down to the world
-  beyond with no step (a step drew the outline pass's black line along it), the floor there
+  beyond with no step (a step drew the outline pass's black line along it), and a lake that
+  runs to the edge rises to it as a bank. The world beyond is a frame around the map, never a
+  sheet under it: a sheet at its height lay over the lakes and drew them as flat brown ground.
+  The floor there
   goes damp and dark, and a band of about 22 tiles of dark pines and broadleaves stands on it,
   thin at first and shoulder to shoulder further in, both its sides wandering by a few tiles.
   Zoomed right out, bare ground shows again past the band (default).

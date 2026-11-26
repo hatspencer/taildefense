@@ -173,7 +173,8 @@ function propMaterial(): THREE.MeshLambertNodeMaterial {
 }
 
 const WATER_Y = -0.24;
-// The ground beyond the map, a little under the map's own.
+// The ground beyond the map, a little under the map's own; it frames the map and never lies
+// under it, or it would cover the lakes below it.
 const OUTER_Y = -0.12;
 // The ground's pieces, in tiles a side.
 const GROUND_PIECE = 64;
@@ -486,9 +487,10 @@ export class Terrain {
         if (t === Tile.Water) water++;
       }
       ch[y * (w + 1) + x] = n ? (water && water < n ? Math.min(s / n, -0.3) : s / n) : 0;
-      // The map's rim comes down to the ground beyond it, so no step shows (the outline pass
-      // drew one as a black line along the edge).
-      if (x === 0 || y === 0 || x === w || y === h) ch[y * (w + 1) + x] = Math.min(ch[y * (w + 1) + x], OUTER_Y);
+      // The map's rim meets the ground beyond it, so no step shows (the outline pass drew one
+      // as a black line along the edge): land comes down to it, and a lake that runs to the
+      // edge rises to it as a bank, not cut off square with the ground beyond above its water.
+      if (x === 0 || y === 0 || x === w || y === h) ch[y * (w + 1) + x] = OUTER_Y;
     }
     const kinds = kindTexture(tiles, w, h);
     const mat = groundMaterial(kinds);
@@ -506,13 +508,33 @@ export class Terrain {
     }
 
     // The world beyond the map edge, so the fog has something to fade: the same ground, its
-    // kinds those of the map's edge carried on.
-    const outer = new THREE.Mesh(new THREE.PlaneGeometry(w * 6, h * 6), mat);
-    outer.rotation.x = -Math.PI / 2;
-    outer.position.set(w / 2, OUTER_Y, h / 2);
+    // kinds those of the map's edge carried on. A frame around the map, not a sheet under it:
+    // a sheet at OUTER_Y lay over the lakes (their water at WATER_Y, their beds lower still)
+    // and drew them as flat brown ground.
+    const outer = new THREE.Mesh(this.outerFrame(w, h), mat);
     outer.receiveShadow = true;
     this.group.add(outer);
     this.disposables.push(outer.geometry);
+  }
+
+  // A flat ring at OUTER_Y from 2.5 maps out to the map's own edge, where the rim's corners
+  // come down to meet it: four strips, south and north the full width, west and east between.
+  private outerFrame(w: number, h: number): THREE.BufferGeometry {
+    const x0 = -w * 2.5, x1 = w * 3.5, z0 = -h * 2.5, z1 = h * 3.5;
+    const rects = [[x0, z0, x1, 0], [x0, h, x1, z1], [x0, 0, 0, h], [w, 0, x1, h]];
+    const pos: number[] = [], nrm: number[] = [];
+    for (const [ax, az, bx, bz] of rects) {
+      // Wound to face up, as the ground's pieces are.
+      for (const [x, z] of [[ax, az], [ax, bz], [bx, az], [bx, az], [ax, bz], [bx, bz]]) {
+        pos.push(x, OUTER_Y, z);
+        nrm.push(0, 1, 0);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
+    geo.computeBoundingSphere();
+    return geo;
   }
 
   // The ground of tiles x0..x0+pw, y0..y0+ph, one shared corner a grid point; ch holds the
