@@ -91,12 +91,19 @@ is settled, with the file that holds it; "default" marks a choice the owner has 
   Where one part overlaps another (an arm over the chest, a strap that stands 4 cm or more
   proud of a shirt) the same line at 0.46; where a surface turns (a box's edge) its own colour
   at 0.74. So a model gets its creases by giving parts real depth, not by painting lines
-  (default).
+  (default). A line goes into the haze with what it outlines: the fog node (`scene/fow.ts`)
+  writes how far a surface is into the distance and weather haze to the normal target's alpha,
+  and a line is mixed towards its fill by that much, so in fog a building fades whole instead
+  of leaving its outline drawn on the fog colour.
 - **Grade** (`scene/retro.ts`): nearly none, since colours are painted from the palette and lit
   to show as painted: saturation at 0.95, blue taken out of the darks (to 0.88 at black), a
   vignette of 16% in the very corners, 40 levels a channel behind unpatterned noise. Dusk and
   rain multiply by a cold `(0.5, 0.6, 0.86)`, up to half way; the sun, sky and fill dim and
-  cool with them from the daylight values (default).
+  cool with them from the daylight values. The dusk sun is a pale warm `#f2d6b8`, not orange,
+  and the generator's lamp a small pale pool (12, reaching 11 m), so the wave's ground stays
+  the olive and ochre of the picture, darker, with its mottle (it went a flat rust under an
+  orange sun and a lamp pool that read as a vignette). The low-health warning is the HUD's red
+  edge only (`.hurt` in `web/app.css`), never a tint over the scene (default).
 - **Palette** (`scene/palette.ts`): the table above as `PAL`, with `darker`, `lighter`, `blend`,
   `stained`, and `mute`/`garment` for a player's colour. Models take their colours from it.
 - **Ground**: the terrain's grass is the picture's lit ground, `#5e532a`, and the ground's
@@ -118,6 +125,226 @@ lays the survivors and the dead out as the picture does, at its camera and on pl
 hold beside it; `&fig=N` looks at one of them, `#lab=hN&still&plain&nohud&arch=A` at any
 survivor archetype at rest and `#lab=kN&still&plain&nohud` at any creep kind, `&yaw=` from
 the side and the back.
+
+## The HUD and menus
+
+The HUD is field kit, not a terminal (`web/app.css`, `web/menus.css`, the splash's palette in
+`web/src/hud/splash.ts`). Panels are worn olive-brown canvas (`--soot` `#2a2615`, the ground's
+`#62552c` for edges), labels are kraft-paper tape (`#b4905a`), all text is the pale band colour
+`#c8c2a0`, outlines are the ink `#18150f`. Accents keep one job each: hard-hat yellow for
+readouts and what can be spent, medkit red for danger, teal for state (stamina, reload), grass
+green for health. No gradients, glows or blurred shadows; bars are chunky segmented pixels.
+The bottom console is only as tall as its content and no longer has a backdrop, the top bar is
+32 px, and the map, console and orders card are separate pieces so the world shows between
+them (default).
+
+## The base's structures
+
+Built from what a camp would have dragged in, at true size against a 1.8 m person
+(`scene/structs.ts`, `#lab=structs` to look at them; default throughout):
+
+- **Walls** are a palisade of sharpened logs on a low dirt berm, wired to split rails behind,
+  a thick post on each tile and half a run of logs towards each neighbour, so runs and corners
+  join by themselves. One half-run in five carries a sheet of rusted corrugated iron and one run
+  in nine a faded blue car door wired across it: three instanced arm meshes, chosen by a hash of
+  the tile, about 150 to 400 triangles a tile. **Gates** are welded scrap, a steel post with an
+  amber lamp on a concrete foot and leaves of square tube, plate, bars and a hazard-striped top
+  rail on a caster; lower than the logs, so a gate reads as a gap in the palisade.
+- **Turrets** are real guns on real mounts: a heavy machine gun on a tripod in a sandbag ring
+  (gun), a small wheeled field gun with its shield on a plank turntable (cannon), nitrogen
+  dewars and a reefer unit feeding a turning sprinkler head (frost), a home-made coil on an
+  insulator stack fed by car batteries (tesla), a timber watchtower with the AWM (sniper), two
+  helicopter rocket pods on a pedestal welded to a truck wheel (missile), a guyed scaffold mast
+  with a turning yagi (pylon). Each about 450 to 1050 triangles (the sniper 1700 with its
+  rifle). Their muzzles stand where `main.ts`'s `turretHeight` and the effects put the flash.
+- **The generator** is a diesel generator set in a faded yellow canopy on a skid and a cracked
+  slab, its fan turning under a roof grille, with fuel drums, red cans, a cable reel and a work
+  light; the old reactor's glow is gone, and its one light is a small running lamp on the
+  control panel, green while it holds and flickering red as it fails. Tier II adds a radio mast
+  on a scaffold tower, tier III floodlights at the corners. About 2100 triangles.
+- **The armory** is a rust-red ten-foot container with a hatch cut in its front, a rack of
+  rifles inside, a workbench, ammo crates and a solar panel and tarp on the roof. About 1500.
+- The owner's colour stays a kerb round each footprint, muted a little; the track pips stay.
+
+## The Huey and the traps
+
+- **The Huey** (`scene/heli.ts`) is a UH-1 at its true size: 12.8 m from nose to fin, the rotor
+  14.6 m across with its hub 4 m up, skids 2.6 m apart, so it stands over a survivor as a real
+  one would and overhangs the 6-tile helipad (it was drawn at 0.75 of a smaller size). The hull
+  is lofted through cross-sections, so the nose is round and the cabin has a real open doorway
+  with a floor, jambs and the dark behind it, not boxes. Worn olive drab, faded on top and grimy
+  underneath, soot behind the exhaust, a faded U.S. ARMY and tail number in stencil blocks; the
+  accents are the tail rotor's red and white tips, the yellow rotor tips, the red troop seat in
+  the doorway, the gunner's headband and the surfboards. About 2 970 triangles with the gunner
+  and his gun (budget 3 000) (default).
+- **The main rotor is drawn as a blur, not blades** (default): at its speed a blade moves
+  several metres between frames, so solid blades would stutter round as two black bars across
+  whatever is under them. A faint disc, the yellow tips' thin ring, and each blade as a smear
+  in three stepped layers, darkest at its leading edge, turn over the solid hub, blade roots and
+  stabilizer bar, which throw the shadow. The tail rotor, small, keeps solid blades over a disc.
+- **The crate** comes in on a 3 m sling under the belly, then down under an olive and white
+  chute; the helipad is square concrete slabs a shade each, oil stains, a worn ring and H.
+- **The traps** (`scene/traps.ts`): the bait pit is dug earth, spoil heaped round its rim with
+  two sandbags, the floor wet and dark, four rough posts hanging haunches on chains; the
+  catapult pit is a plank-lined pit edged in steel angle with yellow corner pegs, a banded timber
+  arm, truck coil springs and a cut-down rusted drum for a bucket, the arrow sprayed on. The
+  charge lamps are small bulbs. About 600 and 480 triangles (default).
+
+## Effects, overlays, labels and weather
+
+Effects are drawn in the scene's own pixels, in the palette, as things rather than light.
+
+- **Coverage is dithered, never blended.** Effects, overlays and the fog-of-war edge cut
+  their coverage against a 4x4 ordered dither (`scene/dither.ts`, alpha test at 0.5), so a
+  thin puff is a sparse pattern of whole pixels, not a see-through smear. There is no additive
+  blending; effects write no normal, so the outline pass leaves them alone. Colours go through
+  `tame()`: saturation pulled to 0.78 and 6% of the canvas tone over them.
+- **Gunfire**: a muzzle flash of two or three frames (a pale diamond, an orange one, a short
+  tongue) and a wisp of smoke; short pale tracers; brass casings kicked out to the right; dust
+  and a chip where a shot lands.
+- **Gore**: dark blood (`#5a1810` and its neighbours; bile is olive) as specks that fall and a
+  spatter on the ground that stays and dries away in patches.
+- **Explosions**: a short ball of flash, rising tongues of fire stepped pale, orange and ember,
+  black smoke, debris, a ring of dust and a scorch mark. Smoke is solid inside with a dithered
+  rim, lit a step brighter on its sun side.
+- **Domes and auras** (taunt, frost, overload...) are sparse dithered shells, not glowing
+  bubbles.
+- **Overlays** (`scene/overlays.ts`): one-pixel lines with a dark underline, dashed for range
+  rings, area previews and footprints (crawling where something is about to happen), solid for
+  the selection; bone `#d8cca0` for fine, `#c8402a` for not. Ghosts are dithered.
+- **Labels and bars** (`hud/labels.ts`): a 3x5 pixel font and bars two scene pixels high in a
+  one-pixel ink edge, snapped to the scene pixel grid, just over the head; names in the
+  player's colour, tamed. A name the font cannot set falls back to the HUD face.
+- **Weather**: rain is short streaks of a dim wet grey (a few scene pixels long, under a
+  third covered), never the brightest marks on screen, and a storm is more of them, not a
+  curtain; snow small bone flakes. Snow settles at most about half way over the ground's own
+  colour, unevenly, so its mottle and palette still show, and only lightly brightens the sky's
+  bounce. Rotor wash is the ground stirred up, a step off its colour (foliage dark over a
+  forest), never pale stipple punched in the canopy. The haze gathers past
+  the survivor's sight and in noise banks that drift with the wind (`scene/fow.ts`), instead of
+  a wash by distance from the camera, which the long lens made even over the whole view.
+- **Fog of war**: its edge is cut against a dither laid on the ground in cells of about two
+  scene pixels (it stays put as the view moves); out of sight goes to a dark olive, not grey.
+
+## Survivors
+
+A survivor is a real person, 1.8 m tall and seven heads high, with shoulders two heads wide and
+hands and boots a little large so they read at game zoom. The head is drawn 1.08 times true
+size about the neck, for the face's sake. The body is built in metres in `figure()`
+(`web/src/scene/heroes.ts`) from many small tapered boxes hung on the same joints the poses
+use, so every animation and hold still fits it; `K` turns metres into the group's units.
+
+- **Archetypes** (`web/src/scene/look.ts`) are the picture's people: the paramedic (collar shirt,
+  cap with a cross, medic belt, daypack, knee pads), the mechanic (white tee under overalls,
+  tool belt), the hunter (jacket over plaid, beanie, rucksack, scarf), the student (hoodie,
+  beanie, a big yellow pack), then the builder (hi-vis vest, hard hat), the nurse (scrubs,
+  scrub cap, stethoscope), the biker (leather vest, bandana, chain), the farmer (denim
+  overalls, straw hat, wellies), the ex-soldier (plate carrier, helmet, assault pack, cargo
+  trousers) and the office worker (shirt, tie, satchel).
+- **Detail** is in many parts rather than texture: collars, rolled sleeves, belts with
+  buckles, pockets, straps, boot soles, a brow shadow and a nose, eyes no bigger than a pixel.
+  Every colour is muted from `PAL`; the player's colour stays on the main garment through
+  `garment()`.
+- **Held weapons** are at true size, in wood and steel with a sling or magazine where the real
+  thing has one (`gunParts`). The held AWM is 1.2 m long.
+- **Budget**: at most 2500 triangles per survivor with the held weapon; they come to about
+  1500-2200.
+- **Portraits** use the same figure from the chest up, with the face placed from `FACE`.
+
+## The ground and what grows on it
+
+`web/src/scene/terrain.ts`; the lab's `&plain` stage (`stage.ts`) is the same open ground.
+
+- **One painted surface, no grid.** The ground mesh carries heights only; its colour is made in
+  the shader from world position, so it stays put as the camera moves and turns. Four layers
+  of one tiling noise texture (one fetch each): zones of about 14 m (greener, rustier, damper),
+  patches of about 2 m, dabs of about 12 cm and flecks of 5 cm. Each dab is cut to one flat
+  colour from the palette's ground values (`#4c4224` `#5a4e29` `#63552c` `#6d5c30`), with
+  olive-green, rust and damp dabs over them, a pixel of green blade or pebble here and there
+  (default).
+- **Kinds of ground** come from a texture of the tiles (road, the base's yard, dry ground, damp
+  forest floor and lake shore), read through a warp of about a metre and cut with dab noise, so
+  the border between grass and road wanders and breaks into dabs instead of following tiles.
+  Roads are trodden brown dirt with stones; dry ground paler ochre; the forest floor darker;
+  shores mud.
+- **The base's yard** is old concrete in warm greys (`#5e5643` to `#7d725a`), stained, with
+  short cracks and dirt drifted over it in patches: the yard of a camp, not a floor of tiles.
+  House floors take the same.
+- **Trees** stand on tree tiles, sized against the survivors: dry pines about 2.6 to 3.6 m
+  (tiers of drooping boughs, darker below, some thinning with dead stubs), broadleaves about
+  2.4 to 3.3 m (a forked trunk under eleven lumps of olive), and a few dead grey ones. Crowns
+  are muted olive (`#363b23` to `#606533`), each tree tinted a little greener or drier. They
+  cast the sun's shadow.
+- **On open ground**: knee-high bushes, grass tufts of five blades (green in grass, straw on
+  dry ground), stones, and near woods fallen logs and stumps with pale cut ends. Bushes, logs
+  and stumps cast shadows; tufts and stones are too small to be worth the shadow pass.
+- **Ruined walls** keep their styles, their colours passed through `mute` so no paint is
+  brighter than old cloth. Water is murky olive (`#29322a`, `#3b4838`) with a dull sheen.
+- **Cost**: props are instanced and culled by block as before. Triangles rose about a fifth at
+  the default zoom and nearly doubled zoomed right out (bigger trees with real tiers, and many
+  more tufts); the ground's shader is a handful of texture fetches.
+
+## The common dead
+
+`web/src/scene/creeps/common.ts`: the walker, the runner, the crawler (the swarmer) and the
+burster, built in the survivors' units (a person 1.33 tall, seven heads) and drawn at a
+survivor's height (`CreepRig.scale`, the survivors' 1.15 and a twentieth more, as a survivor
+stands 1.4 to the top of its hair), whatever their radius in the sim. Limbs are tapered prisms
+between joints, five-sided (four on the burster), so a limb has a lit and a shaded side without
+being a block; stains, blotches and hand prints are single-sided plates of two triangles. The
+stoop, the head thrust forward and the hang of the arms are the joints' rest angles, so the
+animation moves the pose they are drawn in; the crawler's pose is built in. Shirt, trousers,
+skin and hair are the per-creep key colours (`creeps.ts`): mostly dirty white shirts and work
+shirts, dark trousers, ashen and grey-green skin; the dark red blotches on arms and faces are
+fixed. Near models 418 to 594 triangles, far ones 212 to 250: the hands, face, hems, boots and
+blotches are each under a tenth of the figure's height, so `farParts` drops them (default).
+
+## The bosses
+
+The abomination, the broodmother and the goliath (`web/src/scene/creeps/bosses.ts`) are built in
+metres against the 1.8 m survivor and set in the world by the rig's `scale`, so each stands at
+its true size: big enough to read as a boss and to cover its sim radius. They are grounded body
+horror made of people and what they wore, nothing that glows, dead skin from the palette,
+blotched with blood, and one small true accent each.
+
+- **Abomination**, about 3.1 m and as wide: four or five of the dead grown into one heap on two
+  legs that were never the same person's. A man in a bloodied white shirt leads out of the
+  front; a flannel shirt, a grey hoodie and an upside-down denim jacket (a leg in jeans kicking
+  out of it) are fused into the mass; heads sunk into the shoulders; arms everywhere, two long
+  ones it knuckles along on. The accent is a nurse's teal scrubs sleeve on a dead arm.
+- **Broodmother**, about 2.6 m long: a woman's chest and head rising out of the front of a belly
+  swollen to the ground and a back swollen behind it, the brood pressing out under the skin (a
+  hand, a face, a knee), on all fours on her own thin limbs. Her dress, burst down the back, is
+  stretched in strips over the swell; its faded plum is her accent.
+- **Goliath**, about 4.8 m, near three survivors: a giant man still in his work clothes, a
+  welder's leather apron and gauntlet, a rigger's harness, work trousers and steel-toed boots,
+  stitched where he split, a chain wound round his right fist and dragging, the welding hood
+  pushed up on his head with a yellow sticker on it, his accent.
+
+Each keeps under 1600 triangles near and 250 far: the big shapes are open-ended prisms and a
+lump or two, and anything long and thin that is not silhouette (veins, straps, a dead arm) is
+made of short pieces, so the far model drops it.
+
+## The heavy and special dead
+
+The brute, mauler, hound, spitter and hurler are built in `web/src/scene/creeps/heavy.ts` at
+the survivors' own units, with `scale` set on each rig, so they stand beside a survivor at their
+true size whatever their sim radius. Their key colours (shirt, trousers, skin, hair) vary per
+creep; their kit is painted and stays as it is.
+
+- **Brute**: the picture's: a head taller than a survivor and wide, a grey work shirt under a
+  hi-vis orange vest with pale bands round the belly and up each front, a yellow hard hat,
+  heavy boots, torn knees, big hands hanging at the thigh, blood on the vest and trousers.
+- **Mauler**: a slaughterman, a different shape from the brute: bald and bull-necked, the head
+  sunk forward between hunched shoulders, a barrel of a belly under a long bloodied apron, bare
+  thick arms, wellingtons, a cleaver in the right fist.
+- **Hound**: a dead dog, lean and low-headed, its coat (the hair colour) worn through to bare
+  skin, the ribs and the spine showing, a wound in the flank.
+- **Spitter**: the grabber's posture, leaning in with both arms out, gaunt, the throat swollen
+  into a sac under a dropped jaw, a yellow-green stain down the front of the shirt and on the
+  hands.
+- **Hurler**: tall and rangy in a torn canvas work jacket, the left arm grown long and thick
+  from a swollen shoulder, a lump of concrete with rebar in that hand, the right arm thin.
 
 ## The world's finds
 

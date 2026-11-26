@@ -30,11 +30,25 @@ export class FogOfWar {
   private uNear = uniform(8);
   private uFar = uniform(14);
 
+  // How far a surface has gone into the haze, 0..1: the distance fog and the weather's
+  // together, as the fog node mixes them. The outline pass (retro.ts) fades lines by it.
+  readonly hazed: THREE.Node<'float'>;
+
   constructor(scene: THREE.Scene) {
     this.tex = this.node.value as THREE.DataTexture;
     const f = scene.fog as THREE.Fog;
     const color = reference('color', 'color', f), near = reference('near', 'float', f), far = reference('far', 'float', f);
     const t = this.node.sample(positionWorld.xz.div(this.uSize));
+    // Distance first, so far ground the team has never seen is dark, not haze.
+    const dist = rangeFogFactor(near, far);
+    // The weather's haze gathers with distance from your survivor (or the view), heavier in
+    // banks that drift with the wind, so it lies over the land in patches rather than as an
+    // even wash over the whole view.
+    const bank = noise(positionWorld.xz.mul(0.09).add(uFogDrift));
+    const far0 = smoothstep(this.uNear, this.uFar, positionWorld.xz.sub(this.uEye).length());
+    const k = smoothstep(0.3, 0.72, bank);
+    const amt = clamp(far0.mul(this.uHaze).mul(k.mul(0.8).add(0.3)).add(k.mul(uFogAmt).mul(0.35)), 0, 0.92);
+    this.hazed = float(1).sub(float(1).sub(dist).mul(float(1).sub(amt)));
     scene.fogNode = Fn(() => {
       // The edge of sight is a band of dithered pixels, not a blur: the eased, filtered tile
       // values are narrowed to half a tile and cut against a dither laid on the ground in
@@ -48,16 +62,7 @@ export class FogOfWar {
       const sat = mix(float(0.3), float(1), lit);
       // The haze is the picture's dust and damp, warm grey, not the cold sky's grey.
       const haze = mix(color, vec3(luminance(color)).mul(vec3(1.05, 1.0, 0.84)), 0.5);
-      // Distance first, so far ground the team has never seen is dark, not haze.
-      const d = mix(output.rgb, haze, rangeFogFactor(near, far));
-      // The weather's haze gathers with distance from your survivor (or the view), heavier
-      // in banks that drift with the wind, so it lies over the land in patches rather than as
-      // an even wash over the whole view.
-      const bank = noise(positionWorld.xz.mul(0.09).add(uFogDrift));
-      const far0 = smoothstep(this.uNear, this.uFar, positionWorld.xz.sub(this.uEye).length());
-      const k = smoothstep(0.3, 0.72, bank);
-      const amt = clamp(far0.mul(this.uHaze).mul(k.mul(0.8).add(0.3)).add(k.mul(uFogAmt).mul(0.35)), 0, 0.92);
-      const c = mix(d, haze, amt);
+      const c = mix(mix(output.rgb, haze, dist), haze, amt);
       // Out of sight, the ground goes to a dark olive, not grey.
       const dark = mix(vec3(luminance(c)), c, sat).mul(shade).mul(mix(vec3(0.96, 0.92, 0.66), vec3(1), lit))
         .add(vec3(0.02, 0.021, 0.008).mul(float(1).sub(lit)).mul(step(0.01, this.uNever)));

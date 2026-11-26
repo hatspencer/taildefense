@@ -12,7 +12,7 @@ const DUSK_SKY = 0x161a20;
 // (a little bluer), so a colour in the sun comes out as painted, a touch warm, and its cast
 // shadow at 0.55 of that on screen. A wall's side gets 0.95 facing the sun, about 0.4 facing
 // the camera and 0.3 turned away: the three tones a figure is shaded in.
-const DAY_SUN = 0xfff8e4, DUSK_SUN = 0xff9a58, DAY_HEMI = 0x9fa5c5, DUSK_HEMI = 0x8a9ab8, HEMI_GROUND = 0xd3c7b2;
+const DAY_SUN = 0xfff8e4, DUSK_SUN = 0xf2d6b8, DAY_HEMI = 0x9fa5c5, DUSK_HEMI = 0x8a9ab8, HEMI_GROUND = 0xd3c7b2;
 const SUN_DAY = 2.48, HEMI_DAY = 1, FILL_DAY = 0.85;
 // Where the sun stands, seen from the camera: this far round from the screen's right towards
 // its top, and this high. Shadows fall the other way, to the lower left, about as long on
@@ -41,7 +41,7 @@ export class World {
   // Lights that matter at dusk: the player's flashlight and the generator's lamp. They are
   // always in the scene, so switching mood never recompiles a shader.
   flashlight = new THREE.SpotLight(0xfff0c8, 0, 26, FLASH_CONE, 0.55, 1);
-  lamp = new THREE.PointLight(0xffb060, 0, 16, 1.2);
+  lamp = new THREE.PointLight(0xffd8a0, 0, 11, 1.4);
   backend: Backend['name'] = 'WebGL2';
   // Why this is WebGL2 when it is, for F3: forced, no WebGPU in the browser, no adapter, or
   // what failed. Empty on WebGPU.
@@ -49,6 +49,9 @@ export class World {
   // What three's WebGPU backend failed with before it fell back to WebGL2 by itself.
   private fellBack: unknown = null;
   retro: Retro | null = null;
+  // How far each surface is into the haze (FogOfWar.hazed), for the outline pass; set before
+  // setPixel makes it.
+  haze: THREE.Node<'float'> | undefined;
   pixel = 0;
   night = 0;
   // The weather's look, eased; null for clear skies.
@@ -82,7 +85,7 @@ export class World {
   // pixel: the size of one scene pixel in CSS pixels, 0 for the plain full-resolution view.
   setPixel(pixel: number): void {
     this.pixel = pixel;
-    if (pixel > 0 && !this.retro) this.retro = new Retro(this.renderer, this.scene, this.camera);
+    if (pixel > 0 && !this.retro) this.retro = new Retro(this.renderer, this.scene, this.camera, this.haze);
     this.renderer.domElement.classList.toggle('pixelated', pixel > 0);
     this.resize(this.cssW, this.cssH);
   }
@@ -107,7 +110,7 @@ export class World {
     this.flashlight.intensity = hero ? 70 * m : 0;
     this.flashlight.position.set(hx - Math.cos(aim) * 0.5, 3, hy - Math.sin(aim) * 0.5);
     this.flashlight.target.position.set(hx + Math.cos(aim) * 5, 0, hy + Math.sin(aim) * 5);
-    this.lamp.intensity = 26 * m;
+    this.lamp.intensity = 12 * m;
     this.lamp.position.set(cx, 3.2, cy);
     let tint = 0;
     const w = this.look;
@@ -118,8 +121,8 @@ export class World {
       this.fill.intensity *= 1 - 0.3 * w.rain;
       this.sun.color.lerp(COOL_SUN, 0.6 * w.rain);
       this.hemi.color.lerp(WET_HEMI, 0.6 * w.rain);
-      this.hemi.intensity *= 1 - 0.2 * w.rain + 0.3 * w.snow;
-      this.hemi.groundColor.copy(GROUND).lerp(SNOW_GROUND, 0.7 * w.snow);
+      this.hemi.intensity *= 1 - 0.2 * w.rain + 0.1 * w.snow;
+      this.hemi.groundColor.copy(GROUND).lerp(SNOW_GROUND, 0.4 * w.snow);
       bg.lerp(RAIN_SKY, 0.7 * w.rain * (1 - m * 0.5)).lerp(FOG_SKY, 0.75 * w.fog * (1 - m * 0.6)).lerp(SNOW_SKY, 0.55 * w.snow * (1 - m * 0.5));
       if (w.flash > 0) {
         this.hemi.intensity += 4 * w.flash;

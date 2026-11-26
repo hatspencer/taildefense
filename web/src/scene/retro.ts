@@ -31,9 +31,11 @@ export class Retro {
   // The camera's distance from the ground it looks at, kept up by the world.
   reach = 60;
 
-  constructor(renderer: THREE.WebGPURenderer, scene: THREE.Scene, private camera: THREE.PerspectiveCamera) {
+  // haze: how far the scene's fog node has faded a surface into the haze, 0..1 (fow.ts); it
+  // rides in the normal target's alpha, so a line fades into the haze as its fill does.
+  constructor(renderer: THREE.WebGPURenderer, scene: THREE.Scene, private camera: THREE.PerspectiveCamera, haze: THREE.Node<'float'> = float(0)) {
     const sp = pass(scene, camera, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
-    sp.setMRT(mrt({ output, normal: normalView }));
+    sp.setMRT(mrt({ output, normal: vec4(normalView, haze) }));
     this.scenePass = sp;
     const colT = sp.getTextureNode('output'), nT = sp.getTextureNode('normal'), dT = sp.getTextureNode('depth');
     const res = this.uRes;
@@ -42,6 +44,7 @@ export class Retro {
     const at = (dx: number, dy: number) => lp.add(vec2(dx + 0.5, dy + 0.5)).div(res);
     const dist = (dx: number, dy: number) => perspectiveDepthToViewZ(dT.sample(at(dx, dy)).r, this.uNear, this.uFar).negate();
     const nrm = (dx: number, dy: number) => nT.sample(at(dx, dy)).xyz;
+    const hz = (dx: number, dy: number) => nT.sample(at(dx, dy)).w;
     const col = (dx: number, dy: number) => renderOutput(colT.sample(at(dx, dy))).rgb;
 
     const d0 = dist(0, 0), n0 = nrm(0, 0), c0 = col(0, 0);
@@ -53,12 +56,15 @@ export class Retro {
     const dd = [dist(1, 0), dist(-1, 0), dist(0, 1), dist(0, -1)];
     const off = [[1, 0], [-1, 0], [0, 1], [0, -1]];
     let front: THREE.Node<'float'> = float(0), lineC: THREE.Node<'vec3'> = c0, fold: THREE.Node<'float'> = float(0);
+    const h0 = hz(0, 0);
+    let lineH: THREE.Node<'float'> = h0;
     for (let i = 0; i < 4; i++) {
       const di = dd[i], dj = dd[i ^ 1];
       const slope = clamp(d0.sub(dj), px.mul(-3), px.mul(3));
       const f = d0.add(slope).sub(di);
       const take = step(front, f);
       lineC = mix(lineC, col(off[i][0], off[i][1]), take);
+      lineH = mix(lineH, hz(off[i][0], off[i][1]), take);
       front = max(front, f);
       // A fold: the surface turns to the right or below at about this depth. One side of it
       // only, so the line is one pixel wide.
@@ -71,12 +77,15 @@ export class Retro {
     // No normal here (smoke, dust, snow write none): no fold either.
     fold = fold.mul(step(0.5, length(n0)));
 
-    const shade = (c: THREE.Node<'vec3'>, k: THREE.Node<'float'> | number) => mix(INK, c, k).mul(vec3(1, 0.985, 0.94));
-    let c: THREE.Node<'vec3'> = mix(c0, shade(c0, FOLD), fold);
+    // A line is a shade of what it outlines, and as far into the haze as that is: what the fog
+    // has taken the fill of, it takes the line of too, so nothing is left as a drawing on it.
+    const shade = (c: THREE.Node<'vec3'>, k: THREE.Node<'float'> | number, h: THREE.Node<'float'>) =>
+      mix(c, mix(INK, c, k).mul(vec3(1, 0.985, 0.94)), float(1).sub(clamp(h, 0, 1)));
+    let c: THREE.Node<'vec3'> = mix(c0, shade(c0, FOLD, h0), fold);
     // The line takes the colour of what it outlines; deep steps are silhouettes, shallow ones
     // the overlaps inside a figure.
     const deep = smoothstep(gap.mul(2), gap.mul(6).add(0.2), front);
-    c = mix(c, shade(lineC, mix(float(INNER), float(LINE), deep)), step(gap, front));
+    c = mix(c, shade(lineC, mix(float(INNER), float(LINE), deep), lineH), step(gap, front));
 
     // The grade. Colours are painted from the palette and lit to come out as painted, so this
     // is light: a little less saturation everywhere, blue taken out of the darks (olive brown

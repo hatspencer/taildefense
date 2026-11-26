@@ -148,6 +148,7 @@ async function main(): Promise<void> {
   effects.heroMuzzle = (x, y, out) => heroes.awmMuzzle(x, y, out);
   const helis = new Helis(world.scene, effects);
   const fow = new FogOfWar(world.scene);
+  world.haze = fow.hazed;
   creeps.onBlow = (x, y, k, h, r) => effects.blow(x, y, k, h, r);
   creeps.onGib = (x, y) => effects.gib(x, y);
   const weather = new Weather(world.scene);

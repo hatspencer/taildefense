@@ -131,9 +131,10 @@ function groundColor(kinds: GroundKinds | null): THREE.Node<'vec3'> {
 }
 
 // Weather on a colour: wet darkens it, snow settles white on whatever faces up. n is a noise.
+// Snow goes at most about half way, unevenly, so the ground's mottle and colours show through.
 function weathered(c: THREE.Node<'vec3'>, up: THREE.Node<'float'>, n: THREE.Node<'float'>): THREE.Node<'vec3'> {
   const wet = c.mul(float(1).sub(uWet.mul(0.28)));
-  return mix(wet, vec3(0.84, 0.87, 0.9).mul(n.mul(0.1).add(0.92)), uSnow.mul(0.85).mul(smoothstep(0.35, 0.8, up)).mul(n.mul(0.35).add(0.65)));
+  return mix(wet, vec3(0.84, 0.87, 0.9).mul(n.mul(0.1).add(0.92)), uSnow.mul(0.5).mul(smoothstep(0.35, 0.8, up)).mul(n.mul(0.6).add(0.4)));
 }
 
 // The ground's material: painted light, the ground's colour, the weather, and puddles in rain.

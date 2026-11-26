@@ -18,10 +18,13 @@ import { linInto, writeMatrix } from './util';
 const SPLIT_CRACKS = 7;
 
 const STRIDE = 16;
-// Rotor wash colours by the ground under it.
-const WASH_DIRT = [0xa08a64, 0x8f7a58, 0xb59f78, 0x7d6a4c];
-const WASH_SAND = [0xd2bc8a, 0xc4ac78, 0xe0cc9c, 0xb89c6a];
-const WASH_GRASS = [0x948a66, 0x857c58, 0xa69a74, 0x707a4c];
+// Rotor wash colours by the ground under it: a step off the ground's own colour, so the cloud
+// reads as that ground stirred up, not as pale holes punched in it. Over a forest it is the
+// needles and leaf litter, foliage dark.
+const WASH_DIRT = [0x7e6c4c, 0x726246, 0x8a7854, 0x665840];
+const WASH_SAND = [0xb8a274, 0xa89266, 0xc4ae80, 0x9c845a];
+const WASH_GRASS = [0x6e6644, 0x64603e, 0x7a7048, 0x56603a];
+const WASH_WOOD = [0x4c4a30, 0x42422a, 0x565236, 0x3a4026];
 const WASH_SPRAY = [0xdfe8ec, 0xc8d6dc, 0xeef4f6];
 // The longest a tracer's dash is drawn, in metres.
 const LINE_MAX = 1.6;
@@ -1262,7 +1265,7 @@ export class Effects {
     if (strength <= 0.02) return;
     const t = this.sec, tile = game.tile(Math.floor(x), Math.floor(y));
     const wet = tile === Tile.Water;
-    const cols = wet ? WASH_SPRAY : tile === Tile.Sand ? WASH_SAND : tile === Tile.Grass ? WASH_GRASS : WASH_DIRT;
+    const cols = wet ? WASH_SPRAY : tile === Tile.Sand ? WASH_SAND : tile === Tile.Grass ? WASH_GRASS : tile === Tile.Tree ? WASH_WOOD : WASH_DIRT;
     const pick = () => cols[(Math.random() * cols.length) | 0];
     const n = (k: number) => { const v = k * dt * strength; return Math.floor(v) + (Math.random() < v % 1 ? 1 : 0); };
     // The ground sheet: low, fast and swirling with the rotor, slowing as it spreads.
@@ -1270,14 +1273,14 @@ export class Effects {
       const a = Math.random() * 6.283, r0 = 0.6 + Math.random() * 1.6;
       const c = Math.cos(a), s = Math.sin(a), v = 7 + Math.random() * 6, swirl = 2.2;
       this.dust.add(t, x + c * r0, 0.15 + Math.random() * 0.25, y + s * r0, c * v - s * swirl, 0.3 + Math.random() * 0.6, s * v + c * swirl,
-        1.4 + Math.random() * 1.1, pick(), 0.6 + Math.random() * 0.4, 2.8 + Math.random() * 2.4, 0.25, 1, (wet ? 0.32 : 0.45) * (0.6 + 0.4 * strength));
+        1.4 + Math.random() * 1.1, pick(), 0.6 + Math.random() * 0.4, 2.8 + Math.random() * 2.4, 0.25, 1, (wet ? 0.32 : 0.38) * (0.6 + 0.4 * strength));
     }
     // The rolling wall: puffs that start out near the edge and lift as the sheet stalls.
     for (let j = n(45); j > 0; j--) {
       const a = Math.random() * 6.283, r0 = 3 + Math.random() * 2.5;
       const c = Math.cos(a), s = Math.sin(a), v = 3 + Math.random() * 2;
       this.dust.add(t, x + c * r0, 0.4, y + s * r0, c * v, 0.4 + Math.random() * 0.5, s * v,
-        2.6 + Math.random() * 1.4, pick(), 1.2, 3.8 + Math.random() * 2.2, -0.35, 1, (wet ? 0.28 : 0.4) * strength);
+        2.6 + Math.random() * 1.4, pick(), 1.2, 3.8 + Math.random() * 2.2, -0.35, 1, (wet ? 0.28 : 0.34) * strength);
     }
     // Grit, leaves and torn grass, flung out and falling back.
     if (!wet) for (let j = n(40); j > 0; j--) {

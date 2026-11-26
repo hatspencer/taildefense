@@ -22,7 +22,7 @@ const LOOKS: Record<number, { fog: number; rain: number; storm: number; snow: nu
   [W.Fog]: { fog: 1, rain: 0, storm: 0, snow: 0 },
   [W.Rain]: { fog: 0.2, rain: 1, storm: 0, snow: 0 },
   [W.Storm]: { fog: 0.35, rain: 1, storm: 1, snow: 0 },
-  [W.Snow]: { fog: 0.12, rain: 0, storm: 0, snow: 0.55, flakes: 0.25 },
+  [W.Snow]: { fog: 0.12, rain: 0, storm: 0, snow: 0.55, flakes: 0.4 },
   [W.Drizzle]: { fog: 0.1, rain: 0.3, storm: 0, snow: 0 },
   [W.Thunder]: { fog: 0.15, rain: 0.5, storm: 0.2, snow: 0 },
   [W.HeavySnow]: { fog: 0.4, rain: 0, storm: 0, snow: 1, flakes: 1, gust: 1 },
@@ -78,9 +78,11 @@ export class Weather {
       const p = corner.add(fract(s.xyz.mul(size).add(motion).sub(corner).div(size)).mul(size));
       const dir = normalize(vec3(this.uWind.x, this.uFall.negate(), this.uWind.y));
       // Spanned by right and the fall direction, which points down: flip y so the face looks at the camera.
-      // A dash a scene pixel wide and a handful long, the grey of wet light, not the sky's blue.
+      // A dash a scene pixel wide and a few long, the grey of wet light, not the sky's blue, and
+      // darker than what it falls past is lit: the rain is a texture over the scene, never its
+      // brightest marks.
       mat.positionNode = p.add(this.uRight.mul(g.x.mul(0.055))).sub(dir.mul(g.y.mul(this.uLen)));
-      mat.colorNode = vec3(0.5, 0.52, 0.5);
+      mat.colorNode = vec3(0.34, 0.36, 0.35);
       // Fade near the top of the box so drops do not pop in.
       mat.opacityNode = this.uAlpha.mul(float(1).sub(smoothstep(0.75, 1, p.y.div(size.y))));
     } else {
@@ -140,11 +142,11 @@ export class Weather {
     this.uRight.value.set(m[0], m[1], m[2]);
     this.uUp.value.set(m[4], m[5], m[6]);
     const zoomFill = Math.min(1, (span * span) / (60 * 60));
-    this.rain.count = Math.floor(RAIN * Math.min(1, l.rain * (0.45 + 0.55 * l.storm)) * zoomFill);
+    this.rain.count = Math.floor(RAIN * Math.min(1, l.rain * (0.4 + 0.25 * l.storm)) * zoomFill);
     this.uFall.value = 22 + 10 * l.storm;
-    this.uLen.value = 0.32 + 0.2 * l.storm;
+    this.uLen.value = 0.2 + 0.1 * l.storm;
     this.uWind.value.set(1.5 + 5 * l.storm + 9 * l.gust, 0.8 + 2 * l.storm + 3 * l.gust);
-    this.uAlpha.value = 0.3 + 0.12 * l.storm;
+    this.uAlpha.value = 0.26 + 0.06 * l.storm;
     this.uFallen.value += this.uFall.value * dt;
     this.uBlown.value.addScaledVector(this.uWind.value, dt);
     uFogAmt.value = l.fog;
