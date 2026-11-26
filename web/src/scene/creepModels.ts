@@ -29,6 +29,7 @@ export interface CreepRig {
   drop: number;   // how far the body sinks as the knees give
   turn: number;   // turning rate, per second
   flinch: number; // how hard a hit rocks it
+  scale?: number; // world units per model unit; unset, the footprint is fitted to the sim radius
 }
 
 // The right-hand twin of a left joint: across the body, the other half of the gait.

@@ -270,7 +270,9 @@ export class Creeps {
       // Its length counts for less than its breadth, or a crawler would shrink to a rat.
       const bb = geo.boundingBox!;
       const foot = Math.max((bb.max.x - bb.min.x) * 0.6, bb.max.z - bb.min.z, 0.3);
-      const scale = (d.radius * 2.3) / foot;
+      // A rig that states its own scale is built in the survivors' units and stands beside them
+      // at its true size, whatever its radius in the sim.
+      const scale = r.scale ?? (d.radius * 2.3) / foot;
       const lod = (g: THREE.BufferGeometry): Lod => {
         const fx = new Float32Array(cap * STRIDE);
         const buf = new THREE.InstancedInterleavedBuffer(fx, STRIDE, 1);
