@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"taildefense/internal/game"
+	"taildefense/internal/plain"
 	"taildefense/internal/tailnet"
 )
 
@@ -49,7 +50,8 @@ type Welcome struct {
 // DecodeWelcome reads a welcome payload.
 func DecodeWelcome(p []byte) (Welcome, error) {
 	d := &dec{b: p}
-	w := Welcome{Proto: int(d.u8()), Version: d.str(), You: d.u8(), W: int(d.u16()), H: int(d.u16())}
+	// The version is the host's word and goes into a refusal td join prints: plain text only.
+	w := Welcome{Proto: int(d.u8()), Version: plain.Line(d.str()), You: d.u8(), W: int(d.u16()), H: int(d.u16())}
 	lo, hi := d.u32(), d.u32()
 	w.Seed = uint64(hi)<<32 | uint64(lo)
 	w.Diff = game.Difficulty(d.u8())
@@ -191,7 +193,8 @@ func Dial(ctx context.Context, addr string, h Hello) (*Client, Welcome, error) {
 	switch typ {
 	case MsgReject:
 		c.Close()
-		return nil, Welcome{}, &RejectError{string(p)}
+		// The host words its refusal, and td join prints it: plain text only.
+		return nil, Welcome{}, &RejectError{plain.Line(string(p))}
 	case MsgWelcome:
 	default:
 		c.Close()
@@ -384,7 +387,26 @@ func Probe(ctx context.Context, addr string) (Info, error) {
 		return Info{}, fmt.Errorf("unexpected message %d", typ)
 	}
 	var in Info
-	return in, json.Unmarshal(p, &in)
+	if err := json.Unmarshal(p, &in); err != nil {
+		return Info{}, err
+	}
+	return in.cleaned(), nil
+}
+
+// cleaned is the reply with every string made one line of plain text. Any device on the
+// tailnet can answer on the game port, and what it says is printed by td ls and listed by
+// the launcher, so it must not be able to drive the terminal or fake a row of its own.
+func (in Info) cleaned() Info {
+	in.Version, in.Host, in.Owner = plain.Line(in.Version), plain.Line(in.Host), plain.Line(in.Owner)
+	in.Diff, in.Mode, in.Phase = plain.Line(in.Diff), plain.Line(in.Mode), plain.Line(in.Phase)
+	if in.Players != nil {
+		ps := make([]string, len(in.Players))
+		for i, n := range in.Players {
+			ps[i] = plain.Line(n)
+		}
+		in.Players = ps
+	}
+	return in
 }
 
 // Found is a game discovered on the tailnet.
