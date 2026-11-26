@@ -370,7 +370,7 @@ async function main(): Promise<void> {
     const w = window.innerWidth, h = window.innerHeight;
     if (world.pixel !== pixelFor(h) || !world.retro) world.setPixel(pixelFor(h));
     world.resize(w, h);
-    labels.resize(w, h);
+    labels.resize(w, h, world.pixel);
   };
   window.addEventListener('resize', resize);
   resize();

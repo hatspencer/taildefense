@@ -1066,7 +1066,9 @@ lightning at creeps in the open, and snow slows everything.
 
 **Fog and rain close in.** A survivor sees 60% less far in full fog and 30% less in heavy rain
 or a storm (a drizzle and a thunder shower count as a fraction of it). On screen the world
-fades into the weather's haze past that distance round your survivor, in every difficulty.
+fades into the weather's haze past that distance round your survivor, in every difficulty,
+thicker in banks that drift with the wind, so fog lies over the land in patches rather than
+greying the whole view evenly.
 With fog of war or at night it is also the survivor's sight: what they can light, and so, at
 night, what their shots can find.
 

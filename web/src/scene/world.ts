@@ -200,8 +200,9 @@ export class World {
   // runs from 0.9 of it at the bottom of the screen to 1.14 at the top.
   setFog(reach: number): void {
     const f = this.scene.fog as THREE.Fog;
-    const wf = this.look?.fog ?? 0;
-    f.near = reach * (1.16 - 0.4 * wf); f.far = reach * (1.8 - 0.42 * wf);
+    // The weather's fog is not a wash by distance from the camera, which the long lens made
+    // even over the whole view: the fog node gathers it round the survivor in banks (fow.ts).
+    f.near = reach * 1.16; f.far = reach * 1.8;
     if (this.retro) this.retro.reach = reach;
   }
 

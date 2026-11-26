@@ -119,26 +119,33 @@ hold beside it; `&fig=N` looks at one of them, `#lab=hN&still&plain&nohud&arch=A
 survivor archetype at rest and `#lab=kN&still&plain&nohud` at any creep kind, `&yaw=` from
 the side and the back.
 
-## The Huey and the traps
+## Effects, overlays, labels and weather
 
-- **The Huey** (`scene/heli.ts`) is a UH-1 at its true size: 12.8 m from nose to fin, the rotor
-  14.6 m across with its hub 4 m up, skids 2.6 m apart, so it stands over a survivor as a real
-  one would and overhangs the 6-tile helipad (it was drawn at 0.75 of a smaller size). The hull
-  is lofted through cross-sections, so the nose is round and the cabin has a real open doorway
-  with a floor, jambs and the dark behind it, not boxes. Worn olive drab, faded on top and grimy
-  underneath, soot behind the exhaust, a faded U.S. ARMY and tail number in stencil blocks; the
-  accents are the tail rotor's red and white tips, the yellow rotor tips, the red troop seat in
-  the doorway, the gunner's headband and the surfboards. About 2 970 triangles with the gunner
-  and his gun (budget 3 000) (default).
-- **The main rotor is drawn as a blur, not blades** (default): at its speed a blade moves
-  several metres between frames, so solid blades would stutter round as two black bars across
-  whatever is under them. A faint disc, the yellow tips' thin ring, and each blade as a smear
-  in three stepped layers, darkest at its leading edge, turn over the solid hub, blade roots and
-  stabilizer bar, which throw the shadow. The tail rotor, small, keeps solid blades over a disc.
-- **The crate** comes in on a 3 m sling under the belly, then down under an olive and white
-  chute; the helipad is square concrete slabs a shade each, oil stains, a worn ring and H.
-- **The traps** (`scene/traps.ts`): the bait pit is dug earth, spoil heaped round its rim with
-  two sandbags, the floor wet and dark, four rough posts hanging haunches on chains; the
-  catapult pit is a plank-lined pit edged in steel angle with yellow corner pegs, a banded timber
-  arm, truck coil springs and a cut-down rusted drum for a bucket, the arrow sprayed on. The
-  charge lamps are small bulbs. About 600 and 480 triangles (default).
+Effects are drawn in the scene's own pixels, in the palette, as things rather than light.
+
+- **Coverage is dithered, never blended.** Effects, overlays and the fog-of-war edge cut
+  their coverage against a 4x4 ordered dither (`scene/dither.ts`, alpha test at 0.5), so a
+  thin puff is a sparse pattern of whole pixels, not a see-through smear. There is no additive
+  blending; effects write no normal, so the outline pass leaves them alone. Colours go through
+  `tame()`: saturation pulled to 0.78 and 6% of the canvas tone over them.
+- **Gunfire**: a muzzle flash of two or three frames (a pale diamond, an orange one, a short
+  tongue) and a wisp of smoke; short pale tracers; brass casings kicked out to the right; dust
+  and a chip where a shot lands.
+- **Gore**: dark blood (`#5a1810` and its neighbours; bile is olive) as specks that fall and a
+  spatter on the ground that stays and dries away in patches.
+- **Explosions**: a short ball of flash, rising tongues of fire stepped pale, orange and ember,
+  black smoke, debris, a ring of dust and a scorch mark. Smoke is solid inside with a dithered
+  rim, lit a step brighter on its sun side.
+- **Domes and auras** (taunt, frost, overload...) are sparse dithered shells, not glowing
+  bubbles.
+- **Overlays** (`scene/overlays.ts`): one-pixel lines with a dark underline, dashed for range
+  rings, area previews and footprints (crawling where something is about to happen), solid for
+  the selection; bone `#d8cca0` for fine, `#c8402a` for not. Ghosts are dithered.
+- **Labels and bars** (`hud/labels.ts`): a 3x5 pixel font and bars two scene pixels high in a
+  one-pixel ink edge, snapped to the scene pixel grid, just over the head; names in the
+  player's colour, tamed. A name the font cannot set falls back to the HUD face.
+- **Weather**: rain is short grey-green streaks, snow small bone flakes. The haze gathers past
+  the survivor's sight and in noise banks that drift with the wind (`scene/fow.ts`), instead of
+  a wash by distance from the camera, which the long lens made even over the whole view.
+- **Fog of war**: its edge is cut against a dither laid on the ground in cells of about two
+  scene pixels (it stays put as the view moves); out of sight goes to a dark olive, not grey.

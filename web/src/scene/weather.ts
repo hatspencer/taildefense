@@ -9,6 +9,10 @@ import type { Game } from '../state';
 // on the ground and the tops of things) the world is, 0..1.
 export const uWet = uniform(0);
 export const uSnow = uniform(0);
+// How foggy it is, 0..1, and how far the wind has carried the fog's banks: the fog node
+// (fow.ts) gathers its haze in drifting banks by them.
+export const uFogAmt = uniform(0);
+export const uFogDrift = uniform(new THREE.Vector2());
 
 const RAIN = 9000, SNOW = 7000;
 
@@ -74,17 +78,19 @@ export class Weather {
       const p = corner.add(fract(s.xyz.mul(size).add(motion).sub(corner).div(size)).mul(size));
       const dir = normalize(vec3(this.uWind.x, this.uFall.negate(), this.uWind.y));
       // Spanned by right and the fall direction, which points down: flip y so the face looks at the camera.
-      mat.positionNode = p.add(this.uRight.mul(g.x.mul(0.035))).sub(dir.mul(g.y.mul(this.uLen)));
-      mat.colorNode = vec3(0.78, 0.84, 0.92);
+      // A dash a scene pixel wide and a handful long, the grey of wet light, not the sky's blue.
+      mat.positionNode = p.add(this.uRight.mul(g.x.mul(0.055))).sub(dir.mul(g.y.mul(this.uLen)));
+      mat.colorNode = vec3(0.5, 0.52, 0.5);
       // Fade near the top of the box so drops do not pop in.
       mat.opacityNode = this.uAlpha.mul(float(1).sub(smoothstep(0.75, 1, p.y.div(size.y))));
     } else {
       const fall = t.mul(1.6).mul(speed);
       const drift = vec3(sin(t.mul(0.9).add(s.w.mul(20))).mul(0.6).add(this.uBlown.x.mul(0.3)), fall.negate(), cos(t.mul(0.7).add(s.w.mul(13))).mul(0.6).add(this.uBlown.y.mul(0.3)));
       const p = corner.add(fract(s.xyz.mul(size).add(drift).sub(corner).div(size)).mul(size));
-      const r = s.w.mul(0.05).add(0.06);
+      // A flake is one or two scene pixels, a warm white.
+      const r = s.w.mul(0.025).add(0.03);
       mat.positionNode = p.add(this.uRight.mul(g.x).add(this.uUp.mul(g.y)).mul(r));
-      mat.colorNode = vec3(0.95, 0.97, 1.0);
+      mat.colorNode = vec3(0.86, 0.84, 0.78);
       mat.opacityNode = this.uSnowAlpha.mul(float(1).sub(smoothstep(0.8, 1, p.y.div(size.y))));
     }
     // Keep the outline pass's normals: a flake is not a crease.
@@ -136,11 +142,14 @@ export class Weather {
     const zoomFill = Math.min(1, (span * span) / (60 * 60));
     this.rain.count = Math.floor(RAIN * Math.min(1, l.rain * (0.45 + 0.55 * l.storm)) * zoomFill);
     this.uFall.value = 22 + 10 * l.storm;
-    this.uLen.value = 0.7 + 0.4 * l.storm;
+    this.uLen.value = 0.32 + 0.2 * l.storm;
     this.uWind.value.set(1.5 + 5 * l.storm + 9 * l.gust, 0.8 + 2 * l.storm + 3 * l.gust);
-    this.uAlpha.value = 0.22 + 0.1 * l.storm;
+    this.uAlpha.value = 0.3 + 0.12 * l.storm;
     this.uFallen.value += this.uFall.value * dt;
     this.uBlown.value.addScaledVector(this.uWind.value, dt);
+    uFogAmt.value = l.fog;
+    // The banks drift slowly downwind, in noise units (about eleven metres each).
+    uFogDrift.value.addScaledVector(this.uWind.value, -dt * 0.012);
     this.rain.visible = this.rain.count > 0;
     this.snow.count = Math.floor(SNOW * l.flakes * zoomFill);
     this.snow.visible = this.snow.count > 0;

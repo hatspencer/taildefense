@@ -1,8 +1,10 @@
 import * as THREE from 'three/webgpu';
 import {
-  cameraPosition, clamp, cross, float, instancedDynamicBufferAttribute, length, mix, normalize, positionGeometry,
-  abs, exp, mrt, normalView, output, vec4, pow, sin, smoothstep, step, time, uniform, uv, vec3,
+  cameraPosition, clamp, cross, float, instancedDynamicBufferAttribute, length, max, min, mix, normalize, positionGeometry,
+  abs, atan, exp, floor, fract, fwidth, mrt, normalView, output, positionWorld, vec2, vec4, pow, sin, smoothstep, step, time, uniform, uv, vec3,
 } from 'three/tsl';
+import { painted } from './paint';
+import { dither, noise, tame } from './dither';
 import {
   BlastKind, EffectKind, LOB_WINDUP, TRACER_ARC, TRACER_FLASH, TRACER_FOLLOW, TRACER_HOMERUN, TRACER_HOMERUN_ROUND, TRACER_GREAT_ULT, TRACER_HELI, TRACER_KATANA,
   TRACER_KATANA_ULT, TRACER_MOON, TRACER_NAPALM, TRACER_SHARD, TRACER_SPLIT, TRACER_ULT, RIFLE, Tile,
@@ -21,9 +23,25 @@ const WASH_DIRT = [0xa08a64, 0x8f7a58, 0xb59f78, 0x7d6a4c];
 const WASH_SAND = [0xd2bc8a, 0xc4ac78, 0xe0cc9c, 0xb89c6a];
 const WASH_GRASS = [0x948a66, 0x857c58, 0xa69a74, 0x707a4c];
 const WASH_SPRAY = [0xdfe8ec, 0xc8d6dc, 0xeef4f6];
-type Mode = 'billboard' | 'streak' | 'mesh';
+// The longest a tracer's dash is drawn, in metres.
+const LINE_MAX = 1.6;
 // Pooled muzzle lights: few, always in the scene so a shot never changes the light count.
 const LIGHTS = 4;
+
+// How each pool draws its instances. Every one is made of whole scene pixels: a shape with a
+// hard edge, coverage below 1 dithered (an ordered pattern on the scene's pixel grid), colour in
+// two or three flat tones, normal blending. Nothing adds light or fades through a gradient.
+//   fire  flame, flash and spark: hot pale core, its colour, a dark ember edge, the core
+//         shrinking as it ages; one rising (negative gravity) is a tongue of flame
+//   puff  smoke and dust: a lumpy blob, its sunward side a shade lighter, its edge dithered,
+//         dissolving as it goes
+//   bits  chips, casings, debris, gore: a hard speck
+//   star  a muzzle flash: a pale diamond with four short spikes
+//   line  a tracer or a cut: a hard line, pale
+//   ball  a fireball or a burst: flat bands, pale where it faces the camera
+//   ring  a shockwave on the ground
+//   decal a mark that lies on the ground a while: a ragged splat with droplets round it
+type Style = 'fire' | 'puff' | 'bits' | 'star' | 'line' | 'ball' | 'ring' | 'decal';
 
 // Effect instances live entirely on the GPU: the CPU writes an instance once when it spawns
 // (start, end or velocity, birth time, life, colour, sizes) and the TSL material computes
@@ -33,7 +51,7 @@ const LIGHTS = 4;
 // it held anything or not was half a million triangles a frame on an empty field, each a
 // vertex shader run for nothing, which a slow GPU felt.
 //   0..3  p0.xyz, born      4..7  p1.xyz (end, or velocity), life
-//   8..11 rgb, size0        12..15 size1, gravity, yScale, -
+//   8..11 rgb, size0        12..15 size1, gravity, yScale, alpha
 class FxPool {
   mesh: THREE.InstancedMesh;
   private data: Float32Array;
@@ -45,8 +63,9 @@ class FxPool {
   private used = 0;
   private clock = 0;
 
-  constructor(parent: THREE.Object3D, geo: THREE.BufferGeometry, private cap: number, mode: Mode, now: THREE.UniformNode<'float', number>,
-    right: THREE.UniformNode<'vec3', THREE.Vector3>, up: THREE.UniformNode<'vec3', THREE.Vector3>, additive: boolean, soft: boolean, rim = false, star = false, drag = 0) {
+  // maxSize: the largest a billboard may start (a flash is a few pixels, not a sheet of light).
+  constructor(parent: THREE.Object3D, geo: THREE.BufferGeometry, private cap: number, style: Style, now: THREE.UniformNode<'float', number>,
+    right: THREE.UniformNode<'vec3', THREE.Vector3>, up: THREE.UniformNode<'vec3', THREE.Vector3>, drag = 0, private maxSize = Infinity) {
     this.data = new Float32Array(cap * STRIDE);
     // Unused slots must not render: born far in the future.
     for (let i = 0; i < cap; i++) { this.data[i * STRIDE + 3] = 1e9; this.data[i * STRIDE + 7] = 1; }
@@ -62,47 +81,88 @@ class FxPool {
     const alive = step(0, age).mul(step(age, b.w));
     const g = positionGeometry;
     const mat = new THREE.MeshBasicNodeMaterial();
-    let fade = pow(float(1).sub(t), 1.6);
-    if (mode === 'billboard') {
+    const billboard = style === 'fire' || style === 'puff' || style === 'bits' || style === 'star';
+    if (billboard) {
       // With drag, a particle bursts out and slows to a stop, distance v / drag at most.
       const travel = drag > 0 ? float(1).sub(exp(age.mul(-drag))).div(drag) : age;
       const center = a.xyz.add(b.xyz.mul(travel)).add(vec3(0, d.y.mul(age).mul(age).mul(-0.5), 0));
       const size = mix(c.w, d.x, t).mul(alive);
       mat.positionNode = center.add(right.mul(g.x).add(up.mul(g.y)).mul(size));
-    } else if (mode === 'streak') {
-      // A bright segment travelling from p0 to p1, d.z of the path long.
+    } else if (style === 'line') {
+      // A segment travelling from p0 to p1, d.z of the path long (a whole bolt at 1 or more),
+      // but never more than LINE_MAX metres: a tracer is a short dash, not a beam.
+      const span = length(b.xyz.sub(a.xyz)).add(0.001);
+      const frac = mix(min(d.z, float(LINE_MAX).div(span)), d.z, step(1, d.z));
       const headT = clamp(t.mul(1.3), 0, 1);
-      const tailT = clamp(headT.sub(d.z), 0, 1);
+      const tailT = clamp(headT.sub(frac), 0, 1);
       const p = mix(a.xyz, b.xyz, mix(tailT, headT, g.x.add(0.5)));
       const dir = normalize(b.xyz.sub(a.xyz).add(vec3(0.0001, 0, 0)));
       const side = normalize(cross(dir, cameraPosition.sub(p)));
       mat.positionNode = p.add(side.mul(g.y.mul(c.w).mul(alive)));
-      fade = float(1).sub(smoothstep(0.6, 1, t));
     } else {
       const r = mix(c.w, d.x, float(1).sub(pow(float(1).sub(t), 2.5))).mul(alive);
       mat.positionNode = a.xyz.add(g.mul(vec3(r, r.mul(d.z), r)));
     }
-    if (soft) {
-      const q = length(uv().sub(0.5)).mul(2);
-      fade = fade.mul(pow(clamp(float(1).sub(q), 0, 1), 1.5));
+    const col = c.xyz;
+    const pale = mix(col, vec3(1, 0.93, 0.72).mul(max(col.x, max(col.y, col.z))), 0.55).mul(1.15);
+    const deep = col.mul(vec3(0.5, 0.34, 0.26));
+    const p = uv().sub(0.5), q = length(p).mul(2);
+    let cov: THREE.Node<'float'>, color: THREE.Node<'vec3'>;
+    if (style === 'fire') {
+      // Rising: a tongue of flame, full at its foot and drawn to a point at its tip.
+      const flame = length(vec2(p.x.mul(2).div(mix(float(1), float(0.3), uv().y)), p.y.mul(2)));
+      const shape = mix(q, flame, step(d.y, -0.001));
+      cov = clamp(float(1).sub(shape).mul(5), 0, 1).mul(float(1).sub(smoothstep(0.7, 1, t))).mul(d.w);
+      const heat = float(1).sub(shape).mul(0.9).add(float(1).sub(t).mul(0.6)).sub(0.25);
+      color = mix(deep, mix(col, pale, step(0.85, heat)), step(0.4, heat));
+    } else if (style === 'puff') {
+      const seed = a.w.mul(17.3).add(a.x.mul(3.1));
+      const lumpy = q.add(noise(p.mul(3.2).add(vec2(seed, seed.mul(0.7)))).sub(0.5).mul(0.55));
+      // Solid inside, its edge and its last moments dithered; a thin puff (low alpha) is
+      // all edge.
+      cov = clamp(float(1).sub(lumpy).mul(3).mul(pow(float(1).sub(t), 1.1)).sub(float(1).sub(min(float(1), d.w.mul(2.2)))), 0, 1);
+      // The sun stands to the upper right: that side of a puff is lit, the rest in its shade.
+      color = mix(col.mul(0.8), col.mul(1.12), step(0.04, p.x.mul(0.6).add(p.y)));
+    } else if (style === 'bits') {
+      cov = float(1).sub(smoothstep(0.75, 1, t)).mul(d.w);
+      color = col;
+    } else if (style === 'star') {
+      const ax = abs(p.x), ay = abs(p.y);
+      const core = step(ax.add(ay), 0.2);
+      const spikes = step(ax, 0.06).mul(step(ay, 0.5)).add(step(ay, 0.06).mul(step(ax, 0.5)));
+      cov = clamp(core.add(spikes), 0, 1).mul(d.w);
+      color = mix(col, pale, core);
+    } else if (style === 'line') {
+      cov = float(1).sub(smoothstep(0.6, 1, t)).mul(d.w);
+      color = col;
+    } else if (style === 'ball') {
+      const z = abs(normalView.z);
+      cov = pow(float(1).sub(t), 1.6).mul(d.w).mul(1.6);
+      color = mix(deep, mix(col, pale, step(0.8, z)), step(0.45, z));
+    } else if (style === 'ring') {
+      cov = pow(float(1).sub(t), 1.4).mul(d.w);
+      color = col;
+    } else {
+      // A splat: a ragged blob, darker where it pooled, and droplets flung round it. Each is
+      // its own shape, seeded by where it fell.
+      const seed = vec2(a.x.mul(7.13), a.z.mul(3.71));
+      const n1 = noise(p.mul(4.5).add(seed)), n2 = noise(p.mul(12).add(seed.mul(1.7)));
+      const blob = step(q, n1.mul(0.5).add(0.32));
+      const drops = step(0.74, n2).mul(step(q, 0.98));
+      // It dries away in patches over the last part of its life, not as a see-through fade.
+      const left = float(1).sub(smoothstep(0.55, 1, t));
+      const dry = step(float(1).sub(left), noise(p.mul(7).add(seed.mul(0.3))).mul(0.9).add(0.08));
+      cov = max(blob, drops).mul(dry).mul(min(float(1), d.w.mul(1.4)));
+      color = mix(col, col.mul(0.7), step(q, n2.mul(0.3).add(0.12)));
     }
-    // A four-pointed muzzle star: a hot core and two thin crossed spikes.
-    if (star) {
-      const q = uv().sub(0.5).mul(2), ax = abs(q.x), ay = abs(q.y);
-      const core = pow(clamp(float(1).sub(length(q).mul(1.8)), 0, 1), 1.2);
-      const spikes = clamp(float(1).sub(ax.mul(9)), 0, 1).mul(float(1).sub(ay)).add(clamp(float(1).sub(ay.mul(9)), 0, 1).mul(float(1).sub(ax)));
-      fade = fade.mul(core.add(spikes.mul(0.8)));
-    }
-    // Fireballs: glow where they face the camera, fade towards the silhouette.
-    if (rim) fade = fade.mul(pow(abs(normalView.z), 1.8));
-    // Ground decals hold, then fade out over the last part of their life.
-    if (mode === 'mesh' && !additive) fade = float(1).sub(smoothstep(0.55, 1, t));
-    mat.colorNode = c.xyz.mul(additive ? fade : float(1));
-    mat.opacityNode = additive ? float(1) : fade.mul(d.w);
+    mat.colorNode = color;
+    // Whole pixels: kept or not, never see-through.
+    mat.opacityNode = dither(cov);
+    mat.alphaTestNode = float(0.5);
     mat.transparent = true;
     mat.depthWrite = false;
-    mat.fog = !additive;
-    if (additive) mat.blending = THREE.AdditiveBlending;
+    // Flames, flashes and tracers carry their own light through the haze and the dark.
+    mat.fog = style !== 'fire' && style !== 'star' && style !== 'line';
     mat.side = THREE.DoubleSide;
     // Drawn once with both faces: three would otherwise draw a transparent double-sided mesh
     // twice, its back faces and then its front, which for flat quads, discs and rings that
@@ -114,7 +174,7 @@ class FxPool {
     this.mesh = new THREE.InstancedMesh(geo, mat, cap);
     this.mesh.frustumCulled = false;
     this.mesh.count = 0;
-    this.mesh.renderOrder = additive ? 3 : 2;
+    this.mesh.renderOrder = style === 'decal' ? 1 : style === 'fire' || style === 'star' || style === 'line' ? 3 : 2;
     parent.add(this.mesh);
   }
 
@@ -125,7 +185,7 @@ class FxPool {
     const o = i * STRIDE, d = this.data;
     d[o] = x0; d[o + 1] = y0; d[o + 2] = z0; d[o + 3] = now;
     d[o + 4] = x1; d[o + 5] = y1; d[o + 6] = z1; d[o + 7] = life;
-    linInto(d, o + 8, hex, bright); d[o + 11] = size0;
+    linInto(d, o + 8, tame(hex), Math.min(1.25, bright)); d[o + 11] = Math.min(size0, this.maxSize);
     d[o + 12] = size1; d[o + 13] = gravity; d[o + 14] = yScale; d[o + 15] = alpha;
     if (i < this.lo) this.lo = i;
     if (i > this.hi) this.hi = i;
@@ -160,15 +220,16 @@ class FxPool {
   }
 }
 
-const TRACER: Record<number, number> = { 0: 0xffe9a0, 1: 0xffb060, 2: 0xfff0b0, 3: 0xa0f0ff, 4: 0xffd860, 5: 0xffffff };
+// Tracers are a pale dash, warm by the round's heat: pistol, shotgun, SMG, rifle, minigun, rockets.
+const TRACER: Record<number, number> = { 0: 0xe8dcb0, 1: 0xe0b070, 2: 0xe8dcb0, 3: 0xf0ecd8, 4: 0xe8c880, 5: 0xd8d0b8 };
 // Muzzle flash size per player weapon: pistol, shotgun, SMG, rifle, minigun, rockets.
 const MUZZLE: Record<number, number> = { 0: 0.8, 1: 1.5, 2: 0.9, 3: 1.3, 4: 1.1, 5: 1.6 };
 // A hero's shot flashes 0.4 along it; the AWM's muzzle is as much further out as its barrel is
 // longer than the plain rifle's (whose muzzle is 0.74 along its hold), at the heroes' scale.
 const AWM_HERO_MUZZLE = 0.4 + (AWM_HELD_MUZZLE - 0.74) * 1.15;
-const TURRET: Record<number, number> = { 5: 0xfff0a0, 6: 0xffa040, 7: 0x9fe4ff, 8: 0xd8b0ff, 9: 0xfff8e0, 10: 0xffb060 };
-// Blood, dark and everywhere; the spitter bleeds bile.
-const CREEP_GORE = [0x4a0c0a, 0x56100c, 0x3e0a08, 0x5a1410, 0x4a5a14, 0x3a0808, 0x4a0c0a, 0x4a5a14];
+const TURRET: Record<number, number> = { 5: 0xe8dcb0, 6: 0xe0a050, 7: 0xb8d8e0, 8: 0xc8b0d8, 9: 0xf0ecd8, 10: 0xe0b070 };
+// Blood, dark red going brown, and everywhere; the spitter bleeds bile.
+const CREEP_GORE = [0x5a1810, 0x6a2016, 0x4a140e, 0x62241a, 0x4e5418, 0x52160e, 0x5a1810, 0x4e5418];
 
 // Tracers, muzzle flashes, explosions, pulses, corpses and the lasting effects.
 export class Effects {
@@ -178,8 +239,8 @@ export class Effects {
   private uUp = uniform(new THREE.Vector3(0, 1, 0));
   private glow: FxPool; private smoke: FxPool; private streaks: FxPool;
   private spheres: FxPool; private rings: FxPool; private decals: FxPool; private stars: FxPool; private dust: FxPool;
-  // Soft-edged streaks: the big muzzle blasts' jets of fire.
-  private jets: FxPool;
+  // Hard specks: casings, chips, debris, gore.
+  private bits: FxPool;
   // How dark it is (dusk, heavy weather), 0..1: muzzle flashes grow with it.
   dark = 0;
   // Where the door gunner's rounds leave from, the muzzle of the Huey nearest a map point
@@ -208,18 +269,17 @@ export class Effects {
     scene.add(this.group);
     const n = this.uNow, r = this.uRight, u = this.uUp;
     const quad = new THREE.PlaneGeometry(1, 1);
-    this.glow = new FxPool(this.group, quad, 8192, 'billboard', n, r, u, true, true);
-    this.smoke = new FxPool(this.group, quad, 2048, 'billboard', n, r, u, false, true);
-    this.streaks = new FxPool(this.group, quad, 4096, 'streak', n, r, u, true, false);
-    this.spheres = new FxPool(this.group, new THREE.IcosahedronGeometry(1, 3), 512, 'mesh', n, r, u, true, false, true);
-    const ring = new THREE.RingGeometry(0.82, 1, 40); ring.rotateX(-Math.PI / 2);
-    this.rings = new FxPool(this.group, ring, 512, 'mesh', n, r, u, true, false);
-    const disc = new THREE.CircleGeometry(1, 9); disc.rotateX(-Math.PI / 2);
-    this.decals = new FxPool(this.group, disc, 2048, 'mesh', n, r, u, false, false);
-    this.decals.mesh.renderOrder = 1;
-    this.stars = new FxPool(this.group, quad, 1024, 'billboard', n, r, u, true, false, false, true);
-    this.dust = new FxPool(this.group, quad, 4096, 'billboard', n, r, u, false, true, false, false, 1.6);
-    this.jets = new FxPool(this.group, quad, 512, 'streak', n, r, u, true, true);
+    this.glow = new FxPool(this.group, quad, 8192, 'fire', n, r, u, 0, 1.4);
+    this.smoke = new FxPool(this.group, quad, 2048, 'puff', n, r, u);
+    this.streaks = new FxPool(this.group, quad, 4096, 'line', n, r, u);
+    this.spheres = new FxPool(this.group, new THREE.IcosahedronGeometry(1, 2), 512, 'ball', n, r, u);
+    const ring = new THREE.RingGeometry(0.9, 1, 40); ring.rotateX(-Math.PI / 2);
+    this.rings = new FxPool(this.group, ring, 512, 'ring', n, r, u);
+    const disc = new THREE.CircleGeometry(1, 12); disc.rotateX(-Math.PI / 2);
+    this.decals = new FxPool(this.group, disc, 2048, 'decal', n, r, u);
+    this.stars = new FxPool(this.group, quad, 1024, 'star', n, r, u, 0, 2.5);
+    this.dust = new FxPool(this.group, quad, 4096, 'puff', n, r, u, 1.6);
+    this.bits = new FxPool(this.group, quad, 2048, 'bits', n, r, u);
     for (let i = 0; i < LIGHTS; i++) {
       const l = new THREE.PointLight(0xffb060, 0, 7, 1.6);
       l.castShadow = false;
@@ -228,44 +288,61 @@ export class Effects {
     }
 
     // Lasting effects: re-laid every frame from the frame's effect list, grown by room when it outgrows them.
+    // Whole pixels, as the pools are: a kept pixel is opaque, the rest dithered away.
+    const solid = (m: THREE.MeshBasicNodeMaterial, cov: THREE.Node<'float'>) => {
+      m.opacityNode = dither(cov); m.alphaTestNode = float(0.5);
+      m.transparent = true; m.depthWrite = false;
+      m.mrtNode = mrt({ output, normal: vec4(0, 0, 0, 0) });
+      return m;
+    };
+    // The flicker of fire and bile, in steps of a tenth of a second, not a smooth crawl.
+    const tick = floor(time.mul(10)).div(10);
+    const rho = length(positionGeometry.xz);
+    // A warning on the ground (a grenade's or an airstrike's mark, a slam's reach, a sac's
+    // landing): a dashed line a pixel or two wide in the warning red, blinking to bone and
+    // back, with a dark line inside it so it reads on any ground.
     const flatRing = new THREE.RingGeometry(0.9, 1, 48); flatRing.rotateX(-Math.PI / 2);
-    const lm = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
-    lm.colorNode = vec3(1, 0.15, 0.1).mul(sin(time.mul(10)).mul(0.35).add(0.75));
+    const edge = float(1).sub(rho), w = fwidth(rho).mul(1.5);
+    const dash = step(0.4, fract(atan(positionGeometry.z, positionGeometry.x).mul(24 / 6.283)));
+    const lm = solid(new THREE.MeshBasicNodeMaterial(), step(edge, w.mul(2)).mul(max(dash, step(w, edge))));
+    lm.colorNode = mix(mix(vec3(0.58, 0.12, 0.06), vec3(0.6, 0.55, 0.38), step(0.6, fract(time.mul(1.6)))), vec3(0.02, 0.015, 0.01), step(w, edge));
     lm.fog = false;
     this.lasting = new THREE.InstancedMesh(flatRing, lm, 64);
+    // Burning ground: flames in three tones over embers, ragged at the edge, flickering.
     const fd = new THREE.CircleGeometry(1, 20); fd.rotateX(-Math.PI / 2);
-    const fm = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
-    fm.colorNode = vec3(0.9, 0.32, 0.05).mul(sin(time.mul(13)).mul(0.15).add(0.55));
+    const fn = noise(positionWorld.xz.mul(2.6).add(vec2(tick.mul(0.7), tick.mul(-2.3))));
+    const heat = fn.sub(rho.mul(0.55)).add(0.2);
+    const fm = solid(new THREE.MeshBasicNodeMaterial(), clamp(heat.mul(4).add(0.35), 0, 1));
+    fm.colorNode = mix(vec3(0.05, 0.02, 0.01), mix(vec3(0.42, 0.08, 0.02), mix(vec3(0.85, 0.32, 0.05), vec3(1, 0.72, 0.28), step(0.62, heat)), step(0.45, heat)), step(0.25, heat));
     fm.fog = false;
     this.lastingFire = new THREE.InstancedMesh(fd, fm, 64);
-    const gm = new THREE.MeshLambertNodeMaterial({ color: 0x33402a });
-    this.grenades = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.22, 0), gm, 64);
+    const gm = painted(new THREE.MeshLambertNodeMaterial({ color: 0x3a3e26 }));
+    this.grenades = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.16, 0), gm, 64);
     // A broodmother's bile: the pool, sickly green and seething, and the sacs in the air.
-    const am = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
-    am.colorNode = vec3(0.3, 0.62, 0.06).mul(sin(time.mul(7)).mul(0.04).add(0.16));
-    am.fog = false;
+    const an = noise(positionWorld.xz.mul(3.4).add(vec2(tick.mul(0.4), tick.mul(0.3))));
+    const am = solid(new THREE.MeshBasicNodeMaterial(), step(rho, an.mul(0.3).add(0.7)).mul(step(0.22, an)));
+    am.colorNode = mix(mix(vec3(0.035, 0.04, 0.008), vec3(0.075, 0.09, 0.016), step(0.45, an)), vec3(0.2, 0.24, 0.05), step(0.8, an));
+    am.fog = true;
     this.acid = new THREE.InstancedMesh(fd, am, 64);
-    const sm = new THREE.MeshLambertNodeMaterial({ color: 0x9ab83a, emissive: 0x2a4a08 });
+    const sm = painted(new THREE.MeshLambertNodeMaterial({ color: 0x7a8a34, emissive: 0x141e04 }));
     this.sacs = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.42, 1), sm, 64);
     // A crack of the fissure, a flat quad along it (x along it, z across, both -0.5..0.5): a dark
-    // trench of broken ground, and over it a jagged crack glowing molten, pulsing, tapering at
-    // both ends.
+    // trench of broken ground, and over it a jagged crack of molten rock, its bright seam
+    // throbbing, tapering at both ends.
     const strip = new THREE.PlaneGeometry(1, 1); strip.rotateX(-Math.PI / 2);
     const across = abs(uv().y.sub(0.5)), along = uv().x, ends = sin(along.mul(Math.PI));
-    const tm = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false });
+    const tm = solid(new THREE.MeshBasicNodeMaterial(),
+      float(1).sub(smoothstep(0.2, 0.42, across.add(sin(along.mul(53)).mul(0.04)))).mul(clamp(ends.mul(3), 0, 1)));
     tm.colorNode = vec3(0.045, 0.03, 0.022);
-    tm.opacityNode = float(1).sub(smoothstep(0.12, 0.5, across.add(sin(along.mul(53)).mul(0.04)))).mul(clamp(ends.mul(3), 0, 1)).mul(0.95);
     tm.fog = true;
     this.trench = new THREE.InstancedMesh(strip, tm, 16);
     this.trench.renderOrder = 1;
-    const cm = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
     const zig = sin(along.mul(37)).mul(0.035).add(sin(along.mul(89)).mul(0.022)).add(sin(along.mul(211)).mul(0.012));
     const dc = abs(uv().y.sub(0.5).sub(zig.mul(ends)));
     const width = ends.mul(0.06).add(0.012);
-    const core = float(1).sub(smoothstep(width.mul(0.3), width, dc));
-    const halo = pow(float(1).sub(smoothstep(0, 0.45, dc)), 2).mul(0.35);
-    const pulse = sin(time.mul(12.566)).mul(0.25).add(0.85);
-    cm.colorNode = vec3(1, 0.8, 0.35).mul(core).add(vec3(1, 0.28, 0.04).mul(halo)).mul(pulse).mul(clamp(ends.mul(2.5), 0, 1));
+    const throb = step(0.5, fract(time.mul(2)));
+    const cm = solid(new THREE.MeshBasicNodeMaterial(), step(dc, width.mul(2.2)).mul(step(0.05, ends)));
+    cm.colorNode = mix(vec3(0.55, 0.14, 0.03), mix(vec3(0.95, 0.55, 0.12), vec3(1, 0.85, 0.5), throb), step(dc, width.mul(0.8)));
     cm.fog = false;
     this.crack = new THREE.InstancedMesh(strip, cm, 16);
     this.crack.renderOrder = 3;
@@ -280,7 +357,7 @@ export class Effects {
   // Spawns the per-tick events of the frame that just arrived.
   onFrame(game: Game, turretHeight: (x: number, y: number) => number, onTurretShot: (x0: number, y0: number, x1: number, y1: number) => void): void {
     const f = game.cur, t = this.now();
-    let flashes = 0;
+    let flashes = 0, casings = 0;
     for (let i = 0; i < f.nTracers; i++) {
       const k = f.tKind[i];
       const x0 = f.tX0[i], y0 = f.tY0[i], x1 = f.tX1[i], y1 = f.tY1[i];
@@ -303,8 +380,8 @@ export class Effects {
       if (k === TRACER_NAPALM) {
         // A napalm missile: a burning streak, not a white one, shedding burning drops that
         // fall away under it and a greasy black smoke behind.
-        this.streaks.add(t, x0, 1.0, y0, x1, 1.0, y1, 0.3, 0xffd070, 0.12, 0, 0, 1, 1, 1.6);
         this.streaks.add(t, x0, 1.0, y0, x1, 1.0, y1, 0.5, 0xff4a10, 0.34, 0, 0, 1, 1, 0.8);
+        this.streaks.add(t, x0, 1.0, y0, x1, 1.0, y1, 0.3, 0xffd070, 0.12, 0, 0, 1, 1, 1.6);
         this.glow.add(t, x1, 1.0, y1, 0, 0, 0, 0.08, 0xffe0a0, 0.45, 0.3, 0, 1, 1, 1.4);
         for (let j = 0; j < 2; j++) {
           const u = Math.random();
@@ -340,13 +417,14 @@ export class Effects {
         // The sniper's round leaves from its rifle's muzzle, with the brake's blast.
         const sniper = sk === K_SNIPER, big = sniper, ml = sniper ? SNIPER_MUZZLE : 0.6;
         const sx = sniper ? x0 + ux * ml : x0, sz = sniper ? y0 + uz * ml : y0;
-        this.streaks.add(t, sx, h, sz, x1, 0.55, y1, sniper ? 0.3 + dist * 0.01 : 0.08 + dist * 0.006, col, sniper ? 0.06 : 0.09, 0, 0, 0.45);
+        this.streaks.add(t, sx, h, sz, x1, 0.55, y1, sniper ? 0.3 + dist * 0.01 : 0.08 + dist * 0.006, col, sniper ? 0.05 : 0.06, 0, 0, sniper ? 0.6 : 0.4);
         if (big) this.brake(t, x0, y0, sx, h, sz, ux, uz);
         if (flashes++ < 60) {
           const mx = x0 + ux * ml, mz = y0 + uz * ml;
-          this.glow.add(t, mx, h, mz, 0, 0, 0, big ? 0.14 : 0.07, 0xffd070, sk === 6 ? 1.2 : big ? 1.1 : 0.6, 0.3);
+          if (sk === 6) this.glow.add(t, mx, h, mz, 0, 0, 0, 0.1, 0xffb050, 0.45, 0.2);
           if (sk !== 7) this.muzzle(t, mx, h, mz, ux, uz, sk === 6 ? 1.6 : big ? 2.2 : 1, i, big);
         }
+        if (i % 2 === 0) this.impact(t + 0.05, x1, y1);
         continue;
       }
       // Player weapons, from gun height; a shot under an ultimate comes TRACER_ULT on and is
@@ -363,25 +441,30 @@ export class Effects {
         }
         continue;
       }
-      const w = (wk === 5 ? 0.16 : wk === 3 ? 0.08 : 0.06) * (ult ? 1.6 : 1);
+      const w = (wk === 5 ? 0.12 : 0.05) * (ult ? 1.4 : 1);
       const life = wk === 5 ? 0.25 + dist * 0.01 : 0.06 + dist * 0.004;
       // A fully bought Rifle is the AWM: its round and its flash, soft and bigger, come from its
       // muzzle in the survivor's hands (the hero draws no flash of its own for it).
       const awm = wk === RIFLE && this.awmShot(game, x0, y0), am = awm ? this.heroMuzzle?.(x0, y0, this.muzzleAt) ?? null : null;
       const sx = am ? am.x : x0, sy = am ? am.y : 1.12, sz = am ? am.z : y0;
       this.streaks.add(t, sx, sy, sz, x1, 0.55, y1, life, col, w, 0, 0, wk === 5 ? 0.25 : 0.4, 1, 1.4);
-      if (wk === 5) this.smoke.add(t, x0, 1.1, y0, 0, 0.6, 0, 0.8, 0x9a9a9a, 0.4, 1.2, 0, 1, 0.5);
+      if (wk === 5) this.smoke.add(t, x0, 1.1, y0, 0, 0.6, 0, 0.8, 0x8a8478, 0.3, 0.9, 0, 1, 0.45);
+      const ux = (x1 - x0) / dist, uz = (y1 - y0) / dist;
       if (awm) {
-        const ux = (x1 - x0) / dist, uz = (y1 - y0) / dist, ml = AWM_HERO_MUZZLE;
+        const ml = AWM_HERO_MUZZLE;
         const mx = am ? am.x : x0 + ux * ml, my = am ? am.y : 1.12, mz = am ? am.z : y0 + uz * ml;
-        this.glow.add(t, mx + ux * 0.1, my, mz + uz * 0.1, ux * 0.4, 0, uz * 0.4, 0.08, 0xffd890, 0.7, 0.25);
+        this.glow.add(t, mx + ux * 0.1, my, mz + uz * 0.1, ux * 0.4, 0, uz * 0.4, 0.06, 0xffc070, 0.35, 0.15);
         this.muzzle(t, mx, my, mz, ux, uz, MUZZLE[wk] * 1.3, 0, true);
       } else if (flashes++ < 80) {
-        const mx = x0 + (x1 - x0) / dist * 0.4, mz = y0 + (y1 - y0) / dist * 0.4;
-        this.glow.add(t, mx, 1.12, mz, 0, 0, 0, 0.06, 0xffe0a0, 0.55, 0.2);
-        this.muzzle(t, mx, 1.12, mz, (x1 - x0) / dist, (y1 - y0) / dist, MUZZLE[wk] ?? 1, i);
+        this.muzzle(t, x0 + ux * 0.4, 1.12, y0 + uz * 0.4, ux, uz, MUZZLE[wk] ?? 1, i);
       }
-      if (i % 2 === 0) this.glow.add(t + life * 0.8, x1, 0.55, y1, (Math.random() - 0.5) * 3, 2, (Math.random() - 0.5) * 3, 0.18, col, 0.18, 0.05, 9);
+      // A spent case kicked out to the right of the gun, glinting as it tumbles down.
+      if (wk !== 5 && casings++ < 40 && (i % 2 === 0 || wk === 1 || wk === 3)) {
+        const v = 1.2 + Math.random() * 0.8;
+        this.bits.add(t, x0 + ux * 0.2, 1.1, y0 + uz * 0.2, -uz * v - ux * 0.4, 1.6 + Math.random(), ux * v - uz * 0.4, 0.42,
+          wk === 1 ? 0x8a2a1a : 0xb08a3a, 0.06, 0.05, 11);
+      }
+      if (i % 2 === 0) this.impact(t + life * 0.8, x1, y1);
     }
     for (let i = 0; i < f.nBlasts; i++) this.blast(t, f.bX[i], f.bY[i], Math.max(0.5, f.bR[i]), f.bKind[i]);
     for (let i = 0; i < f.nDeaths; i++) {
@@ -389,9 +472,12 @@ export class Effects {
       const r = def ? def.radius : 0.45;
       const x = f.dX[i], y = f.dY[i];
       this.decals.add(t, x + (Math.random() - 0.5) * 0.2, 0.07, y + (Math.random() - 0.5) * 0.2, 0, 0, 0, 30, CREEP_GORE[k % CREEP_GORE.length],
-        r * (0.85 + Math.random() * 0.35), r * (1.0 + Math.random() * 0.35), 0, 1, 0.7);
+        r * (1.1 + Math.random() * 0.4), r * (1.3 + Math.random() * 0.4), 0, 1, 0.9);
       if (i < 120) {
-        for (let j = 0; j < 3; j++) this.smoke.add(t, x, 0.5, y, (Math.random() - 0.5) * 3, 2 + Math.random() * 2, (Math.random() - 0.5) * 3, 0.4, CREEP_GORE[k % CREEP_GORE.length], 0.6 * r, 0.1, 12, 1, 0.9);
+        for (let j = 0; j < 4; j++) {
+          this.bits.add(t, x, 0.5 + Math.random() * 0.4, y, (Math.random() - 0.5) * 3.5, 1.5 + Math.random() * 2.5, (Math.random() - 0.5) * 3.5, 0.45,
+            CREEP_GORE[(k + j) % CREEP_GORE.length], 0.09, 0.07, 12);
+        }
       }
     }
   }
@@ -413,7 +499,7 @@ export class Effects {
     }
     for (let k = 0; k < (big ? 6 : 3); k++) {
       const a = heading + Math.PI + (Math.random() - 0.5) * 2.4, v = 1 + Math.random() * 2;
-      this.dust.add(t, ix, 0.5 + Math.random() * 0.4, iy, Math.cos(a) * v, 1.5 + Math.random() * 2, Math.sin(a) * v, 0.35, 0x6a6458, 0.06, 0.04, 9, 1, 0.9);
+      this.bits.add(t, ix, 0.5 + Math.random() * 0.4, iy, Math.cos(a) * v, 1.5 + Math.random() * 2, Math.sin(a) * v, 0.35, 0x5a5040, 0.06, 0.05, 9);
     }
   }
 
@@ -422,9 +508,18 @@ export class Effects {
     const t = this.now();
     for (let k = 0; k < 6; k++) {
       const a = Math.random() * Math.PI * 2, v = 1 + Math.random() * 2;
-      this.smoke.add(t, x, 0.9, y, Math.cos(a) * v, 1.5 + Math.random() * 2, Math.sin(a) * v, 0.45, 0x4a0c0a, 0.1, 0.05, 12, 1, 0.9);
+      this.bits.add(t, x, 0.9, y, Math.cos(a) * v, 1.5 + Math.random() * 2, Math.sin(a) * v, 0.45, k ? 0x5a1810 : 0x8a6a5a, k ? 0.08 : 0.14, 0.07, 12);
     }
-    this.decals.add(t, x + (Math.random() - 0.5) * 0.6, 0.07, y + (Math.random() - 0.5) * 0.6, 0, 0, 0, 30, 0x4a0c0a, 0.3, 0.4, 0, 1, 0.7);
+    this.decals.add(t, x + (Math.random() - 0.5) * 0.6, 0.07, y + (Math.random() - 0.5) * 0.6, 0, 0, 0, 30, 0x52160e, 0.35, 0.5, 0, 1, 0.9);
+  }
+
+  // A round striking: a puff of dust and a chip or two flying off whatever it hit.
+  private impact(t: number, x: number, y: number): void {
+    this.dust.add(t, x, 0.5, y, 0, 0.4, 0, 0.35, 0x9a8c70, 0.1, 0.3, 0, 1, 0.7);
+    for (let j = 0; j < 2; j++) {
+      const a = Math.random() * 6.283, v = 1 + Math.random() * 1.5;
+      this.bits.add(t, x, 0.55, y, Math.cos(a) * v, 1.5 + Math.random() * 1.5, Math.sin(a) * v, 0.3, j ? 0x5a1810 : 0x6a5e48, 0.05, 0.05, 10);
+    }
   }
 
   // The sniper's muzzle blast: a fireball at the brake, its ports throwing jets of fire and
@@ -432,11 +527,11 @@ export class Effects {
   // platform and the ground round its foot. Every shot, whatever the light: it is a big gun.
   private brake(t: number, tx: number, ty: number, x: number, y: number, z: number, dx: number, dz: number): void {
     // The fireball holds a sixth of a second, long enough to be seen by day.
-    this.glow.add(t, x + dx * 0.2, y, z + dz * 0.2, dx * 0.6, 0, dz * 0.6, 0.17, 0xffc060, 1.2, 0.5);
-    this.stars.add(t, x + dx * 0.15, y, z + dz * 0.15, 0, 0, 0, 0.12, 0xfff0c0, 1.3, 0.5, 0, 1, 1, 1.4);
+    this.glow.add(t, x + dx * 0.2, y, z + dz * 0.2, dx * 0.6, 0, dz * 0.6, 0.17, 0xffb050, 0.6, 0.3);
+    this.stars.add(t, x + dx * 0.15, y, z + dz * 0.15, 0, 0, 0, 0.1, 0xffe0a0, 0.9, 0.4, 0, 1, 1, 1.2);
     for (const side of [-1, 1]) {
       const px = -dz * side, pz = dx * side;
-      this.jets.add(t, x, y, z, x + px * 0.7 - dx * 0.15, y + 0.04, z + pz * 0.7 - dz * 0.15, 0.07, 0xffa040, 0.16, 0, 0, 1.3, 1, 1.4);
+      this.streaks.add(t, x, y, z, x + px * 0.6 - dx * 0.15, y + 0.04, z + pz * 0.6 - dz * 0.15, 0.07, 0xf0a040, 0.1, 0, 0, 1.3, 1, 1.1);
       for (let k = 0; k < 3; k++) {
         // Smoke has no drag: a puff goes v * life, under a tile.
         const v = 0.6 + Math.random() * 0.5, b = -0.25 + Math.random() * 0.3;
@@ -456,8 +551,6 @@ export class Effects {
     }
   }
 
-  // A muzzle flash in the dark: a star at the barrel, a short cone of fire forward, a puff of
-  // smoke and a warm light pulse from the pool. Subtle by day, bright at dusk and in storms.
   // Whether a shot from (x0, y0) came from a survivor's AWM: one standing there with the Rifle
   // in hand and every one of its tracks bought. A shot does not say who fired it, so this asks
   // who is standing where it starts.
@@ -470,17 +563,22 @@ export class Effects {
     return false;
   }
 
-  // soft: the cone drawn as a soft-edged jet, for a flash big enough that a hard-edged streak
-  // would show as a flat plank.
+  // A muzzle flash: a star at the barrel, a short tongue of fire forward, a puff of smoke and
+  // a warm light pulse from the pool. Small by day, bigger at dusk and in storms. soft: a big
+  // gun's (the AWM's, the sniper's), its tongue longer and wider.
   private muzzle(t: number, x: number, y: number, z: number, dx: number, dz: number, size: number, i: number, soft = false): void {
     const d = this.dark;
     if (d < 0.05 && i % 3) return;
-    const s = size * (0.5 + 0.9 * d);
-    this.stars.add(t, x + dx * 0.15, y, z + dz * 0.15, 0, 0, 0, 0.05 + 0.02 * Math.random(), 0xffd890, s * (0.8 + Math.random() * 0.5), s * 0.4, 0, 1, 1, 0.5 + d);
-    (soft ? this.jets : this.streaks).add(t, x, y, z, x + dx * 0.9 * s, y, z + dz * 0.9 * s, soft ? 0.07 : 0.05, 0xffa040, 0.16 * s, 0, 0, 1.3, 1, (0.5 + d) * (soft ? 1.4 : 1));
+    // Two or three frames: a pale star a few pixels across, then a smaller orange one, and a
+    // short tongue of fire forward; bigger in the dark, where it lights things.
+    const s = size * (0.55 + 0.6 * d);
+    const fx = x + dx * 0.12, fz = z + dz * 0.12;
+    this.stars.add(t, fx, y, fz, 0, 0, 0, 0.035, 0xf8c060, s * (0.4 + Math.random() * 0.15), s * 0.3, 0, 1, 1, 1.2);
+    this.stars.add(t + 0.03, fx + dx * 0.05, y, fz + dz * 0.05, 0, 0, 0, 0.03, 0xe0782a, s * 0.25, s * 0.18);
+    this.streaks.add(t, x, y, z, x + dx * (soft ? 0.5 : 0.35) * s, y, z + dz * (soft ? 0.5 : 0.35) * s, 0.04, 0xf0a040, (soft ? 0.09 : 0.06) * s, 0, 0, 1, 1, 1.1);
     if (t - this.lastSmoke > 0.04) {
       this.lastSmoke = t;
-      this.smoke.add(t + 0.03, x + dx * 0.3, y, z + dz * 0.3, dx * 0.4, 0.5, dz * 0.4, 0.7, 0x8a8680, 0.15 * size, 0.6 * size, 0, 1, 0.3);
+      this.smoke.add(t + 0.03, x + dx * 0.3, y, z + dz * 0.3, dx * 0.4, 0.5, dz * 0.4, 0.6, 0x8a8478, 0.08 * size, 0.35 * size, 0, 1, 0.35);
     }
     if (d < 0.1) return;
     // One light per shot, round the pool; a busy pool skips shots instead of flickering wildly.
@@ -490,7 +588,7 @@ export class Effects {
     const l = this.lights[k];
     l.position.set(x + dx * 0.4, y + 0.3, z + dz * 0.4);
     this.lightLeft[k] = 0.06;
-    this.lightPeak[k] = (6 + 10 * d) * size * (0.8 + Math.random() * 0.4);
+    this.lightPeak[k] = (3 + 6 * d) * size * (0.8 + Math.random() * 0.4);
   }
 
   private arc(t: number, x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): void {
@@ -501,11 +599,11 @@ export class Effects {
       const u = s / n;
       const j = s === n ? 0 : 0.45;
       const nx = x0 + (x1 - x0) * u + (Math.random() - 0.5) * j, ny = y0 + (y1 - y0) * u + (Math.random() - 0.5) * j, nz = z0 + (z1 - z0) * u + (Math.random() - 0.5) * j;
-      this.streaks.add(t, px, py, pz, nx, ny, nz, 0.2, 0xe8d0ff, 0.07, 0, 0, 1.3, 1, 1.6);
       this.streaks.add(t, px, py, pz, nx, ny, nz, 0.2, 0x8a50ff, 0.3, 0, 0, 1.3, 1, 0.6);
+      this.streaks.add(t, px, py, pz, nx, ny, nz, 0.2, 0xe8d0ff, 0.07, 0, 0, 1.3, 1, 1.6);
       px = nx; py = ny; pz = nz;
     }
-    this.glow.add(t, x1, y1, z1, 0, 0, 0, 0.15, 0xc8a0ff, 0.9, 0.3);
+    this.glow.add(t, x1, y1, z1, 0, 0, 0, 0.15, 0xc8a0ff, 0.4, 0.15);
   }
 
   // An arc web's jump: a heavier violet bolt than a coil's that crackles, a thin second bolt a
@@ -519,12 +617,12 @@ export class Effects {
         const u = s / n;
         const j = s === n ? 0 : 0.6;
         const nx = x0 + (x1 - x0) * u + (Math.random() - 0.5) * j, ny = y0 + (y1 - y0) * u + Math.random() * j * 0.5, nz = z0 + (z1 - z0) * u + (Math.random() - 0.5) * j;
-        this.streaks.add(tk, px, py, pz, nx, ny, nz, 0.28, 0xf4e8ff, 0.08, 0, 0, 1.3, 1, 1.8);
         if (k === 0) this.streaks.add(tk, px, py, pz, nx, ny, nz, 0.28, 0xa040ff, 0.3, 0, 0, 1.3, 1, 0.7);
+        this.streaks.add(tk, px, py, pz, nx, ny, nz, 0.28, 0xf4e8ff, 0.08, 0, 0, 1.3, 1, 1.8);
         px = nx; py = ny; pz = nz;
       }
     }
-    this.glow.add(t, x1, y1, z1, 0, 0, 0, 0.25, 0xc070ff, 1.2, 0.3);
+    this.glow.add(t, x1, y1, z1, 0, 0, 0, 0.25, 0xc070ff, 0.5, 0.2);
     for (let j = 0; j < 3; j++) this.glow.add(t, x1, y1, z1, (Math.random() - 0.5) * 5, Math.random() * 3, (Math.random() - 0.5) * 5, 0.25, 0xffffff, 0.1, 0.02, 10);
   }
 
@@ -540,8 +638,8 @@ export class Effects {
       // Moonlit Edge: a pale crescent flying out the whole reach, thinning as it goes.
       for (let s = 0; s < 6; s++) {
         const r = 1.2 + (dist - 1.2) * s / 5, ts = t + s * 0.035;
-        this.crescent(ts, x0, y0, a, r, 0.42, 0.9, 0.16, 0xbfe6ff, 0.12 * (1 - s / 7), 1.6, true);
         this.crescent(ts, x0, y0, a, r, 0.38, 0.9, 0.2, 0x5a8cff, 0.32 * (1 - s / 7), 0.6, true);
+        this.crescent(ts, x0, y0, a, r, 0.42, 0.9, 0.16, 0xbfe6ff, 0.12 * (1 - s / 7), 1.6, true);
       }
       this.glow.add(t + 0.2, x1, 0.9, y1, 0, 0.2, 0, 0.3, 0xa8d8ff, 1.2, 0.2, 0, 1, 1, 1.1);
       return;
@@ -553,22 +651,22 @@ export class Effects {
     const half = kat ? (ult ? 1.05 : 0.8) : 1.2, r = dist * 0.85;
     if (kat) {
       // Steel, then a crimson smear behind it; a pair a beat apart under Crimson Tempest.
-      this.crescent(t, x0, y0, a, r, half, 1.05, 0.12, 0xf8faff, 0.06, 1.8, this.slashFlip);
       this.crescent(t, x0, y0, a, r * 0.92, half, 1.0, 0.2, ult ? 0xff1a2a : 0xb0101c, ult ? 0.36 : 0.22, 0.9, this.slashFlip);
+      this.crescent(t, x0, y0, a, r, half, 1.05, 0.12, 0xf8faff, 0.06, 1.8, this.slashFlip);
       if (ult) this.crescent(t + 0.06, x0, y0, a + 0.25, r * 1.08, half, 1.15, 0.22, 0xff4050, 0.3, 1.1, !this.slashFlip);
       // Blood flung off the edge, falling.
       for (let j = 0; j < (ult ? 8 : 4); j++) {
         const b = a + (Math.random() - 0.5) * half * 2, s = r * (0.7 + Math.random() * 0.4);
-        this.glow.add(t + 0.03, x0 + Math.cos(b) * s, 1.0, y0 + Math.sin(b) * s, Math.cos(b) * 2.5, 1.5 + Math.random() * 2, Math.sin(b) * 2.5,
-          0.4 + Math.random() * 0.2, j % 2 ? 0x8a0a14 : 0xd0202c, 0.12, 0.05, 12, 1, 1, 0.9);
+        this.bits.add(t + 0.03, x0 + Math.cos(b) * s, 1.0, y0 + Math.sin(b) * s, Math.cos(b) * 2.5, 1.5 + Math.random() * 2, Math.sin(b) * 2.5,
+          0.4 + Math.random() * 0.2, j % 2 ? 0x5a1410 : 0x8a2a1a, 0.12, 0.05, 12, 1, 1, 0.9);
       }
       return;
     }
     // The greatsword: a heavy, slower smear, bone-white at its heart (gold and embers for a
     // cut under an ultimate, which the greatsword's Worldsplitter no longer sends).
     const core = ult ? 0xfff0b0 : 0xfff6e4, outer = ult ? 0xff9a20 : 0xc8b490;
-    this.crescent(t, x0, y0, a, r, half, follow ? 1.6 : 1.1, 0.2, core, 0.1, 1.6, this.slashFlip, 0.5);
     this.crescent(t, x0, y0, a, r * 0.9, half, follow ? 1.5 : 1.0, 0.3, outer, 0.42, 0.7, this.slashFlip, 0.5);
+    this.crescent(t, x0, y0, a, r, half, follow ? 1.6 : 1.1, 0.2, core, 0.1, 1.6, this.slashFlip, 0.5);
     if (ult) {
       for (let j = 0; j < 10; j++) {
         const b = a + (Math.random() - 0.5) * half * 2, s = r * Math.random();
@@ -589,7 +687,7 @@ export class Effects {
     this.decals.add(tq, qx, 0.067, qy, 0, 0, 0, 8, 0x2a2018, 0.7, 0.9, 0, 1, 0.7);
     for (let j = 0; j < 10; j++) {
       const b = Math.random() * 6.28, sp = 1.5 + Math.random() * 3;
-      this.glow.add(tq, qx, 0.2, qy, Math.cos(b) * sp, 3 + Math.random() * 3, Math.sin(b) * sp, 0.5 + Math.random() * 0.2, j % 2 ? 0x6a5a40 : 0x9a8a66, 0.16, 0.1, 14, 1, 1, 0.5);
+      this.bits.add(tq, qx, 0.2, qy, Math.cos(b) * sp, 3 + Math.random() * 3, Math.sin(b) * sp, 0.5 + Math.random() * 0.2, j % 2 ? 0x6a5a40 : 0x9a8a66, 0.16, 0.1, 14, 1, 1, 0.5);
     }
     for (let j = 0; j < 6; j++) {
       const b = j / 6 * 6.28;
@@ -603,8 +701,8 @@ export class Effects {
   private homeRun(t: number, round: boolean, x0: number, y0: number, x1: number, y1: number, dist: number): void {
     const a = Math.atan2(y1 - y0, x1 - x0), half = round ? Math.PI : 1.35, r = dist * 0.85;
     this.slashFlip = !this.slashFlip;
-    this.crescent(t, x0, y0, a, r, half, 0.85, 0.16, 0xfff4dc, 0.12, 1.8, this.slashFlip, round ? 0.12 : 0.07);
     this.crescent(t, x0, y0, a, r * 0.9, half, 0.8, 0.26, 0xff8a2a, 0.36, 0.8, this.slashFlip, round ? 0.12 : 0.07);
+    this.crescent(t, x0, y0, a, r, half, 0.85, 0.16, 0xfff4dc, 0.12, 1.8, this.slashFlip, round ? 0.12 : 0.07);
     const hx = x0 + Math.cos(a) * r, hy = y0 + Math.sin(a) * r, th = t + 0.05;
     this.glow.add(th, hx, 0.9, hy, 0, 0, 0, 0.1, 0xffffff, 1.4, 0.4, 0, 1, 1, 1.3);
     this.rings.add(th, hx, 0.9, hy, 0, 0, 0, 0.22, 0xfff0c0, 0.12, 1.6, 0, 1, 1, 1.2);
@@ -638,8 +736,8 @@ export class Effects {
   // Flash Draw: one line drawn the whole way at once, a row of afterimages along it, and the
   // cuts landing a beat later all down its length, each spraying blood.
   private flashCut(t: number, x0: number, y0: number, x1: number, y1: number, dist: number): void {
-    this.streaks.add(t, x0, 1.0, y0, x1, 1.0, y1, 0.45, 0xffffff, 0.08, 0, 0, 0.5, 1, 2.2);
     this.streaks.add(t, x0, 1.0, y0, x1, 1.0, y1, 0.6, 0xb0101c, 0.4, 0, 0, 0.5, 1, 0.8);
+    this.streaks.add(t, x0, 1.0, y0, x1, 1.0, y1, 0.45, 0xffffff, 0.08, 0, 0, 0.5, 1, 2.2);
     const n = Math.max(2, Math.round(dist / 1.2));
     const a = Math.atan2(y1 - y0, x1 - x0);
     for (let j = 0; j <= n; j++) {
@@ -654,7 +752,7 @@ export class Effects {
       }
       for (let k = 0; k < 3; k++) {
         const b = Math.random() * 6.28;
-        this.glow.add(td, x, 0.9, y, Math.cos(b) * 1.5, 2 + Math.random() * 2, Math.sin(b) * 1.5, 0.45, k % 2 ? 0x8a0a14 : 0xd0202c, 0.14, 0.05, 12, 1, 1, 0.9);
+        this.bits.add(td, x, 0.9, y, Math.cos(b) * 1.5, 2 + Math.random() * 2, Math.sin(b) * 1.5, 0.45, k % 2 ? 0x5a1410 : 0x8a2a1a, 0.14, 0.05, 12, 1, 1, 0.9);
       }
     }
     this.flashLight(x1, 1.2, y1, 30);
@@ -673,7 +771,7 @@ export class Effects {
     this.rings.add(t, x0, 0.14, y0, 0, 0, 0, 0.45, 0xfff0d0, 0.5, r, 0, 1, 1, 1.5);
     this.rings.add(t + 0.04, x0, 0.12, y0, 0, 0, 0, 0.6, 0xff8a30, 0.4, r * 1.05, 0, 1, 1, 1.1);
     this.rings.add(t + 0.08, x0, 0.1, y0, 0, 0, 0, 0.8, 0x9a8a6c, 0.4, r * 1.15, 0, 1, 1, 0.7);
-    this.spheres.add(t, x0, 0.2, y0, 0, 0, 0, 0.3, 0xffc070, 0.4, r * 0.5, 0, 0.5, 1, 0.6);
+    this.spheres.add(t, x0, 0.2, y0, 0, 0, 0, 0.3, 0xffc070, 0.4, r * 0.5, 0, 0.5, 0.18, 1);
     const n = 28;
     for (let j = 0; j < n; j++) {
       const b = (j + Math.random() * 0.5) / n * 6.283, cb = Math.cos(b), sb = Math.sin(b);
@@ -681,7 +779,7 @@ export class Effects {
       // further out, and dust rolling at the front.
       for (const u of [0.25, 0.55, 0.9]) {
         const x = x0 + cb * r * u, z = y0 + sb * r * u, tj = t + 0.02 + u * 0.16, sp = 1 + Math.random() * 2;
-        this.glow.add(tj, x, 0.2, z, cb * sp, 3 + Math.random() * 4 * (1.2 - u), sb * sp,
+        this.bits.add(tj, x, 0.2, z, cb * sp, 3 + Math.random() * 4 * (1.2 - u), sb * sp,
           0.55 + Math.random() * 0.3, (j + Math.round(u * 4)) % 2 ? 0x5a4a34 : 0x8a7a5a, 0.24, 0.16, 16, 1, 1, 0.5);
       }
       if (j % 2 === 0) this.dust.add(t + 0.15, x0 + cb * r * 0.95, 0.3, y0 + sb * r * 0.95, cb * 2, 0.6, sb * 2, 1.1, 0x9a8a6c, 0.7, 1.7, 0, 1, 0.6);
@@ -698,7 +796,7 @@ export class Effects {
         this.streaks.add(t, x, 0.1, y, x, 1.4 + Math.random(), y, 0.25, 0xff6a10, 0.3, 0, 0, 0.6, 1, 1.1);
         for (let j = 0; j < 7; j++) {
           const a = Math.random() * 6.28, sp = 0.4 + Math.random() * 1.2;
-          this.glow.add(t, x, 0.2, y, Math.cos(a) * sp, 3 + Math.random() * 3, Math.sin(a) * sp, 0.55 + Math.random() * 0.25,
+          this.bits.add(t, x, 0.2, y, Math.cos(a) * sp, 3 + Math.random() * 3, Math.sin(a) * sp, 0.55 + Math.random() * 0.25,
             j % 3 === 0 ? 0xffd060 : j % 3 === 1 ? 0xff5a10 : 0x4a3a2a, 0.16, 0.08, 14, 1, 1, j % 3 === 2 ? 0.5 : 1.1);
         }
         this.dust.add(t + 0.05, x, 0.3, y, 0, 0.5, 0, 0.8, 0x8a7a5c, 0.4, 1.1, 0, 1, 0.45);
@@ -712,21 +810,21 @@ export class Effects {
         this.rings.add(t, x, 0.15, y, 0, 0, 0, 0.55, 0xeaf2ff, 0.5, r, 0, 1, 1, 1.2);
         this.rings.add(t + 0.06, x, 0.13, y, 0, 0, 0, 0.75, 0x7aa8ff, 0.4, r * 1.15, 0, 1, 1, 1);
         this.rings.add(t + 0.1, x, 0.12, y, 0, 0, 0, 0.9, 0xc8b490, 0.3, r * 1.25, 0, 1, 1, 0.6);
-        this.spheres.add(t, x, 0.2, y, 0, 0, 0, 0.35, 0x9ab8ff, r * 0.1, r * 0.45, 0, 0.5, 1, 0.7);
+        this.spheres.add(t, x, 0.2, y, 0, 0, 0, 0.35, 0x9ab8ff, r * 0.1, r * 0.45, 0, 0.5, 0.18, 1);
         for (let j = 0; j < 7; j++) {
           // Bolts crawling out over the ground from the line.
           const a = Math.random() * 6.28, len = r * (0.4 + Math.random() * 0.6);
           let px = x, pz = y;
           for (let sg = 1; sg <= 4; sg++) {
             const u = sg / 4, nx = x + Math.cos(a) * len * u + (Math.random() - 0.5) * 0.8, nz = y + Math.sin(a) * len * u + (Math.random() - 0.5) * 0.8;
-            this.streaks.add(t + j * 0.02, px, 0.3, pz, nx, 0.3, nz, 0.25, 0xffffff, 0.08, 0, 0, 1.3, 1, 1.8);
             this.streaks.add(t + j * 0.02, px, 0.3, pz, nx, 0.3, nz, 0.3, 0x6a8aff, 0.3, 0, 0, 1.3, 1, 0.7);
+            this.streaks.add(t + j * 0.02, px, 0.3, pz, nx, 0.3, nz, 0.25, 0xffffff, 0.08, 0, 0, 1.3, 1, 1.8);
             px = nx; pz = nz;
           }
         }
         for (let j = 0; j < 20; j++) {
           const a = Math.random() * 6.28, sp = 3 + Math.random() * 6;
-          this.glow.add(t, x, 0.4, y, Math.cos(a) * sp, 2 + Math.random() * 4, Math.sin(a) * sp, 0.4 + Math.random() * 0.3,
+          this.bits.add(t, x, 0.4, y, Math.cos(a) * sp, 2 + Math.random() * 4, Math.sin(a) * sp, 0.4 + Math.random() * 0.3,
             j % 3 ? 0x5a4a34 : 0xd8e4ff, 0.2, 0.08, 14, 1, 1, j % 3 ? 0.5 : 1.3);
         }
         for (let j = 0; j < 10; j++) {
@@ -739,14 +837,14 @@ export class Effects {
       case BlastKind.Bleed: {
         // Blood loss: a crimson burst straight up out of the creep, a spray falling round it
         // and a pool where it lands.
-        this.spheres.add(t, x, 0.8, y, 0, 0, 0, 0.25, 0xff1a2a, 0.3, 1.1, 0, 0.8, 1, 1.2);
-        this.streaks.add(t, x, 0.3, y, x, 2.6, y, 0.3, 0xff2a3a, 0.35, 0, 0, 0.5, 1, 1.2);
-        this.rings.add(t, x, 0.12, y, 0, 0, 0, 0.4, 0xc0101c, 0.2, 1.3, 0, 1, 1, 1);
+        this.spheres.add(t, x, 0.8, y, 0, 0, 0, 0.22, 0x8a2a1a, 0.3, 0.8, 0, 0.8, 0.7, 1);
+        this.streaks.add(t, x, 0.3, y, x, 2.2, y, 0.3, 0x8a2a1a, 0.12, 0, 0, 0.5);
+        this.rings.add(t, x, 0.12, y, 0, 0, 0, 0.4, 0x6a1a12, 0.2, 1.3, 0, 1, 0.6);
         for (let j = 0; j < 18; j++) {
           const a = Math.random() * 6.28, sp = 0.6 + Math.random() * 2;
-          this.glow.add(t, x, 1, y, Math.cos(a) * sp, 3 + Math.random() * 4, Math.sin(a) * sp, 0.6 + Math.random() * 0.3, j % 3 ? 0xa00c18 : 0xff3040, 0.18, 0.08, 14, 1, 1, 1);
+          this.bits.add(t, x, 1, y, Math.cos(a) * sp, 3 + Math.random() * 4, Math.sin(a) * sp, 0.6 + Math.random() * 0.3, j % 3 ? 0x5a1410 : 0x8a2a1a, 0.09, 0.06, 14);
         }
-        this.decals.add(t + 0.3, x, 0.068, y, 0, 0, 0, 20, 0x5a0610, 0.5, 0.9, 0, 1, 0.8);
+        this.decals.add(t + 0.3, x, 0.068, y, 0, 0, 0, 20, 0x4a1410, 0.5, 0.9, 0, 1, 0.9);
         return;
       }
       case BlastKind.Crit: {
@@ -771,11 +869,11 @@ export class Effects {
         this.glow.add(t, x, 0.8, y, 0, 0, 0, 0.18, 0xfff8e0, r * 2.2, r, 0, 1, 1, 1.4);
         this.rings.add(t, x, 0.14, y, 0, 0, 0, 0.5, 0xfff0d0, 0.4, r * 1.4, 0, 1, 1, 1.5);
         this.rings.add(t + 0.08, x, 0.12, y, 0, 0, 0, 0.7, 0xc8b490, 0.3, r * 1.9, 0, 1, 1, 0.8);
-        this.spheres.add(t, x, 0.1, y, 0, 0, 0, 0.35, 0xe8dcc0, r * 0.2, r * 0.9, 0, 0.5, 1, 0.6);
+        this.spheres.add(t, x, 0.1, y, 0, 0, 0, 0.35, 0xe8dcc0, r * 0.2, r * 0.9, 0, 0.5, 0.18, 1);
         this.decals.add(t, x, 0.067, y, 0, 0, 0, 16, 0x1e1812, r * 0.6, r * 0.75, 0, 1, 0.8);
         for (let j = 0; j < 24; j++) {
           const a = Math.random() * 6.28, sp = 2 + Math.random() * 5;
-          this.glow.add(t, x + Math.cos(a) * 0.4, 0.3, y + Math.sin(a) * 0.4, Math.cos(a) * sp, 4 + Math.random() * 5, Math.sin(a) * sp,
+          this.bits.add(t, x + Math.cos(a) * 0.4, 0.3, y + Math.sin(a) * 0.4, Math.cos(a) * sp, 4 + Math.random() * 5, Math.sin(a) * sp,
             0.6 + Math.random() * 0.3, j % 3 ? 0x5a4a34 : 0x9a8a6a, 0.2, 0.14, 16, 1, 1, 0.5);
         }
         for (let j = 0; j < 12; j++) {
@@ -786,7 +884,7 @@ export class Effects {
       }
       case BlastKind.Frost:
         this.rings.add(t, x, 0.12, y, 0, 0, 0, 0.6, 0x7fdcff, r * 0.2, r, 0, 1, 1, 1.2);
-        this.spheres.add(t, x, 0.05, y, 0, 0, 0, 0.5, 0x2a6a90, r * 0.3, r, 0, 0.3);
+        this.spheres.add(t, x, 0.05, y, 0, 0, 0, 0.5, 0x2a6a90, r * 0.3, r, 0, 0.3, 0.2);
         for (let j = 0; j < 8; j++) { const a = Math.random() * 6.28; this.glow.add(t, x + Math.cos(a) * r * 0.5, 0.4, y + Math.sin(a) * r * 0.5, Math.cos(a) * r, 0.5, Math.sin(a) * r, 0.5, 0xcff4ff, 0.3, 0.05); }
         return;
       case BlastKind.Tesla:
@@ -795,14 +893,14 @@ export class Effects {
         return;
       case BlastKind.Concussion:
         this.rings.add(t, x, 0.15, y, 0, 0, 0, 0.45, 0xffe6b0, r * 0.3, r * 1.1, 0, 1, 1, 1.3);
-        this.spheres.add(t, x, 0.1, y, 0, 0, 0, 0.35, 0x8a7a5a, r * 0.2, r, 0, 0.35);
+        this.spheres.add(t, x, 0.1, y, 0, 0, 0, 0.35, 0x8a7a5a, r * 0.2, r, 0, 0.35, 0.2);
         for (let j = 0; j < 6; j++) this.smoke.add(t, x + (Math.random() - 0.5) * r, 0.3, y + (Math.random() - 0.5) * r, (Math.random() - 0.5), 0.6, (Math.random() - 0.5), 1.1, 0xb8a888, 0.8, 1.8, 0, 1, 0.45);
         return;
       case BlastKind.Loot: {
         // A glint of found loot: a quick flare and sparks rising, gold for a rare find.
         const rare = r >= 1;
         const hex = rare ? 0xffc830 : 0xfff2c0;
-        this.glow.add(t, x, 0.9, y, 0, 0, 0, 0.3, hex, rare ? 2.2 : 1.3, 0.2, 0, 1, 1, rare ? 1.4 : 1);
+        this.stars.add(t, x, 0.9, y, 0, 0.6, 0, 0.3, hex, rare ? 1.2 : 0.8, 0.2, 0, 1, 1, 1.2);
         this.rings.add(t, x, 0.1, y, 0, 0, 0, 0.5, hex, 0.3, rare ? 1.4 : 1, 0, 1, 1, 1);
         for (let j = 0; j < (rare ? 22 : 10); j++) {
           const a = Math.random() * 6.28, s = 0.6 + Math.random() * (rare ? 2.2 : 1.2);
@@ -814,7 +912,7 @@ export class Effects {
       case BlastKind.Ambush:
         // A nest wakes: dust kicked up and a dark puff from inside the ruin.
         this.rings.add(t, x, 0.12, y, 0, 0, 0, 0.6, 0x8a2a1a, 0.4, 2.6, 0, 1, 1, 0.9);
-        this.spheres.add(t, x, 0.1, y, 0, 0, 0, 0.5, 0x3a1a12, 0.4, 1.6, 0, 0.5, 1, 0.7);
+        this.spheres.add(t, x, 0.1, y, 0, 0, 0, 0.5, 0x3a1a12, 0.4, 1.6, 0, 0.5, 0.25, 1);
         for (let j = 0; j < 10; j++) {
           const a = Math.random() * 6.28, s = 0.5 + Math.random() * 1.2;
           this.smoke.add(t + Math.random() * 0.2, x + Math.cos(a) * 0.6, 0.4, y + Math.sin(a) * 0.6, Math.cos(a) * s, 0.5 + Math.random() * 0.6, Math.sin(a) * s,
@@ -825,7 +923,7 @@ export class Effects {
         // A shout: two shockwave rings out to the pull radius, dust kicked up along the way.
         this.rings.add(t, x, 0.14, y, 0, 0, 0, 0.55, 0xff7a30, 0.6, r, 0, 1, 1, 1.2);
         this.rings.add(t + 0.12, x, 0.14, y, 0, 0, 0, 0.55, 0xffc060, 0.4, r * 0.8, 0, 1, 1, 0.8);
-        this.spheres.add(t, x, 0.9, y, 0, 0, 0, 0.3, 0xffa050, 0.3, 1.6, 0, 0.5, 1, 0.6);
+        this.spheres.add(t, x, 0.9, y, 0, 0, 0, 0.3, 0xffa050, 0.3, 1.6, 0, 0.5, 0.12, 1);
         for (let j = 0; j < 14; j++) {
           const a = j / 14 * 6.28 + Math.random() * 0.3, s = r * (1.4 + Math.random() * 0.4);
           this.smoke.add(t + Math.random() * 0.1, x + Math.cos(a) * 0.8, 0.3, y + Math.sin(a) * 0.8, Math.cos(a) * s, 0.4, Math.sin(a) * s,
@@ -836,7 +934,7 @@ export class Effects {
       case BlastKind.Bile: {
         // A sac of bile bursting, or a broodmother splitting open: a green splash thrown wide
         // and a sour cloud.
-        this.spheres.add(t, x, 0.3, y, 0, 0, 0, 0.35, 0x8ac030, r * 0.2, r * 0.8, 0, 0.6, 1, 0.8);
+        this.spheres.add(t, x, 0.3, y, 0, 0, 0, 0.35, 0x8a9a30, r * 0.2, r * 0.8, 0, 0.6, 0.45, 1);
         this.rings.add(t, x, 0.12, y, 0, 0, 0, 0.5, 0xa8e040, r * 0.3, r * 1.1, 0, 1, 1, 1);
         for (let j = 0; j < 18; j++) {
           const a = Math.random() * 6.28, s = 1 + Math.random() * r * 1.4;
@@ -850,7 +948,7 @@ export class Effects {
         // dome down into the ground all round.
         this.rings.add(t, x, 0.2, y, 0, 0, 0, 0.9, 0xc8a0ff, 1, r, 0, 1, 1, 1.6);
         this.rings.add(t + 0.1, x, 0.2, y, 0, 0, 0, 0.8, 0xffffff, 0.8, r * 0.85, 0, 0.8, 1, 0.9);
-        this.spheres.add(t, x, 1.5, y, 0, 0, 0, 0.5, 0xb080ff, 1, 4, 0, 0.6, 1, 0.8);
+        this.spheres.add(t, x, 1.5, y, 0, 0, 0, 0.5, 0xb080ff, 1, 4, 0, 0.6, 0.15, 1);
         for (let j = 0; j < 40; j++) {
           const a = Math.random() * 6.28, s = r * (0.3 + Math.random() * 0.7);
           this.glow.add(t + Math.random() * 0.3, x + Math.cos(a) * s, 0.4, y + Math.sin(a) * s, 0, 3 + Math.random() * 3, 0,
@@ -888,7 +986,7 @@ export class Effects {
           this.rings.add(t + j * 0.9, x, 0.2, y, 0, 0, 0, 2.6, 0xe0b050, 0.5, r, 0, 0.9, 1, 1.4);
           this.rings.add(t + j * 0.9 + 0.08, x, 0.2, y, 0, 0, 0, 2.2, 0xfff0c0, 0.4, r * 0.7, 0, 0.6, 1, 0.8);
         }
-        this.spheres.add(t, x, 1.2, y, 0, 0, 0, 0.6, 0xffd070, 0.4, 2.5, 0, 0.5, 1, 0.6);
+        this.spheres.add(t, x, 1.2, y, 0, 0, 0, 0.6, 0xffd070, 0.4, 2.5, 0, 0.5, 0.12, 1);
         return;
       }
       case BlastKind.Lightning: {
@@ -898,8 +996,8 @@ export class Effects {
         for (let sgt = 1; sgt <= n; sgt++) {
           const u = sgt / n, j = sgt === n ? 0 : 1.4 * (1 - u * 0.6);
           const nx = px + (x - px) / (n - sgt + 1) + (Math.random() - 0.5) * j, ny = py - (py - 0.2) / (n - sgt + 1), nz = pz + (y - pz) / (n - sgt + 1) + (Math.random() - 0.5) * j;
-          this.streaks.add(t, px, py, pz, nx, ny, nz, 0.3, 0xffffff, 0.16, 0, 0, 1.3, 1, 2);
           this.streaks.add(t, px, py, pz, nx, ny, nz, 0.35, 0x8aa8ff, 0.7, 0, 0, 1.3, 1, 0.7);
+          this.streaks.add(t, px, py, pz, nx, ny, nz, 0.3, 0xffffff, 0.16, 0, 0, 1.3, 1, 2);
           if (sgt > 2 && sgt < n - 1 && Math.random() < 0.3) {
             const bx = nx + (Math.random() - 0.5) * 6, by = ny - 3 - Math.random() * 4, bz = nz + (Math.random() - 0.5) * 6;
             this.streaks.add(t, nx, ny, nz, bx, by, bz, 0.25, 0xd8e0ff, 0.08, 0, 0, 1.3, 1, 1.4);
@@ -937,20 +1035,33 @@ export class Effects {
         }
         return;
       default: {
+        // An explosion: a flash, chunky tongues of fire boiling up and going to embers, black
+        // smoke rolling up after them, earth and debris thrown out and falling back, dust
+        // rolling out along the ground and a scorch left behind.
         const big = kind === BlastKind.Airstrike;
-        this.spheres.add(t, x, 0.2, y, 0, 0, 0, big ? 0.6 : 0.42, 0xff8a20, r * 0.25, r, 0, 0.8, 1, 0.9);
-        this.spheres.add(t, x, 0.3, y, 0, 0, 0, big ? 0.35 : 0.25, 0xfff0a0, r * 0.15, r * 0.6, 0, 0.9, 1, 0.8);
-        this.rings.add(t, x, 0.12, y, 0, 0, 0, 0.4, 0xffb060, r * 0.4, r * 1.25, 0, 1, 1, 1.0);
-        this.glow.add(t, x, 1.2, y, 0, 0, 0, 0.14, 0xffe0a0, r * 2.4, r * 1.2);
-        const ns = big ? 16 : 9;
-        for (let j = 0; j < ns; j++) {
-          const a = Math.random() * 6.28, s = 3 + Math.random() * 5;
-          this.glow.add(t, x, 0.4, y, Math.cos(a) * s, 3 + Math.random() * 5, Math.sin(a) * s, 0.5 + Math.random() * 0.3, j % 3 ? 0xffa030 : 0xffe080, 0.22, 0.05, 14);
+        this.spheres.add(t, x, 0.3, y, 0, 0, 0, big ? 0.3 : 0.22, 0xf0a040, r * 0.3, r * 0.75, 0, 0.75, 1, 1.1);
+        this.stars.add(t, x, 0.9, y, 0, 0, 0, 0.06, 0xffe8b0, r * 1.4, r * 0.8, 0, 1, 1, 1.2);
+        const nf = big ? 14 : 8;
+        for (let j = 0; j < nf; j++) {
+          const a = Math.random() * 6.28, d = Math.random() * r * 0.6;
+          this.glow.add(t + Math.random() * 0.08, x + Math.cos(a) * d, 0.3 + Math.random() * 0.4, y + Math.sin(a) * d, Math.cos(a) * 0.6, 1.2 + Math.random() * 1.2, Math.sin(a) * 0.6,
+            0.4 + Math.random() * 0.35, j % 3 ? 0xe0782a : 0xf0b048, r * (0.35 + Math.random() * 0.25), r * 0.12, -1.5);
         }
-        for (let j = 0; j < (big ? 6 : 3); j++) {
-          this.smoke.add(t + 0.1, x + (Math.random() - 0.5) * r * 0.6, 0.6, y + (Math.random() - 0.5) * r * 0.6, (Math.random() - 0.5) * 0.6, 1.2, (Math.random() - 0.5) * 0.6, 1.6 + Math.random(), big ? 0x2a2622 : 0x4a4440, r * 0.5, r * 1.3, 0, 1, 0.55);
+        for (let j = 0; j < (big ? 7 : 4); j++) {
+          this.smoke.add(t + 0.12 + j * 0.05, x + (Math.random() - 0.5) * r * 0.6, 0.6, y + (Math.random() - 0.5) * r * 0.6, (Math.random() - 0.5) * 0.6, 1.1 + Math.random() * 0.5, (Math.random() - 0.5) * 0.6,
+            1.6 + Math.random(), j % 2 ? 0x2a2620 : 0x3a342c, r * 0.4, r * 1.1, 0, 1, 0.8);
         }
-        this.decals.add(t, x, 0.065, y, 0, 0, 0, 14, 0x1e1a16, r * 0.8, r * 0.8, 0, 1, 0.75);
+        const nb = big ? 16 : 9;
+        for (let j = 0; j < nb; j++) {
+          const a = Math.random() * 6.28, sp = 2.5 + Math.random() * 4;
+          this.bits.add(t, x, 0.4, y, Math.cos(a) * sp, 3 + Math.random() * 4, Math.sin(a) * sp, 0.55 + Math.random() * 0.3,
+            j % 3 === 0 ? 0xe0902a : j % 3 === 1 ? 0x4a3a28 : 0x2e2620, j % 3 === 0 ? 0.07 : 0.12, 0.08, 14);
+        }
+        for (let j = 0; j < 8; j++) {
+          const a = j / 8 * 6.28;
+          this.dust.add(t + 0.04, x + Math.cos(a) * r * 0.4, 0.25, y + Math.sin(a) * r * 0.4, Math.cos(a) * 3, 0.4, Math.sin(a) * 3, 0.9, 0x8a7a5c, r * 0.3, r * 0.8, 0, 1, 0.55);
+        }
+        this.decals.add(t, x, 0.065, y, 0, 0, 0, 14, 0x221c14, r * 0.8, r * 0.9, 0, 1, 0.9);
       }
     }
   }
@@ -1127,7 +1238,7 @@ export class Effects {
     const done = (m: THREE.InstancedMesh, n: number) => { m.count = n; if (n) m.instanceMatrix.needsUpdate = true; };
     done(this.lasting, nr); done(this.lastingFire, nf); done(this.grenades, ng); done(this.acid, na); done(this.sacs, ns);
     done(this.trench, nk); done(this.crack, nk);
-    for (const p of [this.glow, this.smoke, this.streaks, this.spheres, this.rings, this.decals, this.stars, this.dust, this.jets]) p.flush(t);
+    for (const p of [this.glow, this.smoke, this.streaks, this.spheres, this.rings, this.decals, this.stars, this.dust, this.bits]) p.flush(t);
   }
 
   // A team ping: three rings rippling out wide, brighter than a command ping, so it reads
