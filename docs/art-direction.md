@@ -119,27 +119,35 @@ hold beside it; `&fig=N` looks at one of them, `#lab=hN&still&plain&nohud&arch=A
 survivor archetype at rest and `#lab=kN&still&plain&nohud` at any creep kind, `&yaw=` from
 the side and the back.
 
-## Survivors
+## The ground and what grows on it
 
-A survivor is a real person, 1.8 m tall and seven heads high, with shoulders two heads wide and
-hands and boots a little large so they read at game zoom. The head is drawn 1.08 times true
-size about the neck, for the face's sake. The body is built in metres in `figure()`
-(`web/src/scene/heroes.ts`) from many small tapered boxes hung on the same joints the poses
-use, so every animation and hold still fits it; `K` turns metres into the group's units.
+`web/src/scene/terrain.ts`; the lab's `&plain` stage (`stage.ts`) is the same open ground.
 
-- **Archetypes** (`web/src/scene/look.ts`) are the picture's people: the paramedic (collar shirt,
-  cap with a cross, medic belt, daypack, knee pads), the mechanic (white tee under overalls,
-  tool belt), the hunter (jacket over plaid, beanie, rucksack, scarf), the student (hoodie,
-  beanie, a big yellow pack), then the builder (hi-vis vest, hard hat), the nurse (scrubs,
-  scrub cap, stethoscope), the biker (leather vest, bandana, chain), the farmer (denim
-  overalls, straw hat, wellies), the ex-soldier (plate carrier, helmet, assault pack, cargo
-  trousers) and the office worker (shirt, tie, satchel).
-- **Detail** is in many parts rather than texture: collars, rolled sleeves, belts with
-  buckles, pockets, straps, boot soles, a brow shadow and a nose, eyes no bigger than a pixel.
-  Every colour is muted from `PAL`; the player's colour stays on the main garment through
-  `garment()`.
-- **Held weapons** are at true size, in wood and steel with a sling or magazine where the real
-  thing has one (`gunParts`). The held AWM is 1.2 m long.
-- **Budget**: at most 2500 triangles per survivor with the held weapon; they come to about
-  1500-2200.
-- **Portraits** use the same figure from the chest up, with the face placed from `FACE`.
+- **One painted surface, no grid.** The ground mesh carries heights only; its colour is made in
+  the shader from world position, so it stays put as the camera moves and turns. Four layers
+  of one tiling noise texture (one fetch each): zones of about 14 m (greener, rustier, damper),
+  patches of about 2 m, dabs of about 12 cm and flecks of 5 cm. Each dab is cut to one flat
+  colour from the palette's ground values (`#4c4224` `#5a4e29` `#63552c` `#6d5c30`), with
+  olive-green, rust and damp dabs over them, a pixel of green blade or pebble here and there
+  (default).
+- **Kinds of ground** come from a texture of the tiles (road, the base's yard, dry ground, damp
+  forest floor and lake shore), read through a warp of about a metre and cut with dab noise, so
+  the border between grass and road wanders and breaks into dabs instead of following tiles.
+  Roads are trodden brown dirt with stones; dry ground paler ochre; the forest floor darker;
+  shores mud.
+- **The base's yard** is old concrete in warm greys (`#5e5643` to `#7d725a`), stained, with
+  short cracks and dirt drifted over it in patches: the yard of a camp, not a floor of tiles.
+  House floors take the same.
+- **Trees** stand on tree tiles, sized against the survivors: dry pines about 2.6 to 3.6 m
+  (tiers of drooping boughs, darker below, some thinning with dead stubs), broadleaves about
+  2.4 to 3.3 m (a forked trunk under eleven lumps of olive), and a few dead grey ones. Crowns
+  are muted olive (`#363b23` to `#606533`), each tree tinted a little greener or drier. They
+  cast the sun's shadow.
+- **On open ground**: knee-high bushes, grass tufts of five blades (green in grass, straw on
+  dry ground), stones, and near woods fallen logs and stumps with pale cut ends. Bushes, logs
+  and stumps cast shadows; tufts and stones are too small to be worth the shadow pass.
+- **Ruined walls** keep their styles, their colours passed through `mute` so no paint is
+  brighter than old cloth. Water is murky olive (`#29322a`, `#3b4838`) with a dull sheen.
+- **Cost**: props are instanced and culled by block as before. Triangles rose about a fifth at
+  the default zoom and nearly doubled zoomed right out (bigger trees with real tiers, and many
+  more tufts); the ground's shader is a handful of texture fetches.
