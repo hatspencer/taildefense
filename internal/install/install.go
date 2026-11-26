@@ -19,11 +19,13 @@ import (
 // DefaultBranch is what an install follows when no branch is recorded.
 const DefaultBranch = "main"
 
-// The updater tells the new binary's installer which commit and branch it cloned. Environment
-// rather than flags, so the installer needs no knowledge of how it was reached.
+// The updater tells the new binary's installer which commit and branch it cloned, and the
+// commit the install is pinned to. Environment rather than flags, so the installer needs no
+// knowledge of how it was reached.
 const (
 	EnvInstallVersion = "TAILDEFENSE_INSTALL_VERSION"
 	EnvInstallBranch  = "TAILDEFENSE_INSTALL_BRANCH"
+	EnvInstallPin     = "TAILDEFENSE_INSTALL_PIN"
 	EnvRepo           = "TAILDEFENSE_REPO"
 )
 
@@ -49,6 +51,7 @@ func (p *Paths) BinaryPath() string  { return filepath.Join(p.Prefix, Binary) }
 func (p *Paths) SymlinkPath() string { return filepath.Join(p.BinDir, Binary) }
 func (p *Paths) RepoFile() string    { return filepath.Join(p.Prefix, ".repo") }
 func (p *Paths) BranchFile() string  { return filepath.Join(p.Prefix, ".branch") }
+func (p *Paths) PinFile() string     { return filepath.Join(p.Prefix, ".pin") }
 func (p *Paths) SumFile() string     { return filepath.Join(p.Prefix, ".sha256") }
 func (p *Paths) VersionFile() string { return filepath.Join(p.Prefix, version.RecordFile) }
 
@@ -78,6 +81,49 @@ func (p *Paths) RecordBranch(name string) error {
 		return fmt.Errorf("refusing to record %q as a branch", name)
 	}
 	return os.WriteFile(p.BranchFile(), []byte(name+"\n"), 0o644)
+}
+
+// Pin is the commit of main the install is pinned to, as a full hash, or "" when it is not
+// pinned. A pinned install stays on that commit: neither the launcher nor a plain td update
+// moves it.
+func (p *Paths) Pin() string {
+	b, err := os.ReadFile(p.PinFile())
+	if err != nil {
+		return ""
+	}
+	hash := strings.ToLower(strings.TrimSpace(string(b)))
+	if !IsCommitHash(hash) {
+		return ""
+	}
+	return hash
+}
+
+// RecordPin pins the install to a commit; empty forgets the pin.
+func (p *Paths) RecordPin(hash string) error {
+	hash = strings.ToLower(strings.TrimSpace(hash))
+	if hash == "" {
+		if err := os.Remove(p.PinFile()); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+	}
+	if !IsCommitHash(hash) {
+		return fmt.Errorf("refusing to record %q as a commit", hash)
+	}
+	return os.WriteFile(p.PinFile(), []byte(hash+"\n"), 0o644)
+}
+
+// IsCommitHash reports whether s is a commit hash, full or abbreviated: 7 to 40 hex digits.
+func IsCommitHash(s string) bool {
+	if len(s) < 7 || len(s) > 40 {
+		return false
+	}
+	for _, r := range s {
+		if !strings.ContainsRune("0123456789abcdefABCDEF", r) {
+			return false
+		}
+	}
+	return true
 }
 
 // SourceName names a branch for display: the branch, or main.
