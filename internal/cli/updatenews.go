@@ -62,10 +62,7 @@ func readNews(dir, installed, to string) updateNews {
 	n := updateNews{From: baseCommit(installed), To: to}
 	git := func(args ...string) (string, error) {
 		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
-		cmd.Env = append(os.Environ(),
-			"GIT_TERMINAL_PROMPT=0",
-			"GIT_SSH_COMMAND=ssh -oBatchMode=yes -oStrictHostKeyChecking=accept-new",
-		)
+		cmd.Env = gitEnv()
 		out, err := cmd.Output()
 		return string(out), err
 	}
