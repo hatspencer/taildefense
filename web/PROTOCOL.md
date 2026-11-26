@@ -16,8 +16,14 @@ a short buffer of them) is the client's business.
 ## Connecting
 
 The page is opened as `http://127.0.0.1:PORT/#TOKEN`. The client connects to
-`ws://127.0.0.1:PORT/ws?token=TOKEN` (same host and port as the page). A wrong token or a
-foreign `Origin` is refused. One browser tab at a time: a new connection replaces the old
+`ws://127.0.0.1:PORT/ws?token=TOKEN` (same host and port as the page). A foreign `Origin` is
+refused with HTTP 403 before the handshake. A wrong or missing token (a tab left open from an
+earlier td, a link from another game) gets the handshake and then only a close frame with code
+1008 and a reason starting `refused by td`; nothing else is sent on that socket, nothing it
+sends is read, and it never replaces the tab that is playing. A refused handshake would reach
+the page as 1006, the same as td being away for a moment, which the page retries; on 1008 it
+stops and says the link no longer opens a game. The page counts itself connected only once td
+has sent its first message. One browser tab at a time: a new connection replaces the old
 one, which receives `{"t":"end","reason":"opened in another tab"}`.
 
 When a game ends the page draws the field report as a PNG and POSTs it to

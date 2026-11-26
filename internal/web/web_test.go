@@ -119,8 +119,10 @@ func TestTheBrowserPlaysThroughTheBridge(t *testing.T) {
 	addr, token, _ := strings.Cut(addr, "/#")
 	origin := "http://" + addr
 
-	if _, code := dialWS(t, addr, "/ws?token=nope", origin); code != http.StatusForbidden {
+	if stale, code := dialWS(t, addr, "/ws?token=nope", origin); code != http.StatusSwitchingProtocols {
 		t.Errorf("a wrong token got %d", code)
+	} else if op, p, _ := stale.recv(); op != opClose || len(p) < 2 || binary.BigEndian.Uint16(p) != 1008 {
+		t.Errorf("a wrong token got op %d %q, want a 1008 close", op, p)
 	}
 	if _, code := dialWS(t, addr, "/ws?token="+token, "https://evil.example"); code != http.StatusForbidden {
 		t.Errorf("a foreign origin got %d", code)
@@ -312,6 +314,55 @@ func TestMusicIsServedAsAudio(t *testing.T) {
 	}
 	if got := mime.TypeByExtension(".woff2"); got != "font/woff2" {
 		t.Errorf(".woff2 is %q, want font/woff2", got)
+	}
+}
+
+// A page with a wrong or missing token (an old tab after td restarted, a link from another
+// game) gets the handshake and then only a 1008 close, which the page takes as "this link no
+// longer opens a game" instead of retrying; the socket is never handed to the session as its
+// browser. A foreign Origin is still refused before the handshake.
+func TestAStaleLinkIsToldToStop(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := ln.Addr().String()
+	port := ln.Addr().(*net.TCPAddr).Port
+	conns, in, done := make(chan *browser, 4), make(chan inbound, 4), make(chan struct{})
+	defer close(done)
+	var l launcher
+	srv := &http.Server{Handler: handler("secret", port, conns, in, done, &l, "http://"+addr+"/#secret")}
+	go func() { _ = srv.Serve(ln) }()
+	defer srv.Close()
+	origin := "http://" + addr
+
+	for _, path := range []string{"/ws?token=nope", "/ws", "/ws?token=secre", "/ws?token=secrets"} {
+		ws, code := dialWS(t, addr, path, origin)
+		if code != http.StatusSwitchingProtocols {
+			t.Errorf("%s: %d, want the handshake", path, code)
+			continue
+		}
+		op, p, err := ws.recv()
+		if err != nil || op != opClose || len(p) < 2 || binary.BigEndian.Uint16(p) != 1008 || !strings.Contains(string(p[2:]), "refused") {
+			t.Errorf("%s: op %d %q err %v, want a 1008 close", path, op, p, err)
+		}
+		// Whatever the page sends is not taken; its close ends the socket with nothing more.
+		_ = ws.send(opText, []byte(`{"op":"move"}`))
+		_ = ws.send(opClose, binary.BigEndian.AppendUint16(nil, 1000))
+		if op, p, err := ws.recv(); err == nil {
+			t.Errorf("%s: after the close got op %d %q", path, op, p)
+		}
+		ws.c.Close()
+	}
+	if _, code := dialWS(t, addr, "/ws?token=nope", "https://evil.example"); code != http.StatusForbidden {
+		t.Errorf("a foreign origin with a wrong token got %d", code)
+	}
+	select {
+	case <-conns:
+		t.Error("a refused socket was handed to the session as its browser")
+	case m := <-in:
+		t.Errorf("a refused socket's message was taken: %q", m.msg)
+	default:
 	}
 }
 

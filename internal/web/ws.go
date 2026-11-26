@@ -38,6 +38,9 @@ type wsConn struct {
 	br *bufio.Reader
 	mu sync.Mutex // writes: the frame writer and the pong from the reader
 	bw *bufio.Writer
+	// closing is set once td has sent its close frame (refuse): from then on nothing more is
+	// sent, neither a pong nor a second close in answer to the browser's.
+	closing bool
 }
 
 func headerHas(h http.Header, key, token string) bool {
@@ -127,6 +130,9 @@ func (ws *wsConn) read() (op byte, msg []byte, err error) {
 		}
 		switch opcode {
 		case opPing:
+			if ws.closing {
+				continue
+			}
 			if err := ws.write(opPong, p); err != nil {
 				return 0, nil, err
 			}
@@ -134,7 +140,9 @@ func (ws *wsConn) read() (op byte, msg []byte, err error) {
 		case opPong:
 			continue
 		case opClose:
-			_ = ws.write(opClose, nil)
+			if !ws.closing {
+				_ = ws.write(opClose, nil)
+			}
 			return 0, nil, io.EOF
 		case opText, opBinary:
 			if first != 0 {
@@ -186,3 +194,25 @@ func (ws *wsConn) write(op byte, p []byte) error {
 }
 
 func (ws *wsConn) close() { ws.c.Close() }
+
+// refuse ends a socket that was never let in: one close frame with code and reason, then
+// anything the browser sends is thrown away until its own close frame comes back (or two
+// seconds have passed) and the connection is closed. Waiting for it keeps the close frame
+// from being lost to a reset, and the browser reports the close once td hangs up.
+func (ws *wsConn) refuse(code uint16, reason string) {
+	defer ws.close()
+	if len(reason) > 123 {
+		reason = reason[:123]
+	}
+	p := binary.BigEndian.AppendUint16(nil, code)
+	if ws.write(opClose, append(p, reason...)) != nil {
+		return
+	}
+	ws.closing = true
+	_ = ws.c.SetReadDeadline(time.Now().Add(2 * time.Second))
+	for {
+		if _, _, err := ws.read(); err != nil {
+			return
+		}
+	}
+}
