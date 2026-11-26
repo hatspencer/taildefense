@@ -66,7 +66,7 @@ The settings, the network and updates are explained in [docs/settings.md](docs/s
 ## Dependencies
 
 **To build:** podman or docker (Docker is tried first, `TAILDEFENSE_CONTAINER_ENGINE` picks).
-The toolchains come as images, `golang:1.27-alpine` and `node:26-alpine`
+The toolchains come as images, `golang:1.27-alpine` and `node:26-alpine`, pinned by digest
 (override with `TAILDEFENSE_GO_IMAGE` and `TAILDEFENSE_NODE_IMAGE`), so nothing else is installed.
 
 | side | dependencies |

@@ -3,6 +3,29 @@
 Everything builds and runs in containers through `./build.sh`; neither Go nor Node is installed
 on the host. The README lists its targets.
 
+## The build images
+
+`build.sh` names the golang and node images by tag and digest (`name:tag@sha256:…`), so a tag
+moved upstream cannot change what `td update` builds with on players' machines; the tag is only
+for readers. The digest must be the multi-arch index's, which arm64 and amd64 each pull their
+own image from, not one platform's manifest (what `podman image inspect`'s RepoDigests may show).
+To bump one, hash the tag's raw manifest and check it is an index:
+
+```sh
+skopeo inspect --raw docker://docker.io/library/golang:1.27-alpine | sha256sum
+skopeo inspect --raw docker://docker.io/library/golang:1.27-alpine | grep -o '"mediaType":"[^"]*index[^"]*"' | head -1
+# or: docker buildx imagetools inspect docker.io/library/golang:1.27-alpine (its Digest line)
+```
+
+Put `sha256:<hash>` after the tag in `IMAGE` or `NODE_IMAGE`, run `./build.sh check`, and a
+change of Go version that plays differently shows in the golden game. `TAILDEFENSE_GO_IMAGE`
+and `TAILDEFENSE_NODE_IMAGE` still take any reference to try one first.
+
+The containers see the checkout read-write but its `.git` read-only (the commit is stamped on
+the host), and `npm ci` runs no install scripts. Only the Go container mounts the compiler cache
+and the host's Go module cache, the latter writable because a cold cache is filled there; the
+Node container gets a home of its own, `.gocache/node`, for npm's cache.
+
 ## Playtests
 
 `internal/playtest` plays whole games with nobody at the keys. Bots (`netplay.Bot`, the same ones
