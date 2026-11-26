@@ -60,7 +60,7 @@ Browser                   local td (web.Session)               host td (netplay.
   any time, as a NAT that remaps a phone's hotspot mid-game needs. With no UDP at all frames
   stay on TCP. F3's `arrv` line says which, and why.
 - **What a peer may cost the host is bounded**, every limit far above honest play, so no player,
-  probe, bot or test meets one (`internal/netplay/server.go`):
+  probe, bot or test meets one (`internal/netplay/server.go`, `udphost.go`):
   - Before the hello: at most 128 connections in their handshake, 8 from one address
     (loopback counts only to the total), a connection over either closed at once; the hello
     within 5 s and at most 4 KB (a real one is about 100 bytes), the rest of the handshake
@@ -77,6 +77,8 @@ Browser                   local td (web.Session)               host td (netplay.
     the flooding connection slows.
   - Chat: 5 lines at once, then one a second; a line past that is not sent, and the sender
     gets a toast saying so.
+  - UDP: a hello within 100 ms of the last with its token is dropped before the tick loop
+    (the client's are 200 ms apart), and a port move is logged at most once a second.
 - **Every command is acked.** The local `td` numbers the commands it relays; after a tick the host
   tells each player the last one it applied, so the page can tell which of its orders a frame
   already shows, the base a prediction needs. F3 shows the link: the round trip, command to ack,
