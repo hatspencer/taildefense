@@ -15,10 +15,9 @@ import { box, sphere } from '../util';
 // height across, rig.ts farParts) at most 250; so the small things (hands, hems, the belt, the
 // face) are each kept under that tenth, 0.13, and drop out far away.
 
-// The world units per model unit that stand these beside the survivors at their height: the
-// survivors' own scale (heroes.ts scales each survivor's group by 1.15), and as much again as
-// a survivor, 1.4 to the top of the hair, is taller than these are built (1.33).
-const SURVIVOR = 1.15 * 1.4 / 1.33;
+// The world units per model unit that stand these beside the survivors at their height: a
+// survivor is 1.8 tall in the world (heroes.ts builds one in metres), these are built 1.33.
+const SURVIVOR = 1.8 / 1.33;
 
 type P3 = [number, number, number];
 type V4 = [number, number, number, number];

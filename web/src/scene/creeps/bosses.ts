@@ -15,9 +15,9 @@ import { rig, type CreepRig } from '../creepModels';
 // lump or two) and everything else stays under that size, a long thin thing (a vein, a strap,
 // a limb that is not part of the silhouette) made of short pieces.
 //
-// A metre in world units: a survivor stands about 1.59 tall in the world (heroes.ts, about
-// 1.38 model units at 1.15), and that is 1.8 m.
-const M = 1.59 / 1.8;
+// A metre in world units: a survivor stands 1.8 tall in the world (heroes.ts builds one in
+// metres).
+const M = 1;
 
 // Dead skin, from the picture: ashen, grey-green, the dark of the shaded side, blotched red.
 const ASH = PAL.deadSkin, GREEN = PAL.deadSkinGreen, DUSK = PAL.deadSkinDark, PALE = PAL.deadSkinPale;
