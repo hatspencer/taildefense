@@ -1,6 +1,6 @@
 import {
   Art, ART_TIME, BlastKind, CROWBAR, EffectKind, FISSURE_EVERY, GREAT, OWNED_BREAKER, OWNED_TEMPERED, TRACER_HELI, TRACER_SPLIT, TRACER_HOMERUN, TRACER_HOMERUN_ROUND, K_TESLA, KATANA, OWNED_DUAL, OWNED_DUAL_KATANA, TRACER_FLASH, TRACER_FOLLOW, TRACER_GREAT,
-  TRACER_KATANA, TRACER_MOON, THROW_FLIGHT, K_SNIPER, TURRET_TRACKS, TRACER_ARC, TRACER_NAPALM, CX_AIR, CX_HELD, K_BAIT, K_CATAPULT, CF_ASLEEP, CF_BURNING, CF_GUARD, CF_STRIKE, CF_WINDUP, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_FIRING, PF_HURT, PF_MOVING, PF_RELOADING, Player, RIFLE,
+  TRACER_KATANA, TRACER_MOON, THROW_FLIGHT, K_SNIPER, TURRET_TRACKS, TRACER_ARC, TRACER_NAPALM, CX_AIR, CX_HELD, K_BAIT, K_CATAPULT, K_ARMORY, K_CANNON, K_CORE, K_FROST, K_GATE, K_GUN, K_MISSILE, K_PYLON, K_WALL, CF_ASLEEP, CF_BURNING, CF_GUARD, CF_STRIKE, CF_WINDUP, Emote, Order, PF_ALIVE, PF_CONNECTED, PF_FIRING, PF_HURT, PF_MOVING, PF_RELOADING, Player, RIFLE,
 } from './protocol';
 import type { Game } from './state';
 
@@ -121,6 +121,12 @@ export class Lab {
     if (at === 'sniper') { const s = this.dressSniper(); if (s) return [s[0], s[1] - 3.5]; }
     if (at === 'awm') return this.spot(19);
     if (at === 'huey') return [this.fx() + 22, this.y0 - 2]; // north of it, as the Huey is up in the air
+    if (at === 'structs') {
+      // &fig=0..6 a turret, 7 the walls, 8 the generator, 9 the armory.
+      const sx = Math.floor(this.x0), sy = Math.floor(this.y0) - 18, i = this.fig;
+      this.structs();
+      return i < 0 ? [sx + 11, sy + 3] : i < 7 ? [sx + i * 2 + 0.5, sy + 0.5] : ([[sx + 4.5, sy + 5], [sx + 16.5, sy + 1.5], [sx + 21.5, sy + 4.5]] as [number, number][])[i - 7];
+    }
     if (at === 'traps') { const [bx, by] = this.trapsAt(); return [bx + 7, by]; }
     if (/^h\d+$/.test(at)) return this.spot(Number(at.slice(1)));
     if (at === 'crowbar') { const [x, y] = this.spot(16); return [x + 1.7, y]; }
@@ -428,6 +434,28 @@ export class Lab {
       }
       blast(pts[pts.length - 1][0], pts[pts.length - 1][1], 0.8, BlastKind.Tesla);
     }
+  }
+
+  // #lab=structs: one of each building in a line-up north of the bench, turrets with some
+  // tracks bought, a run of wall with a corner, a shut gate and an open one, the generator
+  // and the armory; &hp=0..1 their health, &tier=1..3 the generator's tier.
+  private structsUp = false;
+  private structs(): void {
+    if (this.structsUp) return;
+    this.structsUp = true;
+    const g = this.game, f = g.cur, P = new URLSearchParams(location.hash.slice(1)), sx = Math.floor(this.x0), sy = Math.floor(this.y0) - 18;
+    const add = (k: number, x: number, y: number, w = 1, open = 0) => {
+      const s = f.nStructs++;
+      f.sAlive[s] = 1; f.sGhost[s] = 0; f.sKind[s] = k; f.sX[s] = x; f.sY[s] = y; f.sW[s] = w; f.sH[s] = w; f.sMaxHp[s] = 1000; f.sHp[s] = 1000 * Number(P.get('hp') ?? 1);
+      f.sLevel[s] = 1; f.sOwner[s] = s % 3; f.sOpen[s] = open; f.sEvo[s] = 0; f.sTrap[s] = 0; f.sFacing[s] = 0;
+      for (let t = 0; t < TURRET_TRACKS; t++) f.sLv[s * TURRET_TRACKS + t] = (s + t) % 4;
+    };
+    [K_GUN, K_CANNON, K_FROST, K_TESLA, K_SNIPER, K_MISSILE, K_PYLON].forEach((k, i) => add(k, sx + i * 2, sy));
+    for (let i = 0; i < 9; i++) add(i === 3 || i === 6 ? K_GATE : K_WALL, sx + i, sy + 4, 1, i === 6 ? 1 : 0);
+    for (let j = 1; j < 3; j++) add(K_WALL, sx + 8, sy + 4 + j);
+    add(K_CORE, sx + 14, sy - 1, 5); add(K_ARMORY, sx + 20, sy + 3, 3);
+    if (P.has('tier')) f.tier = Number(P.get('tier'));
+    g.updateStructGrid();
   }
 
   // The bait pit's middle; the catapult pit's is 16 tiles on, the road running east through

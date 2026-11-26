@@ -119,14 +119,30 @@ hold beside it; `&fig=N` looks at one of them, `#lab=hN&still&plain&nohud&arch=A
 survivor archetype at rest and `#lab=kN&still&plain&nohud` at any creep kind, `&yaw=` from
 the side and the back.
 
-## The HUD and menus
+## The base's structures
 
-The HUD is field kit, not a terminal (`web/app.css`, `web/menus.css`, the splash's palette in
-`web/src/hud/splash.ts`). Panels are worn olive-brown canvas (`--soot` `#2a2615`, the ground's
-`#62552c` for edges), labels are kraft-paper tape (`#b4905a`), all text is the pale band colour
-`#c8c2a0`, outlines are the ink `#18150f`. Accents keep one job each: hard-hat yellow for
-readouts and what can be spent, medkit red for danger, teal for state (stamina, reload), grass
-green for health. No gradients, glows or blurred shadows; bars are chunky segmented pixels.
-The bottom console is only as tall as its content and no longer has a backdrop, the top bar is
-32 px, and the map, console and orders card are separate pieces so the world shows between
-them (default).
+Built from what a camp would have dragged in, at true size against a 1.8 m person
+(`scene/structs.ts`, `#lab=structs` to look at them; default throughout):
+
+- **Walls** are a palisade of sharpened logs on a low dirt berm, wired to split rails behind,
+  a thick post on each tile and half a run of logs towards each neighbour, so runs and corners
+  join by themselves. One half-run in five carries a sheet of rusted corrugated iron and one run
+  in nine a faded blue car door wired across it: three instanced arm meshes, chosen by a hash of
+  the tile, about 150 to 400 triangles a tile. **Gates** are welded scrap, a steel post with an
+  amber lamp on a concrete foot and leaves of square tube, plate, bars and a hazard-striped top
+  rail on a caster; lower than the logs, so a gate reads as a gap in the palisade.
+- **Turrets** are real guns on real mounts: a heavy machine gun on a tripod in a sandbag ring
+  (gun), a small wheeled field gun with its shield on a plank turntable (cannon), nitrogen
+  dewars and a reefer unit feeding a turning sprinkler head (frost), a home-made coil on an
+  insulator stack fed by car batteries (tesla), a timber watchtower with the AWM (sniper), two
+  helicopter rocket pods on a pedestal welded to a truck wheel (missile), a guyed scaffold mast
+  with a turning yagi (pylon). Each about 450 to 1050 triangles (the sniper 1700 with its
+  rifle). Their muzzles stand where `main.ts`'s `turretHeight` and the effects put the flash.
+- **The generator** is a diesel generator set in a faded yellow canopy on a skid and a cracked
+  slab, its fan turning under a roof grille, with fuel drums, red cans, a cable reel and a work
+  light; the old reactor's glow is gone, and its one light is a small running lamp on the
+  control panel, green while it holds and flickering red as it fails. Tier II adds a radio mast
+  on a scaffold tower, tier III floodlights at the corners. About 2100 triangles.
+- **The armory** is a rust-red ten-foot container with a hatch cut in its front, a rack of
+  rifles inside, a workbench, ammo crates and a solar panel and tarp on the roof. About 1500.
+- The owner's colour stays a kerb round each footprint, muted a little; the track pips stay.
