@@ -35,6 +35,7 @@ const M = 0.85;
 const PI = Math.PI;
 const OLD_BLOOD = 0x3a2416, BLOOD = 0x3c1c12, BLOOD_HEART = 0x4a2016;
 const BONE = 0xb4aa86, BONE_DARK = 0x948a6a, CHAR = 0x241f18, SCORCH = 0x2e2820, ASH = 0x5a5650;
+const CHALK = 0xe2dfd4;
 const WOOD = 0x6e604a, WOOD_DARK = 0x4e4232, CREOSOTE = 0x45362a, WIRE = 0x2a2824, PAINT = 0xc0b896;
 
 const bx = (w: number, h: number, d: number, col: number, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0): Part => part(box(w, h, d), col, x, y, z, rx, ry, rz);
@@ -66,7 +67,8 @@ const GLYPH: Record<string, string> = {
   A: '010101111101101', B: '110101110101110', C: '011100100100011', D: '110101101101110', E: '111100110100111',
   F: '111100110100100', G: '011100101101011', H: '101101111101101', I: '111010010010111', K: '101101110101101',
   L: '100100100100111', N: '110101101101101', O: '010101101101010', P: '110101110100100', Q: '010101101110011',
-  R: '110101110101101', S: '011100010001110', T: '111010010010010', U: '101101101101111', Y: '101101010010010',
+  M: '101111101101101', R: '110101110101101', S: '011100010001110', T: '111010010010010', U: '101101101101111',
+  V: '101101101101010', W: '101101101111111', Y: '101101010010010',
   ' ': '000000000000000',
 };
 
@@ -414,9 +416,31 @@ function grave(): THREE.BufferGeometry {
   ]);
 }
 
-// HELP painted large on the ground for whoever flew over, never came.
-function help(): THREE.BufferGeometry {
-  return built([...text('HELP', 0.32, PAINT, 0, 0.02, 0, true), disc(0.12, PAINT, 2.8, 0.01, 0.7), lump(0.12, PAL.steelDark, 2.9, 0.06, 0.4, 1, 1.4, 1)]);
+// What the last people here painted on the ground in white, for whoever flew over or came
+// after: each its own kind, a line of text or two. Short ones are painted larger.
+const WRITINGS: Record<string, string[]> = {
+  help: ['HELP'], sos: ['SOS'], hope: ['ALL HOPE', 'IS GONE'], alive: ['ALIVE INSIDE'], dead: ['DEAD INSIDE'],
+  cure: ['NO CURE'], god: ['GOD HELP US'], forgive: ['FORGIVE US'], back: ['TURN BACK'], food: ['SEND FOOD'],
+  here: ['THEY ARE', 'HERE'], run: ['RUN'], still: ['WE ARE', 'STILL HERE'], fuel: ['NO FUEL'], save: ['SAVE US'],
+};
+function writingPx(lines: string[]): number {
+  const cols = Math.max(...lines.map((l) => l.length)) * 4 - 1;
+  return Math.min(0.34, Math.max(0.2, 7.2 / cols));
+}
+// How far a writing reaches to either side, in metres.
+function writingHalf(lines: string[]): number {
+  return (Math.max(...lines.map((l) => l.length)) * 4 - 1) * writingPx(lines) * M / 2;
+}
+// How far it reaches towards and away from the camera.
+function writingDeep(lines: string[]): number {
+  return (lines.length * 7 - 2) * writingPx(lines) * M / 2;
+}
+// The can lies where it was dropped, a little paint run out of it.
+function writing(lines: string[]): THREE.BufferGeometry {
+  const px = writingPx(lines), n = lines.length, ps: Part[] = [];
+  lines.forEach((l, i) => ps.push(...text(l, px, CHALK, 0, 0.02, (i - (n - 1) / 2) * 7 * px, true)));
+  const end = writingHalf(lines) / M + 0.5, z = (n - 1) * 3.5 * px + px;
+  return built([...ps, disc(0.12, CHALK, end, 0.01, z), lump(0.12, PAL.steelDark, end + 0.1, 0.06, z - 0.3, 1, 1.4, 1)]);
 }
 
 // A crow, a little larger than life to read at the game's zoom: perched with its wings folded,
@@ -851,7 +875,7 @@ export class Wasteland {
     add('trash', trash(), 0, 0.5);
     add('bodyBag', bodyBag(), 1, 0.85);
     add('grave', grave(), 1, 0.9, 2);
-    add('help', help(), 0, 1.8);
+    Object.entries(WRITINGS).forEach(([name, lines]) => add(name, writing(lines), 0, Math.min(2.4, writingHalf(lines) * 0.75)));
   }
 
   // ---- The map ----
@@ -944,16 +968,43 @@ export class Wasteland {
     return true;
   }
 
+  // Whether the ground hw to either side of x, z and hd before and behind is bare enough to
+  // be written on, and if so takes it: open tiles only, no tree within a tile (or four on the
+  // camera's side, where a crown would stand over the words), none of the
+  // terrain's bushes, logs or stumps (as Terrain.buildScrub scatters them, kept in step by
+  // hand) and no prop already lying there.
+  private bare(x: number, z: number, hw: number, hd: number): boolean {
+    const x0 = Math.floor(x - hw), x1 = Math.floor(x + hw), z0 = Math.floor(z - hd), z1 = Math.floor(z + hd), { w, h, tiles } = this;
+    if (x0 < 1 || z0 < 1 || x1 >= w - 1 || z1 >= h - 1) return false;
+    for (let tz = z0 - 1; tz <= Math.min(h - 1, z1 + 4); tz++) for (let tx = x0 - 1; tx <= x1 + 1; tx++) if (tiles[tz * w + tx] === Tile.Tree) return false;
+    for (let tz = z0; tz <= z1; tz++) for (let tx = x0; tx <= x1; tx++) {
+      const i = tz * w + tx, t = tiles[i];
+      if (t !== Tile.Grass && t !== Tile.Dirt && t !== Tile.Sand && t !== Tile.Floor) return false;
+      if (this.occ[i] || this.waterD[i] < 2 || this.wrecks!.at(tx + 0.5, tz + 0.5, () => false)) return false;
+      if (t !== Tile.Grass && t !== Tile.Sand) continue;
+      let wood = false;
+      for (let dy = -2; dy <= 2 && !wood; dy++) for (let dx = -2; dx <= 2; dx++) {
+        const ax = tx + dx, ay = tz + dy;
+        if (ax >= 0 && ay >= 0 && ax < w && ay < h && tiles[ay * w + ax] === Tile.Tree) { wood = true; break; }
+      }
+      if (hash(tx, tz, 31) < (wood ? 0.075 : 0.034)) return false;
+    }
+    for (let tz = z0; tz <= z1; tz++) for (let tx = x0; tx <= x1; tx++) this.occ[tz * w + tx] = 1;
+    return true;
+  }
+
   // Lays one prop. heading as writeMatrix's (towards +z positive); tilt leans it forward about
   // its own z, roll about its own x. essential: drawn at every detail level.
   private put(name: string, x: number, z: number, heading: number, opt: { s?: number; sx?: number; sy?: number; tilt?: number; roll?: number; y?: number; tint?: number[]; essential?: boolean; check?: boolean } = {}): boolean {
     const k = this.kinds.get(name)!, s = opt.s ?? 1, r = k.r * s;
-    if (opt.check !== false) {
+    if (name in WRITINGS) {
+      if (!this.ok(x, z, r, true) || !this.bare(x, z, writingHalf(WRITINGS[name]) + 0.8, writingDeep(WRITINGS[name]) + 0.4)) return false;
+    } else if (opt.check !== false) {
       const flat = k.shadow === 0;
       if (!this.ok(x, z, r, flat) || !this.claim(x, z, Math.max(0.3, r * 0.7))) return false;
     }
     const n = this.seq++;
-    const y = opt.y ?? (name === 'help' ? this.restY(x, z, 2.4) + 0.02 : this.restY(x, z, Math.min(r, 0.8)));
+    const y = opt.y ?? (name in WRITINGS ? this.restY(x, z, 2.4) + 0.02 : this.restY(x, z, Math.min(r, 0.8)));
     _e.set(opt.roll ?? 0, -heading, opt.tilt ?? 0);
     _q.setFromEuler(_e);
     _m.compose(_p.set(x, y, z), _q, _s.set(s * (opt.sx ?? 1), s * (opt.sy ?? 1), s));
@@ -1212,10 +1263,7 @@ export class Wasteland {
             this.put('bodyBag', x, z, along ? PI / 2 : 0, {});
           }
         }
-        if (s.tier >= 2 && r(5) < 0.3) {
-          const x = cx + (r(6) - 0.5) * 2, z = s.y + s.h + 3.6;
-          this.put('help', x, z, 0, { essential: true });
-        }
+        this.scrawl(s.tier >= 2 ? ['help', 'hope', 'alive', 'still', 'save', 'food', 'hope', 'help'] : ['help', 'hope', 'dead', 'run', 'sos', 'food', 'forgive', 'hope', 'help'], s, seed, s.tier >= 2 ? 0.34 : 0.22);
         this.around(cx, cz, Math.max(s.w, s.h) / 2 - 0.5, Math.max(s.w, s.h) / 2 + 4, 3 + Math.floor(r(7) * 5), RUIN, seed);
         return;
       }
@@ -1226,10 +1274,12 @@ export class Wasteland {
         this.run('wireCoil', x1, z1, x0, z1, 0.25, seed + 3); this.run('wireCoil', x0, z1, x0, z0, 0.25, seed + 4);
         this.lay('quarantine', cx + (r(1) - 0.5) * s.w, z1 + 1.6, seed + 5);
         this.lay('keepOut', x0 - 1.5, cz + (r(2) - 0.5) * s.h, seed + 6);
+        this.scrawl(['here', 'back', 'run', 'hope'], s, seed, 0.6, 4);
         this.around(cx, cz, Math.max(s.w, s.h) / 2 + 2.5, Math.max(s.w, s.h) / 2 + 7, 10, CAMP, seed);
         return;
       }
       case SiteKind.Station:
+        this.scrawl(['fuel', 'food', 'help', 'sos'], s, seed, 0.6, 3);
         this.around(cx, cz, Math.max(s.w, s.h) / 2 + 1.5, Math.max(s.w, s.h) / 2 + 9, 14, GARAGE, seed);
         // Oil where the pumps leaked.
         for (const p of sites) if (p.kind === SiteKind.Pump && Math.hypot(p.sx - cx, p.sy - cz) < 16) {
@@ -1248,6 +1298,7 @@ export class Wasteland {
           if (this.lay(pick(CRASH, hash(seed, tries, 25)), x, z, seed + tries)) i++;
         }
         this.around(s.sx, s.sy, 14, 19, 5, [['burnt', 3], ['crater', 1], ['bones', 1]], seed + 1);
+        this.scrawl(['sos', 'help', 'save'], { x: s.sx - 1, y: s.sy - 1, w: 2, h: 2 }, seed, 0.75, 12);
         return;
       }
       case SiteKind.Church: {
@@ -1261,12 +1312,37 @@ export class Wasteland {
         }
         for (let k = 0; k < 4; k++) this.put('bodyBag', gx - 4 + k * 0.8, gz + 4.4, PI / 2 + (r(k) - 0.5) * 0.2, { essential: true });
         this.flock(gx, gz, 4, seed);
+        this.scrawl(['god', 'forgive', 'save', 'hope'], s, seed, 0.6, 3);
         this.around(cx, cz, Math.max(s.w, s.h) / 2 + 2, Math.max(s.w, s.h) / 2 + 8, 8, RUIN, seed + 2);
         return;
       }
+      case SiteKind.Checkpoint:
+        this.scrawl(['back', 'cure', 'here', 'run'], s, seed, 0.7, 7);
+        return;
+      case SiteKind.Cemetery:
+        this.scrawl(['hope', 'forgive', 'god'], s, seed, 0.7, 8);
+        return;
+      case SiteKind.Camp:
+        this.scrawl(['cure', 'dead', 'hope', 'save'], s, seed, 0.85, 8);
+        return;
       case SiteKind.Shrine:
         this.around(cx, cz, Math.max(s.w, s.h) / 2 + 1, Math.max(s.w, s.h) / 2 + 6, 6, [['bones', 3], ['skeleton', 2], ['burnt', 1]], seed);
         return;
+    }
+  }
+
+  // One of the writings on the ground by a site, with a chance: in front of it (towards the
+  // camera) if there is room, else behind or to a side, further out each time round.
+  private scrawl(names: string[], s: { x: number; y: number; w: number; h: number }, seed: number, chance: number, out = 2.2): void {
+    if (hash(seed, 1, 41) >= chance) return;
+    const name = names[Math.floor(hash(seed, 2, 41) * names.length)], two = WRITINGS[name].length > 1 ? 0.9 : 0;
+    const cx = s.x + s.w / 2, cz = s.y + s.h / 2, reach = writingHalf(WRITINGS[name]);
+    for (let ring = 0; ring < 4; ring++) {
+      const d = out + two + ring * 2.5;
+      for (const [dx, dz] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) for (const slide of [0, -3, 3, -6, 6]) {
+        const x = cx + dx * (s.w / 2 + d + reach) + (dz ? slide : 0), z = cz + dz * (s.h / 2 + d + 1) + (dx ? slide : 0);
+        if (this.put(name, x, z, (hash(seed, 6, 41) - 0.5) * 0.16, { essential: true })) return;
+      }
     }
   }
 
@@ -1291,6 +1367,8 @@ export class Wasteland {
       const f = this.fade(x + 0.5, y + 0.5);
       if (f <= 0) continue;
       const road = roadD[i] <= 1 ? 1 : roadD[i] <= 3 ? 0.6 : 0, ruin = rockD[i] <= 2 ? 1 : rockD[i] <= 5 ? 0.45 : 0;
+      // Far from anything, now and then, someone who waited for a helicopter.
+      if (!road && !ruin && hash(x, y, 106) < 0.00016 * f) this.put(['sos', 'help', 'hope', 'still'][Math.floor(hash(x, y, 107) * 4)], x + 0.5, y + 0.5, (hash(x, y, 108) - 0.5) * 0.3, { essential: true });
       const p = (0.005 + 0.03 * road + 0.045 * ruin) * f;
       if (hash(x, y, 101) >= p) continue;
       const table = ruin >= road && ruin > 0 ? RUIN : road > 0 ? ROAD : OPEN;
