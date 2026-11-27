@@ -194,10 +194,12 @@ function material(r: CreepRig, scale: number, buf: THREE.InstancedInterleavedBuf
   col = mix(col, col.mul(0.55), sunder.mul(0.5));
   mat.colorNode = col;
   const flicker = sin(time.mul(23).add(an.x.mul(7))).mul(0.25).add(0.75);
-  mat.emissiveNode = vec3(0.9, 0.3, 0.05).mul(st.x.mul(flicker).mul(0.18))
+  // The glows are added light: any more than this and trousers, hair and outlines all rise to one
+  // flat orange or red, the figure a single colour.
+  mat.emissiveNode = vec3(0.9, 0.3, 0.05).mul(st.x.mul(flicker).mul(0.035))
     .add(vec3(1, 0.9, 0.7).mul(st.z.mul(0.06)))
     .add(vec3(0.5, 0.45, 0.2).mul(st.w.mul(uHover)))
-    .add(vec3(0.09, 0.005, 0).mul(mo.y.mul(sin(time.mul(9)).mul(0.3).add(0.7))))
+    .add(vec3(0.02, 0.001, 0).mul(mo.y.mul(sin(time.mul(9)).mul(0.3).add(0.7))))
     .add(vec3(1, 0.42, 0.08).mul(cracks.mul(sin(time.mul(6)).mul(0.2).add(0.8))));
   return mat;
 }
