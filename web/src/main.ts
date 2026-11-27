@@ -13,6 +13,7 @@ import { type Handlers, type Transport, WsTransport } from './net';
 import { EvacStage, PF_ALIVE, PF_ARMORY, Phase, PingKind, SiteKind, siteX, siteY, TTrack, TURRET_TRACKS, turretRange, type PathMsg, type Welcome, wreck } from './protocol';
 import { Creeps } from './scene/creeps';
 import { Detail } from './scene/detail';
+import { Wasteland } from './scene/wasteland';
 import { Effects } from './scene/effects';
 import { Helis } from './scene/heli';
 import { Heroes } from './scene/heroes';
@@ -137,6 +138,7 @@ async function main(): Promise<void> {
   const canvas = world.renderer.domElement;
   const game = new Game();
   const terrain = new Terrain(world.scene);
+  const wasteland = new Wasteland(world.scene);
   const structs = new Structs(world.scene);
   const creeps = new Creeps(world.scene);
   // #detail=N pins the detail governor's level (0 full); otherwise it follows the frame time.
@@ -244,6 +246,7 @@ async function main(): Promise<void> {
     onTerrain(t) {
       game.setTerrain(t);
       terrain.build(game.tiles, game.w, game.h, game.welcome?.sites ?? []);
+      wasteland.build(game.tiles, game.w, game.h, game.welcome);
       splash?.progress(0.35);
     },
     onFrame(buf) {
@@ -352,7 +355,7 @@ async function main(): Promise<void> {
       }
     }
   };
-  (window as unknown as { td: unknown }).td = { game, ctl, rig, hud, world, heroes, helis, sound, creeps, detail, get transport() { return transport; } };
+  (window as unknown as { td: unknown }).td = { game, ctl, rig, hud, world, heroes, helis, sound, creeps, detail, wasteland, get transport() { return transport; } };
 
   // The 8-bit view: #px=N or the saved choice sets the block size, 0 turns it off, F4 toggles.
   let pixelPref = 'auto';
@@ -438,7 +441,7 @@ async function main(): Promise<void> {
     sound.listen(game, world.camera, rig.tx, rig.tz, rig.dist);
     world.followSun(rig.tx, rig.tz, rig.span(), rig.yaw);
     // Not while the shaders warm: every prop has to be drawn once for that.
-    if (warm === 2) terrain.cull(world.camera);
+    if (warm === 2) { terrain.cull(world.camera); wasteland.update(world.camera, detail.level, game, dt, rig.tx, rig.tz); }
     weather.update(game, dt, world.camera, rig.tx, rig.tz, rig.dist);
     world.setFog(rig.reach);
     if (wd) {

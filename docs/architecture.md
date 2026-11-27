@@ -132,6 +132,8 @@ Browser                   local td (web.Session)               host td (netplay.
 - **Generated art.** Everything drawn is built in code with three.js: models from many small
   parts on a shared skeleton, the ground and its light from shaders and the palette in
   `web/src/scene/palette.ts` (`docs/art-direction.md`). There are no model or texture files.
+  The wasteland's dressing (`web/src/scene/wasteland.ts`) is placed by the page alone from a
+  hash of the map, so every player sees the same, and the sim never knows it is there.
 - **Generated sound, with recordings over it.** The page makes every sound in code from what
   each frame already says (the shots, blasts and deaths of that tick, and what changed since
   the last one): the protocol carries no audio. Most sounds also have short CC0 recordings,

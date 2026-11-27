@@ -473,6 +473,45 @@ Their key colours (shirt, trousers, skin, hair) vary per creep; their kit is pai
 Near models 330 to 580 triangles, far ones under 250: the far model keeps the trunk, limbs,
 head and hat and drops the hands, boots, faces, bands and stains (default).
 
+## The wasteland's dressing
+
+`web/src/scene/wasteland.ts` dresses the map as the end of the world: what people left, what
+was left of them, and the army's warnings that did not hold. It is set dressing only: nothing in
+it collides, nothing is searched, and the sim never hears of it.
+
+- **Same world for everyone.** It is placed from the map alone (tiles, sites, the core, the
+  build radius) with a hash, so every player sees the same props in the same places. Nothing
+  assumes the map's size.
+- **What there is.** Skeletons and bones, blood stains and drag marks, suitcases and clothes,
+  tyres, oil drums (tinted per instance) and jerrycans, pallets, a shopping trolley on its side,
+  wire and picket fences and their broken bits, coils of razor wire, power poles with sagging
+  wires (some fallen), bent road signs, boards that say QUARANTINE, KEEP OUT and TURN BACK in
+  the HUD's 3x5 pixel font (painted on both faces), traffic cones, shell craters, burnt patches,
+  trash, body bags, graves, a HELP laid out on the ground by a house, and crows.
+- **Where it goes tells the story.** Poles stand along roads on one verge every few tiles, wired
+  to their neighbours. Where each road leaves the base is a checkpoint that failed: wire dragged
+  to the verges, cones knocked over, a QUARANTINE board, drums, a burnt patch, the dead in bags.
+  A wreck has its people's luggage, a drag mark, sometimes one of them. Houses get a half-gone
+  yard fence, bags by a wall and their junk round them; the station oil by its pumps and garage
+  junk; the plane its luggage and seats along the scar, burnt ground and craters, but not under
+  its wing; the church a graveyard on the side away from its tower; the shrine bones and fire.
+  Open country has a fence line now and then and little else. Density rises from nothing at the
+  build radius to full twelve tiles out.
+- **Never in the way of reading the game.** Nothing on water, on solid tiles, in a wreck's box,
+  on a site's loot, inside a landmark or the helipad, or inside the build radius: the yard stays
+  clean. Nothing upright is the size or colour of a find, a survivor or a creep; the dead are
+  bones and bags lying flat in bone and old-blood browns (darker than the game's own fresh gore).
+  Fog of war covers it as it does everything lit.
+- **Crows** sit on carrion and on pole crossarms, turn, hop and peck, and take off when a
+  survivor comes within about 4.5 tiles or a creep within 3, flying away and coming back after
+  a while. Three instanced meshes: sitting, wings up, wings down.
+- **Cost.** One instanced mesh a kind, 29 in all with the crows, culled by 32-tile block like
+  the terrain's scatter. Every prop has a rank: set pieces (poles, wires, boards, checkpoints)
+  are kept at every detail level, the rest go by rank as the detail governor steps down (all at
+  levels 0-1, then 80%, 65%, 50%, 40% of them), and the low kinds stop casting shadows from level
+  3. On the demo's 320x200 map: 1063 props at full detail, 964 / 881 / 784 / 726 at levels 2-5,
+  and 121 crows. Kinds run from 72 triangles (a wire) to 832 (the QUARANTINE board).
+
 ## The world's finds
 
 Everything a survivor searches or picks up is in `web/src/scene/loot.ts` (sites) and
