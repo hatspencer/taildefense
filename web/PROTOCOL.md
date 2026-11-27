@@ -543,7 +543,7 @@ cover, and the ack's tick for a command sent at a known time tells it where the 
 fall on its clock. The demo host acks numbered commands too.
 
 ```jsonc
-{"op": "move",    "x": 160.5, "y": 103.2}   // walk there, ignoring creeps
+{"op": "move",    "x": 160.5, "y": 103.2}   // walk there by path, shooting on the way, never stopping
 {"op": "amove",   "x": 140.0, "y": 100.0}   // attack-move: walk, stop to fight anything in range
 {"op": "steer",   "x": 1.57, "on": true}    // WASD: walk along the angle x (radians, map coordinates:
                                             // 0 east, pi/2 south); repeat while held, it lapses

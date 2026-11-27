@@ -661,7 +661,9 @@ to creeps and shots, so the court is a place to fight in, not just to cross.
   after 0.4 s, so a lost key-up can't send a survivor off the map.
 - **Aiming stays automatic.** The hero shoots the nearest creep in range while walking. This is
   co-op tower defense with thousands of creeps, not an aim game; your hands are for walking,
-  abilities and building.
+  abilities and building. A walk by path (N twice back to the generator, E twice to a loot
+  site, the minimap) shoots on the way just as WASD does and never stops for a creep: it used
+  to walk with the gun down, so a hero heading home through a crowd took the hits and gave none.
 - **Fighting first, building second, as in Overwatch.** The keys under the left hand are for
   the fight: Q the ultimate, Shift, F and V the grenade, dash and airstrike. Dash and airstrike
   cast at the cursor the moment the key goes down: an aim-then-click step was a beat too slow in
