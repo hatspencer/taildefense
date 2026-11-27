@@ -11,7 +11,7 @@ type OrderKind uint8
 
 const (
 	OrderIdle       OrderKind = iota // stand, shoot whatever comes in range
-	OrderMove                        // walk there, ignoring creeps
+	OrderMove                        // walk there, shooting what comes in range on the way
 	OrderAttackMove                  // walk there, stopping to fight anything in range
 	OrderAttack                      // chase and shoot one creep
 	OrderHold                        // stand, shoot what comes in range, never move
@@ -464,10 +464,12 @@ func (w *World) act(p *Player, st Stats) int32 {
 		}
 		return w.nearestSeen(p.X, p.Y, st.Range)
 	case OrderMove:
+		// The walk never stops for a creep, but the hero shoots on the way as WASD does: E or N
+		// twice, the minimap and the bots all walk by this order.
 		if !walk() {
 			o.Kind = OrderIdle
 		}
-		return -1
+		return w.nearestSeen(p.X, p.Y, st.Range)
 	case OrderAttackMove:
 		if t := w.nearestSeen(p.X, p.Y, st.Range); t >= 0 {
 			// Fighting pauses the walk; its progress check must not count the pause.
@@ -573,11 +575,12 @@ func (w *World) act(p *Player, st Stats) int32 {
 			}
 			return -1
 		}
+		// On the way there the hero shoots what comes in range, without stopping.
 		if !walk() {
 			w.toast(p, 2, "cannot get there to search")
 			o.Kind = OrderIdle
 		}
-		return -1
+		return w.nearestSeen(p.X, p.Y, st.Range)
 	case OrderRevive:
 		if !w.actRevive(p, o) {
 			o.Kind = OrderIdle

@@ -367,3 +367,95 @@ func TestEveryTenthWaveFliesInACrateThatOpensForEveryone(t *testing.T) {
 		}
 	}
 }
+
+// A walk by path (N twice, the minimap) shoots what comes in range on the way, as WASD does,
+// without stopping or giving up the walk.
+func TestAMoveOrderShootsOnTheWayAndStillArrives(t *testing.T) {
+	w := newBare(3)
+	p, _ := w.Join("ana", "ana@example")
+	p.HP, p.MaxHP = 1e6, 1e6
+	w.Phase = PhaseWave
+	w.Queue = []Spawn{{At: 1e9}}
+	gx, gy := w.CoreX+.5, w.CoreY-18
+	for w.At(int(gx), int(gy)).Solid() || w.StructAt(int(gx), int(gy)) >= 0 {
+		gx++
+	}
+	w.MoveTo(p, gx, gy, false)
+	w.SpawnCreep(CBrute, p.X+4, p.Y)
+	c := &w.Creeps[0]
+	c.HP, c.MaxHP = 1e6, 1e6
+	id := c.ID
+	run(w, TickRate, func() bool { return false })
+	i := w.creepIndex(id)
+	if i < 0 || p.Order.Kind != OrderMove {
+		t.Fatalf("creep %d, order %v after a second", i, p.Order.Kind)
+	}
+	if w.Creeps[i].HP >= 1e6 {
+		t.Fatal("a survivor walking by path did not shoot the brute beside them")
+	}
+	if !run(w, TickRate*20, func() bool { return p.Order.Kind == OrderIdle }) {
+		t.Fatalf("still walking after 20s at %.1f,%.1f", p.X, p.Y)
+	}
+	if dx, dy := p.X-gx, p.Y-gy; dx*dx+dy*dy > .3*.3 {
+		t.Fatalf("stopped at %.1f,%.1f, wanted %.1f,%.1f", p.X, p.Y, gx, gy)
+	}
+}
+
+// So does the walk to a loot site (E twice), and the search still begins on arrival.
+func TestALootOrderShootsOnTheWayAndStillSearches(t *testing.T) {
+	w := newBare(3)
+	p, _ := w.Join("ana", "ana@example")
+	p.HP, p.MaxHP = 1e6, 1e6
+	w.Phase = PhaseWave
+	w.Queue = []Spawn{{At: 1e9}}
+	// A site out in the wilds with open ground 8 tiles off it, straight in from there.
+	si := -1
+	var sx, sy float32
+	for i := range w.Sites {
+		s := &w.Sites[i]
+		dx, dy := s.SX-w.CoreX, s.SY-w.CoreY
+		if s.Searched || s.Kind == SiteChurch || solidSite(s.Kind) || dx*dx+dy*dy < 30*30 {
+			continue
+		}
+		for a := 0; a < 16 && si < 0; a++ {
+			sn, cs := math.Sincos(float64(a) * math.Pi / 8)
+			x, y := s.SX+8*float32(cs), s.SY+8*float32(sn)
+			if CanStand(w, x, y) && CanStand(w, x+3, y) && clearLine(w, x, y, s.SX, s.SY) {
+				si, sx, sy = i, x, y
+			}
+		}
+		if si >= 0 {
+			break
+		}
+	}
+	if si < 0 {
+		t.Fatal("no site with open ground round it")
+	}
+	s := &w.Sites[si]
+	p.X, p.Y = sx, sy
+	if err := w.OrderLoot(p, si); err != nil {
+		t.Fatal(err)
+	}
+	w.SpawnCreep(CBrute, p.X+3, p.Y)
+	c := &w.Creeps[0]
+	c.HP, c.MaxHP = 1e6, 1e6
+	id := c.ID
+	hurt := false
+	if !run(w, TickRate*20, func() bool {
+		if siteReached(s, p.X, p.Y) {
+			return true
+		}
+		if i := w.creepIndex(id); i >= 0 && w.Creeps[i].HP < 1e6 {
+			hurt = true
+		}
+		return false
+	}) {
+		t.Fatalf("never reached the site at %.1f,%.1f (kind %d), at %.1f,%.1f with order %v", s.SX, s.SY, s.Kind, p.X, p.Y, p.Order.Kind)
+	}
+	if !hurt {
+		t.Fatal("a survivor walking to a loot site did not shoot the brute beside them")
+	}
+	if p.Order.Kind != OrderLoot {
+		t.Fatalf("order %v on arrival", p.Order.Kind)
+	}
+}
