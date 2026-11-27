@@ -1263,7 +1263,7 @@ export class Wasteland {
             this.put('bodyBag', x, z, along ? PI / 2 : 0, {});
           }
         }
-        this.scrawl(s.tier >= 2 ? ['help', 'hope', 'alive', 'still', 'save', 'food', 'hope', 'help'] : ['help', 'hope', 'dead', 'run', 'sos', 'food', 'forgive', 'hope', 'help'], s, seed, s.tier >= 2 ? 0.34 : 0.22);
+        this.scrawl(s.tier >= 2 ? ['help', 'hope', 'alive', 'still', 'save', 'food', 'hope', 'help'] : ['help', 'hope', 'dead', 'run', 'sos', 'food', 'forgive', 'hope', 'help'], s, seed, s.tier >= 2 ? 0.05 : 0.03);
         this.around(cx, cz, Math.max(s.w, s.h) / 2 - 0.5, Math.max(s.w, s.h) / 2 + 4, 3 + Math.floor(r(7) * 5), RUIN, seed);
         return;
       }
@@ -1274,12 +1274,12 @@ export class Wasteland {
         this.run('wireCoil', x1, z1, x0, z1, 0.25, seed + 3); this.run('wireCoil', x0, z1, x0, z0, 0.25, seed + 4);
         this.lay('quarantine', cx + (r(1) - 0.5) * s.w, z1 + 1.6, seed + 5);
         this.lay('keepOut', x0 - 1.5, cz + (r(2) - 0.5) * s.h, seed + 6);
-        this.scrawl(['here', 'back', 'run', 'hope'], s, seed, 0.6, 4);
+        this.scrawl(['here', 'back', 'run', 'hope'], s, seed, 0.12, 4);
         this.around(cx, cz, Math.max(s.w, s.h) / 2 + 2.5, Math.max(s.w, s.h) / 2 + 7, 10, CAMP, seed);
         return;
       }
       case SiteKind.Station:
-        this.scrawl(['fuel', 'food', 'help', 'sos'], s, seed, 0.6, 3);
+        this.scrawl(['fuel', 'food', 'help', 'sos'], s, seed, 0.25, 3);
         this.around(cx, cz, Math.max(s.w, s.h) / 2 + 1.5, Math.max(s.w, s.h) / 2 + 9, 14, GARAGE, seed);
         // Oil where the pumps leaked.
         for (const p of sites) if (p.kind === SiteKind.Pump && Math.hypot(p.sx - cx, p.sy - cz) < 16) {
@@ -1298,7 +1298,7 @@ export class Wasteland {
           if (this.lay(pick(CRASH, hash(seed, tries, 25)), x, z, seed + tries)) i++;
         }
         this.around(s.sx, s.sy, 14, 19, 5, [['burnt', 3], ['crater', 1], ['bones', 1]], seed + 1);
-        this.scrawl(['sos', 'help', 'save'], { x: s.sx - 1, y: s.sy - 1, w: 2, h: 2 }, seed, 0.75, 12);
+        this.scrawl(['sos', 'help', 'save'], { x: s.sx - 1, y: s.sy - 1, w: 2, h: 2 }, seed, 0.4, 12);
         return;
       }
       case SiteKind.Church: {
@@ -1312,18 +1312,18 @@ export class Wasteland {
         }
         for (let k = 0; k < 4; k++) this.put('bodyBag', gx - 4 + k * 0.8, gz + 4.4, PI / 2 + (r(k) - 0.5) * 0.2, { essential: true });
         this.flock(gx, gz, 4, seed);
-        this.scrawl(['god', 'forgive', 'save', 'hope'], s, seed, 0.6, 3);
+        this.scrawl(['god', 'forgive', 'save', 'hope'], s, seed, 0.25, 3);
         this.around(cx, cz, Math.max(s.w, s.h) / 2 + 2, Math.max(s.w, s.h) / 2 + 8, 8, RUIN, seed + 2);
         return;
       }
       case SiteKind.Checkpoint:
-        this.scrawl(['back', 'cure', 'here', 'run'], s, seed, 0.7, 7);
+        this.scrawl(['back', 'cure', 'here', 'run'], s, seed, 0.25, 7);
         return;
       case SiteKind.Cemetery:
-        this.scrawl(['hope', 'forgive', 'god'], s, seed, 0.7, 8);
+        this.scrawl(['hope', 'forgive', 'god'], s, seed, 0.25, 8);
         return;
       case SiteKind.Camp:
-        this.scrawl(['cure', 'dead', 'hope', 'save'], s, seed, 0.85, 8);
+        this.scrawl(['cure', 'dead', 'hope', 'save'], s, seed, 0.3, 8);
         return;
       case SiteKind.Shrine:
         this.around(cx, cz, Math.max(s.w, s.h) / 2 + 1, Math.max(s.w, s.h) / 2 + 6, 6, [['bones', 3], ['skeleton', 2], ['burnt', 1]], seed);
@@ -1368,7 +1368,7 @@ export class Wasteland {
       if (f <= 0) continue;
       const road = roadD[i] <= 1 ? 1 : roadD[i] <= 3 ? 0.6 : 0, ruin = rockD[i] <= 2 ? 1 : rockD[i] <= 5 ? 0.45 : 0;
       // Far from anything, now and then, someone who waited for a helicopter.
-      if (!road && !ruin && hash(x, y, 106) < 0.00016 * f) this.put(['sos', 'help', 'hope', 'still'][Math.floor(hash(x, y, 107) * 4)], x + 0.5, y + 0.5, (hash(x, y, 108) - 0.5) * 0.3, { essential: true });
+      if (!road && !ruin && hash(x, y, 106) < 0.00002 * f) this.put(['sos', 'help', 'hope', 'still'][Math.floor(hash(x, y, 107) * 4)], x + 0.5, y + 0.5, (hash(x, y, 108) - 0.5) * 0.3, { essential: true });
       const p = (0.005 + 0.03 * road + 0.045 * ruin) * f;
       if (hash(x, y, 101) >= p) continue;
       const table = ruin >= road && ruin > 0 ? RUIN : road > 0 ? ROAD : OPEN;

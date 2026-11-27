@@ -491,10 +491,11 @@ it collides, nothing is searched, and the sim never hears of it.
 - **Writing on the ground.** What the last people painted in white for a helicopter or for
   whoever came after, in the same pixel font, a kind each: HELP, SOS, ALL HOPE IS GONE, ALIVE
   INSIDE, DEAD INSIDE, NO CURE, GOD HELP US, FORGIVE US, TURN BACK, SEND FOOD, THEY ARE HERE,
-  RUN, WE ARE STILL HERE, NO FUEL, SAVE US, the paint can dropped at the end. About one house in
-  four has one (the better houses more often, and more hopeful), and most landmarks have one
-  that fits them: NO FUEL at the gas station, NO CURE at the quarantine camp, GOD HELP US at the
-  church, SOS by the crashed plane. A few lie far out in open country. A writing only goes on
+  RUN, WE ARE STILL HERE, NO FUEL, SAVE US, the paint can dropped at the end. They are rare, under ten on
+  a map, so finding one is an event: about one house in thirty has one (the better houses a
+  little more often, and more hopeful), a landmark has one about one time in four, and it fits
+  the place: NO FUEL at the gas station, NO CURE at the quarantine camp, GOD HELP US at the
+  church, SOS by the crashed plane. Two or three lie far out in open country. A writing only goes on
   bare ground: no tree beside it or between it and the camera, no bush, log or stump of the
   terrain's under it, no other prop on it, and none later laid over it.
 - **Where it goes tells the story.** Poles stand along roads on one verge every few tiles, wired
