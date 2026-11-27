@@ -1127,6 +1127,20 @@ choice, not a cheat guard.
 - **Feet don't slide.** The gait advances with distance actually travelled, so a slowed creep
   shuffles and a runner bounds. Survivors split upper and lower body: legs follow the movement,
   the torso follows the aim, so strafing and backpedalling read. Hands hold each gun by IK.
+  A survivor's planted leg sweeps back through exactly the step's length, and the hips sit as
+  low as that straight, slanted leg puts them, so the foot stays put and the body bobs with it.
+- **Guns come up to fire.** At rest a survivor stands relaxed, feet apart, and carries the gun
+  low: a long gun across the body at the hips, a pistol or the crowbar hanging at the side with
+  the other hand free. Firing brings it up fast to aim (a long gun's off shoulder turned
+  towards the target so both hands reach it); it stays up 1.2 s after the last shot, then sinks
+  slowly back. So a glance tells who is fighting. Each gun has its own grip and fore-end
+  points; the arms are solved to them every frame, a gun whose grip the arm can't reach is
+  brought in to the hand, and a fore-end out of reach has the support hand slide back along
+  the gun, so recoil, sway and every facing keep both hands on it. The gun is put away the
+  moment the hands leave it (kneeling, taunting, down).
+- **Nobody stands like a post.** Knees never lock; at rest the weight is on one leg, the other
+  knee bent and the pelvis dropped on that side, the chest breathing; firing, the off foot
+  steps forward into a crouched stance. Downed, a survivor lies with one knee drawn up.
 - **Springs carry the weight.** Lean, recoil, flinch, a pack bouncing and hair swinging all run
   through damped springs, so motion settles instead of snapping.
 - **Creeps are crowds of people.** Shirt, trousers, skin and hair are picked per creep, and each

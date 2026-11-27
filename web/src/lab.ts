@@ -300,7 +300,8 @@ export class Lab {
         case 'circle': {
           const a = t * 0.9;
           x += Math.cos(a) * 1.3; y += Math.sin(a) * 1.3; aim = Math.PI / 2;
-          p.flags |= PF_MOVING | PF_FIRING; break;
+          // Firing four seconds in eight, so the walk shows with the gun up and carried low.
+          p.flags |= PF_MOVING | (t % 8 < 4 ? PF_FIRING : 0); break;
         }
         case 'sprint': {
           // The real sprint: base speed 6 m/s, times 1.6.

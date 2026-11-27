@@ -239,8 +239,8 @@ Effects are drawn in the scene's own pixels, in the palette, as things rather th
 
 ## Survivors
 
-A survivor is a real person, 1.8 m tall and seven heads high, with shoulders two heads wide and
-hands and boots a little large so they read at game zoom. The head is drawn 1.08 times true
+A survivor is a real person, 1.8 m tall and seven heads high, sturdy as the picture's people:
+broad shoulders, thick forearms, hands and boots a good deal large so they read at game zoom. The head is drawn 1.08 times true
 size about the neck, for the face's sake. The body is built in metres in `figure()`
 (`web/src/scene/heroes.ts`) from many small tapered boxes hung on the same joints the poses
 use, so every animation and hold still fits it; `K` turns metres into the group's units.
@@ -254,8 +254,18 @@ use, so every animation and hold still fits it; `K` turns metres into the group'
   trousers) and the office worker (shirt, tie, satchel).
 - **Detail** is in many parts rather than texture: collars, rolled sleeves, belts with
   buckles, pockets, straps, boot soles, a brow shadow and a nose, eyes no bigger than a pixel.
-  Every colour is muted from `PAL`; the player's colour stays on the main garment through
-  `garment()`.
+  Every colour is muted from `PAL`. The player's colour stays on the main garment through
+  `garment()` in `heroes.ts`: muted to 0.6 saturation and then darkened to 0.66, as deep as the
+  picture's teal shirt and denim, so a figure has a clear lit and shaded side and the skin and
+  accents stand out against it (default). Kit stands at least 4 cm proud so the outline pass
+  draws it: pack straps, belt pouches, knee pads, the medkit, the armband.
+- **Hats are read by their shape**: a cap is a round crown with a long stiff brim and its dark
+  underside (the paramedic's slate with a white cross, the mechanic's orange with a pale badge),
+  a beanie a folded cuff under a stepped, rounded crown. The hiker's pack is the picture's: big,
+  yellow, rising over the head, with a mat rolled under it.
+- **Stance**: at rest a survivor stands feet apart, one a little ahead, knees soft, the head
+  turned a little aside, and carries the gun low (across the hips, or hanging in one hand); it
+  comes up to the chest only to fire (`docs/game-design.md`, "Puppets").
 - **Held weapons** are at true size, in wood and steel with a sling or magazine where the real
   thing has one (`gunParts`). The held AWM is 1.2 m long.
 - **Budget**: at most 2500 triangles per survivor with the held weapon; they come to about

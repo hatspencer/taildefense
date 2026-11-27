@@ -53,6 +53,8 @@ export interface Archetype {
   gloves?: number;
   hat: Hat; hatColor: number;
   hatMark?: number;      // a cross on the front of the cap
+  hatPatch?: number;     // a badge on the front of the cap
+  stripe?: number;       // a reflective band round the shirt
   sleeveMark?: boolean;  // a cross on the sleeve
   belt: Belt; beltColor: number;
   back: Back; backColor: number;
@@ -64,13 +66,13 @@ export interface Archetype {
 // biggest piece of cloth.
 const ARCHETYPES: Archetype[] = [
   { name: 'paramedic', shirt: 'collar', sleeve: 'long', legs: PAL.denimDark, cargo: true, knees: 0x2a2a24, shoes: 'boot', shoeColor: PAL.leather, sole: PAL.leatherDark,
-    gloves: 0x2e2a24, hat: 'cap', hatColor: 0x2a3040, hatMark: PAL.medWhite, sleeveMark: true, belt: 'medic', beltColor: PAL.webbing, back: 'daypack', backColor: PAL.olive, neck: 'none' },
-  { name: 'mechanic', shirt: 'tee', sleeve: 'rolled', shirtColor: PAL.shirtWhite, over: 'overalls', knees: undefined, shoes: 'boot', shoeColor: PAL.leatherDark, sole: PAL.ink,
-    gloves: PAL.leather, hat: 'cap', hatColor: PAL.capOrange, belt: 'tools', beltColor: PAL.leather, back: 'none', backColor: 0, neck: 'none' },
+    gloves: 0x2e2a24, hat: 'cap', hatColor: 0x353d4e, hatMark: PAL.medWhite, sleeveMark: true, stripe: 0xa8a48a, belt: 'medic', beltColor: PAL.webbing, back: 'daypack', backColor: PAL.olive, neck: 'none' },
+  { name: 'mechanic', shirt: 'tee', sleeve: 'rolled', shirtColor: PAL.shirtWhite, over: 'overalls', knees: 0x2e2a22, shoes: 'boot', shoeColor: PAL.leatherDark, sole: PAL.ink,
+    gloves: PAL.leather, hat: 'cap', hatColor: PAL.capOrange, hatPatch: 0xd0c8a8, belt: 'tools', beltColor: PAL.leather, back: 'none', backColor: 0, neck: 'none' },
   { name: 'hunter', shirt: 'collar', sleeve: 'long', shirtColor: PAL.wool, over: 'jacket', lining: PAL.plaid, legs: PAL.denimDark, knees: PAL.leatherDark, shoes: 'boot', shoeColor: PAL.leather, sole: PAL.leatherDark,
-    hat: 'beanie', hatColor: 0x2e2c28, belt: 'hunter', beltColor: PAL.leather, back: 'rucksack', backColor: 0x5a4630, neck: 'scarf', neckColor: PAL.khaki },
-  { name: 'student', shirt: 'hoodie', sleeve: 'long', legs: 0x55603e, shoes: 'sneaker', shoeColor: 0x8a7e66, sole: PAL.medWhite,
-    hat: 'beanie', hatColor: 0x5a2e2e, belt: 'thin', beltColor: PAL.leatherDark, back: 'bigpack', backColor: PAL.packYellow, neck: 'none' },
+    hat: 'beanie', hatColor: 0x47453e, belt: 'hunter', beltColor: PAL.leather, back: 'rucksack', backColor: 0x5a4630, neck: 'scarf', neckColor: PAL.khaki },
+  { name: 'student', shirt: 'hoodie', sleeve: 'long', legs: 0x55603e, knees: 0x4a4a32, shoes: 'boot', shoeColor: 0x6e4c2a, sole: PAL.leatherDark,
+    hat: 'beanie', hatColor: 0x66303a, belt: 'thin', beltColor: PAL.leatherDark, back: 'bigpack', backColor: 0xc8a03a, neck: 'none' },
   { name: 'builder', shirt: 'tee', sleeve: 'short', over: 'hivis', overColor: PAL.hiVis, legs: PAL.denim, shoes: 'boot', shoeColor: 0x7a5a32, sole: PAL.leatherDark,
     gloves: 0x8a7a50, hat: 'hardhat', hatColor: PAL.hardHat, belt: 'tools', beltColor: PAL.leather, back: 'none', backColor: 0, neck: 'none' },
   { name: 'nurse', shirt: 'vneck', sleeve: 'short', shoes: 'sneaker', shoeColor: PAL.medWhite, sole: 0xa8a290,

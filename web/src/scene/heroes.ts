@@ -6,7 +6,7 @@ import type { Game } from '../state';
 import { AWM_HELD, AWM_HELD_MUZZLE, awmFull, awmParts } from './awm';
 import { litMaterial } from './structs';
 import { Body, type Look, readLook, shade } from './look';
-import { darker, garment as wear, lighter, blend, PAL } from './palette';
+import { darker, lighter, blend, mute, PAL } from './palette';
 import { ik2, Spring, turnTowards, wrapAngle } from './rig';
 import { box, cyl, merge, part, type Part, playerColor, sphere } from './util';
 
@@ -24,6 +24,7 @@ interface Hero {
   shout: THREE.Object3D; stars: THREE.Object3D; goggles: THREE.Object3D; marker: THREE.Object3D; cross: THREE.Object3D; progress: THREE.Object3D;
   look: number; wd: number; ht: number; weapon: number; color: number;
   phase: number; seen: number; down: boolean; pop: number; shotAt: number; crouch: number; downAmt: number; taunt: number; reload: number;
+  ready: number; firedAt: number; // the gun up at aim (1) or carried low (0); when it last fired
   sprint: number; leap: number; hurt: boolean; flyAt: number; // when a throw took them off their feet, -1 on them
   x: number; y: number; vx: number; vy: number; legYaw: number; dirSign: number; fresh: boolean;
   leanX: Spring; leanZ: Spring; aim: Spring; flinch: Spring; tailS: Spring; packS: Spring; kick: Spring;
@@ -43,8 +44,8 @@ const J_HIP = 0.93, J_KNEE = 0.48, J_WAIST = 1.0, J_SHOULDER = 1.455, J_ELBOW = 
 const WAIST = J_WAIST * K, HIP = J_HIP * K, THIGH = (J_HIP - J_KNEE) * K;
 const UPPER = (J_SHOULDER - J_ELBOW) * K, FORE = (J_ELBOW - J_HAND) * K;
 // Half the distance between the hips and between the shoulders' pivots, by body.
-const legZ = (b: Body) => (b === Body.Fem ? 0.106 : 0.1);
-const armZ = (b: Body) => (b === Body.Masc ? 0.197 : b === Body.Fem ? 0.178 : 0.187);
+const legZ = (b: Body) => (b === Body.Fem ? 0.11 : 0.106);
+const armZ = (b: Body) => (b === Body.Masc ? 0.207 : b === Body.Fem ? 0.186 : 0.196);
 // The head is drawn HEAD times its true size about the neck, as the picture draws its people:
 // a little big, so a face and a hat read from the camera.
 const HEAD = 1.08;
@@ -58,15 +59,19 @@ export const TAIL = [-0.1 * HEAD * K, hy(1.74) * K];
 interface Hold { at: [number, number, number]; grip: [number, number, number]; fore: [number, number, number]; muzzle: number }
 const hold = (at: [number, number, number], grip: [number, number, number], fore: [number, number, number], muzzle: number): Hold =>
   ({ at, grip: grip.map((v) => v * K) as [number, number, number], fore: fore.map((v) => v * K) as [number, number, number], muzzle: muzzle * K });
+// Aimed, a long gun's bore is at the chest, the stock in the shoulder's pocket, not up at the
+// face; the torso turns its off shoulder BLADE towards the aim so the off hand reaches the
+// fore-end, and the hold is written as if it had not (see the gun's pose in update).
 const HOLDS: Hold[] = [
-  hold([0.42, 0.4, -0.06], [-0.012, -0.066, 0], [-0.02, -0.08, 0.05], 0.16),   // pistol, both hands out
-  hold([0.2, 0.42, -0.14], [-0.06, -0.072, 0], [0.36, -0.04, 0], 0.66),        // shotgun, shouldered
-  hold([0.24, 0.38, -0.12], [-0.035, -0.075, 0], [0.17, -0.09, 0], 0.31),      // SMG
-  hold([0.2, 0.43, -0.14], [-0.08, -0.07, 0], [0.32, -0.04, 0], 0.76),         // rifle
-  hold([0.24, 0.13, -0.1], [-0.2, 0, -0.04], [0.02, 0.13, 0.03], 0.78),         // minigun, braced at the hip
-  hold([0.02, 0.56, -0.19], [0.06, -0.11, 0], [0.36, -0.1, 0], 0.74),          // launcher, on the shoulder
+  hold([0.4, 0.33, -0.05], [-0.012, -0.066, 0], [-0.02, -0.08, 0.05], 0.16),   // pistol, both hands out
+  hold([0.3, 0.34, -0.09], [-0.06, -0.072, 0], [0.24, -0.04, 0], 0.66),        // shotgun, shouldered
+  hold([0.28, 0.3, -0.1], [-0.035, -0.075, 0], [0.17, -0.09, 0], 0.31),        // SMG
+  hold([0.3, 0.34, -0.09], [-0.08, -0.07, 0], [0.2, -0.04, 0], 0.76),          // rifle
+  hold([0.24, 0.12, -0.1], [-0.2, 0, -0.04], [0.02, 0.13, 0.03], 0.78),         // minigun, braced at the hip
+  hold([0.04, 0.47, -0.17], [0.06, -0.11, 0], [0.36, -0.1, 0], 0.74),          // launcher, on the shoulder
   hold([0.16, 0.24, -0.17], [0, 0, 0], [-0.1, 0, 0], 0.6),                     // crowbar, both hands on the tape, up at the shoulder
 ];
+const BLADE = [0, 0.55, 0.3, 0.55, 0.25, 0.4, 0];
 
 // The legendaries are held two-handed, the off hand behind the grip on the hilt; their poses
 // are set by the swing (legendPose), so at is only where a fresh one starts.
@@ -75,8 +80,33 @@ HOLDS[GREAT] = { at: [0, 0.6, -0.22], grip: [0, 0, 0], fore: [-0.14, 0, 0], muzz
 
 // A fully bought Rifle is the AWM, shouldered as the rifle is, the off hand under its longer
 // fore-end.
-const AWM_HOLD: Hold = { at: [0.2, 0.43, -0.14], grip: [0, -0.04, 0], fore: [0.36, -0.06, 0], muzzle: AWM_HELD_MUZZLE };
+const AWM_HOLD: Hold = { at: [0.3, 0.34, -0.09], grip: [0, -0.04, 0], fore: [0.3, -0.06, 0], muzzle: AWM_HELD_MUZZLE };
 const holdOf = (w: number, evo: number): Hold => (w === RIFLE && evo ? AWM_HOLD : HOLDS[w] ?? HOLDS[0]);
+
+// How each weapon is carried at rest, as the picture's people stand: a long gun across the body
+// at the hips in both hands, its muzzle low and out to the off side; the SMG and the launcher
+// low in front; the minigun sagging at the hip; a pistol or the crowbar hanging in the gun hand
+// at the side, the other hand free. Given as where the gun hand is (torso space, the torso's
+// units) and the gun's roll, heading and pitch; free when the off hand hangs.
+interface Carry { at: THREE.Vector3; q: THREE.Quaternion; free: boolean }
+const carry = (hd: Hold, hand: [number, number, number], rot: [number, number, number], free = false): Carry => {
+  const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot));
+  return { at: new THREE.Vector3(...hand).sub(new THREE.Vector3(...hd.grip).applyQuaternion(q)), q, free };
+};
+const CARRY: Carry[] = [
+  carry(HOLDS[0], [0.09, -0.02, -0.22], [0.1, 0.15, -1.2], true),
+  carry(HOLDS[1], [0.08, 0.06, -0.12], [0, -0.62, -0.14]),
+  carry(HOLDS[2], [0.09, 0.07, -0.08], [0, -0.55, -0.4]),
+  carry(HOLDS[3], [0.08, 0.06, -0.12], [0, -0.62, -0.14]),
+  carry(HOLDS[4], [0.06, 0.08, -0.14], [0, -0.15, -0.32]),
+  carry(HOLDS[5], [0.1, 0.03, -0.14], [0, -0.8, -0.15]),
+  carry(HOLDS[6], [0.09, -0.02, -0.22], [0, 0.2, -1.3], true),
+];
+const AWM_CARRY = carry(AWM_HOLD, [0.08, 0.06, -0.12], [0, -0.62, -0.14]);
+// The second pistol, hanging in the other hand.
+const CARRY2 = carry(HOLDS[0], [0.09, -0.02, 0.22], [-0.1, -0.15, -1.2], true);
+const carryOf = (w: number, evo: number): Carry => (w === RIFLE && evo ? AWM_CARRY : CARRY[w] ?? CARRY[0]);
+const QB = new THREE.Quaternion();
 
 // A legendary's edge, lit: plain steel's shine, then by evolution (Crimson Fang, Moonlit Edge;
 // Ashen Colossus, Stormbreaker).
@@ -475,7 +505,7 @@ export class Heroes {
       group: g, body, hips, torso, head, tail, pack, legL, legR, armL, armR, gun, gunMesh: null, spin: null, glow: null, flash, finger, hand, gun2, dual: false, alt: false,
       evo: 0, swings: -1, swingAt: -1e9, combo: 0, bp: P(0, 0, 0, 0, 0, 0), bp2: P(0, 0, 0, 0, 0, 0), art: 0, artStart: 0, artEnd: -1e9, artWas: 0, stance: 0,
       shout, stars, goggles, marker, cross, progress, look, wd: L.width, ht: L.height, weapon: -1, color: c,
-      phase: 0, seen: 0, down: false, pop: 0, shotAt: -1e9, crouch: 0, downAmt: 0, taunt: 0, reload: 0, sprint: 0, leap: 0, hurt: false, flyAt: -1,
+      phase: 0, seen: 0, down: false, pop: 0, shotAt: -1e9, crouch: 0, downAmt: 0, taunt: 0, reload: 0, ready: 0, firedAt: -1e9, sprint: 0, leap: 0, hurt: false, flyAt: -1,
       x: 0, y: 0, vx: 0, vy: 0, legYaw: 0, dirSign: 1, fresh: true,
       leanX: new Spring(2.2, 0.45, 0), leanZ: new Spring(2.2, 0.45, 0), aim: new Spring(4.5, 0.75, 1.6), flinch: new Spring(3, 0.3, 0),
       tailS: new Spring(1.8, 0.25, 0), packS: new Spring(3.5, 0.3, 0), kick: new Spring(9, 0.35, 0),
@@ -685,6 +715,11 @@ export class Heroes {
       h.crouch = ease(h.crouch, channel ? 1 : 0, 10, dt);
       h.taunt = ease(h.taunt, taunting ? 1 : 0, 12, dt);
       h.reload = ease(h.reload, reloading && !channel ? 1 : 0, 10, dt);
+      // The gun comes up fast to fire and stays up a moment after, then sinks slowly back to how
+      // it is carried; halfway up to reload. A crowbar's Home Run, and a legendary, are always up.
+      if (firing) h.firedAt = now;
+      const up = firing || now - h.firedAt < 1200 || (h.weapon === 6 && h.art === Art.HomeRun) ? 1 : reloading ? 0.6 : 0;
+      h.ready = ease(h.ready, up, h.ready < up ? 14 : 2.6, dt);
       h.sprint = ease(h.sprint, alive && p.sprinting && speed > 2 ? 1 : 0, 6, dt);
       // A dash covers metres in a tick; a sprint, even in the best boots, stays well under this.
       h.leap = ease(h.leap, alive && speed > 20 ? 1 : 0, speed > 20 ? 20 : 6, dt);
@@ -725,11 +760,24 @@ export class Heroes {
         h.phase = ease(h.phase, k, 8, dt);
       }
       const ph = h.phase;
-      // A sprint: a longer stride, the knees driven high and the heels kicked up behind.
-      const amp = (0.45 + 0.35 * run + 0.25 * sk) * walk;
-      const bend = (0.7 + 0.8 * run + 0.5 * sk) * walk;
+      // The stride: the planted leg, straight, sweeps back through exactly the step's length while
+      // the body covers it, so the foot stays where it was put; its length in the world is the
+      // hip's height. A sprint: a longer stride, the knees driven high and the heels kicked up.
+      const legW = J_HIP * h.ht;
+      const amp = Math.asin(Math.min(0.8, stepLen / (2 * legW))) * clamp01(speed / 0.3) * (alive ? 1 : 0);
+      const bend = (0.75 + 0.8 * run + 0.5 * sk) * Math.max(walk, clamp01(speed / 0.3) * 0.6);
       let thL = Math.sin(ph) * amp, thR = -thL;
-      let shL = -Math.max(0, Math.cos(ph)) * bend - 0.1 * walk, shR = -Math.max(0, -Math.cos(ph)) * bend - 0.1 * walk;
+      // The knees never lock: a soft flex through the stance, the thigh a touch ahead to keep
+      // the foot under the hip.
+      let shL = -Math.max(0, Math.cos(ph)) * bend - 0.16 * walk, shR = -Math.max(0, -Math.cos(ph)) * bend - 0.16 * walk;
+      thL += 0.08 * walk; thR += 0.08 * walk;
+      // Standing: the feet set apart, the weight on the gun side's leg, the other knee bent and
+      // its foot a little ahead, the pelvis dropped on that side. With the gun up, a fighting
+      // stance: the off foot forward, the gun side's back, both knees bent and the body lower.
+      const still = alive ? (1 - clamp01(speed / 0.3)) * (1 - h.crouch) : 0;
+      const readyS = h.ready * h.ready * (3 - 2 * h.ready), guard = leg ? 0 : still * readyS;
+      thL += 0.3 * still + 0.04 * guard; shL -= 0.55 * still;
+      thR += 0.05 * still - 0.2 * guard; shR -= 0.12 * still + 0.3 * guard;
       // Kneeling to search or revive: down on the right knee.
       const cr = h.crouch;
       thL = thL * (1 - cr) + 1.45 * cr; shL = shL * (1 - cr) - 1.5 * cr;
@@ -746,18 +794,22 @@ export class Heroes {
       thL = thL * (1 - st) + (0.55 + 0.4 * low) * st; shL = shL * (1 - st) - (0.55 + 0.7 * low) * st;
       thR = thR * (1 - st) - (0.5 + 0.35 * low) * st; shR = shR * (1 - st) - (0.35 + 0.3 * low) * st;
       if (sky) { thL = 1.3; shL = -1.8; thR = 1.1; shR = -1.6; }
-      if (!alive) { thL = 0.35; shL = -0.5; thR = 0.1; shR = -0.15; }
-      h.legL.upper.rotation.z = thL; h.legL.lower.rotation.z = shL;
-      h.legR.upper.rotation.z = thR; h.legR.lower.rotation.z = shR;
+      // Down: on the back, one knee drawn up, the other leg out and turned aside.
+      if (!alive) { thL = 0.95; shL = -1.45; thR = 0.12; shR = -0.32; }
+      const splay = 0.085 * still * (1 - h.stance) + (alive ? 0 : 0.2);
+      h.legL.upper.rotation.set(-splay, 0, thL); h.legL.lower.rotation.set(splay, 0, shL);
+      h.legR.upper.rotation.set(splay, 0, thR); h.legR.lower.rotation.set(-splay, 0, shR);
 
-      // The body: a rise at each passing step, kneeling low, the pop on standing up.
-      const bob = walk * (0.025 + 0.05 * run + 0.03 * sk) * (1 - Math.abs(Math.sin(ph)));
+      // The body: as low as the planted leg, straight and slanted, puts the hip (lowest with both
+      // feet down, highest passing over the foot), and a spring off the ground at a run; kneeling
+      // low, the pop on standing up.
+      const bob = -(J_HIP * K) * h.ht * (1 - Math.cos(amp * Math.sin(ph))) * (1 - h.leap) + walk * (0.05 * run + 0.03 * sk) * (1 - Math.abs(Math.sin(ph)));
       const popY = h.pop > 0 ? Math.sin((1 - h.pop) * Math.PI) * 0.35 : 0;
       // A cut steps into it, the follow-through with a hop before it comes down.
       // Worldsplitter's chop steps in hard and stays there.
       const lunge = su >= 0 ? leg!.lunge[h.combo] * (su < 0.2 ? su / 0.2 : 1 - (su - 0.2) / 0.8) : chop ? 0.4 * Math.min(1, after / 0.05) * (after < 0.75 ? 1 : (1 - after) / 0.25) : 0;
       const hop = su >= 0 && h.weapon === GREAT && h.combo === 2 && su < 0.2 ? Math.sin(su / 0.2 * Math.PI) * 0.35 : 0;
-      h.body.position.y = bob + popY - cr * 0.39 + lp * 0.15 + h.downAmt * 0.2 - st * 0.11 - low * 0.27 + hop;
+      h.body.position.y = bob + popY - cr * 0.39 + lp * 0.15 + h.downAmt * 0.2 - st * 0.11 - low * 0.27 + hop - 0.035 * guard;
       h.body.position.x = Math.cos(aim) * lunge; h.body.position.z = Math.sin(aim) * lunge;
       // Lean: into the run and into the turn (towards the acceleration), overshooting a
       // little on stopping; lying back when downed.
@@ -780,7 +832,11 @@ export class Heroes {
 
       // Hips follow the legs, with a swing of the pelvis; the torso follows the aim on a
       // spring that snaps a little ahead, twisting back against the stride.
-      h.hips.rotation.set(Math.sin(ph) * 0.05 * walk, -(h.legYaw + Math.sin(ph) * 0.16 * walk), 0);
+      // The pelvis turns with the leg swinging forward and drops on its side, the shoulders turn
+      // against it (less with the gun up, which stays on the aim).
+      h.hips.rotation.set(Math.sin(ph) * 0.05 * walk + 0.07 * still, -h.legYaw + Math.sin(ph) * (0.14 + 0.06 * run) * walk + 0.08 * still, 0);
+      // Breath: the chest rising and falling, slow at rest.
+      const breath = Math.sin(t * 1.6 + h.color) * 0.018 * (alive ? 1 : 0.4);
       const aimGoal = h.aim.y + wrapAngle(aim - h.aim.y);
       const ay2 = h.aim.update(dt, aimGoal);
       const flinch = h.flinch.update(dt, 0);
@@ -792,8 +848,13 @@ export class Heroes {
       // Home Run coils the shoulders away from the aim, then unwinds them past it.
       const coil = hr >= 0 ? 0.95 * hr * hr * (3 - 2 * hr) : hs >= 0 ? (0.95 - 2.2 * homeSnap(hs)) * (1 - homeBack(hs)) : 0;
       const twist = leg ? h.bp[4] * 0.3 * (h.dual ? 0.5 : 1) : coil, bow = leg ? lunge * 0.9 + low * 0.35 - (raised ? 0.75 * artU : 0) + (chop ? 0.3 : 0) : low * 0.3;
-      h.torso.rotation.set(0, -(ay2 - Math.sin(ph) * 0.1 * walk) + twist, -cr * 0.2 + flinch * 0.6 + kick * 0.15 - shoutLean - lp * 0.25 - h.sprint * 0.12 - bow);
-      h.head.rotation.set(0, -wrapAngle(aim - ay2) * 0.6, -flinch * 0.5 + 0.05 * Math.sin(2 * ph) * walk + cr * 0.35 + (alive ? 0 : 0.3));
+      // Aiming a long gun turns the off shoulder towards the target (the hold is turned back to
+      // match); at rest the head turns a little aside.
+      const rd = leg ? 1 : readyS, rest = 1 - rd;
+      const blade = leg ? 0 : (BLADE[h.weapon] ?? 0) * rd;
+      h.torso.rotation.set(-Math.sin(ph) * 0.045 * walk - 0.06 * still, -ay2 - Math.sin(ph) * 0.1 * walk * (1 - 0.6 * rd) + twist + blade, breath - 0.05 * walk - cr * 0.2 + flinch * 0.6 + kick * 0.15 - shoutLean - lp * 0.25 - h.sprint * 0.12 - bow);
+      h.head.rotation.set(0, -wrapAngle(aim - ay2) * 0.6 - blade * 0.9 + 0.22 * rest * still, -flinch * 0.5 + 0.04 * Math.sin(2 * ph) * walk + cr * 0.35 + (alive ? 0 : 0.3) + 0.06 * rest - 0.35 * h.reload - breath * 0.5);
+      h.head.rotation.x = 0.05 * still + Math.sin(ph) * 0.03 * walk;
       if (h.tail) {
         const goal = -0.35 * Math.min(speed, 5) / 5 - 0.12 * Math.abs(Math.sin(2 * ph)) * walk;
         h.tail.rotation.z = h.tailS.update(dt, goal - flinch * 0.4);
@@ -841,6 +902,17 @@ export class Heroes {
         h.gun.position.set(hold.at[0] - kick * 0.25 - sp * 0.06, hold.at[1] - sp * 0.1 - rl * 0.06, hold.at[2] + sp * 0.05);
         h.gun.rotation.set(rl * 0.7, sp * 0.35, kick * 0.6 - sp * 0.55 - rl * 0.3);
       }
+      // The aimed pose turned back against the torso's blade, then lowered towards the carry;
+      // a gun hanging in one hand swings a little with the stride.
+      const C = carryOf(h.weapon, h.evo), swing = Math.sin(ph) * walk * rest;
+      if (!leg) {
+        if (blade) { QB.setFromAxisAngle(UP, -blade); h.gun.position.applyQuaternion(QB); h.gun.quaternion.premultiply(QB); }
+        if (rest > 0.001) {
+          V.copy(C.at); if (C.free) V.x += swing * 0.05;
+          h.gun.position.lerp(V, rest); h.gun.quaternion.slerp(C.q, rest);
+          if (h.dual) { V.copy(CARRY2.at); V.x -= swing * 0.05; h.gun2.position.lerp(V, rest); h.gun2.quaternion.slerp(CARRY2.q, rest); h.gun2.updateMatrix(); }
+        }
+      }
       h.gun.updateMatrix();
       // A legendary has no muzzle: its flash is the glint at the point, as Flash Draw is about to
       // cut, as Skyfall comes down and as Worldsplitter's blade is about to.
@@ -848,10 +920,17 @@ export class Heroes {
         : h.weapon !== 6 && !(h.weapon === RIFLE && h.evo) && now - h.shotAt < (h.weapon === 1 ? 70 : 45);
       if (h.spin) h.spin.rotation.x += dt * (firing ? 40 : 0);
 
-      // Hands: on the gun, unless kneeling, taunting or down.
+      // Hands: on the gun, unless kneeling, taunting or down. The weapon goes where the hand can
+      // hold it: a grip out of the arm's reach brings the gun in to the hand, and a fore-end out of
+      // the other arm's reach has that hand slide back along the gun to where it can hold it, so
+      // no pose, recoil or sway leaves the gun floating.
+      reachGun(h.gun, hold.grip, h.armR.upper.position);
       TR.set(...hold.grip).applyMatrix4(h.gun.matrix);
-      if (h.dual) TL.set(...hold.grip).applyMatrix4(h.gun2.matrix);
-      else TL.set(...hold.fore).applyMatrix4(h.gun.matrix);
+      if (h.dual) { reachGun(h.gun2, hold.grip, h.armL.upper.position); TL.set(...hold.grip).applyMatrix4(h.gun2.matrix); }
+      else reachFore(TL, h.gun, hold, h.armL.upper.position);
+      // The off hand, free while a one-handed thing is carried: hanging, swinging against the
+      // stride.
+      if (!leg && !h.dual && C.free && rest > 0.001) TL.lerp(V.set(0.07 - swing * 0.14, -0.02 + Math.abs(swing) * 0.03, h.armL.upper.position.z + 0.035), rest);
       if (rl > 0.01 && !h.dual && !leg) {
         // The off hand to the magazine, down to the belt for a fresh one, and back.
         const u = (t * 1.3) % 1;
@@ -876,7 +955,8 @@ export class Heroes {
       }
       ik2(h.armR.upper, h.armR.lower, UPPER, FORE, TR, PR);
       ik2(h.armL.upper, h.armL.lower, UPPER, FORE, TL, PL);
-      h.gun.visible = cr < 0.5 && tn < 0.5 && dn < 0.5;
+      // Put away the moment the hands leave it, so it is never seen hanging in the air.
+      h.gun.visible = cr < 0.12 && tn < 0.12 && dn < 0.12;
       h.gun2.visible = h.dual && h.gun.visible;
       h.finger.visible = tn >= 0.5;
       h.hand.visible = tn < 0.5;
@@ -908,9 +988,39 @@ export class Heroes {
   }
 }
 
-// The player's colour as a survivor wears it: muted and worn, to sit in the picture's palette.
+// The arms' reach from the shoulder, in the torso's units, a little short of straight.
+const REACH = UPPER + FORE - 0.006;
+const RG = new THREE.Vector3(), RF = new THREE.Vector3();
+// Moves a gun (its matrix in the torso's space) so its grip is within the arm's reach of the
+// shoulder at sh.
+function reachGun(g: THREE.Object3D, grip: [number, number, number], sh: THREE.Vector3): void {
+  RG.set(...grip).applyMatrix4(g.matrix);
+  const d = RG.distanceTo(sh);
+  if (d <= REACH) return;
+  RF.subVectors(RG, sh).multiplyScalar(REACH / d - 1);
+  g.position.add(RF);
+  g.updateMatrix();
+}
+// The support hand's hold on a gun: its fore-end, or the nearest point back along the gun
+// towards the grip that the arm from the shoulder at sh reaches.
+function reachFore(out: THREE.Vector3, g: THREE.Object3D, hd: Hold, sh: THREE.Vector3): void {
+  out.set(...hd.fore).applyMatrix4(g.matrix);
+  if (out.distanceTo(sh) <= REACH) return;
+  RG.set(...hd.grip).applyMatrix4(g.matrix);
+  RF.copy(out);
+  let lo = 0, hi = 1;
+  for (let i = 0; i < 8; i++) {
+    const m = (lo + hi) / 2;
+    out.lerpVectors(RF, RG, m);
+    if (out.distanceTo(sh) <= REACH) hi = m; else lo = m;
+  }
+  out.lerpVectors(RF, RG, hi);
+}
+
+// The player's colour as a survivor wears it: muted, worn and a good deal darker, as deep as the
+// picture's teal shirt and denim, so the lit side reads against the dark and the skin stands out.
 export function garment(id: number): number {
-  return wear(playerColor(id));
+  return darker(mute(playerColor(id), 0.6, 0.1), 0.66);
 }
 
 // Where the face is, in the hero's units (and the portraits'): the front of the face, the eyes'
@@ -955,7 +1065,7 @@ export function figure(L: Look, c: number): Figure {
   const k = new Kit();
 
   // The body's measures: half the chest's width, half the hips', the chest's depth.
-  const cw = masc ? 0.18 : fem ? 0.161 : 0.17, hw = masc ? 0.156 : fem ? 0.168 : 0.16, cd = masc ? 0.25 : fem ? 0.228 : 0.24;
+  const cw = masc ? 0.19 : fem ? 0.17 : 0.18, hw = masc ? 0.158 : fem ? 0.17 : 0.162, cd = masc ? 0.26 : fem ? 0.236 : 0.25;
   const az = armZ(L.body), lz = legZ(L.body);
   // The torso is stacked: belly from the waist to the chest, chest to the shoulders, and the
   // slope of the shoulders up to the neck. fx(y) is its front's x at a height, sw(y) its side's z.
@@ -1013,12 +1123,13 @@ export function figure(L: Look, c: number): Figure {
   switch (over) {
     case 'overalls': {
       // A bib with its pocket, straps over the shoulders crossing behind, brass buckles.
-      k.b(0.024, 0.2, 0.2, oc, front(1.28, 0.006), 1.28);
-      k.b(0.012, 0.07, 0.09, darker(oc, 0.72), front(1.3, 0.02), 1.31);
-      for (const z of [0.075, -0.075]) {
-        k.seg([front(1.37, 0.008), 1.37, z], [0.0, 1.53, z * 1.25], 0.022, 0.04, oc);
-        k.seg([0.0, 1.53, z * 1.25], [-front(1.24, 0.008), 1.2, -z * 0.5], 0.022, 0.04, oc);
-        k.b(0.016, 0.03, 0.03, 0xa08a4a, front(1.37, 0.018), 1.37, z);
+      k.b(0.026, 0.24, 0.26, oc, front(1.3, 0.008), 1.3);
+      k.b(0.014, 0.025, 0.262, darker(oc, 0.7), front(1.41, 0.012), 1.41);
+      k.b(0.014, 0.08, 0.11, darker(oc, 0.72), front(1.3, 0.024), 1.31);
+      for (const z of [0.1, -0.1]) {
+        k.seg([front(1.4, 0.012), 1.4, z], [0.0, 1.535, z * 1.2], 0.03, 0.05, oc);
+        k.seg([0.0, 1.535, z * 1.2], [-front(1.24, 0.01), 1.2, -z * 0.4], 0.03, 0.05, oc);
+        k.b(0.02, 0.035, 0.035, 0xa08a4a, front(1.4, 0.026), 1.4, z);
       }
       k.b(0.008, 0.2, 0.012, darker(oc, 0.6), front(1.1, 0.002), 1.1, 0.12);
       break;
@@ -1106,14 +1217,17 @@ export function figure(L: Look, c: number): Figure {
     }
   }
 
+  // A reflective band round the shirt.
+  if (A.stripe !== undefined) for (const y of [1.12]) { const dx = 2 * fx(y) + 0.012, dz = 2 * sw(y) + 0.012; k.t(dx, dz, dx, dz, 0.03, A.stripe, 0, y); }
+
   // Straps of whatever is on the back, over the shoulders and down the chest.
   const packStrap = (col: number) => {
     for (const z of [0.09, -0.09]) {
-      k.seg([-0.1, 1.42, z], [0.02, 1.53, z * 1.05], 0.022, 0.045, col);
-      k.seg([0.02, 1.53, z * 1.05], [front(1.36, 0.016), 1.36, z * 1.05], 0.022, 0.045, col);
-      k.seg([front(1.36, 0.016), 1.36, z * 1.05], [front(1.18, 0.012), 1.16, z * 1.3], 0.022, 0.04, col);
+      k.seg([-0.1, 1.42, z], [0.02, 1.54, z * 1.05], 0.03, 0.055, col);
+      k.seg([0.02, 1.54, z * 1.05], [front(1.36, 0.022), 1.36, z * 1.05], 0.03, 0.055, col);
+      k.seg([front(1.36, 0.022), 1.36, z * 1.05], [front(1.18, 0.018), 1.16, z * 1.3], 0.03, 0.05, col);
     }
-    k.b(0.016, 0.025, 0.2, col, front(1.3, 0.024), 1.3);
+    k.b(0.02, 0.03, 0.21, col, front(1.3, 0.034), 1.3);
   };
 
   // What is carried, bouncing on the back (the pack group); the straps stay on the torso.
@@ -1123,26 +1237,32 @@ export function figure(L: Look, c: number): Figure {
     case 'daypack':
       packStrap(darker(bc, 0.6));
       k.to = F.pack;
-      k.t(0.11, 0.25, 0.1, 0.23, 0.32, bc, back - 0.06, 1.1); k.b(0.06, 0.05, 0.24, bd, back - 0.07, 1.43);
-      k.b(0.045, 0.13, 0.18, bd, back - 0.13, 1.2); k.b(0.05, 0.025, 0.19, darker(bc, 0.6), back - 0.13, 1.28);
+      k.t(0.14, 0.28, 0.13, 0.26, 0.34, bc, back - 0.075, 1.08); k.b(0.08, 0.05, 0.27, bd, back - 0.08, 1.43);
+      k.b(0.055, 0.15, 0.2, bd, back - 0.165, 1.18); k.b(0.06, 0.03, 0.21, darker(bc, 0.6), back - 0.165, 1.27);
+      for (const z of [0.15, -0.15]) k.b(0.09, 0.12, 0.04, bd, back - 0.075, 1.16, z);
       break;
     case 'rucksack':
       packStrap(darker(bc, 0.6));
       k.to = F.pack;
-      k.t(0.18, 0.31, 0.15, 0.29, 0.4, bc, back - 0.095, 1.06); k.t(0.17, 0.3, 0.14, 0.26, 0.06, bd, back - 0.1, 1.46);
-      for (const z of [0.175, -0.175]) k.b(0.11, 0.17, 0.045, bd, back - 0.1, 1.17, z);
-      k.b(0.04, 0.16, 0.2, bd, back - 0.2, 1.17); k.b(0.045, 0.035, 0.21, darker(bc, 0.55), back - 0.2, 1.24);
-      k.to.push(part(cyl(0.065, 0.065, 0.38, 6), PAL.oliveDark, back - 0.09, 1.585, 0, Math.PI / 2));
-      for (const z of [0.11, -0.11]) k.b(0.14, 0.14, 0.02, PAL.leatherDark, back - 0.09, 1.585, z);
+      k.t(0.21, 0.34, 0.18, 0.32, 0.46, bc, back - 0.115, 1.02); k.t(0.2, 0.33, 0.16, 0.28, 0.08, lighter(bc, 0.06), back - 0.12, 1.48);
+      for (const z of [0.19, -0.19]) k.b(0.13, 0.2, 0.05, bd, back - 0.115, 1.15, z);
+      k.b(0.05, 0.2, 0.22, bd, back - 0.235, 1.17); k.b(0.055, 0.04, 0.23, darker(bc, 0.55), back - 0.235, 1.25);
+      for (const z of [0.07, -0.07]) k.b(0.012, 0.3, 0.03, PAL.leatherDark, back - 0.268, 1.2, z);
+      k.to.push(part(cyl(0.075, 0.075, 0.42, 6), PAL.oliveDark, back - 0.1, 1.635, 0, Math.PI / 2));
+      for (const z of [0.12, -0.12]) k.b(0.16, 0.16, 0.022, PAL.leatherDark, back - 0.1, 1.635, z);
       break;
     case 'bigpack':
       packStrap(darker(bc, 0.55));
       k.to = F.pack;
-      k.t(0.2, 0.33, 0.18, 0.31, 0.56, bc, back - 0.105, 1.0); k.t(0.2, 0.32, 0.16, 0.27, 0.085, bd, back - 0.115, 1.55);
-      for (const z of [0.18, -0.18]) k.b(0.12, 0.2, 0.045, bd, back - 0.1, 1.15, z);
-      k.b(0.045, 0.24, 0.24, bd, back - 0.22, 1.24); for (const y of [1.18, 1.32]) k.b(0.05, 0.022, 0.25, darker(bc, 0.55), back - 0.22, y);
-      k.to.push(part(cyl(0.08, 0.08, 0.42, 6), 0x5e6650, back - 0.11, 0.93, 0, Math.PI / 2));
-      for (const z of [0.12, -0.12]) k.b(0.17, 0.17, 0.02, PAL.leatherDark, back - 0.11, 0.93, z);
+      // A hiker's big frame pack, rising over the head: the bag, a lid with a pocket, side and
+      // front pockets, compression straps, and a sleeping mat rolled under it.
+      k.t(0.27, 0.4, 0.25, 0.38, 0.7, bc, back - 0.15, 0.98); k.t(0.26, 0.39, 0.21, 0.33, 0.15, lighter(bc, 0.06), back - 0.16, 1.68);
+      k.b(0.2, 0.04, 0.3, darker(bc, 0.7), back - 0.16, 1.7);
+      for (const z of [0.22, -0.22]) { k.b(0.17, 0.26, 0.06, bd, back - 0.15, 1.2, z); k.b(0.175, 0.04, 0.065, darker(bc, 0.6), back - 0.15, 1.33, z); }
+      k.b(0.06, 0.32, 0.28, bd, back - 0.3, 1.26); for (const y of [1.18, 1.38]) k.b(0.065, 0.03, 0.29, darker(bc, 0.5), back - 0.3, y);
+      for (const z of [0.1, -0.1]) k.b(0.012, 0.5, 0.035, darker(bc, 0.5), back - 0.29, 1.45, z);
+      k.to.push(part(cyl(0.09, 0.09, 0.46, 6), 0x5e6650, back - 0.15, 0.9, 0, Math.PI / 2));
+      for (const z of [0.13, -0.13]) k.b(0.19, 0.19, 0.022, PAL.leatherDark, back - 0.15, 0.9, z);
       break;
     case 'assault':
       packStrap(darker(bc, 0.8));
@@ -1167,10 +1287,10 @@ export function figure(L: Look, c: number): Figure {
   k.to = F.hips;
   k.t(0.19, 2 * hw * 0.92, 0.205, 2 * hw, 0.17, legs, 0, 0.83);
   for (const z of [0.065, -0.065]) k.b(0.012, 0.07, 0.06, darker(legs, 0.8), -0.104, 0.92, z);
-  const beltH = A.belt === 'thin' ? 0.03 : A.belt === 'medic' ? 0.05 : 0.042, beltC = A.beltColor;
+  const beltH = A.belt === 'thin' ? 0.035 : A.belt === 'medic' ? 0.055 : 0.05, beltC = A.beltColor;
   if (over !== 'jacket') {
-    k.t(0.212, 2 * hw + 0.014, 0.212, 2 * hw + 0.014, beltH, beltC, 0, 0.975);
-    k.b(0.012, beltH * 0.9, 0.045, A.belt === 'medic' ? PAL.ink : 0x9a8a5a, 0.11, 0.975 + beltH / 2);
+    k.t(0.22, 2 * hw + 0.02, 0.22, 2 * hw + 0.02, beltH, beltC, 0, 0.972);
+    k.b(0.016, beltH * 0.9, 0.05, A.belt === 'medic' ? PAL.ink : 0xa8925a, 0.116, 0.972 + beltH / 2);
   }
   const pouch = (x: number, y: number, z: number, w: number, h: number, d: number, col: number) => {
     k.b(d, h, w, col, x, y, z); k.b(d + 0.006, h * 0.3, w + 0.004, darker(col, 0.72), x, y + h * 0.36, z);
@@ -1179,23 +1299,25 @@ export function figure(L: Look, c: number): Figure {
     case 'medic': {
       // Webbing pouches front and side; a red medkit bag on the hip, a white cross on it.
       const wc = darker(PAL.webbing, 0.9);
-      pouch(0.13, 0.95, 0.09, 0.065, 0.085, 0.045, wc); pouch(0.13, 0.95, -0.09, 0.065, 0.085, 0.045, wc);
-      pouch(-0.04, 0.95, -hw - 0.025, 0.045, 0.09, 0.08, wc);
-      k.b(0.2, 0.15, 0.085, PAL.medRed, -0.01, 0.86, hw + 0.06); k.b(0.21, 0.03, 0.09, darker(PAL.medRed, 0.7), -0.01, 0.93, hw + 0.062);
-      k.b(0.07, 0.022, 0.01, PAL.medWhite, -0.01, 0.855, hw + 0.105); k.b(0.022, 0.07, 0.01, PAL.medWhite, -0.01, 0.855, hw + 0.105);
-      k.b(0.03, 0.06, 0.02, PAL.ink, -0.01, 0.95, hw + 0.03);
+      pouch(0.14, 0.94, 0.095, 0.075, 0.1, 0.06, wc); pouch(0.14, 0.94, -0.095, 0.075, 0.1, 0.06, wc);
+      pouch(-0.03, 0.94, -hw - 0.035, 0.06, 0.11, 0.09, wc); pouch(-0.13, 0.94, 0.06, 0.07, 0.1, 0.05, wc);
+      // The red medkit, a box hung at the hip by its handle, a white cross on its side.
+      const mz = hw + 0.075;
+      k.b(0.25, 0.18, 0.1, PAL.medRed, 0.0, 0.83, mz); k.b(0.255, 0.035, 0.105, darker(PAL.medRed, 0.7), 0.0, 0.905, mz);
+      k.b(0.09, 0.028, 0.012, PAL.medWhite, 0.0, 0.825, mz + 0.054); k.b(0.028, 0.09, 0.012, PAL.medWhite, 0.0, 0.825, mz + 0.054);
+      k.b(0.08, 0.03, 0.02, PAL.ink, 0.0, 0.94, mz); k.b(0.03, 0.05, 0.02, PAL.ink, 0.0, 0.97, hw + 0.03);
       break;
     }
     case 'tools':
       // A tool belt: leather pouches on both hips, a hammer's handle and a wrench hanging.
-      pouch(0.03, 0.9, hw + 0.035, 0.06, 0.13, 0.12, PAL.leatherRed); pouch(0.03, 0.9, -hw - 0.035, 0.06, 0.13, 0.12, PAL.leatherRed);
+      pouch(0.03, 0.9, hw + 0.045, 0.075, 0.15, 0.13, PAL.leatherRed); pouch(0.03, 0.9, -hw - 0.045, 0.075, 0.15, 0.13, PAL.leatherRed);
       k.b(0.02, 0.15, 0.02, PAL.wood, 0.07, 1.0, hw + 0.03, 0, 0, 0.2); k.b(0.07, 0.025, 0.025, PAL.steel, 0.085, 1.07, hw + 0.03);
       k.b(0.025, 0.22, 0.012, PAL.steelLit, -0.06, 0.86, -hw - 0.02, 0, 0, -0.1); k.b(0.05, 0.05, 0.014, PAL.steelLit, -0.05, 0.75, -hw - 0.02);
       break;
     case 'hunter':
       // A knife in its sheath and a cartridge pouch.
-      k.b(0.04, 0.17, 0.025, PAL.leatherDark, -0.04, 0.88, hw + 0.02); k.b(0.03, 0.06, 0.03, PAL.woodDark, -0.04, 0.99, hw + 0.02);
-      pouch(0.13, 0.95, -0.09, 0.07, 0.07, 0.045, PAL.leatherRed);
+      k.b(0.05, 0.19, 0.035, PAL.leatherDark, -0.04, 0.87, hw + 0.03); k.b(0.035, 0.07, 0.035, PAL.woodDark, -0.04, 0.99, hw + 0.03);
+      pouch(0.13, 0.94, -0.095, 0.08, 0.09, 0.06, PAL.leatherRed); pouch(0.02, 0.92, -hw - 0.04, 0.07, 0.11, 0.08, PAL.leatherRed);
       break;
     case 'chain':
       for (let i = 0; i < 5; i++) { const u = i / 4; k.b(0.03, 0.012, 0.012, PAL.steelLit, 0.06 - u * 0.15, 0.93 - Math.sin(u * Math.PI) * 0.07, -hw - 0.012); }
@@ -1213,42 +1335,43 @@ export function figure(L: Look, c: number): Figure {
   [lz, -lz].forEach((z, i) => {
     const s = Math.sign(z);
     k.to = F.thigh[i];
-    k.c(0.068, 0.092, 0.5, legs, 0, 0.47, z);
+    k.c(0.075, 0.098, 0.5, legs, 0, 0.47, z);
     if (A.cargo) { k.b(0.085, 0.11, 0.03, darker(legs, 0.84), 0.0, 0.67, z + s * 0.068); k.b(0.09, 0.025, 0.034, darker(legs, 0.66), 0.0, 0.725, z + s * 0.069); }
     if (over === 'overalls' && i === 1) k.b(0.03, 0.14, 0.012, darker(legs, 0.6), 0.02, 0.72, z - 0.07);
     k.to = F.shin[i];
     const tuck = A.shoes === 'wellie' ? 0.37 : over === 'carrier' ? 0.17 : 0.12;
-    k.c(0.06, 0.068, 0.5 - tuck, legs, 0, tuck, z);
-    if (A.shoes !== 'wellie' && over !== 'carrier') k.c(0.072, 0.068, 0.06, darker(legs, 0.84), 0, 0.12, z);
+    k.c(0.066, 0.075, 0.5 - tuck, legs, 0, tuck, z);
+    if (A.shoes !== 'wellie' && over !== 'carrier') k.c(0.08, 0.076, 0.06, darker(legs, 0.84), 0, 0.12, z);
     if (A.knees !== undefined) {
-      k.b(0.05, 0.11, 0.11, A.knees, 0.066, 0.47, z);
-      k.b(0.135, 0.018, 0.135, darker(A.knees, 0.7), 0.0, 0.44, z);
+      // A knee pad standing well proud of the shin, its lit top edge, its strap round the back.
+      k.b(0.06, 0.13, 0.13, A.knees, 0.088, 0.47, z); k.b(0.062, 0.022, 0.132, lighter(A.knees, 0.14), 0.089, 0.525, z);
+      k.b(0.155, 0.022, 0.15, darker(A.knees, 0.7), 0.01, 0.44, z);
     }
     const sc = A.shoeColor, sole = A.sole;
     switch (A.shoes) {
       case 'boot':
-        k.c(0.068, 0.066, 0.13, sc, 0, 0.06, z);
-        k.c(0.072, 0.072, 0.03, darker(sc, 0.72), 0, 0.17, z);
-        k.t(0.28, 0.12, 0.21, 0.104, 0.085, sc, 0.05, 0.026, z, 0.01);
-        k.b(0.1, 0.014, 0.044, lighter(sc, 0.12), 0.1, 0.108, z, 0, 0, -0.35);
-        k.b(0.3, 0.028, 0.128, sole, 0.05, 0.014, z);
+        k.c(0.078, 0.075, 0.14, sc, 0, 0.06, z);
+        k.c(0.084, 0.084, 0.035, darker(sc, 0.72), 0, 0.17, z);
+        k.t(0.31, 0.138, 0.23, 0.12, 0.095, sc, 0.055, 0.028, z, 0.01);
+        k.b(0.11, 0.016, 0.05, lighter(sc, 0.14), 0.11, 0.118, z, 0, 0, -0.35);
+        k.b(0.335, 0.034, 0.148, sole, 0.055, 0.017, z);
         break;
       case 'sneaker':
-        k.c(0.05, 0.05, 0.05, PAL.medWhite, 0, 0.08, z);
-        k.t(0.27, 0.11, 0.21, 0.1, 0.065, sc, 0.045, 0.035, z, 0.01);
-        k.b(0.09, 0.012, 0.034, lighter(sc, 0.3), 0.095, 0.09, z, 0, 0, -0.35);
-        k.b(0.285, 0.036, 0.118, sole, 0.045, 0.018, z);
+        k.c(0.056, 0.056, 0.05, PAL.medWhite, 0, 0.08, z);
+        k.t(0.29, 0.122, 0.22, 0.11, 0.07, sc, 0.05, 0.035, z, 0.01);
+        k.b(0.1, 0.014, 0.04, lighter(sc, 0.3), 0.1, 0.095, z, 0, 0, -0.35);
+        k.b(0.305, 0.04, 0.13, sole, 0.05, 0.02, z);
         break;
       case 'shoe':
         k.c(0.05, 0.05, 0.06, PAL.ink, 0, 0.07, z);
-        k.t(0.25, 0.095, 0.2, 0.08, 0.055, sc, 0.045, 0.02, z);
-        k.b(0.26, 0.02, 0.1, sole, 0.045, 0.01, z);
+        k.t(0.27, 0.105, 0.21, 0.09, 0.06, sc, 0.05, 0.022, z);
+        k.b(0.28, 0.024, 0.11, sole, 0.05, 0.012, z);
         break;
       case 'wellie':
-        k.c(0.068, 0.068, 0.36, sc, 0, 0.03, z);
-        k.c(0.072, 0.072, 0.03, darker(sc, 0.7), 0, 0.37, z);
-        k.t(0.26, 0.11, 0.22, 0.1, 0.07, sc, 0.045, 0.02, z);
-        k.b(0.275, 0.028, 0.118, sole, 0.045, 0.014, z);
+        k.c(0.078, 0.078, 0.36, sc, 0, 0.03, z);
+        k.c(0.084, 0.084, 0.035, darker(sc, 0.7), 0, 0.37, z);
+        k.t(0.29, 0.125, 0.23, 0.112, 0.075, sc, 0.05, 0.02, z);
+        k.b(0.305, 0.032, 0.135, sole, 0.05, 0.016, z);
         break;
     }
   });
@@ -1257,29 +1380,31 @@ export function figure(L: Look, c: number): Figure {
   [az, -az].forEach((z, i) => {
     const s = Math.sign(z);
     k.to = F.upper[i];
-    k.ball(0.072, sleeveC, 0, 1.425, z, 1.1);
+    k.ball(0.082, sleeveC, 0, 1.42, z, 1.1);
     if (A.sleeve === 'short') {
-      k.c(0.07, 0.072, 0.16, sleeveC, 0, 1.28, z);
-      k.c(0.073, 0.073, 0.02, darker(sleeveC, 0.75), 0, 1.28, z);
-      k.c(0.052, 0.06, 0.16, skin, 0, 1.15, z);
-    } else k.c(0.058, 0.068, 0.3, sleeveC, 0, 1.15, z);
+      k.c(0.078, 0.082, 0.16, sleeveC, 0, 1.28, z);
+      k.c(0.084, 0.084, 0.024, darker(sleeveC, 0.75), 0, 1.28, z);
+      k.c(0.058, 0.068, 0.16, skin, 0, 1.15, z);
+    } else k.c(0.066, 0.078, 0.3, sleeveC, 0, 1.15, z);
     if (A.sleeveMark) {
-      k.b(0.055, 0.055, 0.012, PAL.medWhite, 0, 1.36, z + s * 0.058);
-      k.b(0.035, 0.011, 0.014, PAL.medRed, 0, 1.36, z + s * 0.058); k.b(0.011, 0.035, 0.014, PAL.medRed, 0, 1.36, z + s * 0.058);
+      // The armband: a white patch high on the sleeve with a red cross, standing off it.
+      const mz = z + s * 0.082;
+      k.b(0.085, 0.085, 0.014, PAL.medWhite, 0, 1.35, mz);
+      k.b(0.06, 0.02, 0.018, PAL.medRed, 0, 1.35, mz); k.b(0.02, 0.06, 0.018, PAL.medRed, 0, 1.35, mz);
     }
     if (over === 'carrier' || over === 'hivis' || over === 'vest') k.b(0.03, 0.02, 0.06, darker(sleeveC, 0.8), 0, 1.42, z - s * 0.02);
     k.to = F.fore[i];
     if (A.sleeve === 'long') {
-      k.c(0.048, 0.057, 0.24, sleeveC, 0, 0.94, z);
-      k.c(0.052, 0.052, 0.03, darker(sleeveC, 0.78), 0, 0.94, z);
+      k.c(0.057, 0.067, 0.24, sleeveC, 0, 0.94, z);
+      k.c(0.062, 0.062, 0.03, darker(sleeveC, 0.78), 0, 0.94, z);
     } else {
-      k.c(0.042, 0.053, 0.25, skin, 0, 0.93, z);
-      if (A.sleeve === 'rolled') k.c(0.063, 0.063, 0.06, lighter(sleeveC, 0.05), 0, 1.1, z);
+      k.c(0.05, 0.063, 0.25, skin, 0, 0.93, z);
+      if (A.sleeve === 'rolled') k.c(0.075, 0.075, 0.065, lighter(sleeveC, 0.05), 0, 1.095, z);
     }
     k.to = F.hand[i];
-    k.b(0.095, 0.11, 0.056, handC, 0.004, 0.873, z);
-    k.b(0.032, 0.055, 0.028, handC, 0.053, 0.895, z - s * 0.01);
-    if (A.gloves !== undefined) k.c(0.05, 0.05, 0.025, darker(handC, 0.75), 0, 0.92, z);
+    k.b(0.105, 0.12, 0.068, handC, 0.006, 0.868, z);
+    k.b(0.036, 0.06, 0.032, handC, 0.06, 0.893, z - s * 0.012);
+    if (A.gloves !== undefined) k.c(0.061, 0.061, 0.03, darker(handC, 0.75), 0, 0.918, z);
   });
 
   // The neck and the head: skull, jaw and chin, ears, a brow over shadowed eyes, a nose, a
@@ -1338,13 +1463,26 @@ export function figure(L: Look, c: number): Figure {
   const up = L.style === 'afro' ? 0.06 : L.style === 'curly' ? 0.015 : 0;
   switch (hat) {
     case 'cap':
-      k.t(0.215, 0.178, 0.17, 0.148, 0.075, hc, -0.012, 1.725 + up);
-      k.b(0.12, 0.016, 0.16, darker(hc, 0.85), 0.14, 1.733 + up, 0, 0, 0, -0.16);
-      if (A.hatMark !== undefined) { k.b(0.008, 0.034, 0.011, A.hatMark, 0.09, 1.765 + up); k.b(0.008, 0.011, 0.034, A.hatMark, 0.09, 1.765 + up); }
+      // A round crown of six panels with a button, a long stiff brim with its dark underside,
+      // and the mark on the front panel.
+      k.t(0.222, 0.186, 0.205, 0.172, 0.05, hc, -0.012, 1.72 + up);
+      k.t(0.205, 0.172, 0.13, 0.11, 0.055, hc, -0.02, 1.77 + up);
+      k.b(0.03, 0.016, 0.03, darker(hc, 0.75), -0.03, 1.83 + up);
+      k.b(0.15, 0.022, 0.19, lighter(hc, 0.06), 0.165, 1.728 + up, 0, 0, 0, -0.14);
+      k.b(0.14, 0.008, 0.18, darker(hc, 0.45), 0.16, 1.714 + up, 0, 0, 0, -0.14);
+      k.t(0.226, 0.19, 0.224, 0.188, 0.012, darker(hc, 0.7), -0.012, 1.716 + up);
+      if (A.hatMark !== undefined) {
+        k.b(0.014, 0.06, 0.02, A.hatMark, 0.1, 1.772 + up, 0, 0, 0, 0.4); k.b(0.014, 0.02, 0.06, A.hatMark, 0.1, 1.772 + up, 0, 0, 0, 0.4);
+      }
+      if (A.hatPatch !== undefined) k.b(0.014, 0.04, 0.07, A.hatPatch, 0.1, 1.77 + up, 0, 0, 0, 0.4);
       break;
     case 'beanie':
-      k.t(0.215, 0.178, 0.15, 0.125, 0.11, hc, -0.014, 1.715 + up);
-      k.t(0.225, 0.188, 0.222, 0.186, 0.04, darker(hc, 0.8), -0.014, 1.705 + up);
+      // A knitted cap pulled down to the ears: the folded cuff standing proud, the crown in
+      // steps to its rounded top.
+      k.t(0.234, 0.198, 0.232, 0.196, 0.05, darker(hc, 0.82), -0.014, 1.698 + up);
+      k.t(0.222, 0.188, 0.212, 0.178, 0.05, hc, -0.016, 1.748 + up);
+      k.t(0.212, 0.178, 0.17, 0.142, 0.045, hc, -0.02, 1.798 + up);
+      k.t(0.17, 0.142, 0.08, 0.066, 0.045, hc, -0.026, 1.843 + up);
       break;
     case 'hardhat':
       k.t(0.235, 0.2, 0.16, 0.14, 0.1, hc, -0.012, 1.745 + up); k.b(0.3, 0.014, 0.245, hc, -0.004, 1.748 + up);
