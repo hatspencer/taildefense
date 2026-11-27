@@ -217,9 +217,12 @@ function torso(p: RigPart[], b: Body, thin: number, prints: boolean): void {
   }
   if (prints) {
     // Hands that grabbed at it: palm prints and a smear, dark red.
-    plate(p, J.CHEST, [front(b.waist + 0.24), b.waist + 0.24, 0.07 * thin], [1, 0, 0], 0.045, 0.05, BLOOD, 0.3);
-    plate(p, J.CHEST, [front(b.waist + 0.2), b.waist + 0.2, -0.06 * thin], [1, 0, 0], 0.04, 0.09, BLOOD, -0.4);
-    plate(p, J.CHEST, [0.6 * 0.866 * 0.135 * thin + 0.003, b.waist + 0.04, -0.05], [1, 0, 0], 0.04, 0.05, FRESH);
+    // Big enough to show at the game's zoom (a 40-pixel figure): two to four pixels each.
+    plate(p, J.CHEST, [front(b.waist + 0.24), b.waist + 0.24, 0.07 * thin], [1, 0, 0], 0.07, 0.075, BLOOD, 0.3);
+    plate(p, J.CHEST, [front(b.waist + 0.2), b.waist + 0.2, -0.06 * thin], [1, 0, 0], 0.06, 0.12, BLOOD, -0.4);
+    plate(p, J.CHEST, [front(b.waist + 0.29), b.waist + 0.29, -0.02 * thin], [1, 0, 0], 0.05, 0.04, FRESH, 0.8);
+    plate(p, J.CHEST, [0.6 * 0.866 * 0.135 * thin + 0.003, b.waist + 0.04, -0.05], [1, 0, 0], 0.06, 0.07, FRESH);
+    plate(p, J.CHEST, [0.6 * 0.866 * 0.135 * thin + 0.004, b.waist + 0.08, 0.06], [1, 0, 0], 0.045, 0.06, GORE, 0.5);
     plate(p, J.CHEST, [-0.02, b.waist + 0.22, w * 0.82 + 0.01], [0, 0, 1], 0.06, 0.05, GORE);
     plate(p, J.CHEST, [-0.075 * thin, b.waist + 0.18, 0.03], [-1, 0, 0], 0.05, 0.07, BLOOD);
   }

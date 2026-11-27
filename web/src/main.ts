@@ -497,6 +497,7 @@ async function main(): Promise<void> {
         hoverSite: hovered('site'), siteHint: ctl.hover?.t === 'site' ? ctl.siteHint(ctl.hover.id) : '',
         dropHold: ctl.dropAt ? Math.min(1, (now - ctl.dropAt) / DROP_HOLD) : 0,
         hoverGun: hovered('gun'), gunHint: ctl.hover?.t === 'gun' ? ctl.gunHint(ctl.hover.id) : '',
+        creepTop: (k) => creeps.top(k),
       }, now, rig.dist, (x, z) => fow.clarity(x, z));
       hud.minimap.draw(now, W, H);
       // The portraits share the renderer, which the shader warm-up has to itself.

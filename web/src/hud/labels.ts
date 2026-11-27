@@ -6,7 +6,7 @@ import { cssHex, playerColor } from '../scene/util';
 import { lighter } from '../scene/palette';
 import { tame } from '../scene/dither';
 
-interface LabelFocus { hoverStruct: number; selStruct: number; hoverCreep: number; selCreep: number; showAllBars: boolean; hoverSite: number; siteHint: string; hoverGun?: number; gunHint?: string; dropHold?: number }
+interface LabelFocus { hoverStruct: number; selStruct: number; hoverCreep: number; selCreep: number; showAllBars: boolean; hoverSite: number; siteHint: string; hoverGun?: number; gunHint?: string; dropHold?: number; creepTop?: (kind: number) => number }
 
 // The HUD's palette and faces, for the canvas (see app.css).
 // Labels use the HUD's one face (see --font).
@@ -258,9 +258,15 @@ export class Labels {
       if (!focused && !(def && def.size >= 2 && f.cHp[i] < 255)) continue;
       const r = def ? def.radius : 0.45;
       const a = clarity(game.rx[i], game.ry[i]);
-      if (a < HAZE_GONE || !this.project(cam, game.rx[i], r * 2.1 * 1.9 + 0.1, game.ry[i])) continue;
+      // Just over the head as the model is drawn (the scene knows each kind's height), not
+      // reckoned from the sim's radius, which put a brute's bar a metre and a half above him
+      // and over whoever stood behind him in a crowd.
+      const top = focus.creepTop?.(k) ?? r * 2.1 * 1.9;
+      if (a < HAZE_GONE || !this.project(cam, game.rx[i], top + 0.22, game.ry[i])) continue;
       c.globalAlpha = fade(a);
-      this.bar(this.v.x, this.v.y, Math.max(8, Math.round(r * 18)), f.cHp[i] / 255, focused ? -1 : 0x9a3a22);
+      // Small and quiet: about the width of the figure's shoulders, a dull red unless it is the
+      // one you point at.
+      this.bar(this.v.x, this.v.y - 3 * this.px, Math.max(6, Math.min(16, Math.round(r * 11))), f.cHp[i] / 255, focused ? -1 : 0x9a3a22);
     }
     c.globalAlpha = 1;
 

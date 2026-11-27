@@ -17,17 +17,23 @@ import { box, lin, merge, octa, part, writeMatrix } from './util';
 type F = THREE.Node<'float'>;
 type V3 = THREE.Node<'vec3'>;
 
-// The picture's dead wear what they died in, worn, torn and stained: white shirts gone dirty (the
-// most), a work shirt in khaki, faded light blue, a denim shirt, a teal gone grey, a red-brown
-// plaid, grey, olive, rust, faded navy, a dark vest.
-const CLOTHES = [0xb4ac90, 0xa29a80, 0x8a7a56, 0x8096a0, 0x52626c, 0x4c6660, 0xbab49c, 0x6a3a2a, 0x76746a, 0x5a5c3a, 0x7a4a2c, 0x3e4a5c, 0x9c9a88, 0x3a3a36];
-// Dark worn trousers: dark denim, near black, brown, khaki, grey, faded denim, olive, a grey-brown.
-const PANTS = [0x3a4450, 0x2a2824, 0x4e3e2c, 0x6e6448, 0x55534c, 0x56646e, 0x4a4c30, 0x3e3830];
-// Dead skin, how far gone: ashen tan, grey-green, pallid, sallow, a darker dead brown, grey,
-// waxen, bruised. Never a living colour, never bright.
-const SKINS = [0xa1845c, 0x898c66, 0xb2a684, 0xa08c66, 0x7c6c4c, 0x928e78, 0xb4a07a, 0x80806a];
-// Hair, matted dark mostly; the last is bald, the scalp the skin.
-const HAIRS = [0x1c1812, 0x2e2418, 0x3a2a1a, 0x4e3a24, 0x77715f, 0x8a6a3a, 0x2a2420, -1];
+// The picture's dead wear what they died in, worn, torn and stained: off-white shirts gone dirty
+// (six in fourteen, one of them a dirty grey-blue), a faded blue, a denim shirt, a teal gone
+// grey, khaki, a red-brown plaid, olive, rust, a dark vest. Each value is chosen against the skins below: a pale shirt is
+// clearly lighter than any dead skin (luma 145 to 170 against 100 to 127), a coloured one clearly
+// another hue or darker, so the shirt, the arms and the face never run together into one pale
+// figure (a grey shirt on grey skin did: the crawler, sleeved to the wrists, went one grey).
+// (The order puts #lab=art's walker and grabber in the picture's pale shirts, its runner in a dark vest.)
+const CLOTHES = [0xa49e86, 0x76889a, 0x52626c, 0xa69a7a, 0x4c6660, 0x7a6a44, 0xbab090, 0x6a3a2a, 0x9aa0a0, 0x55583a, 0x3a3a36, 0x7a4a2c, 0xb4aa88, 0xa89c80];
+// Dark worn trousers: dark denim, near black, brown, dark khaki, dark grey, faded denim, olive,
+// a grey-brown. None lighter than luma 80, so the legs always sit under the shirt.
+const PANTS = [0x343e4a, 0x2a2824, 0x433426, 0x4a4434, 0x3c3a36, 0x46525c, 0x3a3c28, 0x3e3830];
+// Dead skin, how far gone: grey-green, ashen tan, a darker grey-green, dead brown, grey, sickly
+// green, bruised tan, a dark grey. Never a living colour, never bright: luma 100 to 127, below
+// every pale shirt and above every pair of trousers.
+const SKINS = [0x7e7c5a, 0x8a7a58, 0x6e7254, 0x7c6c50, 0x848268, 0x767a5c, 0x86745a, 0x6a6650];
+// Hair, matted and dark; the last is bald, the scalp the skin.
+const HAIRS = [0x1c1812, 0x2e2418, 0x3a2a1a, 0x4a3822, 0x3c3832, 0x5a4a30, 0x2a2420, -1];
 
 // Floats per instance: seven vec4s.
 //   st  burning, slowed, flash, hovered
@@ -167,8 +173,14 @@ function material(r: CreepRig, scale: number, buf: THREE.InstancedInterleavedBuf
   col = mix(col, pick(HAIRS, fract(seed.mul(13.7)), skin.mul(0.92)), hi.mul(gHi).mul(bLo));
   // Burning: a warm cast, weak enough that the clothes and skin keep their own colours.
   col = mix(col, col.mul(vec3(1.35, 0.85, 0.55)).add(vec3(0.06, 0.015, 0)), st.x.mul(0.4));
-  col = mix(col, col.mul(vec3(0.6, 0.85, 1.25)).add(vec3(0.01, 0.04, 0.1)), st.y.mul(0.7));
-  col = mix(col, vec3(1, 0.95, 0.85), st.z.mul(0.45));
+  // Slowed by the frost tower: a cold cast that only multiplies, so the darks stay dark and the
+  // figure keeps its shirt, skin and trousers. (It added a pale blue too, which lifted trousers,
+  // hair and outlines up to the shirt: slowed creeps went a flat blue-white.)
+  col = mix(col, col.mul(vec3(0.72, 0.88, 1.2)), st.y.mul(0.6));
+  // Hit: a flash that brightens what is there rather than painting over it. It was 45% of the
+  // way to white with a white glow on top, and a creep hit again within 90 ms (a frost tower's
+  // pulse, a burn, a turret's stream) stayed lit the whole time: a solid white silhouette.
+  col = mix(col, col.mul(1.6).add(vec3(0.03, 0.025, 0.015)), st.z.mul(0.6));
   // Hunting you: a light red cast so you see what you pulled, weak enough that the shirt, skin
   // and trousers keep their own colours; asleep, or dead, a little darker.
   col = mix(col, col.mul(vec3(1.3, 0.7, 0.65)).add(vec3(0.04, 0, 0)), mo.y.mul(0.3));
@@ -183,7 +195,7 @@ function material(r: CreepRig, scale: number, buf: THREE.InstancedInterleavedBuf
   mat.colorNode = col;
   const flicker = sin(time.mul(23).add(an.x.mul(7))).mul(0.25).add(0.75);
   mat.emissiveNode = vec3(0.9, 0.3, 0.05).mul(st.x.mul(flicker).mul(0.18))
-    .add(vec3(1, 0.9, 0.7).mul(st.z.mul(0.3)))
+    .add(vec3(1, 0.9, 0.7).mul(st.z.mul(0.06)))
     .add(vec3(0.5, 0.45, 0.2).mul(st.w.mul(uHover)))
     .add(vec3(0.09, 0.005, 0).mul(mo.y.mul(sin(time.mul(9)).mul(0.3).add(0.7))))
     .add(vec3(1, 0.42, 0.08).mul(cracks.mul(sin(time.mul(6)).mul(0.2).add(0.8))));
@@ -191,6 +203,34 @@ function material(r: CreepRig, scale: number, buf: THREE.InstancedInterleavedBuf
 }
 
 const min1 = (v: F) => v.min(1);
+
+// The top of a model in its rest pose, model units: each vertex turned through its joints' rest
+// angles and held tilt as the shader turns it standing still (the stoop, the hung head), so a
+// stooped figure's height is its head's, not the upright model's it was built as.
+function restTop(geo: THREE.BufferGeometry, r: CreepRig): number {
+  const pos = geo.getAttribute('position'), rj = geo.getAttribute('rj');
+  const v = new THREE.Vector3(), q = new THREE.Vector3();
+  const turn = (p: THREE.Vector3, a: [number, number, number]) => {
+    const cz = Math.cos(a[0]), sz = Math.sin(a[0]), cx = Math.cos(a[1]), sx = Math.sin(a[1]), cy = Math.cos(a[2]), sy = Math.sin(a[2]);
+    const x1 = p.x * cz - p.y * sz, y1 = p.x * sz + p.y * cz;
+    const y2 = y1 * cx - p.z * sx, z2 = y1 * sx + p.z * cx;
+    p.set(x1 * cy + z2 * sy, y2, -x1 * sy + z2 * cy);
+  };
+  let top = 0;
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    for (const id of [rj.getX(i), rj.getY(i), rj.getZ(i)]) {
+      const d = id >= 0 ? r.joints[id] : undefined;
+      if (!d) continue;
+      q.set(...d.p);
+      v.sub(q);
+      turn(v, [d.walk?.[3] ?? 0, d.tilt?.[0] ?? 0, d.tilt?.[1] ?? 0]);
+      v.add(q);
+    }
+    top = Math.max(top, v.y);
+  }
+  return top;
+}
 
 // One InstancedMesh per creep kind, posed in its material from a per-instance state buffer the
 // CPU keeps up: the gait locked to the ground covered, blows wound up and struck in time with
@@ -307,9 +347,13 @@ export class Creeps {
       };
       // Hung on the same joints and posed by the same shader, so the two only differ in what
       // is too small to see where the far one is drawn.
-      this.kinds.push({ near: lod(geo), far: lod(indexed(mergeRig(farParts(r.parts)))), scale, top: bb.max.y * scale, rig: r, def: d });
+      this.kinds.push({ near: lod(geo), far: lod(indexed(mergeRig(farParts(r.parts)))), scale, top: restTop(geo, r) * scale, rig: r, def: d });
     });
   }
+
+  // How tall a kind stands as drawn, in the world: where its health bar goes. 0 for one the
+  // host has not described.
+  top(kind: number): number { return this.kinds[kind]?.top ?? 0; }
 
   // Which model a figure at squared distance d2 from the camera takes, from the one it had.
   // farFrom is a distance through the 42° lens it was set for; the long lens stands LENS

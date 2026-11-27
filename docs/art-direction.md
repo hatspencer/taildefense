@@ -222,7 +222,9 @@ Effects are drawn in the scene's own pixels, in the palette, as things rather th
   rings, area previews and footprints (crawling where something is about to happen), solid for
   the selection; bone `#d8cca0` for fine, `#c8402a` for not. Ghosts are dithered.
 - **Labels and bars** (`hud/labels.ts`): a 3x5 pixel font and bars two scene pixels high in a
-  one-pixel ink edge, snapped to the scene pixel grid, just over the head; names in the
+  one-pixel ink edge, snapped to the scene pixel grid, just over the head; a creep's bar sits
+  over the top of its kind's drawn model at rest (`CreepRig` height, not the sim radius, so it
+  stays on its creep in a crowd), small (6 to 16 px by size) and a quiet dried red; names in the
   player's colour, tamed. A name the font cannot set falls back to the HUD face.
 - **Weather**: rain is short streaks of a dim wet grey (a few scene pixels long, under a
   third covered), never the brightest marks on screen, and a storm is more of them, not a
@@ -314,9 +316,16 @@ between joints, five-sided (four on the burster), so a limb has a lit and a shad
 being a block; stains, blotches and hand prints are single-sided plates of two triangles. The
 stoop, the head thrust forward and the hang of the arms are the joints' rest angles, so the
 animation moves the pose they are drawn in; the crawler's pose is built in. Shirt, trousers,
-skin and hair are the per-creep key colours (`creeps.ts`): mostly dirty white shirts and work
-shirts, dark trousers, ashen and grey-green skin; the dark red blotches on arms and faces are
-fixed. Near models 418 to 594 triangles, far ones 212 to 250: the hands, face, hems, boots and
+skin and hair are the per-creep key colours (`creeps.ts`), chosen by value as well as hue so a
+figure never goes one grey: shirts from dirty off-white (luma about 145 to 170, six in fourteen)
+through faded grey-blue, denim, khaki and olive to a dark vest; skin a sickly grey-green or tan
+a clear step darker than any pale shirt (luma 100 to 127); trousers dark (under 80); hair
+near-black to dull brown, or bald. Blood prints on the shirt are big enough to read at game
+zoom (two fresh red hand-sized plates and a gore patch over the old brown); the dark red
+blotches on arms and faces are fixed. Effects on the dead keep these colours: being slowed
+multiplies them toward a cold blue (no added light), and a hit brightens them for 90 ms rather
+than painting them white, so a creep hit again and again (a frost pulse, a turret's stream, a
+burn) stays itself instead of a white silhouette. Near models 418 to 594 triangles, far ones 212 to 250: the hands, face, hems, boots and
 blotches are each under a tenth of the figure's height, so `farParts` drops them (default).
 
 ## The bosses
