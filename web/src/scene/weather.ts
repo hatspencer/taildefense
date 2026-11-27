@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import {
-  float, fract, instancedBufferAttribute, mrt, normalize, output, vec4, positionGeometry, sin, cos, smoothstep, time, uniform, vec3,
+  float, fract, mix, step, instancedBufferAttribute, mrt, normalize, output, vec4, positionGeometry, sin, cos, smoothstep, time, uniform, vec3,
 } from 'three/tsl';
 import { BlastKind, Weather as W } from '../protocol';
 import type { Game } from '../state';
@@ -9,8 +9,14 @@ import type { Game } from '../state';
 // on the ground and the tops of things) the world is, 0..1.
 export const uWet = uniform(0);
 export const uSnow = uniform(0);
+// How foggy it is, 0..1, and how far the wind has carried the fog's banks: the fog node
+// (fow.ts) gathers its haze in drifting banks by them.
+export const uFogAmt = uniform(0);
+export const uFogDrift = uniform(new THREE.Vector2());
+// How lit the motes of dust in the air are: the day's light, dimmed at dusk by the world.
+export const uMoteLight = uniform(1);
 
-const RAIN = 9000, SNOW = 7000;
+const RAIN = 9000, SNOW = 7000, DUST = 1400;
 
 // How much fog, rain, storm and snow each weather kind shows at full strength.
 const LOOKS: Record<number, { fog: number; rain: number; storm: number; snow: number; flakes?: number; gust?: number }> = {
@@ -18,7 +24,7 @@ const LOOKS: Record<number, { fog: number; rain: number; storm: number; snow: nu
   [W.Fog]: { fog: 1, rain: 0, storm: 0, snow: 0 },
   [W.Rain]: { fog: 0.2, rain: 1, storm: 0, snow: 0 },
   [W.Storm]: { fog: 0.35, rain: 1, storm: 1, snow: 0 },
-  [W.Snow]: { fog: 0.12, rain: 0, storm: 0, snow: 0.55, flakes: 0.25 },
+  [W.Snow]: { fog: 0.12, rain: 0, storm: 0, snow: 0.55, flakes: 0.4 },
   [W.Drizzle]: { fog: 0.1, rain: 0.3, storm: 0, snow: 0 },
   [W.Thunder]: { fog: 0.15, rain: 0.5, storm: 0.2, snow: 0 },
   [W.HeavySnow]: { fog: 0.4, rain: 0, storm: 0, snow: 1, flakes: 1, gust: 1 },
@@ -51,6 +57,8 @@ export class Weather {
   private uBlown = uniform(new THREE.Vector2());
   private rain: THREE.InstancedMesh;
   private snow: THREE.InstancedMesh;
+  // Dust and ash on the air, always, but in rain and snow, which lay it.
+  private dust: THREE.InstancedMesh;
   private lastTick = -1;
   // Lightning flicker: seconds since the last strike.
   private sinceBolt = 9;
@@ -59,9 +67,10 @@ export class Weather {
     scene.add(this.group);
     this.rain = this.make(RAIN, true);
     this.snow = this.make(SNOW, false);
+    this.dust = this.make(DUST, false, true);
   }
 
-  private make(cap: number, rain: boolean): THREE.InstancedMesh {
+  private make(cap: number, rain: boolean, dust = false): THREE.InstancedMesh {
     const seeds = new Float32Array(cap * 4);
     for (let i = 0; i < seeds.length; i++) seeds[i] = Math.random();
     const s = instancedBufferAttribute<'vec4'>(new THREE.InstancedBufferAttribute(seeds, 4), 'vec4');
@@ -69,22 +78,38 @@ export class Weather {
     const size = this.uSize, corner = this.uCorner, g = positionGeometry;
     const speed = s.w.mul(0.4).add(0.8);
     const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false });
-    if (rain) {
+    if (dust) {
+      // A mote of dust or a flake of ash drifting on the wind, slowly sinking and lifting
+      // again: one scene pixel, pale dust or grey ash, never brighter than the lit ground.
+      const drift = vec3(this.uBlown.x.mul(0.25).add(t.mul(0.35)).add(sin(t.mul(0.5).add(s.w.mul(31))).mul(0.8)),
+        sin(t.mul(0.37).add(s.w.mul(17))).mul(0.7).sub(t.mul(0.12).mul(speed)),
+        this.uBlown.y.mul(0.25).add(t.mul(0.15)).add(cos(t.mul(0.43).add(s.w.mul(23))).mul(0.8)));
+      const p = corner.add(fract(s.xyz.mul(size).add(drift).sub(corner).div(size)).mul(size));
+      const r = s.w.mul(0.012).add(0.026);
+      mat.positionNode = p.add(this.uRight.mul(g.x).add(this.uUp.mul(g.y)).mul(r));
+      mat.colorNode = mix(vec3(0.36, 0.34, 0.31), vec3(0.6, 0.54, 0.42), step(0.45, s.w)).mul(uMoteLight);
+      // Thinner near the top of the box, so motes do not pop in.
+      mat.opacityNode = float(0.75).mul(float(1).sub(smoothstep(0.7, 1, p.y.div(size.y))));
+    } else if (rain) {
       const motion = vec3(this.uBlown.x, this.uFallen.mul(speed).negate(), this.uBlown.y);
       const p = corner.add(fract(s.xyz.mul(size).add(motion).sub(corner).div(size)).mul(size));
       const dir = normalize(vec3(this.uWind.x, this.uFall.negate(), this.uWind.y));
       // Spanned by right and the fall direction, which points down: flip y so the face looks at the camera.
-      mat.positionNode = p.add(this.uRight.mul(g.x.mul(0.035))).sub(dir.mul(g.y.mul(this.uLen)));
-      mat.colorNode = vec3(0.78, 0.84, 0.92);
+      // A dash a scene pixel wide and a few long, the grey of wet light, not the sky's blue, and
+      // darker than what it falls past is lit: the rain is a texture over the scene, never its
+      // brightest marks.
+      mat.positionNode = p.add(this.uRight.mul(g.x.mul(0.055))).sub(dir.mul(g.y.mul(this.uLen)));
+      mat.colorNode = vec3(0.34, 0.36, 0.35);
       // Fade near the top of the box so drops do not pop in.
       mat.opacityNode = this.uAlpha.mul(float(1).sub(smoothstep(0.75, 1, p.y.div(size.y))));
     } else {
       const fall = t.mul(1.6).mul(speed);
       const drift = vec3(sin(t.mul(0.9).add(s.w.mul(20))).mul(0.6).add(this.uBlown.x.mul(0.3)), fall.negate(), cos(t.mul(0.7).add(s.w.mul(13))).mul(0.6).add(this.uBlown.y.mul(0.3)));
       const p = corner.add(fract(s.xyz.mul(size).add(drift).sub(corner).div(size)).mul(size));
-      const r = s.w.mul(0.05).add(0.06);
+      // A flake is one or two scene pixels, a warm white.
+      const r = s.w.mul(0.025).add(0.03);
       mat.positionNode = p.add(this.uRight.mul(g.x).add(this.uUp.mul(g.y)).mul(r));
-      mat.colorNode = vec3(0.95, 0.97, 1.0);
+      mat.colorNode = vec3(0.86, 0.84, 0.78);
       mat.opacityNode = this.uSnowAlpha.mul(float(1).sub(smoothstep(0.8, 1, p.y.div(size.y))));
     }
     // Keep the outline pass's normals: a flake is not a crease.
@@ -134,15 +159,20 @@ export class Weather {
     this.uRight.value.set(m[0], m[1], m[2]);
     this.uUp.value.set(m[4], m[5], m[6]);
     const zoomFill = Math.min(1, (span * span) / (60 * 60));
-    this.rain.count = Math.floor(RAIN * Math.min(1, l.rain * (0.45 + 0.55 * l.storm)) * zoomFill);
+    this.rain.count = Math.floor(RAIN * Math.min(1, l.rain * (0.4 + 0.25 * l.storm)) * zoomFill);
     this.uFall.value = 22 + 10 * l.storm;
-    this.uLen.value = 0.7 + 0.4 * l.storm;
+    this.uLen.value = 0.2 + 0.1 * l.storm;
     this.uWind.value.set(1.5 + 5 * l.storm + 9 * l.gust, 0.8 + 2 * l.storm + 3 * l.gust);
-    this.uAlpha.value = 0.22 + 0.1 * l.storm;
+    this.uAlpha.value = 0.26 + 0.06 * l.storm;
     this.uFallen.value += this.uFall.value * dt;
     this.uBlown.value.addScaledVector(this.uWind.value, dt);
+    uFogAmt.value = l.fog;
+    // The banks drift slowly downwind, in noise units (about eleven metres each).
+    uFogDrift.value.addScaledVector(this.uWind.value, -dt * 0.012);
     this.rain.visible = this.rain.count > 0;
     this.snow.count = Math.floor(SNOW * l.flakes * zoomFill);
     this.snow.visible = this.snow.count > 0;
+    this.dust.count = Math.floor(DUST * Math.max(0, 1 - 1.6 * l.rain - 1.6 * l.snow) * uMoteLight.value * zoomFill);
+    this.dust.visible = this.dust.count > 0;
   }
 }

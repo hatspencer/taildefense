@@ -150,34 +150,34 @@ func TestAbilities(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		w.SpawnCreep(CWalker, p.X+5, p.Y+float32(i)*.3-.6)
 	}
-	first := w.Creeps[len(w.Creeps)-5].ID
-	hit := func() *Creep {
+	// What the five have left between them: the dead are gone from the list.
+	left := func() (hp float32) {
 		for i := range w.Creeps {
-			if w.Creeps[i].ID == first {
-				return &w.Creeps[i]
-			}
+			hp += w.Creeps[i].HP
 		}
-		return nil
+		return hp
 	}
+	p.Order.Kind = OrderHold
+	p.Weapons[p.Cur].Ammo = 0 // only the grenade does damage
+	p.Weapons[p.Cur].Reload = 100
 	w.Step()
-	hp := hit().HP
-	if err := w.Cast(p, AbGrenade, p.X+5, p.Y); err != nil {
+	hp := left()
+	// Thrown short, at where the walkers will be when it lands: they close on the survivor
+	// through its fuse, and how fast is the dice's business.
+	if err := w.Cast(p, AbGrenade, p.X+1, p.Y); err != nil {
 		t.Fatal(err)
 	}
-	if err := w.Cast(p, AbGrenade, p.X+5, p.Y); err == nil {
+	if err := w.Cast(p, AbGrenade, p.X+1, p.Y); err == nil {
 		t.Fatal("cast twice without a cooldown")
 	}
 	if len(w.Effects) != 1 {
 		t.Fatalf("effects %v", w.Effects)
 	}
-	p.Order.Kind = OrderHold
-	p.Weapons[p.Cur].Ammo = 0 // only the grenade does damage
-	p.Weapons[p.Cur].Reload = 100
 	run(w, TickRate, func() bool { return false })
 	if len(w.Effects) != 0 {
 		t.Fatal("the grenade never landed")
 	}
-	if c := hit(); c != nil && c.HP >= hp {
+	if left() >= hp {
 		t.Fatal("the grenade did no damage")
 	}
 

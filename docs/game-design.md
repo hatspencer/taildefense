@@ -10,7 +10,10 @@ it here along with the code.
   some go out and loot, and someone has to come back for the downed.
 - **Fast.** Short breaks, waves that don't wait, no long downtime. A game is meant to be
   played through in an evening.
-- **Readable.** An 8-bit look with chunky shapes. Every threat has to be readable at a glance,
+- **Readable.** Pixel art of real people in daylight, after one picture
+  (`docs/art-direction.md`): a three-quarter view through a long lens, a survivor about 40
+  scene pixels tall, one warm low sun with long shadows, every figure outlined in a darker
+  shade of itself. Every threat has to be readable at a glance by its silhouette and posture,
   even with thousands of creeps on screen.
 - **Risk for reward.** The good stuff is far out, guarded and noisy to get. Staying home is safe
   and poor.
@@ -138,9 +141,9 @@ it here along with the code.
   outrun a pack; you turn and shoot it. From wave 5 one wandering pack in six is hounds, and an
   ambush may bring some. They're there to make the open ground between the sites dangerous in
   a way walkers can't: walkers you walk away from.
-- **Bursters** are runners wired with a charge: from wave 7 in groups of two to five, 8% of
+- **Bursters** are the dead swollen to bursting, a light blinking over them: from wave 7 in groups of two to five, 8% of
   the wave's budget on top of it (none on the swarm waves), 30 health, every one a sprinter, and they hunt from 12 tiles. One that
-  reaches a survivor stops and lights its fuse: 0.45 s of the charge blinking fast and a hiss,
+  reaches a survivor stops and swells: 0.45 s of its light blinking fast and a hiss,
   then it blows up where it stands, whoever stayed. The blast does 45 at its heart, half at its
   edge 2.4 tiles out, slows, and stuns 0.6 s within 1.2 tiles; it takes 90 off every structure
   in reach but the armory, sets off fuel pumps, and leaves 1.8 tiles of ground burning 4 s at
@@ -533,6 +536,25 @@ the Overload killing every small creep at waves 10 to 30 but no brute.
   empties the sites for a raid, and whoever rang it had better be gone before they arrive.
   When the bell stops, the wave turns back to the generator and the guards try to get home; one
   that can't settles where it stands. The bell can be rung again two and a half minutes after.
+- **The army checkpoint.** One per map, across a road out past the middle ring and clear of the
+  hamlets: two staggered lines of concrete barriers make a chicane across the road, with
+  sandbagged posts at either end, the command tent beside the road, and the unit's trucks
+  left where they stood (each an army truck wreck, if it closes no way). The dead in uniform
+  still man it: a lair's garrison asleep round the barriers, which may spring an ambush when the
+  search starts. The tent gives weapons mostly (two finds, better luck) and a medkit. It is the
+  weapons run of the middle ring, nearer than an outpost but just as dug in. The chicane
+  slows the creeps coming down that road without closing it.
+- **The cemetery.** One per map, far out: a railed yard of graves, its gate towards the
+  generator, a gap where the railings came down, the family crypt at the back. A few of the
+  dead sleep among the stones. Breaking into the crypt raises the rest all over the yard, half
+  again as many as an ambush anywhere else and mostly walkers, and they come for the robber.
+  The crypt pays gold and a find that is rare or better, so it is the place to go for a
+  sure rare: you pay for it in a fight in the open, among headstones that block shots.
+- **The quarantine camp.** One per map, out past the middle ring: a wire fence round a yard of
+  mud, rows of small tents open to the yard, the field hospital's big tent in the middle. The
+  search there patches the searcher up and gives kit and a medkit (two finds, leaning to
+  gear), but half the time the camp's sick are still in the tents and come out. Lightly
+  guarded, it is where a hurt team goes to heal and kit out between waves.
 - **Wanderers.** The dead roam the wastes between the sites, away from the base, in packs of
   three to six that keep together: walkers mostly, now and then a runner, spitter or brute
   among them, and from wave 5 now and then a pack of hounds. About four dozen at the start, four more each wave (up to 300), more on harder
@@ -576,7 +598,8 @@ the Overload killing every small creep at waves 10 to 30 but no brute.
   opener. Up to three wait unopened. The surfboards on the Huey's side are for Kilgore, and
   the door gunner, sitting in the open doorway with his legs out over the skid in a red
   headband, aviators and crossed belts of brass, a cigar going, is for Tropic Thunder. He is
-  drawn where the top-down camera can see him, out past the roof's edge, and his minigun sits
+  drawn where the camera above can see him, in the doorway's dark with the cabin's red troop seat
+  behind him, and his minigun sits
   on an arm out from the doorframe and turns to what it fires at, his arms on its grips and his
   tracers leaving from its muzzle, so the shots read as his.
 - **Weapons change hands.** A survivor can drop a weapon they carry and a teammate pick it up,
@@ -603,9 +626,40 @@ one box repeated (`internal/game/ruins.go`, walls in `web/src/scene/terrain.ts`)
   the loft's rubble on the floor.
 - **Shed:** small, timber or cinder block.
 - **Collapsed:** walls fallen in at several places and rubble inside; old stone or brick.
+- **Terrace:** three houses in a row under one roof long gone, party walls between, a front
+  door each on one long side; brick mostly, a concrete floor.
+- **Burnt shell:** a house the fire took. Only stubs of wall stand by the corners, blackened, and
+  the rubble is inside. It gives no cover, which is what you see from the road.
 
 Each is searched from its middle, which is always open floor. Outposts have their own concrete
 walls topped with sandbags, and the gas station's shop is painted block.
+
+There are about 125 houses on a map (85 at 400 by 250, 47 at 352 by 220). About 144 are tried
+at random across it, and four **hamlets** stand along the roads. A hamlet is four to eight
+houses (cottages, terraces, burnt shells) facing the road from both sides, each with its
+door to the street. The first is built round a crossroads, a short street crossing the road.
+They are 56 to 156 tiles from the generator and 66 apart, one to a road but the fourth, which
+shares the east or the west road (the long ones) with another, so a road is always left for the
+checkpoint, which keeps 45 tiles from a hamlet's middle (`internal/game/landmarks.go`). A
+hamlet is a run of easy searches along one road, close together, so a team can strip it
+in one break. It is also a place where the dead come down the street at you from both ends.
+
+The map is 480 by 300 tiles. It was 352 by 220, then 400 by 250 to hold the hamlets and the
+new places without crowding them, and then grew again by a fifth each way so there is more
+wasteland to cross and search. What is counted grew with the area, so the map is as full as
+before: the scattered houses (144 tried, from 100), a fourth hamlet, four outposts where there
+were three (at least 108 tiles out, from 90), 55 cars and 40 crates (from 38 and 28). What is
+measured from the generator grew with the radius: the tier rings (middle from 94 tiles, far
+from 161, where they were 78 and 134) and everything placed by them, the hamlets' band, and the
+outposts' nearest. The one-off places stay one each: one gas station, plane, church,
+checkpoint, cemetery, quarantine camp and shrine, since each is a known objective and
+a second would only make it less of one. The wanderers are not scaled: their count is a balance
+number (`wander.go`), not a density one, so the wilds hold the same number spread thinner.
+
+A way in from a spawn point is about 257 tiles on average now (`TestTheRoadsStillLeadIn`), so a
+walker takes about two and a half minutes to reach the base from the edge, a fifth longer than
+at 400 by 250. The wave timing is left as it was: a wave lasts until its creeps are dead, so
+the longer walk only spreads it out and gives the turrets on the road more time.
 
 ### Wrecks
 
@@ -628,18 +682,26 @@ Wrecks on the roads come in kinds, so you know what to expect at a glance:
 richer further out: the near roads are mostly cars and pickups, and the far roads hold most of
 the army trucks.
 
+Each kind is drawn as the vehicle it is (`web/src/scene/loot.ts`), so the table can be read off
+the road: the cruiser's light bar, the ambulance's red band and crosses, the bus's yellow, the
+army truck's tilt, the fire engine's ladder and lockers. A searched wreck stands with its doors,
+bonnet and boot open and its contents on the ground, darker, and with no glint over it.
+
 A survivor walks round a wreck, not through it, so none is placed where it would close a way:
 a car across a one-tile track or a gap between rocks would leave the other side reachable only
 the long way round, or not at all. Map generation tries the spot again elsewhere.
 
 ### Shrines
 
-Two shrines on every map, far out (40 tiles or more from the generator, 60 apart): a walled
+One shrine on every map, out by its edge (its middle within 34 tiles of the edge and 10 tiles
+or more past the middle ring, which leaves the east and west ends and the corners): a walled
 court of broken stone with pillars down its length, gate posts at its mouth facing the base, and
 an altar at the far end with a blade standing in it. It is a lair with a champion, and the dead
 rise from the court when someone walks in and again at the altar, as at the gas station. The
 altar always gives a legendary, which is the point: a shrine is a known, hard objective for a
-team that wants melee, where the gas station and the plane are only a chance. Pillars are walls
+team that wants melee, where the gas station and the plane are only a chance. There were two,
+nearer in; one at the edge makes the map's only sure legendary a longer walk and a single prize
+the team decides who takes. Pillars are walls
 to creeps and shots, so the court is a place to fight in, not just to cross.
 
 ## Noise and aggro
@@ -813,7 +875,7 @@ melee a way to play, and give the far sites something only they hold (`internal/
 
 - **Found, never sold.** The katana and the greatsword are not in the armory's list until
   carried. The gas station's counter and the plane's hold have one 30% of the time, and the
-  shrines (below) always do. Gold can buy everything else; these are the reason to walk to the
+  shrine (below) always does. Gold can buy everything else; these are the reason to walk to the
   edge of the map. A survivor who carries both, a pair of katanas and a tempered greatsword gets
   whetstones (levels on the blade in hand) from an altar instead, so a shrine is never wasted.
 - **Better than the crowbar level for level, and each its own rule.** The bench holds both at 1.4
@@ -856,7 +918,7 @@ melee a way to play, and give the far sites something only they hold (`internal/
   only from a full katana or greatsword. It also takes 60% off a stun on its wielder at 1.
   Flash Draw and Skyfall stun by the same six times more,
   and Skyfall lands 1.4 tiles wider at 1. The reward is for
-  the survivor who walked to the shrines and put the gold in, and late, when those two come.
+  the survivor who walked to the shrine and put the gold in, and late, when those two come.
   Turrets and guns get none of it, so the base still needs its towers.
 - **A grab can be dodged, and stuns don't chain.** A melee fighter stands in arm's reach by
   trade, and the grab used to close the instant one was in it, with nothing to see, and with a
@@ -942,7 +1004,7 @@ twice the damage for 8 s. The aim: the crowd blade by a distance, and near the k
   Tesla charge that leaps on 5 times (a creep the blow killed still passes its charge on).
   Stormbreaker's leap 7 times and harder, 9 times beside a Tesla coil within 5 tiles of the
   survivor, which ties the blade to the base it defends; Ashen Colossus's set every creep they
-  strike burning. Gated at the top, it is the payoff for walking to the shrines and putting the
+  strike burning. Gated at the top, it is the payoff for walking to the shrine and putting the
   gold in. It goes through `evolveWeapon` as branch 3, a third thing the armory evolves.
 
 Wave 25, the bench (survivors don't move; creeps walk in): seconds to kill a goliath, and to clear
@@ -1062,7 +1124,9 @@ lightning at creeps in the open, and snow slows everything.
 
 **Fog and rain close in.** A survivor sees 60% less far in full fog and 30% less in heavy rain
 or a storm (a drizzle and a thunder shower count as a fraction of it). On screen the world
-fades into the weather's haze past that distance round your survivor, in every difficulty.
+fades into the weather's haze past that distance round your survivor, in every difficulty,
+thicker in banks that drift with the wind, so fog lies over the land in patches rather than
+greying the whole view evenly.
 With fog of war or at night it is also the survivor's sight: what they can light, and so, at
 night, what their shots can find.
 
@@ -1093,8 +1157,10 @@ choice, not a cheat guard.
 ## Survivors
 
 - **Archetypes.** Ten of them: paramedic, mechanic, hunter, student, builder, nurse, biker,
-  farmer, ex-soldier and office worker. Each has its own outfit, and the archetype shows on the
-  scoreboard.
+  farmer, ex-soldier and office worker. Each has its own outfit and kit (a paramedic's medic
+  belt and daypack, a builder's hi-vis vest and hard hat, a soldier's plate carrier and
+  helmet), so the ten read apart by silhouette, and the archetype shows on the scoreboard.
+  Survivors are real people, 1.8 m tall, and hold their weapons at true size.
 - **Looks are random.** Skin, body, hair, beard, build, height and glasses vary independently,
   so a team of eight looks like eight different people of any race and gender. It's all
   cosmetic. No archetype plays differently, so nobody feels stuck with a bad pick.
@@ -1114,14 +1180,38 @@ choice, not a cheat guard.
 - **Feet don't slide.** The gait advances with distance actually travelled, so a slowed creep
   shuffles and a runner bounds. Survivors split upper and lower body: legs follow the movement,
   the torso follows the aim, so strafing and backpedalling read. Hands hold each gun by IK.
+  A survivor's planted leg sweeps back through exactly the step's length, and the hips sit as
+  low as that straight, slanted leg puts them, so the foot stays put and the body bobs with it.
+- **Guns come up to fire.** At rest a survivor stands relaxed, feet apart, and carries the gun
+  low: a long gun across the body at the hips, a pistol or the crowbar hanging at the side with
+  the other hand free. Firing brings it up fast to aim (a long gun's off shoulder turned
+  towards the target so both hands reach it); it stays up 1.2 s after the last shot, then sinks
+  slowly back. So a glance tells who is fighting. Each gun has its own grip and fore-end
+  points; the arms are solved to them every frame, a gun whose grip the arm can't reach is
+  brought in to the hand, and a fore-end out of reach has the support hand slide back along
+  the gun, so recoil, sway and every facing keep both hands on it. The gun is put away the
+  moment the hands leave it (kneeling, taunting, down).
+- **Nobody stands like a post.** Knees never lock; at rest the weight is on one leg, the other
+  knee bent and the pelvis dropped on that side, the chest breathing; firing, the off foot
+  steps forward into a crouched stance. Downed, a survivor lies with one knee drawn up.
 - **Springs carry the weight.** Lean, recoil, flinch, a pack bouncing and hair swinging all run
   through damped springs, so motion settles instead of snapping.
 - **Creeps are crowds of people.** Shirt, trousers, skin and hair are picked per creep, and each
   one has its own gait offset and head tilt. A badly hurt walker or runner may lose an arm.
 - **Creeps are skinned on the GPU** so thousands can animate at once. The CPU only writes a few
   numbers per creep each frame.
-- **The dead stay a while.** A killed creep falls the way it was facing, or is thrown by a
-  blast, lies there, then sinks into the ground.
+- **The dead move like the dead.** Nothing is held square: elbows and knees are always bent,
+  a body lists and its head hangs off to one side and lolls (each joint can be held off true
+  and swayed slowly, out of step with the next), the left and right limbs are posed apart, and
+  the arms swing late after the hips. The walker drags its stiff right leg; the runner sprints
+  bent double, heels kicked up, clawing; the crawler goes hand and opposite knee together; the
+  burster waddles, its belly rolling after it; the bosses heave, stalk on splayed limbs or tread
+  with their weight sinking into each step.
+- **The dead crumple and stay a while.** A killed creep's knees give and its body folds, then it
+  goes over the way it was facing (or is thrown by a blast), letting go of the fold as it comes
+  to lie on the ground, lies there, then sinks into the ground. One already on all fours, the
+  crawler or the broodmother, just collapses flat where it is. Winding up, the bigger kinds
+  sink into a crouch, and the blow carries the body forward.
 - **Blows are telegraphed.** Every creep winds up before it hits: walkers claw and bite, runners
   coil and pounce, swarmers rear and lunge, brutes slam both fists down (with a dust ring),
   spitters swell and whip the head forward, and the abomination rears and sweeps several arms.
@@ -1184,9 +1274,14 @@ The mix's bands, measured as loudness close by (K-weighted, 400 ms): explosions 
 -12 to -22, the small dead -18 to -24, your own reload and handling -22 to -28, the kill knock
 about -29, ambience -32 to -42, footsteps under -45.
 
-- **Synthesized, not recorded.** Every sound is rendered by code in the page
-  (`web/src/sound/bank.ts`): no audio files, no licences, nothing to download, and like the
-  art, it is all generated. The bank is made once sound starts, in a worker so no frame waits
+- **Synthesized, with recordings over it.** Every sound has a recipe rendered by code in the
+  page (`web/src/sound/bank.ts`), and most also have CC0 recordings (`web/src/sound/samples/`,
+  short mono MP3s, every file credited in `CREDITS.md` and `CREDITS-sfx.md`) that the build
+  inlines into the page, so it still fetches nothing beside itself. A recording plays alone or
+  over its recipe (`samples.ts` explains the two modes); until it has decoded, or if none does,
+  the recipe plays, so a recording can never cost a sound. The recipes carry what the
+  recordings lack: a gun's tail and mechanism, the whole tesla tower, the lab's fallbacks.
+  The bank is made once sound starts, in a worker so no frame waits
   on it (about 1.3 s of work, guns first; a sound not made yet is skipped), and the long, low
   sounds (explosions, voices, sirens) at 24 kHz, which they lose nothing by and which halves
   their memory. What is left of a sound after it has died 60 dB away is cut: about 35 MB in
@@ -1200,70 +1295,104 @@ about -29, ambience -32 to -42, footsteps under -45.
   with most of its energy above 8 kHz, and the reloads lost under the gun they reload. The
   shout and the groans were brought down, the tesla remade in the mids, the reloads and the
   radio brought up.
-- **Guns are built like real shots,** because they are most of what is heard. Six layers: a
-  crack of a millisecond, the muzzle blast overdriven into distortion with its top end dying
-  first, a resonant body in the mids where the bang is, a low boom falling in pitch, a tail
-  rolling away and echoes off the treeline. Then the action: the shotgun's pump, the rifle's
-  bolt, the pistol's brass bouncing. Each gun has its own numbers, so a pistol, an SMG and a
-  sniper tower are told apart by ear. The pistol is heavy, a desert eagle rather than a 9 mm,
-  because it is the gun most of a game is played with and a weak snap makes it feel weak. The
-  rifle is a full-power bolt action, a springfield or an AWP: the sharpest crack, the deepest
-  boom of the guns and the longest report, then the bolt. The shotgun is a 12 gauge: the widest, hardest
-  blast with more crack than thump, a punch deeper than anything hand-held but the rifle and a
-  report rolling off the treeline three times, a little under the rifle so the rifle stays the
-  biggest shot; then the pump racked, the spent hull landing with a plastic tock, and the
-  fore-end slammed home. The SMG is a 9 mm machine pistol: a
-  snappy crack and a tight punch with a short boom, so eleven rounds a second stay apart, and
-  the bolt clacking home under each one, the clatter that makes a burst sound like a machine. The crowbar is Half-Life's, a little deeper:
-  a swish and a struck pipe ringing out for most of a second, measured against the original
-  for the ring's length, but pitched down from its 1.1 kHz to about 820 Hz, with a thump as it
-  lands and the bar's low modes louder, so a blow has weight rather than only a ping. The towers: the gun turret a sentry, a dry round,
-  a feed clack and a servo slewing; the cannon field artillery, the deepest boom in the game, the
-  barrel ringing, the recoil and the case dropped; the sniper tower a .50 whose muzzle brake
-  throws a wider, harsher blast than the rifle's; the missile battery's tubes popping like a
-  blown bottle before each motor lights. The Huey's door gun is an M60 heard from the ground.
-  A creep's spit is a hack, a wet pop and bubbling slime; a hurler's bone is torn out with a
-  crunch and tumbles through the air, then cracks, splinters and clatters. A dash is a boot
-  driving off, the air ripping past and a skid; a grenade is the pin, the spoon spinning away
-  ringing, and the throw. The tesla is a zap, an arc's crackle of ragged sparks with a
-  snap and a falling tone, kept under 7 kHz; the frost tower, which pulses every second, is a
-  short cold gust with ice crackling and a glint of glass, with nothing sustained up high.
-  The minigun fires full rifle rounds, so each is a hard slam with a boom under it and a tail
+- **The hardware is built from what it is made of** (`web/src/sound/hw.ts`). Struck things
+  are modal: a material's inharmonic ratios (a bar, a pipe, a plate, a gun's small parts, a
+  brass case, wood, stone, iron), each mode dying faster the higher it is, the blow's contact
+  time deciding how high it reaches, so a crowbar, a magazine, a nail and a gate's post ring as
+  what they are and for as long as a real one, never as a chime. Blasts are a Friedlander
+  pressure pulse, a supersonic round's crack an N-wave, a report a band of noise rolling down
+  and darkening, the treeline's echoes smeared copies. Cloth, grit, a swing's air, flesh,
+  earth thrown up and steel drawn over steel are each one block with a named job. No sine
+  tones and no beeps: what whines (a coil, a turbine, a ricochet) is a narrow band of noise.
+- **Guns are built like real shots,** because they are most of what is heard; in a game the
+  recordings play over them, so the synthesis is what carries each gun's tail and mechanism,
+  and the whole shot before the recordings decode. A shot is a crack (for a supersonic round),
+  the pressure pulse overdriven, the gas jet's band falling, the gun's body in the low mids,
+  a thump in the chest, its small parts ringing for a few milliseconds, then the report
+  rolling off and the echoes, with two gentle poles taking the top off past the first metres
+  of air. Measured against the Free Firearm Library's recordings the old shots had 37 to 64%
+  of their energy below 100 Hz, a sine boom that every echo repeated; now under 17% (only the
+  cannon and the anti-materiel rifle more), and most of it between 300 Hz and 4 kHz where the
+  recordings have it. Each gun has its own numbers (pulse length, crack, gas and body bands,
+  report length), so a pistol, an SMG and a rifle differ in action, calibre and tail. The
+  shotgun's pump, the rifle's bolt and the pistol's brass are parts and strokes; a case lands
+  on packed earth and now and then on a stone. The towers are told from the hand guns by their
+  machinery: the sentry's geared servo slewing and its feed, the cannon's barrel ringing, its
+  recoil and its case. The door gun is a .300 Blackout and the gatling a .22 semi-automatic,
+  recorded, no longer the minigun's own takes; the penetrator a .30-30 lever action; the
+  sniper tower an Arisaka and a Mosin played at 0.85 and the anti-materiel tower a Tikka and a
+  Mosin at 0.7, so each is a bigger gun than the player's rifle and none shares its takes.
+  The tesla tower plays its synthesis alone: the recorded zaps were hiss above 8 kHz or a
+  rumble below 20 Hz. The minigun fires full rifle rounds, so each is a hard slam with a tail
   long enough that 22 a second run together into one roar, over a motor, six barrels chopping
-  the air and the feed rattling. A shot under an ultimate sounds like the gun's own, except the
-  rifle's Railgun, which has no powder: a snap of discharge, an electric tone diving five
-  octaves, the air fizzing behind the slug, the rails ringing and the capacitors whining back
-  up to a click.
-- **Reloads are built of clacks.** A click and metal sliding on metal is the light half of
-  handling a gun; what makes a reload sound solid is the heavy parts going home, each a click
-  with the gun's body knocked low under it and a short ring of steel. Each gun reloads its own
-  way: the pistol's magazine clattering down and its slide let go, the SMG's magazine slapped
-  home and its handle let fly, the rifle's clip pressed in round by round, the minigun's box
-  dropped, its belt fed link by link and its barrels given a turn, the launcher's rocket latched
-  and armed with two beeps.
-- **The siren is a machine across town,** not a tone: two rotors a minor third apart chopping
-  air, a buzz with wind in it that grows louder as the motor winds up, swept towards you and
-  away as the head turns, and sent back late by the hills. The wave's siren winds up, holds and
-  is cut; a boss wave's, every tenth, is the attack signal instead, wailing up and down with a
-  deeper siren farther off wailing out of step with it, a little louder and the world held
-  down under it longer, so it is known before the boss is seen; the all clear holds one lower
-  steady tone; the end groans all the way down.
-- **Explosions throw things.** A shock front, the air slammed up and sucked back in a few
-  milliseconds; the fireball driven into distortion with its top end dying, a whump and a
-  falling boom under it, crackling as it burns off; then what was thrown up raining back down
-  for a second, clods thumping and stones ticking, metal ringing among them from the bigger
-  ones, all of it sent back off the treeline over a rumble. A rocket leaves its tube with a
-  crack and a backblast, its motor tearing and crackling as it flies off; a missile's motor
-  lights with a pop and fizzes away.
+  the air and the feed rattling. The rifle's Railgun has no powder: a snap of discharge, a tone
+  diving five octaves, the air fizzing behind the slug, the two rails knocked as bars and the
+  capacitors' coil whine climbing back to the relay.
+- **Melee is cloth, air and what it hits.** A sleeve or a coat moving, the air pushed aside
+  rising to the pass, and the blow landing in a body: flesh's dull weight and wet smack, the
+  weapon's own steel damped by what it is buried in. The crowbar's bar still rings near
+  Half-Life's (its second mode near 820 Hz) but for a third of a second; a katana cuts with a
+  tearing hiss and a slap, no thump; the greatsword lands with a slab of iron's dull clang and
+  the follow-through breaks the ground. Close blows are squashed the way a foley microphone
+  overloads, so the weight behind the peak carries. Flash Draw draws from a wooden scabbard
+  and ends with the guard's click on its mouth.
+- A creep's spit is a hack, a wet pop and bubbling slime; a hurler's bone is torn out with a
+  crunch and tumbles through the air, then cracks, splinters and clatters. A dash is a shoe
+  pushing off and skidding, recorded; a grenade is the pin's ring scraped out, the
+  spoon flying off and the throw in a sleeve. The tesla is a zap, an arc's crackle of ragged
+  sparks with a snap and a falling tone, kept under 7 kHz; the frost tower, which pulses every
+  second, is a short cold gust with ice crackling and a sliver of ice snapping, with nothing
+  sustained up high.
+- **Reloads are steel on steel and the hand on the gun.** Latches and catches (a small part
+  struck), strokes (steel drawn over steel), and the heavy parts going home with the gun's body
+  knocked under them, which is what makes a reload sound solid. Each gun reloads its own way:
+  the pistol's magazine onto the dirt and its slide let go, the shotgun's shell thumbed in, the
+  SMG's magazine slapped home with the palm, the rifle's clip stripped in round by round, the
+  minigun's box dropped and its belt fed link by link, the launcher's rocket latched and its
+  arming switch thrown. Dry fire is the trigger's travel and the hammer on nothing.
+- **The siren is a real air-raid siren across town,** recorded (CC0, credited in
+  `web/src/sound/samples/CREDITS-sfx.md`), with the recipe's two-rotor siren kept beneath for
+  the lab and as the fallback. A wave's is a wail rising and falling; a boss wave's, every
+  tenth, a deeper siren's slow rise, slowed to 0.8, a little louder and the world held down
+  under it longer, so it is known before the boss is seen; the all clear a long falling tone;
+  the end a siren winding all the way down. The countdown before a wave is a pea whistle: two
+  chirps, then the full blast on the last.
+- **The dead are people gone wrong, recorded.** Every kind's groan and death is a CC0 human
+  performance (zombie voice sessions, a sick man, a man's laboured breath, a dog), one
+  performer and one character per kind, so a kind is known by ear before it is seen: the
+  walker a low slow moan through the nose (about 250-650 Hz), the runner short hard snarls
+  (1.7-2.6 kHz), the crawler wet slobber and gurgle, the brute a growl slowed to a big chest
+  (0.72), the spitter a sick man hacking, the abomination and the goliath growls slowed to 0.6
+  and 0.55, the hurler short strained grunts, the broodmother a woman's voice slowed, the
+  hound a dead dog's growl that dies in a yelp and a whine, the mauler hungry straining teeth,
+  the burster thin wheezes. Small kinds' groans sit at -16 to -18 LUFS and their deaths at
+  -15, under a second so a fight's deaths don't pile up; the big ones' at -11 to -14 and up to
+  2.4 s. Nothing is a monster or an alien: the old set had insect, troll and alien takes, and
+  synthesized formant voices for the last four kinds. A big one winding up breathes in with a
+  dead man's rattle, slowed. Its steps are a boot on gravel slowed into a heavy tread over the
+  recipe's thump; a small one's a foot dragged on dry dirt, slowed and dulled to under 5 kHz.
+- **Explosions throw things.** A shock front, a pressure pulse longer for a bigger charge; the
+  fireball a band of driven noise rolling down and darkening, a whump of gas under it,
+  crackling as it burns off; the ground torn up, then what was thrown up raining back down for
+  a second, clods thumping and stones ticking, a piece of sheet metal landing among them from
+  the bigger ones, all of it sent back off the treeline over a rumble. A concussion charge
+  throws nothing: a long pulse, the air shoved past and sucked back, dust lifted. A rocket
+  leaves its tube with a backblast out of the open back and the tube knocked on the shoulder,
+  its motor tearing and crackling as it flies off; a missile's motor lights with a pop and
+  fizzes away; the missile battery's tubes are air columns rung by the gas, not a tone.
 - **The base and the pickups are tools and things handled.** Building is a nail hammered into
-  a plank, its ring rising and the last blow a dead thump; an upgrade an impact gun rattling a
-  bolt tight and the part seated with a clank; paying coins tipped onto a pile, the last one
-  spinning down. A supply crate lands hard, its planks booming in their straps, and its
-  parachute settles over it. A find knocks a latch up and creaks a hinge before its two
-  glockenspiel notes; a jackpot runs up a chord and rains coins. A medkit is velcro ripped, a
+  a plank, the nail a thin bar ringing higher and shorter as it goes in, the plank's wooden
+  knock under it and the last blow a dead thump; a gate's post and a generator's housing are
+  iron and plate, a falling structure timber cracking and masonry sliding; the generator's
+  failing alarm is a small motor siren, a rotor chopping air, and its coils whine as a narrow
+  band of noise, never a sweep of a sine; an upgrade an impact gun rattling a
+  bolt tight and the part seated with a clank; paying coins handled, dropped and counted onto a
+  desk, recorded. A supply crate lands hard, its planks knocking in their straps, and its
+  parachute's cloth settles over it. A find is a bag unzipped and dug through, and a jackpot a bag
+  unzipped and a heap of coins poured onto a table, both recorded, with no chime. A medkit is velcro ripped, a
   packet torn, antiseptic hissed and a bandage pulled tight; changing guns is webbing, a grip
-  slapped into the palm and a safety thumbed off. Footsteps: a boot's heel then its toe on
-  grit, a dead foot dragged then slapped down bare, a big one's weight crushing the dirt.
+  slapped into the palm and a safety thumbed off. Footsteps: a survivor's boots on gritty
+  gravel, a dead foot dragged on dry dirt, a big one's weight crushing gravel, all recorded.
   What plays often is kept from tiring: the coins, heard on every buy and sell and often
   several in a row, ring briefly and below the harshest band, their spin a short rattle; a
   dead foot's drag is short, since a horde's steps are the commonest sound and long ones ran
@@ -1294,11 +1423,12 @@ about -29, ambience -32 to -42, footsteps under -45.
   strike breathes in and growls, the nearest one that has just started, so at night a blow
   coming out of the dark is heard first.
 - **Your own feedback.** A short, dry knock for each kill of your own shooting (at most 14 a
-  second, rising a little with each in quick succession), a charge-up when your ultimate is
-  full, your heart once your health is under a quarter, and the countdown's last beep higher
-  and longer than the two before it.
+  second, rising a little with each in quick succession), a Zippo flicked open and struck when
+  your ultimate is full, your heart once your health is under a quarter, and the countdown's
+  last whistle a full blast after two chirps. A survivor's taunt is a shout of "hey!", and one
+  revived gasps for air, recorded, a man's or a woman's.
 - **Music only at the turns.** A few seconds of recorded music (`web/src/sound/cues/`, CC0,
-  credited in its `CREDITS.md`; the one exception to synthesized) mark when the night turns: a
+  credited in its `CREDITS.md`, apart from the sound effects' recordings) mark when the night turns: a
   wave starting, a boss wave, a wave cleared, a last stand (the generator under a quarter, or
   one survivor standing of several), the evac called, the Huey away with survivors, the game
   lost, the generator raised a tier. Each comes in after the siren it shares a moment with and
@@ -1312,7 +1442,9 @@ about -29, ambience -32 to -42, footsteps under -45.
   ones first, and steps are the first sounds dropped once 32 of the 40 voices are playing.
 - **The weather and the night are heard.** Rain, wind (stronger in snow and a storm), the
   night's crickets, which fall quiet when the dead are about, and the generator's hum round the
-  base. Rain and wind are two loops each, apart in time and either side, so they are wide
+  base. Rain, wind and crickets play their recordings in the game, not only in the lab: a loop
+  takes a recording when its sound has one (Chrome trims the MP3's encoder delay, so the seam
+  holds). Rain and wind are two loops each, apart in time and either side, so they are wide
   rather than a point in the middle. The ambience is far under everything else and steps back
   as a fight fills the mix. Rain also muffles the whole world a little, as it muffles gunfire
   for the creeps, and a pause muffles it a lot.
@@ -1347,12 +1479,13 @@ about -29, ambience -32 to -42, footsteps under -45.
   limited, only the nearest one each tick plays, and ricochets wait longer in a crowd.
   The pylon only buzzes close by. The hound, the mauler and the goliath, which had no voice,
   now groan and die like the other creeps.
-- **The horde before the blows.** A distant horde bed (dozens of blurred moans, shuffling, a
-  low swell) rises with the awake creeps of a wave, weighted by distance. Creeps still to
+- **The horde before the blows.** A distant horde bed (a recorded crowd of people moaning,
+  slowed to 0.8 and dulled by distance into a 12 s seamless loop) rises with the awake creeps of a wave, weighted by distance. Creeps still to
   come and those hidden in the dark count as far ones. It comes from where they are, or from
   the side the scouts reported, and it backs off when the nearby crowd and the mix fill up,
   because then each creep is heard on its own. The siren is the base's alarm, and a war horn
-  from the wave's side answers it two seconds later; a boss wave gets two horns, lower. This
+  from the wave's side answers it two seconds later, a ram's horn slowed to 0.7; a boss wave's
+  is slowed to 0.55. This
   complements the siren rather than duplicating it. Bosses roar on sight and every fourteen
   seconds or so after, never two within seven. Their tread thumps the ground and carries
   further than other creeps' sounds. A failing generator sparks more often the worse it gets

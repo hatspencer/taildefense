@@ -1,4 +1,4 @@
-// Blows landing, kills, and survivors hit, recorded.
+// Blows landing, kills, and survivors' voices, recorded.
 // CC0 recordings (see CREDITS-sfx.md) for the recipes of ../bank.ts, cut and levelled to
 // each recipe's loudest 50 ms. 'over' layers them on the recipe's synthesized tail;
 // 'replace' plays them instead of it.
@@ -19,6 +19,18 @@ import kill0 from './impacts/kill_0.mp3';
 import kill1 from './impacts/kill_1.mp3';
 import kill2 from './impacts/kill_2.mp3';
 import kill3 from './impacts/kill_3.mp3';
+import shoutM0 from './impacts/shout_m_0.mp3';
+import shoutM1 from './impacts/shout_m_1.mp3';
+import shoutM2 from './impacts/shout_m_2.mp3';
+import shoutM3 from './impacts/shout_m_3.mp3';
+import shoutF0 from './impacts/shout_f_0.mp3';
+import shoutF1 from './impacts/shout_f_1.mp3';
+import shoutF2 from './impacts/shout_f_2.mp3';
+import revivedM0 from './impacts/revived_m_0.mp3';
+import revivedM1 from './impacts/revived_m_1.mp3';
+import revivedM2 from './impacts/revived_m_2.mp3';
+import revivedF0 from './impacts/revived_f_0.mp3';
+import revivedF1 from './impacts/revived_f_1.mp3';
 import hurtM0 from './impacts/hurt_m_0.mp3';
 import hurtM1 from './impacts/hurt_m_1.mp3';
 import hurtM2 from './impacts/hurt_m_2.mp3';
@@ -39,6 +51,12 @@ registerSamples('strike', { files: [strike0, strike1, strike2, strike3, strike4,
 registerSamples('strikeBig', { files: [strikeBig0, strikeBig1, strikeBig2, strikeBig3, strikeBig4], gain: 0.85, mode: 'over', jitter: 0.05 });
 // Your shot killing something: a soft knock (no jitter: the game raises its pitch with a streak).
 registerSamples('kill', { files: [kill0, kill1, kill2, kill3], gain: 0.6, mode: 'over' });
+// A survivor's shout (the taunt): a man calling "hey!", a woman's shout and yell.
+registerSamples('shout_m', { files: [shoutM0, shoutM1, shoutM2, shoutM3], gain: 1, mode: 'replace', jitter: 0.04 });
+registerSamples('shout_f', { files: [shoutF0, shoutF1, shoutF2], gain: 1, mode: 'replace', jitter: 0.04 });
+// A survivor back up: a gasp for air.
+registerSamples('revived_m', { files: [revivedM0, revivedM1, revivedM2], gain: 1, mode: 'replace', jitter: 0.03 });
+registerSamples('revived_f', { files: [revivedF0, revivedF1], gain: 1, mode: 'replace', jitter: 0.03 });
 // A survivor hit.
 registerSamples('hurt_m', { files: [hurtM0, hurtM1, hurtM2, hurtM3, hurtM4], gain: 1, mode: 'replace', jitter: 0.04 });
 registerSamples('hurt_f', { files: [hurtF0, hurtF1, hurtF2], gain: 1, mode: 'replace', jitter: 0.04 });

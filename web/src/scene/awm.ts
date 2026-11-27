@@ -8,7 +8,7 @@ export const AWM_LENS: [number, number, number] = [0.6, 0.06, -0.1];
 
 // The AWM in a survivor's hands: drawn at this scale, and moved so its pistol grip is where
 // the hand holds a gun (the grip in its hold) and the muzzle AWM_HELD_MUZZLE out in front of it.
-export const AWM_HELD = { scale: 0.6, x: 0.12, y: 0.05 };
+export const AWM_HELD = { scale: 0.5, x: 0.1, y: 0.035 };
 export const AWM_HELD_MUZZLE = AWM_MUZZLE * AWM_HELD.scale + AWM_HELD.x;
 
 // Whether a weapon's four track levels, from lv[o], are all at the top: the last thing the

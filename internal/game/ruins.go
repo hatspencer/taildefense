@@ -4,8 +4,10 @@ import "math/rand/v2"
 
 // The ruined houses come in kinds, each its own shape: a cottage of one room, a house split
 // into two by a wall, an L-shaped house, a barn with wide doors through it and the loft's
-// rubble on its floor, a garden shed, and a house half fallen in. The page builds each in
-// its own style of wall (terrain.ts).
+// rubble on its floor, a garden shed, a house half fallen in, a terrace of three narrow houses
+// under one roof, and a house burnt out to its corners. The page builds each in its own style
+// of wall (terrain.ts). Most stand alone across the wastes; some line the streets of the
+// hamlets along the roads (hamlets, landmarks.go).
 
 // RuinKind is the shape of a ruined house.
 type RuinKind uint8
@@ -17,11 +19,13 @@ const (
 	RuinBarn                      // big, a wide door at each end, rubble inside
 	RuinShed                      // small, one doorway
 	RuinCollapsed                 // walls broken through, rubble inside
+	RuinTerrace                   // three narrow houses in a row, a front door each
+	RuinShell                     // burnt out: only its corners still stand
 	NumRuinKinds
 )
 
 // ruinOdds is how often each kind of house turns up, out of 100.
-var ruinOdds = [NumRuinKinds]int{RuinCottage: 26, RuinTwoRoom: 18, RuinL: 16, RuinBarn: 10, RuinShed: 12, RuinCollapsed: 18}
+var ruinOdds = [NumRuinKinds]int{RuinCottage: 22, RuinTwoRoom: 15, RuinL: 13, RuinBarn: 9, RuinShed: 11, RuinCollapsed: 16, RuinTerrace: 6, RuinShell: 8}
 
 // ruinSize is the range of each kind's width and height: least, then how many more it can be.
 var ruinSize = [NumRuinKinds][4]int{
@@ -31,6 +35,18 @@ var ruinSize = [NumRuinKinds][4]int{
 	RuinBarn:      {10, 4, 7, 3},
 	RuinShed:      {4, 2, 4, 2},
 	RuinCollapsed: {5, 6, 5, 5},
+	RuinTerrace:   {11, 4, 5, 2}, // the long way first; a terrace may be turned (ruinBox)
+	RuinShell:     {6, 5, 5, 4},
+}
+
+// ruinBox rolls the width and height of a house of kind k: a terrace lies either way.
+func ruinBox(rng *rand.Rand, k RuinKind) (int, int) {
+	sz := ruinSize[k]
+	bw, bh := sz[0]+rng.IntN(sz[1]+1), sz[2]+rng.IntN(sz[3]+1)
+	if k == RuinTerrace && rng.IntN(2) == 0 {
+		bw, bh = bh, bw
+	}
+	return bw, bh
 }
 
 func pickRuin(rng *rand.Rand) RuinKind {
@@ -44,9 +60,19 @@ func pickRuin(rng *rand.Rand) RuinKind {
 	return RuinCottage
 }
 
-// house lays out a ruined house of kind k over the box bx, by, bw, bh. Its middle is always
-// open floor, where it is searched from.
-func house(t []Tile, w int, rng *rand.Rand, bx, by, bw, bh int, k RuinKind) {
+// Which way a house's front door faces: any way, or towards -y, +y, -x or +x.
+const (
+	faceAny = iota
+	faceN
+	faceS
+	faceW
+	faceE
+)
+
+// house lays out a ruined house of kind k over the box bx, by, bw, bh, its front door on the
+// side front (faceAny: wherever it falls). Its middle is always open floor, where it is
+// searched from.
+func house(t []Tile, w int, rng *rand.Rand, bx, by, bw, bh int, k RuinKind, front int) {
 	mx, my := bx+bw/2, by+bh/2
 	// The L's missing corner, as the box it cuts away; never reaching the middle.
 	cx0, cy0, cx1, cy1 := 0, 0, -1, -1
@@ -68,7 +94,7 @@ func house(t []Tile, w int, rng *rand.Rand, bx, by, bw, bh int, k RuinKind) {
 		return !(x >= cx0 && x <= cx1 && y >= cy0 && y <= cy1)
 	}
 	floor := TDirt
-	if k == RuinL || k == RuinTwoRoom {
+	if k == RuinL || k == RuinTwoRoom || k == RuinTerrace {
 		floor = TFloor
 	}
 	// Walls wherever the footprint meets the outside, corners too, so nothing slips through
@@ -128,20 +154,43 @@ func house(t []Tile, w int, rng *rand.Rand, bx, by, bw, bh int, k RuinKind) {
 		}
 		return false, 0, 0
 	}
-	var doors [][2]int
+	// facing reports whether wall tile x, y has the outside on the front's side.
+	facing := func(x, y int) bool {
+		switch front {
+		case faceN:
+			return !in(x, y-1)
+		case faceS:
+			return !in(x, y+1)
+		case faceW:
+			return !in(x-1, y)
+		case faceE:
+			return !in(x+1, y)
+		}
+		return true
+	}
+	var doors, fronts [][2]int
 	for y := by; y < by+bh; y++ {
 		for x := bx; x < bx+bw; x++ {
 			if ok, _, _ := door(x, y); ok {
 				doors = append(doors, [2]int{x, y})
+				if facing(x, y) {
+					fronts = append(fronts, [2]int{x, y})
+				}
 			}
 		}
 	}
-	// A doorway two wide, where it fits.
+	// A doorway two wide, where it fits; the first on the front.
+	opened := false
 	opening := func() {
-		if len(doors) == 0 {
+		from := doors
+		if !opened && len(fronts) > 0 {
+			from = fronts
+		}
+		opened = true
+		if len(from) == 0 {
 			return
 		}
-		d := doors[rng.IntN(len(doors))]
+		d := from[rng.IntN(len(from))]
 		ok, ax, ay := door(d[0], d[1])
 		if !ok {
 			return
@@ -197,7 +246,72 @@ func house(t []Tile, w int, rng *rand.Rand, bx, by, bw, bh int, k RuinKind) {
 		if rng.IntN(2) == 0 {
 			opening() // a back door
 		}
+	case RuinTerrace:
+		terrace(t, w, rng, bx, by, bw, bh, front)
+	case RuinShell:
+		// Burnt out: the roof came down and took the walls with it, all but the corners, where
+		// a stub of two or three blocks stands each way; ash and what fell on the floor.
+		for y := by; y < by+bh; y++ {
+			for x := bx; x < bx+bw; x++ {
+				if t[y*w+x] != TRock {
+					continue
+				}
+				ex, ey := min(x-bx, bx+bw-1-x), min(y-by, by+bh-1-y)
+				if ex > 0 && ey > 0 {
+					continue
+				}
+				if stub := 1 + rng.IntN(2); max(ex, ey) > stub {
+					open(x, y)
+				}
+			}
+		}
+		rubble(2 + rng.IntN(3))
 	default:
 		opening()
+	}
+}
+
+// terrace splits a terrace into three houses by two inner walls across it, each house with a
+// front door in the middle of its front: on the front's side, or either long side.
+func terrace(t []Tile, w int, rng *rand.Rand, bx, by, bw, bh, front int) {
+	long := bw >= bh
+	if long && front != faceN && front != faceS {
+		front = faceN + rng.IntN(2)
+	}
+	if !long && front != faceW && front != faceE {
+		front = faceW + rng.IntN(2)
+	}
+	n, deep := bw, bh
+	if !long {
+		n, deep = bh, bw
+	}
+	// at is the tile i along the terrace and j in from its front wall.
+	at := func(i, j int) int {
+		switch front {
+		case faceN:
+			return (by+j)*w + bx + i
+		case faceS:
+			return (by+bh-1-j)*w + bx + i
+		case faceW:
+			return (by+i)*w + bx + j
+		}
+		return (by+i)*w + bx + bw - 1 - j
+	}
+	walls := [2]int{n / 3, 2 * n / 3}
+	for _, p := range walls {
+		for j := 1; j < deep-1; j++ {
+			t[at(p, j)] = TRock
+		}
+	}
+	for u, lo := range [3]int{1, walls[0] + 1, walls[1] + 1} {
+		hi := n - 2
+		if u < 2 {
+			hi = walls[u] - 1
+		}
+		d := (lo + hi) / 2
+		t[at(d, 0)] = TDirt
+		if d+1 <= hi && rng.IntN(3) > 0 {
+			t[at(d+1, 0)] = TDirt
+		}
 	}
 }

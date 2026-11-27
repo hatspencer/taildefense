@@ -138,7 +138,7 @@ func TestTheBrowserPlaysThroughTheBridge(t *testing.T) {
 		t.Fatalf("first message: op %d err %v", op, err)
 	}
 	var wel welcomeMsg
-	if err := json.Unmarshal(p, &wel); err != nil || wel.T != "welcome" || wel.W != 352 || !wel.Hosting {
+	if err := json.Unmarshal(p, &wel); err != nil || wel.T != "welcome" || wel.W != game.MapW || !wel.Hosting {
 		t.Fatalf("welcome: %v %+v", err, wel)
 	}
 	if wel.Volume != 55 {

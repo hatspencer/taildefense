@@ -13,15 +13,17 @@ import { type Handlers, type Transport, WsTransport } from './net';
 import { EvacStage, PF_ALIVE, PF_ARMORY, Phase, PingKind, SiteKind, siteX, siteY, TTrack, TURRET_TRACKS, turretRange, type PathMsg, type Welcome, wreck } from './protocol';
 import { Creeps } from './scene/creeps';
 import { Detail } from './scene/detail';
+import { Wasteland } from './scene/wasteland';
 import { Effects } from './scene/effects';
 import { Helis } from './scene/heli';
 import { Heroes } from './scene/heroes';
 import { Portraits } from './scene/portraits';
+import { stage } from './scene/stage';
 import { Guns } from './scene/guns';
 import { Loot } from './scene/loot';
 import { Overlays } from './scene/overlays';
 import { Routes } from './route';
-import { K_CANNON, K_FROST, K_GATE, K_GUN, K_MISSILE, K_SNIPER, K_TESLA, SNIPER_HEAD_Y, Structs } from './scene/structs';
+import { K_CANNON, K_FROST, K_GATE, K_GUN, K_MISSILE, K_SNIPER, K_TESLA, SNIPER_HEAD_Y, Structs, turretDrawnY } from './scene/structs';
 import { FogOfWar } from './scene/fow';
 import { Terrain } from './scene/terrain';
 import { Weather } from './scene/weather';
@@ -108,10 +110,17 @@ async function main(): Promise<void> {
   const app = document.getElementById('app')!;
   const P = params();
   // The boot splash covers loading; #nosplash skips it, #splash=1.4 holds it at 1.4 s in.
-  const splash = P.has('nosplash') ? null : new Splash(document.body, P.has('splash') ? Number(P.get('splash')) || 0 : -1);
+  const splash = P.has('nosplash') || P.has('nohud') || P.get('lab') === 'art' ? null : new Splash(document.body, P.has('splash') ? Number(P.get('splash')) || 0 : -1);
   // #lab poses every creep and survivor animation side by side on the demo's world.
   const labMode = P.has('lab');
   let lab: Lab | null = null;
+  // #lab=art is the reference line-up, held beside docs/artdirection.png: on plain ground,
+  // still, with no HUD. &plain, &still and &nohud give any other lab view the same.
+  const artLab = labMode && P.get('lab') === 'art';
+  const plain = labMode && (artLab || P.has('plain')), still = labMode && (artLab || P.has('still'));
+  if (artLab || P.has('nohud')) document.body.classList.add('nohud');
+  // still: the moment every pose holds at, 0 while time runs.
+  let heldAt = 0;
   let demoKit: TdDemo | null = null, demoHost: DemoHost | null = null;
   const demo = P.has('demo') || labMode;
   // The browser's shortcuts and menus kept off a real game; the demo, the lab and #dev keep
@@ -129,6 +138,7 @@ async function main(): Promise<void> {
   const canvas = world.renderer.domElement;
   const game = new Game();
   const terrain = new Terrain(world.scene);
+  const wasteland = new Wasteland(world.scene);
   const structs = new Structs(world.scene);
   const creeps = new Creeps(world.scene);
   // #detail=N pins the detail governor's level (0 full); otherwise it follows the frame time.
@@ -140,6 +150,7 @@ async function main(): Promise<void> {
   effects.heroMuzzle = (x, y, out) => heroes.awmMuzzle(x, y, out);
   const helis = new Helis(world.scene, effects);
   const fow = new FogOfWar(world.scene);
+  world.haze = fow.hazed;
   creeps.onBlow = (x, y, k, h, r) => effects.blow(x, y, k, h, r);
   creeps.onGib = (x, y) => effects.gib(x, y);
   const weather = new Weather(world.scene);
@@ -198,7 +209,7 @@ async function main(): Promise<void> {
   const turretHeight = (x: number, y: number) => {
     const s = game.structAtTile(Math.floor(x), Math.floor(y));
     const k = s >= 0 ? game.cur.sKind[s] : 0;
-    return k === K_GUN ? 0.75 : k === K_CANNON ? 0.86 : k === K_FROST ? 1.5 : k === K_TESLA ? 1.6 : k === K_SNIPER ? SNIPER_HEAD_Y : k === K_MISSILE ? 0.95 : 1.0;
+    return turretDrawnY(k, k === K_GUN ? 0.75 : k === K_CANNON ? 0.86 : k === K_FROST ? 1.5 : k === K_TESLA ? 1.6 : k === K_SNIPER ? SNIPER_HEAD_Y : k === K_MISSILE ? 0.95 : 1.0);
   };
 
   const handlers: Handlers = {
@@ -235,6 +246,7 @@ async function main(): Promise<void> {
     onTerrain(t) {
       game.setTerrain(t);
       terrain.build(game.tiles, game.w, game.h, game.welcome?.sites ?? []);
+      wasteland.build(game.tiles, game.w, game.h, game.welcome);
       splash?.progress(0.35);
     },
     onFrame(buf) {
@@ -343,13 +355,15 @@ async function main(): Promise<void> {
       }
     }
   };
-  (window as unknown as { td: unknown }).td = { game, ctl, rig, hud, world, heroes, helis, sound, creeps, detail, get transport() { return transport; } };
+  (window as unknown as { td: unknown }).td = { game, ctl, rig, hud, world, heroes, helis, sound, creeps, detail, wasteland, get transport() { return transport; } };
 
   // The 8-bit view: #px=N or the saved choice sets the block size, 0 turns it off, F4 toggles.
   let pixelPref = 'auto';
   try { pixelPref = localStorage.getItem('td.pixel') ?? 'auto'; } catch { /* storage blocked */ }
   if (P.has('px')) pixelPref = P.get('px') || 'auto';
-  const pixelFor = (h: number) => (pixelPref === 'off' || pixelPref === '0' ? 0 : Number(pixelPref) > 0 ? Number(pixelPref) : World.autoPixel(h));
+  // A lab close-up's own block size (see where the lab is made), 0 otherwise.
+  let labPixel = 0, labAt = 0;
+  const pixelFor = (h: number) => labPixel || (pixelPref === 'off' || pixelPref === '0' ? 0 : Number(pixelPref) > 0 ? Number(pixelPref) : World.autoPixel(h));
   input.onRetroToggle = () => {
     pixelPref = world.pixel > 0 ? 'off' : 'auto';
     try { localStorage.setItem('td.pixel', pixelPref); } catch { /* storage blocked */ }
@@ -360,10 +374,12 @@ async function main(): Promise<void> {
     const w = window.innerWidth, h = window.innerHeight;
     if (world.pixel !== pixelFor(h) || !world.retro) world.setPixel(pixelFor(h));
     world.resize(w, h);
-    labels.resize(w, h);
+    labels.resize(w, h, world.pixel);
   };
   window.addEventListener('resize', resize);
   resize();
+  // The default zoom: a survivor about 40 scene pixels tall, whatever the window.
+  rig.setDist(CameraRig.restDist(window.innerHeight / (world.pixel || 2)));
 
   let last = performance.now();
   let fpsAvg = 60, msAvg = 16;
@@ -371,10 +387,12 @@ async function main(): Promise<void> {
   // A green "+" over a downed teammate (body.cur-revive too, should app.css want to style it).
   const REVIVE_CURSOR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Cpath d='M12 4h8v8h8v8h-8v8h-8v-8H4v-8h8z' fill='%2350ff80' stroke='%23000' stroke-width='2'/%3E%3C/svg%3E") 16 16, pointer`;
   const loop = () => {
-    const now = performance.now();
-    const rawDt = Math.max(0.0005, (now - last) / 1000);
-    const dt = Math.min(0.1, rawDt);
-    last = now;
+    const real = performance.now();
+    const rawDt = Math.max(0.0005, (real - last) / 1000);
+    // The view still turns and zooms while a lab's poses are held.
+    const viewDt = Math.min(0.1, rawDt);
+    const now = heldAt || real, dt = heldAt ? 0 : viewDt;
+    last = real;
     // Only frames of the game itself: the splash and the shader warm-up say nothing of it.
     if (warm === 2 && !covered) detail.frame(now, rawDt * 1000);
     if (demoHost && !lab) demoHost.pump();
@@ -383,12 +401,31 @@ async function main(): Promise<void> {
     if (wd && game.frames > 1) {
       if (!hooksApplied && game.cur.nPlayers > 0) applyHooks();
       if (labMode && !lab) {
-        lab = new demoKit!.Lab(game, wd.core.x, wd.core.y, P.has('gun') ? Number(P.get('gun')) : -1);
+        // On plain ground the bench stands out west, clear of the base, and the terrain and
+        // what lies on it are put away for a flat stage in the picture's ground colour.
+        lab = new demoKit!.Lab(game, plain ? wd.core.x - 100 : wd.core.x, plain ? wd.core.y - 30 : wd.core.y, P.has('gun') ? Number(P.get('gun')) : -1, artLab, still,
+          P.has('fig') ? Number(P.get('fig')) : -1, P.has('arch') ? Number(P.get('arch')) : -1);
         demoHost!.halt();
+        if (plain) {
+          terrain.group.visible = loot.group.visible = guns.group.visible = false;
+          world.scene.add(stage(wd.core.x - 100, wd.core.y - 30));
+        }
         const [lx, ly] = lab.center(P.get('lab') ?? '');
-        rig.follow = false; rig.center(lx, ly); rig.setDist(Number(P.get('dist')) || 26);
-        if (P.has('yaw')) rig.setYaw(Number(P.get('yaw')) * Math.PI / 180);
+        // A close-up is the game's figure enlarged, not a finer one: nearer than the default
+        // zoom the scene pixel grows by as much, so a survivor stays about 40 of them tall
+        // (#px=N to see it finer). The line-up's default is the picture's framing.
+        const rest = CameraRig.restDist(window.innerHeight / (world.pixel || 2));
+        const d = Number(P.get('dist')) || (artLab ? (P.has('fig') ? 3 : Math.max(6.45, 11.5 * H / W)) : 26);
+        if (!P.has('px') && world.pixel > 0 && d < rest) { labPixel = Math.max(world.pixel, Math.round(world.pixel * rest / d)); world.setPixel(labPixel); }
+        // A close-up looks at a figure's middle, not its feet: the ground point behind it
+        // that the camera sees there.
+        const yaw = (Number(P.get('yaw')) || 0) * Math.PI / 180, lift = d <= 8 && !(artLab && !P.has('fig')) ? 0.9 : 0;
+        rig.follow = false; rig.center(lx - Math.sin(yaw) * lift, ly - Math.cos(yaw) * lift); rig.setDist(d, true);
+        rig.setYaw(yaw);
+        labAt = now;
       }
+      // still: the poses run for two seconds to settle, then hold.
+      if (lab && still && !heldAt && now - labAt > 2000) { heldAt = now; world.freezeTime(); }
       if (lab) {
         if (lab.step(now)) effects.onFrame(game, turretHeight, (x0, y0, x1, y1) => structs.onShot(game, x0, y0, x1, y1, now));
       } else game.interpolate(now);
@@ -399,14 +436,14 @@ async function main(): Promise<void> {
       const ride = me?.aboard || game.cur.evac === EvacStage.Departing ? helis.evacAt() : null;
       if (ride) rig.center(ride.x, ride.y, true);
     }
-    input.update(dt, W, H);
-    rig.update(dt);
+    input.update(viewDt, W, H);
+    rig.update(viewDt);
     sound.listen(game, world.camera, rig.tx, rig.tz, rig.dist);
-    world.followSun(rig.tx, rig.tz, rig.span());
+    world.followSun(rig.tx, rig.tz, rig.span(), rig.yaw);
     // Not while the shaders warm: every prop has to be drawn once for that.
-    if (warm === 2) terrain.cull(world.camera);
+    if (warm === 2) { terrain.cull(world.camera); wasteland.update(world.camera, detail.level, game, dt, rig.tx, rig.tz); }
     weather.update(game, dt, world.camera, rig.tx, rig.tz, rig.dist);
-    world.setFog(rig.dist);
+    world.setFog(rig.reach);
     if (wd) {
       // Waves are fought at dusk.
       const me = game.me();
@@ -463,13 +500,14 @@ async function main(): Promise<void> {
         hoverSite: hovered('site'), siteHint: ctl.hover?.t === 'site' ? ctl.siteHint(ctl.hover.id) : '',
         dropHold: ctl.dropAt ? Math.min(1, (now - ctl.dropAt) / DROP_HOLD) : 0,
         hoverGun: hovered('gun'), gunHint: ctl.hover?.t === 'gun' ? ctl.gunHint(ctl.hover.id) : '',
+        creepTop: (k) => creeps.top(k),
       }, now, rig.dist, (x, z) => fow.clarity(x, z));
       hud.minimap.draw(now, W, H);
       // The portraits share the renderer, which the shader warm-up has to itself.
       if (warm === 2) portraits.update(game, now, dt, rig.yaw);
       hud.update(now);
     }
-    const ms = performance.now() - now;
+    const ms = performance.now() - real;
     fpsAvg = fpsAvg * 0.9 + (1 / rawDt) * 0.1;
     msAvg = msAvg * 0.95 + ms * 0.05;
     if (hud.statsVisible()) {

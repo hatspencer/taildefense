@@ -1,5 +1,7 @@
 import * as THREE from 'three/webgpu';
-import { Fn, float, luminance, mix, output, positionWorld, rangeFogFactor, reference, smoothstep, texture, uniform, vec3, vec4 } from 'three/tsl';
+import { Fn, clamp, float, floor, luminance, mix, output, positionWorld, rangeFogFactor, reference, smoothstep, step, texture, uniform, vec3, vec4 } from 'three/tsl';
+import { bayerAt, noise } from './dither';
+import { uFogAmt, uFogDrift } from './weather';
 import { DAY_SIGHT, PF_ALIVE, RIFLE, RIFLE_SIGHT, sightMul } from '../protocol';
 import type { Game } from '../state';
 
@@ -7,6 +9,9 @@ import type { Game } from '../state';
 // the team cannot see by a per-tile texture (red: in sight now, green: seen before), eased
 // so the edge of sight drifts rather than snaps. It also does the distance fog the scene's
 // Fog would, since a fog node replaces it. With fog of war off the texture is never read.
+// How far the day's dust takes the ground past sight towards the haze, at most.
+const DUST_HAZE = 0.2;
+
 export class FogOfWar {
   private tex: THREE.DataTexture;
   private node = texture(blank());
@@ -28,21 +33,45 @@ export class FogOfWar {
   private uNear = uniform(8);
   private uFar = uniform(14);
 
+  // How far a surface has gone into the haze, 0..1: the distance fog and the weather's
+  // together, as the fog node mixes them. The outline pass (retro.ts) fades lines by it.
+  readonly hazed: THREE.Node<'float'>;
+
   constructor(scene: THREE.Scene) {
     this.tex = this.node.value as THREE.DataTexture;
     const f = scene.fog as THREE.Fog;
     const color = reference('color', 'color', f), near = reference('near', 'float', f), far = reference('far', 'float', f);
     const t = this.node.sample(positionWorld.xz.div(this.uSize));
+    // Distance first, so far ground the team has never seen is dark, not haze.
+    const dist = rangeFogFactor(near, far);
+    // The weather's haze gathers with distance from your survivor (or the view), heavier in
+    // banks that drift with the wind, so it lies over the land in patches rather than as an
+    // even wash over the whole view.
+    const bank = noise(positionWorld.xz.mul(0.09).add(uFogDrift));
+    const far0 = smoothstep(this.uNear, this.uFar, positionWorld.xz.sub(this.uEye).length());
+    const k = smoothstep(0.3, 0.72, bank);
+    // Even on a clear day the air is dusty: past the survivor's sight a little of it gathers
+    // in the same banks, so the far ground lies a shade paler and flatter than the near.
+    const dust = far0.mul(k).mul(DUST_HAZE);
+    const amt = clamp(far0.mul(this.uHaze).mul(k.mul(0.8).add(0.3)).add(k.mul(uFogAmt).mul(0.35)).add(dust), 0, 0.92);
+    this.hazed = float(1).sub(float(1).sub(dist).mul(float(1).sub(amt)));
     scene.fogNode = Fn(() => {
-      const lit = t.r, mem = t.g;
+      // The edge of sight is a band of dithered pixels, not a blur: the eased, filtered tile
+      // values are narrowed to half a tile and cut against a dither laid on the ground in
+      // cells of about two scene pixels, so it stays put as the view moves. (The fog node
+      // cannot read the screen coordinate; a pattern on the screen would swim anyway.)
+      const b = bayerAt(floor(positionWorld.xz.mul(11)));
+      const lit = step(b, smoothstep(0.2, 0.8, t.r)), mem = step(b, smoothstep(0.2, 0.8, t.g));
       // Never seen: near black. Seen before: dim and drained of colour, the way a map
       // remembers ground but not what walks on it; at night, never seen is black and seen nearly so. In sight: as it is.
       const shade = mix(mix(this.uNever, this.uMem, mem), float(1), lit);
       const sat = mix(float(0.3), float(1), lit);
-      // Distance first, so far ground the team has never seen is dark, not haze.
-      const d = mix(output.rgb, color, rangeFogFactor(near, far));
-      const c = mix(d, color, smoothstep(this.uNear, this.uFar, positionWorld.xz.sub(this.uEye).length()).mul(this.uHaze));
-      const dark = mix(vec3(luminance(c)), c, sat).mul(shade);
+      // The haze is the picture's dust and damp, warm grey, not the cold sky's grey.
+      const haze = mix(color, vec3(luminance(color)).mul(vec3(1.05, 1.0, 0.84)), 0.5);
+      const c = mix(mix(output.rgb, haze, dist), haze, amt);
+      // Out of sight, the ground goes to a dark olive, not grey.
+      const dark = mix(vec3(luminance(c)), c, sat).mul(shade).mul(mix(vec3(0.96, 0.92, 0.66), vec3(1), lit))
+        .add(vec3(0.02, 0.021, 0.008).mul(float(1).sub(lit)).mul(step(0.01, this.uNever)));
       return vec4(mix(c, dark, this.uOn), output.a);
     })();
   }

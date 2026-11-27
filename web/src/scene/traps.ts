@@ -1,105 +1,111 @@
 // The two traps, three by three and laid flat, so they read as ground a creep walks over:
-// the bait pit and the catapult pit. Each has a ring of lamps round its rim that fills as it
-// recharges and burns green when it is ready, and a moving part: the bait pit's hooks and
-// meat churn while it holds, the catapult's arm flips its bucket over its pivot when it throws,
-// the way it was turned to face when it was placed, which a big arrow on its deck shows.
+// the bait pit and the catapult pit, both improvised from what lies about. Each has a string
+// of lamps round its rim that fills as it recharges and burns green when it is ready, and a
+// moving part: the bait pit's offal churns while it holds, the catapult's arm flips its bucket
+// over its pivot when it throws, the way it was turned to face when it was placed, which an
+// arrow sprayed on its deck shows.
 import * as THREE from 'three/webgpu';
 import { vertexColor } from 'three/tsl';
 import { K_BAIT, K_CATAPULT } from '../protocol';
-import { box, cone, cyl, merge, part, torus, type Part } from './util';
+import { blend, darker, mute, PAL } from './palette';
+import { box, merge, octa, part, type Part } from './util';
 
 export const isTrapKind = (k: number): boolean => k === K_BAIT || k === K_CATAPULT;
 
-const DARK = 0x26282a, STEEL = 0x5a5f63, RUST = 0x7a4a2a, MEAT = 0x8a2a22, FAT = 0xc89a8a, BONE = 0xd8d0b8, PLANK = 0x8a6a46;
+const MEAT = blend(PAL.bloodFresh, PAL.blood, 0.35), GORE = PAL.blood, OFFAL = 0x8a4a3a, BONE = PAL.bone;
 const SEGMENTS = 15; // as many as the charge has steps
+
+// A round slab r across on top (r1 at its foot), h high, standing on y = 0: a cylinder with no
+// bottom, as nothing sees under it.
+function slab(r: number, r1: number, h: number, seg: number): THREE.BufferGeometry {
+  const side = new THREE.CylinderGeometry(r, r1, h, seg, 1, true).translate(0, h / 2, 0);
+  const top = new THREE.CircleGeometry(r, seg).rotateX(-Math.PI / 2).translate(0, h, 0);
+  return merge([part(side, 0), part(top, 0)]);
+}
+// The same as a part of one colour.
+const disc = (r: number, r1: number, h: number, seg: number, c: number, x = 0, y = 0, z = 0): Part => part(slab(r, r1, h, seg), c, x, y, z);
 
 export function trapModel(kind: number): { body: Part[]; head?: Part[]; headY?: number } {
   if (kind === K_BAIT) {
-    // A shallow pit in a rim of rubble and sandbags, dark and wet at the bottom, offal and
-    // bones strewn flat over it. At the corners, outside where the knot stands, four stakes
-    // each hang a joint of meat on a chain and hook.
+    // A shallow pit dug in the ground, its spoil heaped round the rim and two sandbags on it,
+    // the floor wet and dark. At the corners, outside where the knot stands, four rough posts
+    // each hang a joint of meat over the pit on a chain.
     const body: Part[] = [
-      part(cyl(1.42, 1.48, 0.08, 14), 0x6a6252, 0, 0.04, 0),
-      part(cyl(1.18, 1.18, 0.05, 14), 0x1c1612, 0, 0.07, 0),
-      part(cyl(0.95, 0.95, 0.03, 12), 0x2a1210, 0, 0.1, 0),
+      disc(1.5, 1.55, 0.05, 10, PAL.dirt),
+      disc(1.02, 1.06, 0.035, 10, PAL.mud, 0, 0.05, 0),
     ];
-    for (let k = 0; k < 10; k++) {
-      const a = k * Math.PI / 5 + 0.2;
-      body.push(part(box(0.42, 0.18, 0.26), k % 2 ? 0x9a8c66 : 0x857854, Math.cos(a) * 1.28, 0.14, Math.sin(a) * 1.28, 0, -a, 0));
+    for (let k = 0; k < 6; k++) {
+      const a = k * Math.PI / 3 + 0.35, r = 1.2 + (k % 3) * 0.04, w = 0.9 + (k % 2) * 0.2;
+      body.push(part(box(w, 0.13 + (k % 3) * 0.04, 0.34), k % 2 ? PAL.dirtDark : blend(PAL.dirt, PAL.groundDry, 0.4),
+        Math.cos(a) * r, 0.1, Math.sin(a) * r, (k % 2 - 0.5) * 0.2, Math.PI / 2 - a, 0));
     }
-    // A stake at each corner, outside the round pit, each with an arm over it, a chain and
-    // hook, and a joint hanging on it clear of the knot.
+    for (const [x, z, r] of [[0.2, 1.3, 0.1], [-0.25, 1.32, -0.15]]) body.push(part(box(0.5, 0.17, 0.3), PAL.canvas, x, 0.2, z, 0, r, 0));
     for (const [sx, sz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
-      const st = 1.32, hang = 1.08, a = Math.atan2(sz, sx);
-      body.push(part(box(0.16, 1.4, 0.16), 0x5a4430, sx * st, 0.7, sz * st));
-      body.push(part(box(0.2, 0.08, 0.2), 0x3e3022, sx * st, 1.38, sz * st));
-      body.push(part(box(0.42, 0.09, 0.09), 0x4e3a26, sx * (st + hang) / 2, 1.3, sz * (st + hang) / 2, 0, -a, 0));
-      body.push(part(box(0.035, 0.45, 0.035), 0x4a4c4a, sx * hang, 1.05, sz * hang));
-      body.push(part(torus(0.09, 0.025, 4, 8), STEEL, sx * hang, 0.8, sz * hang, 0, -a, 0));
-      // The joint: a dark red haunch with its pale fat and a knob of bone, on the hook.
-      body.push(part(box(0.28, 0.42, 0.22), MEAT, sx * hang, 0.52, sz * hang, 0.1, -a, 0.15));
-      body.push(part(box(0.18, 0.12, 0.24), FAT, sx * hang, 0.74, sz * hang, 0, -a, 0));
-      body.push(part(cyl(0.04, 0.04, 0.2, 5), BONE, sx * hang, 0.24, sz * hang));
+      const st = 1.3, hang = 1.04, a = Math.atan2(sz, sx);
+      body.push(part(box(0.13, 1.45, 0.13), PAL.wood, sx * st, 0.72, sz * st, sz * 0.04, 0, -sx * 0.04));
+      body.push(part(box(0.44, 0.08, 0.08), PAL.woodDark, sx * (st + hang) / 2, 1.38, sz * (st + hang) / 2, 0, -a, 0));
+      body.push(part(box(0.03, 0.42, 0.03), PAL.steelDark, sx * hang, 1.15, sz * hang));
+      // The joint: a dark red haunch hung by its narrow end on the hook, swinging a little.
+      body.push(part(new THREE.CylinderGeometry(0.07, 0.14, 0.42, 5), MEAT, sx * hang, 0.74, sz * hang, 0.1, -a + 0.4, 0.12));
     }
     // The head, flat on the pit floor: offal and bones, which churn while the pit holds.
     const head: Part[] = [];
-    const bits: [number, number, number, number][] = [[0.3, 0.1, 0.5, 0.3], [-0.35, 0.25, -1.1, 0.25], [0.05, -0.4, 2.2, 0.28], [-0.2, -0.15, 0.4, 0.2], [0.5, -0.3, 1.6, 0.18], [-0.55, -0.35, 2.9, 0.2]];
-    bits.forEach(([x, z, r, w], k) => head.push(part(box(w, 0.07, w * 0.7), k % 3 === 2 ? FAT : k % 2 ? 0x6a1a16 : MEAT, x, 0.04, z, 0, r, 0)));
-    for (const [x, z, r] of [[0.1, 0.35, 0.3], [-0.45, 0.05, 1.9], [0.4, 0.45, 2.6], [-0.05, -0.6, 0.9]]) {
-      head.push(part(cyl(0.022, 0.022, 0.34, 5), BONE, x, 0.06, z, Math.PI / 2, 0, r));
-    }
+    const bits: [number, number, number, number][] = [[0.3, 0.1, 0.5, 0.34], [-0.35, 0.25, -1.1, 0.28], [0.05, -0.4, 2.2, 0.3], [-0.25, -0.15, 0.4, 0.22], [0.5, -0.3, 1.6, 0.2]];
+    bits.forEach(([x, z, r, w], k) => head.push(part(box(w, 0.07, w * 0.7), k % 3 === 2 ? OFFAL : k % 2 ? GORE : MEAT, x, 0.04, z, 0, r, 0)));
+    for (const [x, z, r] of [[0.1, 0.4, 0.3], [-0.45, 0.05, 1.9], [0.05, -0.62, 0.9]]) head.push(part(box(0.36, 0.045, 0.05), BONE, x, 0.06, z, 0, r, 0));
     return { body, head, headY: 0.1 };
   }
-  // A square steel deck. On it, turned the way it throws (catapultTurn): a big arrow painted
-  // across it, the pivot frame towards the front and the throwing arm lying back from it with a
+  // A square pit lined with planks, edged with steel angle and pegged at the corners. On it,
+  // turned the way it throws (catapultTurn): an arrow sprayed across it, the pivot frame
+  // towards the front and the throwing arm lying back from it with a cut-down drum for a
   // bucket at its far end, which flips over the pivot to the front when it throws.
-  const body: Part[] = [
-    part(box(2.9, 0.1, 2.9), 0x6a6252, 0, 0.05, 0),
-    part(box(2.6, 0.08, 2.6), DARK, 0, 0.12, 0),
-  ];
-  for (const [x, z] of [[1.3, 1.3], [1.3, -1.3], [-1.3, 1.3], [-1.3, -1.3]]) body.push(part(cone(0.1, 0.26, 4), 0xc89a2a, x, 0.2, z));
-  // The head is the arm, pivoted at the origin here: a beam lying back along -x to an open
-  // bucket, and a short stub forward with the counterweight on it.
+  const body: Part[] = [part(box(2.9, 0.08, 2.9), PAL.dirtDark, 0, 0.04, 0)];
+  for (let k = 0; k < 5; k++) {
+    const x = -1.04 + k * 0.52;
+    body.push(part(box(0.5, 0.06, 2.6), [PAL.wood, darker(PAL.wood, 0.82), blend(PAL.wood, PAL.canvas, 0.3)][k % 3], x, 0.11 + (k % 2) * 0.008, 0));
+  }
+  for (const s of [1, -1]) {
+    body.push(part(box(2.74, 0.07, 0.07), PAL.steel, 0, 0.15, s * 1.33), part(box(0.07, 0.07, 2.74), PAL.steel, s * 1.33, 0.15, 0));
+  }
+  for (const [x, z] of [[1.33, 1.33], [1.33, -1.33], [-1.33, 1.33], [-1.33, -1.33]]) body.push(part(box(0.1, 0.32, 0.1), mute(PAL.hardHat, 0.85, 0.1), x, 0.16, z));
+  // The head is the arm, pivoted at the origin here: a banded timber beam lying back along -x
+  // to the bucket, and a short stub forward with an engine block for its counterweight.
+  const drum = new THREE.CylinderGeometry(DRUM, DRUM * 0.92, 0.32, 8, 1, true);
   const head: Part[] = [
-    part(box(ARM_L, 0.12, 0.3), PLANK, -ARM_L / 2, 0.02, 0),
-    part(box(ARM_L - 0.1, 0.03, 0.06), 0x2a2a2a, -ARM_L / 2, 0.095, 0.1),
-    part(box(ARM_L - 0.1, 0.03, 0.06), 0x2a2a2a, -ARM_L / 2, 0.095, -0.1),
-    // The bucket: a floor and four walls, rusted iron, dark inside.
-    part(box(BUCKET, 0.06, BUCKET), 0x1e1a16, -ARM_L - BUCKET / 2, 0.02, 0),
-    part(box(0.07, 0.3, BUCKET), RUST, -ARM_L - BUCKET + 0.035, 0.17, 0),
-    part(box(0.07, 0.3, BUCKET), RUST, -ARM_L - 0.035, 0.17, 0),
-    part(box(BUCKET, 0.3, 0.07), 0x8a5632, -ARM_L - BUCKET / 2, 0.17, BUCKET / 2 - 0.035),
-    part(box(BUCKET, 0.3, 0.07), 0x8a5632, -ARM_L - BUCKET / 2, 0.17, -BUCKET / 2 + 0.035),
+    part(box(ARM_L + 0.1, 0.13, 0.22), PAL.wood, -ARM_L / 2, 0.02, 0),
+    part(box(0.07, 0.17, 0.26), PAL.steelDark, -0.25, 0.02, 0), part(box(0.07, 0.17, 0.26), PAL.steelDark, -0.62, 0.02, 0),
+    // The bucket: half a rusted drum, open, dark inside.
+    part(drum, PAL.rust, -ARM_L - DRUM, 0.24, 0),
+    part(new THREE.CircleGeometry(DRUM * 0.92, 8).rotateX(Math.PI / 2), darker(PAL.rust, 0.7), -ARM_L - DRUM, 0.08, 0),
+    part(new THREE.CircleGeometry(DRUM - 0.01, 8).rotateX(-Math.PI / 2), PAL.inkWarm, -ARM_L - DRUM, 0.34, 0),
     // The counterweight, forward of the pivot.
-    part(box(0.3, 0.08, 0.16), STEEL, 0.12, 0, 0),
-    part(box(0.18, 0.2, 0.42), 0x34363a, 0.24, -0.02, 0),
+    part(box(0.3, 0.08, 0.16), PAL.steel, 0.12, 0, 0),
+    part(box(0.26, 0.22, 0.4), PAL.steelDark, 0.26, -0.01, 0),
   ];
   return { body, head, headY: ARM_Y };
 }
 
 // The catapult's arm: where its pivot stands on the deck (towards the way it throws), how high,
-// the beam's length back to the bucket and the bucket's size. Turned 45 degrees the bucket's far
-// corner stays inside the deck, and the lamps.
-const PIVOT_X = 0.2, ARM_Y = 0.34, ARM_L = 0.85, BUCKET = 0.6;
+// the beam's length back to the bucket and the bucket's radius. Turned 45 degrees the bucket's
+// far side stays inside the deck, and the lamps.
+const PIVOT_X = 0.2, ARM_Y = 0.36, ARM_L = 0.85, DRUM = 0.3;
 
 // The parts that turn with the catapult's facing and stay put when it throws: the pivot frame
-// and the coil springs under the beam.
+// on its feet, the axle, and two truck coil springs under the beam.
 let armGeo: THREE.BufferGeometry | null = null;
 function catapultArm(): THREE.BufferGeometry {
   if (armGeo) return armGeo;
-  const p: Part[] = [part(box(0.09, 0.09, 0.78), STEEL, PIVOT_X, ARM_Y, 0)];
-  for (const z of [-0.34, 0.34]) {
-    p.push(part(box(0.12, 0.3, 0.1), STEEL, PIVOT_X, 0.31, z));
-    p.push(part(box(0.3, 0.06, 0.14), 0x3e4044, PIVOT_X, 0.19, z));
+  const p: Part[] = [part(box(0.08, 0.08, 0.8), PAL.steelLit, PIVOT_X, ARM_Y, 0)];
+  for (const z of [-0.36, 0.36]) {
+    p.push(part(box(0.12, 0.28, 0.08), PAL.steel, PIVOT_X, 0.27, z));
+    p.push(part(box(0.34, 0.05, 0.16), PAL.steelDark, PIVOT_X, 0.16, z));
   }
-  for (const x of [-0.25, -0.55]) {
-    for (let k = 0; k < 2; k++) p.push(part(torus(0.12, 0.035, 4, 8), RUST, PIVOT_X + x, 0.21 + k * 0.07, 0, Math.PI / 2, 0, 0));
-  }
+  for (const x of [-0.3, -0.62]) p.push(disc(0.1, 0.1, 0.17, 6, PAL.rust, PIVOT_X + x, 0.14, 0));
   armGeo = merge(p);
   return armGeo;
 }
 
-// The arrow painted across the deck, from behind the bucket to near the front edge, inside the
+// The arrow sprayed across the deck, from behind the bucket to near the front edge, inside the
 // lamps at any facing: a broad shaft and a head wider than the arm, lit like the lamps so it
 // reads at night too.
 let arrowGeo: THREE.BufferGeometry | null = null;
@@ -110,7 +116,7 @@ function catapultArrow(): THREE.BufferGeometry {
   sh.lineTo(0.42, 0.62); sh.lineTo(0.42, 0.24); sh.lineTo(-1.15, 0.24); sh.closePath();
   const g = new THREE.ShapeGeometry(sh);
   g.rotateX(-Math.PI / 2);
-  arrowGeo = merge([part(g, 0xd8a428, 0, 0.165, 0)]);
+  arrowGeo = merge([part(g, mute(PAL.hardHat, 0.9, 0.05), 0, 0.15, 0)]);
   return arrowGeo;
 }
 let arrowMat: THREE.MeshBasicNodeMaterial | null = null;
@@ -164,8 +170,8 @@ export function trapGhost(g: THREE.Group, head: THREE.Object3D | null, kind: num
   if (kind === K_CATAPULT) catapultTurn(g, head, mat, false, band);
 }
 
-// The lamps round the rim, the first n of SEGMENTS lit: amber while it charges, green when
-// ready.
+// The lamps round the rim, little bulbs, the first n of SEGMENTS lit: amber while it charges,
+// green when ready, dark glass when spent.
 const rings = new Map<number, THREE.BufferGeometry>();
 function ringGeo(n: number): THREE.BufferGeometry {
   let g = rings.get(n);
@@ -174,7 +180,7 @@ function ringGeo(n: number): THREE.BufferGeometry {
   for (let k = 0; k < SEGMENTS; k++) {
     const a = -Math.PI / 2 + k * Math.PI * 2 / SEGMENTS;
     const lit = k < n, col = n >= SEGMENTS ? 0x70ff80 : lit ? 0xffc040 : 0x2a2a22;
-    p.push(part(box(0.26, 0.09, 0.16), col, Math.cos(a) * 1.4, 0.27, Math.sin(a) * 1.4, 0, -a, 0));
+    p.push(part(octa(0.1), col, Math.cos(a) * 1.4, 0.27, Math.sin(a) * 1.4, 0, -a, 0, 1.3, 0.75, 0.9));
   }
   g = merge(p);
   rings.set(n, g);
@@ -193,7 +199,7 @@ export function trapMake(g: THREE.Group, head: THREE.Object3D | null, kind: numb
 }
 
 // trapUpdate moves a trap's parts for its state (the frame's sTrap): the ring to its charge,
-// the bait pit's hooks churning while it holds, the catapult's arm flipping its bucket over
+// the bait pit's offal churning while it holds, the catapult's arm flipping its bucket over
 // the pivot the way it faces while it is sprung.
 export function trapUpdate(g: THREE.Group, head: THREE.Object3D | null, kind: number, state: number, facing: number, t: number, dt: number): void {
   const busy = (state & 1) !== 0, charge = Math.min(SEGMENTS, state >> 1);

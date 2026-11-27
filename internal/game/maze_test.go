@@ -176,6 +176,12 @@ func TestACreepDoesNotClawAtAWallForASurvivorBehindIt(t *testing.T) {
 func TestAGateIsWorkedFromBesideItAndNotShutOnACreep(t *testing.T) {
 	w := mazeWorld(t)
 	cx, cy := int(w.CoreX), int(w.CoreY)
+	// Open ground outside the south gate, whatever the map put there (a lake, on this seed).
+	for y := cy + baseRadius + 1; y <= cy+baseRadius+12; y++ {
+		for x := cx - 30; x <= cx+30; x++ {
+			w.Terrain[y*w.W+x] = TGrass
+		}
+	}
 	si := w.StructAt(cx, cy+baseRadius)
 	p := mustJoin(t, w, "ana")
 	if err := w.OrderGate(p, si); err != nil {

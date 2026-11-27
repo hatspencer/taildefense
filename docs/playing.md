@@ -179,7 +179,7 @@ A host can pick the blades mode (`td host --mode blades`, or `m` on Host a game 
 launcher): no guns at all. When you join you choose your blade, the crowbar, the katana or the
 greatsword (1, 2 and 3 pick too); until you do you hold the crowbar. The armory sells no gun and
 no loot gives one; the gas station's counter always has a legendary blade you can take, and the
-shrines and the plane are as ever. The crowbar is the plain choice, but it evolves too.
+shrine and the plane are as ever. The crowbar is the plain choice, but it evolves too.
 
 ### Bots
 
@@ -328,7 +328,7 @@ in the shop, bursting out when you step onto the lot and again when you start on
 shot or a blast that reaches a fuel pump sets it off: a fireball that hurts survivors too, sets
 off the pumps beside it and leaves the ground burning.
 
-Far out are three overrun outposts: walled forts with a keep, held by a garrison and its
+Far out are four overrun outposts: walled forts with a keep, held by a garrison and its
 warlord. They are hard going early on, and the stash inside is worth it: three finds, the first
 rare at least. The hardest sites spring ambushes, with creeps that burst out as you walk in or
 start searching.
@@ -339,10 +339,11 @@ walk in, and its leaking engines go up like the gas station's pumps when shot. T
 field manual, a piece of kit and something rare or better. Now and then the gas station's counter
 and the plane's hold have a legendary blade in them instead.
 
-Far out in the wilds stand two shrines: overgrown courts of broken stone, pillars down their
-length and a pair of gate posts at the mouth, older than the church. A blade stands in the altar
-at the far end, between guttering candles. The dead keep them: a lair's guards sleep round a
-champion, and more rise from the court when you walk in and again when you kneel at the altar.
+Out by the edge of the map stands a shrine, one on every map: an overgrown court of broken
+stone, pillars down its length and a pair of gate posts at the mouth, older than the church. A
+blade stands in the altar at the far end, between guttering candles. The dead keep it: a lair's
+guards sleep round a champion, and more rise from the court when you walk in and again when you
+kneel at the altar.
 The altar always gives a legendary blade you can take.
 
 On the outskirts, far from the base, stands an old church. Press E at the bell rope inside, under
@@ -350,6 +351,22 @@ the tower, and the bell rings out over the whole map: for a minute every creep t
 on its way in, the wanderers and the guards at their sites, heads for the church. Use it to pull a
 wave off the base or to empty the sites for a raid, and don't be there when they arrive. The bell
 can be rung again after a couple of minutes.
+
+Along the roads stand four hamlets: a few houses either side of the road, terraces and burnt-out
+shells among them, every door to the street. They are easy pickings close together, and the dead
+come down the street from both ends.
+
+Across one road, out past the middle, the army set up a checkpoint and never left: a chicane of
+concrete barriers, sandbagged posts, a command tent and their trucks. The dead in uniform still
+hold it. The tent gives guns, mostly, and a medkit.
+
+Far out lies a cemetery behind iron railings, the family crypt at the back. Rob the crypt for its
+gold and something rare, and the graves open: the dead climb out all over the yard and come for
+you: the first time, and again whenever the crypt is restocked.
+
+Out past the middle is a quarantine camp: a wire fence, rows of small tents and a field hospital.
+Searching the hospital patches you up and turns up kit and a medkit, but the camp's sick are often
+still in the tents.
 
 After every tenth wave a Huey gunship (surfboards strapped to its side) flies a supply crate out
 beyond the walls, its door gunner working over the zone with a minigun on the way in. The crate comes down under
@@ -385,8 +402,8 @@ The dead come in kinds, and new ones join the waves as the game goes on: walkers
 start, runners from wave 2, swarmers (small, fast, weak, many) from wave 3, brutes from wave 4,
 spitters, which spit from a few steps off, from wave 6, and hurlers, which throw shards of bone
 from twice as far, from wave 8. Hounds, dead dogs in packs, come from wave 5: they run you down
-even at a sprint, so turn and shoot. Bursters, runners with a charge strapped round their chests,
-come from wave 7: they sprint at you, and the one that reaches you stops, its charge blinking
+even at a sprint, so turn and shoot. Bursters, the dead swollen to bursting with a light blinking over them,
+come from wave 7: they sprint at you, and the one that reaches you stops, its light blinking
 fast with a hiss, and blows up half a second later. Shoot them before they get there (shot
 down, they just fall), or run the moment one lights: the blast hurts and stuns you close in, but
 2.4 tiles away you're clear. The fire it leaves burns the creeps behind it. Maulers, brutes

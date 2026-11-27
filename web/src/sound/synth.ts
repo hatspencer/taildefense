@@ -52,6 +52,8 @@ function prioOf(name: string): Prio {
 // a recording's pitch spread is its set's, at least REC_JITTER.
 const JITTER = 0.15, VOICE_JITTER = 0.05, VOL_JITTER = 0.25, VOICE_VOL_JITTER = 0.1, REC_JITTER = 0.05;
 const VOICES = /^(shout|hurt|down|revived)_/;
+// The loops that play a recording of their own when one is registered (see loop).
+const REC_LOOPS = new Set(['rain', 'wind', 'crickets', 'horde']);
 // Rendered first in the idle warm-up: what is heard in the first seconds of a fight.
 const FIRST = ['pistol', 'smg', 'shotgun', 'rifle', 'minigun', 'turretGun', 'death0', 'strike', 'groan0', 'explosion', 'crowbar'];
 
@@ -408,8 +410,12 @@ export class Synth {
   loop(name: string, bus: Bus = 'world'): Loop | null {
     const ctx = this.ctx;
     if (!ctx || !this.bus || !this.ready || !LOOPS.has(name)) return null;
-    const buf = this.buffer(name, 0);
+    // The weather and the horde loop a recording when one is ready, at its set's gain; the
+    // other loops play their recipe.
+    const got = REC_LOOPS.has(name) ? take(name) : null;
+    const buf = got?.buf ?? this.buffer(name, 0);
     if (!buf) return null;
+    const k = got?.set.gain ?? 1;
     const src = ctx.createBufferSource();
     src.buffer = buf; src.loop = true;
     const lp = ctx.createBiquadFilter();
@@ -428,7 +434,7 @@ export class Synth {
       set: (p, rate = 1) => {
         if (stopped) return;
         const t = ctx.currentTime, far = Math.min(1, Math.max(0, p.far));
-        g.gain.setTargetAtTime(p.vol, t, bus === 'amb' ? 0.5 : 0.08);
+        g.gain.setTargetAtTime(p.vol * k, t, bus === 'amb' ? 0.5 : 0.08);
         pan.pan.setTargetAtTime(Math.max(-1, Math.min(1, p.pan)), t, 0.08);
         lp.frequency.setTargetAtTime(18000 * Math.pow(1800 / 18000, far), t, 0.08);
         if (bus !== 'amb') send.gain.setTargetAtTime(0.18 + 0.6 * far, t, 0.08);

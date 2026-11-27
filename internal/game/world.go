@@ -485,13 +485,20 @@ type World struct {
 	lit        Seen    // at night, the ground in sight this tick (discover.go)
 }
 
+// MapW and MapH are the map's size in tiles.
+const MapW, MapH = 480, 300
+
+// scatterHouses is how many ruined houses generate tries to scatter across the map, before
+// the hamlets add theirs along the roads; some land where a house can't stand.
+const scatterHouses = 144
+
 // New builds a world from a seed at the default difficulty.
 func New(seed uint64) *World { return NewGame(seed, DefaultDifficulty) }
 
 // NewGame builds a world from a seed: terrain, the base with its starting turrets and (but on brutal)
 // its walls and gates, the spawn points on the map edge, and the loot sites with their guards.
 func NewGame(seed uint64, diff Difficulty) *World {
-	const w, h = 352, 220
+	const w, h = MapW, MapH
 	if diff >= NumDifficulties {
 		diff = DefaultDifficulty
 	}
@@ -656,6 +663,7 @@ func (w *World) remove(idx int) {
 type ruin struct {
 	x, y, w, h int
 	kind       RuinKind // a house's shape (ruins.go)
+	hamlet     bool     // one of a hamlet's, its door to the street (landmarks.go)
 	outpost    bool
 	cx, cy     int
 	station    bool
@@ -664,11 +672,15 @@ type ruin struct {
 	yaw        float32
 	church     bool // the church, its tower towards yaw and its bell rope at cx, cy (church.go)
 	shrine     bool // a shrine, its gate towards yaw and its altar searched from cx, cy (legend.go)
+	// The places of landmarks.go, each searched from cx, cy, its plan's rows towards yaw: the
+	// army checkpoint (x, y, w, h its tent) with its trucks, the cemetery and the quarantine camp.
+	checkpoint, cemetery, camp bool
+	trucks                     [][2]int
 }
 
 // generate makes the terrain: grass with dirt and sand patches, lakes, forests, ruined
-// buildings, and four roads into the middle. Deterministic for a seed. It also returns the
-// ruins it built.
+// buildings, four roads into the middle with hamlets along them, and the landmarks.
+// Deterministic for a seed. It also returns the ruins it built.
 func generate(seed uint64, w, h int) ([]Tile, []ruin) {
 	var houses []ruin
 	rng := rand.New(rand.NewPCG(seed, 0x5eed))
@@ -695,10 +707,9 @@ func generate(seed uint64, w, h int) ([]Tile, []ruin) {
 		}
 	}
 	// Ruined houses of all kinds (ruins.go), so creeps funnel round them.
-	for i := 0; i < 70; i++ {
+	for i := 0; i < scatterHouses; i++ {
 		k := pickRuin(rng)
-		sz := ruinSize[k]
-		bw, bh := sz[0]+rng.IntN(sz[1]+1), sz[2]+rng.IntN(sz[3]+1)
+		bw, bh := ruinBox(rng, k)
 		bx, by := 2+rng.IntN(w-bw-4), 2+rng.IntN(h-bh-4)
 		// None stand on ground the team can build on.
 		nx, ny := max(bx, min(w/2, bx+bw)), max(by, min(h/2, by+bh))
@@ -706,7 +717,7 @@ func generate(seed uint64, w, h int) ([]Tile, []ruin) {
 			continue
 		}
 		houses = append(houses, ruin{x: bx, y: by, w: bw, h: bh, kind: k})
-		house(t, w, rng, bx, by, bw, bh, k)
+		house(t, w, rng, bx, by, bw, bh, k, faceAny)
 	}
 	houses = outposts(t, w, h, rng, houses)
 	// Roads from each edge to the base, wobbling a little, two tiles wide.
@@ -737,10 +748,14 @@ func generate(seed uint64, w, h int) ([]Tile, []ruin) {
 			}
 		}
 	}
+	houses, hamletAt := hamlets(t, w, h, rng, roads, road, houses)
 	houses = gasStation(t, w, h, rng, roads, road, houses)
 	houses = planeCrash(t, w, h, rng, road, houses)
 	houses = church(t, w, h, rng, road, houses)
 	houses = shrines(t, w, h, rng, road, houses)
+	houses = checkpoint(t, w, h, rng, roads, road, houses, hamletAt)
+	houses = cemetery(t, w, h, rng, road, houses)
+	houses = camp(t, w, h, rng, road, houses)
 	// A solid border, so nothing walks off the edge.
 	for x := 0; x < w; x++ {
 		t[x], t[(h-1)*w+x] = TRock, TRock
@@ -813,6 +828,13 @@ func sign(v int) int {
 	return 0
 }
 
+// outpostCount is how many outposts a map has, and outpostNear how far from the middle the
+// nearest may stand: both in step with the map's size.
+const (
+	outpostCount = 4
+	outpostNear  = 108
+)
+
 // outposts builds the overrun outposts, big walled compounds well out from the base: an outer
 // wall with a gate on each side, a few walls breaking up the yard, and a keep in the middle
 // with a door. Houses they land on are torn down.
@@ -823,11 +845,11 @@ func outposts(t []Tile, w, h int, rng *rand.Rand, houses []ruin) []ruin {
 			t[y*w+x] = k
 		}
 	}
-	for try := 0; try < 400 && len(forts) < 3; try++ {
+	for try := 0; try < 400 && len(forts) < outpostCount; try++ {
 		fw, fh := 20+rng.IntN(7), 16+rng.IntN(5)
 		fx, fy := 3+rng.IntN(w-fw-6), 3+rng.IntN(h-fh-6)
 		cx, cy := fx+fw/2, fy+fh/2
-		if math.Hypot(float64(cx-w/2), float64(cy-h/2)) < 80 {
+		if math.Hypot(float64(cx-w/2), float64(cy-h/2)) < outpostNear {
 			continue
 		}
 		clash := false

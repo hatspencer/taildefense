@@ -40,10 +40,10 @@ function bricks(): { list: Brick[]; w: number } {
 }
 
 // The palette, from app.css.
-const INK = [7, 8, 10], SOOT = [14, 16, 11], DRAB = [28, 30, 22];
-const BONE = { hi: [242, 236, 210], mid: [217, 209, 179], lo: [143, 138, 112] };
-const AMBER = { hi: [244, 194, 92], mid: [224, 166, 58], lo: [156, 122, 52] };
-const HOT = [255, 244, 214], KHAKI = [147, 138, 102];
+const INK = [24, 21, 15], SOOT = [42, 38, 21], DRAB = [62, 53, 30];
+const BONE = { hi: [232, 226, 190], mid: [200, 194, 160], lo: [125, 115, 80] };
+const AMBER = { hi: [236, 200, 90], mid: [216, 168, 42], lo: [140, 104, 30] };
+const HOT = [250, 240, 205], KHAKI = [176, 167, 127];
 
 // Ordered dither threshold, 4x4 Bayer.
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => (v + 0.5) / 16);

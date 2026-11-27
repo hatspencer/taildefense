@@ -1,4 +1,5 @@
 import { Buf, LP1, SVF, ad, bump, rng, sat, slowNoise } from './dsp';
+import { BAR, CASE, type Gun, IRON, PART, PIPE, PLATE, WOOD, band, caseDrop, cloth, squash, earth, echo, flesh, grains, part, pulse, report, scrape, shot as gunshot, strike, swing, thump } from './hw';
 
 // Every sound in the game, as a recipe that renders it into samples. A sound has a few
 // variants rendered from different seeds (and slightly different numbers), and one is picked
@@ -10,74 +11,6 @@ const jit = (r: R, v: number, k: number) => v * (1 + (r() * 2 - 1) * k);
 
 // --- building blocks ----------------------------------------------------------------------
 
-// A gunshot is six things at once. The crack: the bullet breaking the sound barrier and the
-// primer, a millisecond of everything. The blast: the muzzle gas, broadband noise whose top
-// end dies in a few tens of milliseconds, overloaded into distortion the way a shot near a
-// microphone is. The body: the gun's own ring in the mids, where the bang is. The boom: the low punch, a sine dropping in pitch as the gas spreads. The
-// tail: the report rolling away over open ground, dark and long. And echoes: the blast again
-// off buildings and treelines, later and darker.
-interface Gun {
-  len: number;
-  crack: number; crackTau: number;
-  blast: number; blastTau: number; blastF0: number; blastF1: number;
-  body: number; bodyF: number;
-  boom: number; boomF0: number; boomF1: number; boomTau: number;
-  drive: number;
-  tail: number; tailTau: number; tailF: number;
-  echoes: [number, number][];
-}
-
-// tail makes the shot without its crack, blast, body and boom: only the report and the echoes,
-// at the level they have in the whole shot. It goes under a recorded shot (samples.ts), which
-// is the shot itself.
-function gunshot(sr: number, r: R, g: Gun, tail = false): Buf {
-  const b = new Buf(sr, g.len), only = tail ? new Buf(sr, g.len) : null;
-  const coreLen = Math.min(b.len, Math.ceil(sr * 0.3));
-  const core = new Float32Array(coreLen);
-  const cs = new SVF(sr), sv = new SVF(sr), bs = new SVF(sr), ts = new SVF(sr);
-  const blastF0 = jit(r, g.blastF0, 0.1), boomF0 = jit(r, g.boomF0, 0.07), boomF1 = jit(r, g.boomF1, 0.07);
-  const blastTau = jit(r, g.blastTau, 0.1);
-  // Gains that make each layer's level not depend on its bandwidth. The blast's is fixed at
-  // its opening cutoff, so as the cutoff falls the top end dies away, as it does in the air.
-  const blastComp = Math.sqrt(sr / 2 / blastF0), bodyComp = Math.sqrt(sr / 2 / (g.bodyF / 1.4)), tailComp = Math.sqrt(sr / 2 / (g.tailF / 0.6));
-  let ph = 0;
-  for (let i = 0; i < b.len; i++) {
-    const t = i / sr, n = r() * 2 - 1;
-    let x = 0;
-    if (i < coreLen) {
-      const c = cs.run(n, 2500, 0.7).high * g.crack * ad(t, 0.0001, g.crackTau);
-      const cut = g.blastF1 + (blastF0 - g.blastF1) * Math.exp(-t / (blastTau * 1.5));
-      const bl = sv.run(n, cut, 0.8).low * blastComp * g.blast * ad(t, 0.0005, blastTau);
-      // The bang itself: the gun's own ring in the mids, where a shot is loudest to the ear.
-      const bd = bs.run(n, g.bodyF, 1.4).band * bodyComp * g.body * ad(t, 0.0005, blastTau * 1.3);
-      const f = boomF1 + (boomF0 - boomF1) * Math.exp(-t / (g.boomTau * 0.6));
-      ph += TAU * f / sr;
-      const bo = Math.sin(ph) * g.boom * ad(t, 0.0012, g.boomTau);
-      x = sat(c + bl + bd + bo, g.drive);
-      core[i] = x;
-    }
-    // The report rolling away: a wide band round tailF, neither hiss nor rumble.
-    const rep = ts.run(r() * 2 - 1, g.tailF, 0.6).band * tailComp * g.tail * ad(t, 0.005, g.tailTau);
-    b.d[i] = x + rep;
-    if (only) only.d[i] = rep;
-  }
-  for (const [delay, gain] of g.echoes) {
-    const a = new LP1(sr), c = new LP1(sr);
-    const o = Math.floor(jit(r, delay, 0.12) * sr);
-    for (let i = 0; i < coreLen && o + i < b.len; i++) {
-      const e = c.run(a.run(core[i], 1500), 1500) * gain;
-      b.d[o + i] += e;
-      if (only) only.d[o + i] += e;
-    }
-  }
-  if (!only) return b.normalize(0.95).fadeOut(0.05);
-  let pk = 0;
-  for (const x of b.d) pk = Math.max(pk, Math.abs(x));
-  const k = 0.95 / Math.max(pk, 1e-9);
-  for (let i = 0; i < only.len; i++) only.d[i] *= k;
-  return only.fadeOut(0.05);
-}
-
 // A mechanical click: band-passed noise a few milliseconds long, with a metal ring under it.
 function click(b: Buf, r: R, at: number, f: number, gain: number, tau = 0.004, ring = 0): void {
   const sv = new SVF(b.sr), o = Math.floor(at * b.sr), n = Math.ceil(tau * 10 * b.sr);
@@ -87,17 +20,6 @@ function click(b: Buf, r: R, at: number, f: number, gain: number, tau = 0.004, r
     let x = sv.band * ad(t, 0.0002, tau) * 2;
     if (ring) x += Math.sin(TAU * ring * t) * Math.exp(-t / (tau * 4)) * 0.6;
     b.d[o + i] += x * gain;
-  }
-}
-
-// Metal sliding over metal, swelling and passing over dur.
-function slide(b: Buf, r: R, at: number, dur: number, f: number, gain: number): void {
-  const sv = new SVF(b.sr), o = Math.floor(at * b.sr), n = Math.ceil(dur * b.sr);
-  for (let i = 0; i < n && o + i < b.len; i++) {
-    const t = i / b.sr;
-    sv.run(r() * 2 - 1, f * (0.9 + 0.2 * t / dur), 1.5);
-    const grit = 0.6 + 0.4 * Math.abs(Math.sin(TAU * 140 * t + r() * 0.3));
-    b.d[o + i] += sv.band * bump(t, dur * 0.5, dur * 0.35) * grit * gain;
   }
 }
 
@@ -273,101 +195,106 @@ function bellNote(b: Buf, r: R, at: number, f: number, len: number, gain: number
 
 // --- weapons ------------------------------------------------------------------------------
 
-// The pistol is a big-bore magnum, a desert eagle: no 9 mm snap but a heavy slam, a deep
-// boom for a handgun and a report that carries.
+// The guns, built by hw.ts's shot: each told from the others by its blast (how long the
+// pressure pulse is, so how deep), its crack (only a supersonic round has one), its gas, its
+// steel, its chest and how long its report rolls.
+//
+// The pistol is a big-bore handgun, a .45 or heavier: no crack (its bullet is slow), a fat,
+// short blast with the weight low in the mids, the slide's steel ringing under it, and a
+// report that carries half a second.
 const PISTOL: Gun = {
-  len: 1.2, crack: 1.1, crackTau: 0.001, blast: 1.15, blastTau: 0.032, blastF0: 5200, blastF1: 650, body: 0.5, bodyF: 1000,
-  boom: 1, boomF0: 135, boomF1: 45, boomTau: 0.05, drive: 3.2, tail: 0.32, tailTau: 0.17, tailF: 750,
-  echoes: [[0.12, 0.24], [0.27, 0.11], [0.5, 0.05]],
+  len: 1.1, crack: 0, blast: 1, T: 0.0011, drive: 5.4,
+  gas: 1.3, gasF: 1600, gasTau: 0.02, body: 1.2, bodyF: 900, ring: [2300, 0.18, 0.02], chest: 0.54, chestF: 220, chestTau: 0.03,
+  rep: 0.35, repTau: 0.2, repF: 1800, repEnd: 380, echoes: [[0.12, 0.3], [0.27, 0.13], [0.5, 0.06]],
 };
-// The shotgun is a 12 gauge: the widest, hardest blast of the guns, with more crack than a
-// thump, a punch deeper than anything hand-held but the rifle, and a report that rolls off
-// the treeline three times over.
+// The shotgun is a 12 gauge: the widest blast of the hand guns, a long pressure pulse with a
+// gas cloud that roars out after it, little crack, the most chest, and a report rolling off
+// the treeline three times.
 const SHOTGUN: Gun = {
-  len: 1.8, crack: 1, crackTau: 0.0012, blast: 1.25, blastTau: 0.045, blastF0: 5600, blastF1: 520, body: 0.45, bodyF: 850,
-  boom: 1.05, boomF0: 115, boomF1: 36, boomTau: 0.07, drive: 3.6, tail: 0.4, tailTau: 0.26, tailF: 680,
-  echoes: [[0.14, 0.28], [0.33, 0.14], [0.62, 0.06]],
+  len: 1.7, crack: 0.25, blast: 1.15, T: 0.0016, drive: 6.1,
+  gas: 1.8, gasF: 1300, gasTau: 0.035, body: 1.2, bodyF: 750, ring: [1700, 0.12, 0.025], chest: 0.75, chestF: 180, chestTau: 0.05,
+  rep: 0.45, repTau: 0.3, repF: 1500, repEnd: 320, echoes: [[0.14, 0.33], [0.33, 0.16], [0.62, 0.07]],
 };
-// The SMG is a 9 mm machine pistol at eleven rounds a second: a snappy crack and a hard,
-// tight punch in the upper mids, a boom short enough not to smear, and the bolt slamming
-// home under every round, the clatter that makes a burst sound like a machine.
+// The SMG is a 9 mm at eleven rounds a second: a short, tight blast high in the mids, a quick
+// snap of gas, the bolt's steel bright under it, little chest and a short report, so a burst
+// stays a burst of rounds.
 const SMG: Gun = {
-  len: 0.6, crack: 1.05, crackTau: 0.0007, blast: 1.1, blastTau: 0.012, blastF0: 6800, blastF1: 1300, body: 0.55, bodyF: 1450,
-  boom: 0.8, boomF0: 185, boomF1: 62, boomTau: 0.018, drive: 3.2, tail: 0.2, tailTau: 0.08, tailF: 1000,
-  echoes: [[0.08, 0.13], [0.19, 0.05]],
+  len: 0.55, crack: 0, blast: 0.9, T: 0.0006, drive: 5.4,
+  gas: 1.2, gasF: 2400, gasTau: 0.012, body: 1.2, bodyF: 1500, ring: [2900, 0.22, 0.015], chest: 0.27, chestF: 300, chestTau: 0.015,
+  rep: 0.25, repTau: 0.09, repF: 2400, repEnd: 600, echoes: [[0.08, 0.16], [0.19, 0.06]],
 };
-// The rifle is a full-power bolt action, a springfield or an AWP: the sharpest crack in the
-// game, a boom down where the cannon is and a report that rolls on for two seconds.
+// The rifle is a full-power bolt action, a .30-06: the sharpest crack in the hand guns ahead
+// of its blast, a deep pulse, and a report that rolls on for two seconds off the treeline.
 const RIFLE: Gun = {
-  len: 2.6, crack: 1.7, crackTau: 0.0005, blast: 1.05, blastTau: 0.034, blastF0: 8500, blastF1: 900, body: 0.4, bodyF: 1050,
-  boom: 1.05, boomF0: 105, boomF1: 32, boomTau: 0.07, drive: 3.6, tail: 0.5, tailTau: 0.34, tailF: 750,
-  echoes: [[0.19, 0.34], [0.46, 0.2], [0.85, 0.1], [1.35, 0.05]],
+  len: 2.4, crack: 1.3, blast: 1, T: 0.0013, drive: 6.1,
+  gas: 1.3, gasF: 2000, gasTau: 0.03, body: 1, bodyF: 1000, ring: [2000, 0.12, 0.03], chest: 0.6, chestF: 170, chestTau: 0.05,
+  rep: 0.55, repTau: 0.45, repF: 1600, repEnd: 260, echoes: [[0.19, 0.38], [0.46, 0.22], [0.85, 0.11], [1.35, 0.05]],
 };
-// The minigun fires full rifle rounds, 22 a second: each a short, hard slam with a real boom
-// under it, and a tail long enough that the rounds run together into one ripping roar.
+// The minigun fires full rifle rounds 22 a second: each a crack and a short, hard pulse, its
+// report just long enough that the rounds run together into one ripping roar.
 const MINIGUN: Gun = {
-  len: 0.5, crack: 0.9, crackTau: 0.0006, blast: 1.1, blastTau: 0.013, blastF0: 6500, blastF1: 1100, body: 0.5, bodyF: 1150,
-  boom: 0.95, boomF0: 150, boomF1: 52, boomTau: 0.022, drive: 3.4, tail: 0.24, tailTau: 0.1, tailF: 850,
-  echoes: [[0.09, 0.12], [0.21, 0.05]],
+  len: 0.5, crack: 0.8, blast: 1, T: 0.0009, drive: 5.8,
+  gas: 1.1, gasF: 1900, gasTau: 0.016, body: 1.1, bodyF: 1100, ring: [2600, 0.08, 0.012], chest: 0.42, chestF: 220, chestTau: 0.02,
+  rep: 0.3, repTau: 0.12, repF: 2000, repEnd: 500, echoes: [[0.09, 0.14], [0.21, 0.06]],
 };
-// The gun turret is a sentry: rifle rounds four a second, harder and drier than a hand-held
-// gun, a short boom, and the feed's clack and the mount's servo after every shot.
+// The gun turret is a sentry on a steel mount: rifle rounds four a second, a crack, a drier,
+// higher blast than the hand guns and the mount's steel ringing under it.
 const TURRET_GUN: Gun = {
-  len: 0.6, crack: 0.95, crackTau: 0.0008, blast: 1.05, blastTau: 0.015, blastF0: 6000, blastF1: 1000, body: 0.42, bodyF: 1250,
-  boom: 0.75, boomF0: 170, boomF1: 60, boomTau: 0.022, drive: 3, tail: 0.2, tailTau: 0.11, tailF: 900,
-  echoes: [[0.1, 0.13], [0.24, 0.05]],
+  len: 0.6, crack: 0.7, blast: 0.9, T: 0.0008, drive: 5.4,
+  gas: 1, gasF: 2200, gasTau: 0.015, body: 1.1, bodyF: 1300, ring: [1500, 0.25, 0.04], chest: 0.3, chestF: 260, chestTau: 0.02,
+  rep: 0.3, repTau: 0.14, repF: 2000, repEnd: 500, echoes: [[0.1, 0.15], [0.24, 0.06]],
 };
-// The cannon is field artillery: a muzzle crack, a huge blast, the deepest boom in the game
-// and a report rolling over the map; then the barrel ringing, the recoil running back and the
-// breech dropping the spent case.
+// The cannon is field artillery: the longest pulse in the game, so the deepest, a gas cloud
+// rolling out of the muzzle, the chest of it felt, and a report rolling over the map.
 const CANNON: Gun = {
-  len: 2.8, crack: 0.85, crackTau: 0.002, blast: 1.2, blastTau: 0.08, blastF0: 3400, blastF1: 260, body: 0.3, bodyF: 620,
-  boom: 1.4, boomF0: 75, boomF1: 24, boomTau: 0.15, drive: 4.2, tail: 0.55, tailTau: 0.4, tailF: 480,
-  echoes: [[0.22, 0.3], [0.55, 0.14], [1.05, 0.06]],
+  len: 2.8, crack: 0, blast: 1.3, T: 0.004, drive: 7.2,
+  gas: 1.6, gasF: 700, gasTau: 0.08, body: 0.8, bodyF: 550, ring: [620, 0.08, 0.2], chest: 0.96, chestF: 110, chestTau: 0.12,
+  rep: 0.6, repTau: 0.5, repF: 900, repEnd: 160, echoes: [[0.22, 0.35], [0.55, 0.16], [1.05, 0.07]],
 };
-// The sniper tower is a .50 with a muzzle brake: a crack as sharp as the rifle's but a wider,
-// harsher blast thrown sideways out of the brake, lower in the mids, and the bolt worked after.
+// The sniper tower is a .50 with a muzzle brake: a bigger crack than the rifle's, a longer
+// pulse, the brake throwing the gas sideways in a harsher, wider roar, and a long report.
 const SNIPER: Gun = {
-  len: 2.6, crack: 1.5, crackTau: 0.0007, blast: 1.25, blastTau: 0.04, blastF0: 7200, blastF1: 750, body: 0.55, bodyF: 800,
-  boom: 1, boomF0: 100, boomF1: 30, boomTau: 0.07, drive: 3.8, tail: 0.5, tailTau: 0.32, tailF: 700,
-  echoes: [[0.2, 0.32], [0.5, 0.17], [0.95, 0.08], [1.5, 0.04]],
+  len: 2.6, crack: 1.5, blast: 1.1, T: 0.0019, drive: 6.8,
+  gas: 2, gasF: 1600, gasTau: 0.04, body: 1.2, bodyF: 800, ring: [1300, 0.1, 0.05], chest: 0.72, chestF: 140, chestTau: 0.07,
+  rep: 0.6, repTau: 0.5, repF: 1400, repEnd: 220, echoes: [[0.2, 0.36], [0.5, 0.19], [0.95, 0.09], [1.5, 0.04]],
 };
-// The door gunner's M60 heard from the ground: full rounds eight a second, the blast darker
-// for being up in the air, and a report that carries over open ground.
+// The door gunner's M60 heard from the ground: full rounds eight a second, the blast farther
+// off so its crack leads and its report carries more of it.
 const DOORGUN: Gun = {
-  len: 0.8, crack: 0.9, crackTau: 0.0008, blast: 1.05, blastTau: 0.02, blastF0: 4800, blastF1: 850, body: 0.4, bodyF: 1000,
-  boom: 0.85, boomF0: 140, boomF1: 48, boomTau: 0.03, drive: 3.2, tail: 0.32, tailTau: 0.18, tailF: 750,
-  echoes: [[0.16, 0.16], [0.38, 0.06]],
+  len: 0.8, crack: 0.9, blast: 0.8, T: 0.0011, drive: 5,
+  gas: 0.9, gasF: 1400, gasTau: 0.02, body: 1, bodyF: 950, ring: [1800, 0.06, 0.02], chest: 0.36, chestF: 200, chestTau: 0.03,
+  rep: 0.45, repTau: 0.22, repF: 1500, repEnd: 380, echoes: [[0.16, 0.2], [0.38, 0.08]],
 };
 
-// Spent brass hitting the ground and bouncing twice.
+// Spent brass thrown out and landing on dry ground: a tick on packed earth, now and then a
+// ring off a stone, bouncing twice.
 function brass(b: Buf, r: R, at: number, gain: number): void {
-  const base = jit(r, 4200, 0.1);
-  [0, 0.085, 0.14].forEach((d, k) => ping(b, at + d + r() * 0.01, [base, base * 1.47, base * 2.09, base * 2.7], 0.03, gain / (1 + k * 1.5)));
+  caseDrop(b, r, at, gain * 2.2);
 }
 
-// A pump worked back and forward: the fore-end racked back, the spent hull thrown out and
-// landing, a hollow plastic tock with the brass head ticking, then the fore-end slammed home.
+// A pump worked back and forward: the fore-end (wood on a steel tube) racked back to its stop,
+// the spent hull thrown out and landing on the dirt with a hollow plastic tock, then the
+// fore-end slammed home and the action locking.
 function pump(b: Buf, r: R, at: number, gain: number): void {
-  click(b, r, at, 2200, gain, 0.004, 380);
-  slide(b, r, at + 0.005, 0.08, 1700, gain * 0.6);
-  clack(b, r, at + 0.09, 1500, gain * 1.1, 260);
+  scrape(b, r, at, 0.08, 1600, gain * 0.8);
+  part(b, r, at + 0.085, 1250, gain * 1.6, 240, 1.4);
   const land = at + 0.38 + r() * 0.05;
-  click(b, r, land, 900, gain * 0.5, 0.006, 620);
-  ping(b, land + 0.002, [3100, 4550, 6400], 0.02, gain * 0.12);
-  click(b, r, land + 0.09 + r() * 0.03, 1000, gain * 0.2, 0.005, 680);
-  slide(b, r, at + 0.15, 0.06, 2000, gain * 0.5);
-  clack(b, r, at + 0.21, 2500, gain * 1.3, 340);
+  strike(b, r, land, jit(r, 700, 0.1), WOOD, gain * 0.9, 0.0015, 0.4);
+  grains(b, r, land, 0.02, 3, 1500, 5000, gain * 0.3);
+  strike(b, r, land + 0.09 + r() * 0.03, jit(r, 760, 0.1), WOOD, gain * 0.3, 0.0015, 0.4);
+  scrape(b, r, at + 0.14, 0.06, 1900, gain * 0.7);
+  part(b, r, at + 0.205, 1900, gain * 2, 280, 1.6);
 }
 
-// A bolt lifted, drawn, pushed home and turned down.
+// A bolt lifted, drawn back to its stop, run home and turned down: steel on steel, each move
+// ending on a part that rings a little, the stock knocked under the last.
 function bolt(b: Buf, r: R, at: number, gain: number): void {
-  click(b, r, at, 3000, gain * 0.8, 0.003, 900);
-  slide(b, r, at + 0.03, 0.09, 2600, gain * 0.5);
-  click(b, r, at + 0.12, 2000, gain, 0.004, 600);
-  slide(b, r, at + 0.2, 0.08, 2800, gain * 0.45);
-  click(b, r, at + 0.28, 2400, gain * 1.1, 0.004, 700);
-  click(b, r, at + 0.34, 3400, gain * 0.9, 0.003, 1100);
+  part(b, r, at, 2600, gain * 0.9, 380, 0.4);
+  scrape(b, r, at + 0.025, 0.09, 2300, gain * 0.8);
+  part(b, r, at + 0.12, 1800, gain * 1.2, 320, 0.8);
+  scrape(b, r, at + 0.19, 0.08, 2500, gain * 0.7);
+  part(b, r, at + 0.28, 2100, gain * 1.4, 300, 1.2);
+  part(b, r, at + 0.34, 3000, gain * 0.9, 360, 0.5);
 }
 
 // A heavy part slamming home: a click, the gun's body knocked low under it and a short ring of
@@ -378,14 +305,19 @@ function clack(b: Buf, r: R, at: number, f: number, gain: number, low = 300): vo
   ping(b, at + 0.001, [f * 0.83, f * 1.37, f * 2.21], 0.025, gain * 0.25);
 }
 
-// A small motor slewing: a whine round 900 Hz bending as the mount turns, with a buzz in it.
+// A geared motor slewing a mount: the teeth meshing (a run of tiny impacts as fast as it turns,
+// ringing the housing), the brushes' hiss, speeding up and slowing as it starts and stops.
 function servo(b: Buf, r: R, at: number, dur: number, gain: number): void {
-  const o = Math.floor(at * b.sr), f = jit(r, 900, 0.1), up = r() < 0.5 ? 1 : -1;
+  const sr = b.sr, o = Math.floor(at * sr), rate = jit(r, 420, 0.15), h1 = new SVF(sr), h2 = new SVF(sr), hs = new SVF(sr);
+  const f1 = jit(r, 1300, 0.1), f2 = f1 * 2.17;
   let ph = 0;
-  for (let i = 0; i < Math.ceil(dur * b.sr) && o + i < b.len; i++) {
-    const t = i / b.sr, u = t / dur;
-    ph += TAU * f * (1 + up * 0.15 * u) / b.sr;
-    b.d[o + i] += (Math.sin(ph) + 0.4 * Math.sin(ph * 2) + 0.25 * Math.sign(Math.sin(ph * 0.5))) * Math.sin(Math.PI * u) * gain;
+  for (let i = 0; i < Math.ceil(dur * sr) && o + i < b.len; i++) {
+    const t = i / sr, u = t / dur, sp = Math.sin(Math.PI * u);
+    ph += rate * (0.6 + 0.4 * sp) / sr;
+    let x = 0;
+    if (ph >= 1) { ph -= 1; x = (0.6 + r() * 0.8) * 2; }
+    const y = h1.run(x, f1, 9).band + h2.run(x, f2, 7).band * 0.6 + hs.run(r() * 2 - 1, 5000, 0.8).band * 0.12;
+    b.d[o + i] += y * sp * gain;
   }
 }
 
@@ -393,17 +325,19 @@ function servo(b: Buf, r: R, at: number, dur: number, gain: number): void {
 // sounding like a blown bottle, a hiss of gas and the next one clacking up into place.
 function pod(sr: number, r: R): Buf {
   const b = new Buf(sr, 0.5);
-  const f = jit(r, 190, 0.12), sv = new SVF(sr);
-  let ph = 0;
+  // The air column rung by the gas rushing out: noise through the tube's own resonance (its
+  // pitch dropping as the missile clears the mouth and the tube becomes open), not a tone.
+  const f = jit(r, 190, 0.12), col = new SVF(sr), sv = new SVF(sr);
   for (let i = 0; i < b.len; i++) {
-    const t = i / sr;
-    ph += TAU * (f * (0.75 + 0.25 * Math.exp(-t / 0.03))) / sr;
-    b.d[i] += Math.sin(ph) * ad(t, 0.002, 0.045) * 0.9;
-    b.d[i] += sv.run(r() * 2 - 1, 2400, 1).band * ad(t, 0.003, 0.08) * 0.5;
+    const t = i / sr, n = r() * 2 - 1;
+    const fq = f * (0.75 + 0.25 * Math.exp(-t / 0.03));
+    b.d[i] += col.run(n * ad(t, 0.002, 0.03), fq, 9).band * Math.sqrt(sr / fq) * 0.5;
+    b.d[i] += sv.run(n, 2400, 1).band * ad(t, 0.003, 0.08) * 0.5;
   }
-  thud(b, r, 0, 160, 70, 0.02, 0.6, 0.6, 1500);
-  click(b, r, 0, 1400, 0.4, 0.004, 700);
-  clack(b, r, 0.24 + r() * 0.03, 1700, 0.25, 300);
+  pulse(b, 0, 0.002, 0.7);
+  thump(b, r, 0, 160, 0.001, 0.02, 0.6);
+  strike(b, r, 0, jit(r, 700, 0.06), PIPE, 0.12, 0.0008, 0.3);
+  part(b, r, 0.24 + r() * 0.03, 1700, 0.15, 520, 0.6);
   return b.normalize(0.9).fadeOut();
 }
 
@@ -425,24 +359,26 @@ function railgun(sr: number, r: R): Buf {
     b.d[i] = sat(snap + zap + fizz, 2.5);
   }
   thud(b, r, 0, 90, 30, 0.12, 0.9, 0.3, 400);
-  const f = jit(r, 1180, 0.05);
-  ping(b, 0.002, [f, f * 1.41, f * 2.13, f * 2.97, f * 3.6], 0.35, 0.18);
-  ping(b, 0.002, [f * 1.006], 0.5, 0.08);
+  // The rails knocked by the slug leaving: two heavy bars ringing, a little apart in pitch.
+  const f = jit(r, 590, 0.05);
+  strike(b, r, 0.002, f, BAR, 0.35, 0.0002, 0.6);
+  strike(b, r, 0.002, f * 1.013, BAR, 0.25, 0.0002, 0.6);
   // The shot off the treeline, before the whine.
   const core = b.d.slice(0, Math.ceil(sr * 0.3));
   for (const [delay, gain] of [[0.2, 0.25], [0.48, 0.1]]) {
     const a = new LP1(sr), c = new LP1(sr), o = Math.floor(jit(r, delay, 0.1) * sr);
     for (let i = 0; i < core.length && o + i < b.len; i++) b.d[o + i] += c.run(a.run(core[i], 1400), 1400) * gain;
   }
-  const w0 = 0.3, wl = 0.75, o = Math.floor(w0 * sr);
-  let ph = 0;
+  // The capacitors charging again: coil whine, a narrow band of noise climbing (a real one
+  // sings through its windings rather than as a clean tone), buzzing at the mains' 100 Hz,
+  // to the relay's clack.
+  const w0 = 0.3, wl = 0.75, o = Math.floor(w0 * sr), cw = new SVF(sr);
   for (let i = 0; i < wl * sr && o + i < b.len; i++) {
-    const u = i / sr / wl;
-    ph += TAU * 300 * Math.pow(8, u) / sr;
-    const e = Math.min(1, u * 3) * Math.min(1, (1 - u) / 0.04) * (1 + 0.3 * Math.sin(TAU * 100 * i / sr));
-    b.d[o + i] += (Math.sin(ph) + 0.3 * Math.sin(2 * ph)) * e * 0.05;
+    const u = i / sr / wl, fq = 300 * Math.pow(8, u);
+    const e = Math.min(1, u * 3) * Math.min(1, (1 - u) / 0.04) * (1 + 0.4 * Math.sin(TAU * 100 * i / sr));
+    b.d[o + i] += cw.run(r() * 2 - 1, fq, 14).band * Math.sqrt(sr / fq) * e * 0.04;
   }
-  click(b, r, w0 + wl, 3200, 0.15, 0.002, 2400);
+  part(b, r, w0 + wl, 3200, 0.12, 900, 0.2);
   return b.normalize(0.95).fadeOut(0.05);
 }
 
@@ -462,14 +398,18 @@ function crackle(b: Buf, r: R, at: number, dur: number, rate: number, f0: number
 function rocketLaunch(sr: number, r: R, small: boolean): Buf {
   const b = new Buf(sr, small ? 1.1 : 1.6);
   if (!small) {
-    click(b, r, 0, 3000, 0.6, 0.0015);
-    roar(b, r, 0, 0.5, 3200, 260, 0.0008, 0.07, 1.1, 3.5);
-    thud(b, r, 0, 110, 38, 0.08, 1, 0.3, 500);
-    whoosh(b, r, 0.01, 0.3, 2400, 500, 0.4, 0.8);
+    // The backblast: a pressure pulse out of the open back of the tube, the gas behind it
+    // tearing and dying, and the tube knocked on the shoulder.
+    pulse(b, 0, 0.004, 0.6);
+    band(b, r, 0, 0.5, 2200, 280, 0.06, 0.7, 0.0008, 0.07, 1.4, 1.5);
+    thump(b, r, 0, 110, 0.002, 0.08, 1);
+    strike(b, r, 0.001, jit(r, 300, 0.05), PIPE, 0.12, 0.0015, 0.3);
+    band(b, r, 0.01, 0.4, 1400, 450, 0.12, 0.8, 0.02, 0.12, 0.9, 1.5);
   } else {
-    click(b, r, 0, 2600, 0.5, 0.002);
-    thud(b, r, 0, 160, 70, 0.025, 0.5, 0.4, 900);
-    roar(b, r, 0, 0.15, 4000, 900, 0.001, 0.02, 0.4, 2);
+    // A missile's motor lighting in the open: a pop, and the tube's rim knocked.
+    pulse(b, 0, 0.0012, 0.6);
+    thump(b, r, 0, 160, 0.001, 0.025, 0.5);
+    band(b, r, 0, 0.15, 4000, 900, 0.03, 0.7, 0.001, 0.02, 0.5, 2);
   }
   const len = b.len / sr, sv = new SVF(sr), cs = new SVF(sr), lp = new LP1(sr);
   const flutter = slowNoise(r, sr, len, 60), sway = slowNoise(r, sr, len, 6);
@@ -484,172 +424,162 @@ function rocketLaunch(sr: number, r: R, small: boolean): Buf {
     if (!small) x += lp.run(n, 300) * 2.2 * Math.exp(-t / 0.3);
     b.d[i] += x * ad(t, small ? 0.02 : 0.035, tau) * (small ? 0.9 : 0.7);
   }
-  return b.normalize(0.9).fadeOut(0.05);
+  return (small ? b : squash(b, 2.2)).normalize(0.9).fadeOut(0.05);
 }
 
-// The crowbar is Half-Life's, a little deeper: a short swish, then the bar ringing out like a
-// struck pipe. Two modes a few hertz apart round 820 Hz beat as it rings, over the clank of the
-// blow's first hundredths of a second and the thump of it landing, the bar's low modes carrying
-// more of the weight than in the original's.
+// Melee is three things at once: the arm and its sleeve moving (cloth), the air the weapon
+// pushes aside (a swing, rising to the pass), and what it hits, which here is a body: flesh's
+// dull weight and wet smack, and the weapon's own steel, damped by what it is buried in.
+
+// The crowbar: a jacket sleeve and a short swing, then the blow into a body, a thump and the
+// bar's own modes ringing, damped by the flesh round it. The bar's second mode sits near
+// 820 Hz, so it still rings the way Half-Life's does, a little deeper, but for a third of a
+// second and not as a chime.
 function crowbar(sr: number, r: R): Buf {
-  const b = new Buf(sr, 0.8);
-  whoosh(b, r, 0, 0.09, 500, 1400, 0.35, 1.4);
-  const at = 0.07, o = Math.floor(at * sr), f = jit(r, 820, 0.04), beat = 18 + r() * 14;
-  const clank = [1.31, 1.8, 2.01, 2.47, 2.92, 3.47].map((k) => f * jit(r, k, 0.03));
-  const ph = Array.from({ length: 12 }, () => r() * TAU);
-  for (let i = 0; o + i < b.len; i++) {
-    const t = i / sr;
-    let x = (Math.sin(TAU * f * t + ph[0]) + 0.4 * Math.sin(TAU * (f + beat) * t + ph[1])) * Math.exp(-t / 0.3);
-    x += 0.22 * Math.sin(TAU * f * 1.39 * t + ph[2]) * Math.exp(-t / 0.1);
-    x += 0.18 * Math.sin(TAU * f * 2.8 * t + ph[3]) * Math.exp(-t / 0.12);
-    x += 0.22 * Math.sin(TAU * f * 0.395 * t + ph[4]) * Math.exp(-t / 0.3);
-    x += 0.3 * Math.sin(TAU * f * 0.115 * t + ph[5]) * Math.exp(-t / 0.35);
-    for (let k = 0; k < clank.length; k++) x += 0.35 * Math.sin(TAU * clank[k] * t + ph[6 + k]) * Math.exp(-t / 0.012);
-    b.d[o + i] += x * ad(t, 0.0004, 1e9) * 0.5;
-  }
-  click(b, r, at, 1800, 0.3, 0.003);
-  thud(b, r, at, 170, 95, 0.04, 0.5, 0.3, 1200);
-  return b.normalize(0.85).fadeOut(0.06);
+  const b = new Buf(sr, 0.7);
+  cloth(b, r, 0, 0.1, 0.25, 0.6);
+  swing(b, r, 0, 0.085, 350, 1300, 0.7);
+  const at = 0.075;
+  flesh(b, r, at, 0.9, 0.35, 1);
+  strike(b, r, at, jit(r, 298, 0.03), BAR, 0.32, 0.0005, 0.4);
+  return squash(b, 3).normalize(0.85).fadeOut(0.06);
 }
 
-// A katana's cut: a thin, fast whistle of air, the edge parting what it meets with a hiss, and
-// a high, clean ring of steel left in the air after. The moonlit edge rings longer and higher.
+// A katana's cut: a sleeve, a thin fast rush of air with the edge's whistle over it, the edge
+// through a body (a short tearing hiss and a wet slap, no thump: it parts rather than hits),
+// and the faintest ring of the blade after. The moonlit edge is the long, slow cut of the
+// ultimate: more air, a deeper cut and the blade left ringing longer.
 function katana(sr: number, r: R, moon: boolean): Buf {
-  const b = new Buf(sr, moon ? 1.1 : 0.6);
-  whoosh(b, r, 0, 0.11, 1400, 5200, 0.9, 2.2);
-  whoosh(b, r, 0.02, 0.08, 3000, 8000, 0.35, 3);
-  roar(b, r, 0.07, 0.05, 6000, 2500, 0.002, 0.015, 0.3);
-  const f = jit(r, moon ? 3100 : 2500, 0.04);
-  ping(b, 0.075, [f, f * 1.53, f * 2.37], moon ? 0.32 : 0.14, moon ? 0.22 : 0.16);
+  const b = new Buf(sr, moon ? 1 : 0.55);
+  const d = moon ? 0.16 : 0.1;
+  cloth(b, r, 0, d + 0.02, 0.2, 0.3);
+  swing(b, r, 0, d, moon ? 380 : 480, moon ? 1600 : 2000, 0.9, 0.25);
+  const at = d * 0.7;
+  band(b, r, at, 0.08, 2600, 1100, 0.02, 1.2, 0.002, moon ? 0.03 : 0.018, 0.55, 1.5);
+  flesh(b, r, at + 0.006, 0.35, moon ? 0.7 : 0.5, 0.6);
+  strike(b, r, at + 0.01, jit(r, moon ? 620 : 540, 0.04), BAR, moon ? 0.05 : 0.025, 0.0008, moon ? 0.7 : 0.25);
   return b.normalize(0.8).fadeOut(0.05);
 }
 
-// The greatsword: a long, low rush of air as the slab comes round, then the blow landing with a
-// thump that has the ground in it and a dull clang of thick iron. The follow-through is heavier:
-// the earth breaks under it and stones skitter.
+// The greatsword: a coat swung round, a long low rush of air as the slab comes, and the blow
+// landing in a body with a slab of iron's weight: a heavy wet thump and the iron's dull,
+// short clang. The follow-through goes on into the ground: the earth breaks under it and
+// stones skitter.
 function greatsword(sr: number, r: R, follow: boolean): Buf {
   const b = new Buf(sr, follow ? 1.3 : 0.8);
-  whoosh(b, r, 0, 0.26, 220, 1100, 1.1, 0.8);
+  cloth(b, r, 0, 0.24, 0.3, 0.9);
+  swing(b, r, 0, 0.22, 160, 900, 1.1);
   const at = 0.2;
-  thud(b, r, at, 120, 45, follow ? 0.12 : 0.07, 0.9, 0.6, 700);
-  const f = jit(r, 330, 0.05);
-  ping(b, at, [f, f * 1.41, f * 2.2, f * 3.1], 0.12, 0.25);
-  click(b, r, at, 1300, 0.25, 0.004);
-  if (follow) {
-    roar(b, r, at, 0.6, 1800, 200, 0.004, 0.18, 0.8, 1.5);
-    debris(b, r, at + 0.05, 0.5, 14, 1200, 4000, 0.2);
-  }
-  return b.normalize(0.85).fadeOut(0.08);
+  flesh(b, r, at, 1, 0.6, 2);
+  strike(b, r, at, jit(r, 190, 0.05), IRON, 0.35, 0.001, 0.8);
+  if (follow) earth(b, r, at + 0.02, 0.9, 2.2);
+  return squash(b, 3).normalize(0.85).fadeOut(0.08);
 }
 
-// Worldsplitter raised: the slab hauled up overhead, a rush of air rising with it, and under it
-// the ground already groaning, a rumble swelling to the top; a thin ring off the edge at the end.
+// Worldsplitter raised: the slab hauled up overhead, cloth and a slow rush of air rising with
+// it, and under it the ground already giving, a rumble swelling and grit trickling, to a dull
+// knock of the iron at the top.
 function splitRaise(sr: number, r: R): Buf {
   const b = new Buf(sr, 1);
-  whoosh(b, r, 0, 0.3, 200, 900, 0.8, 0.8);
-  const lp = new LP1(sr), lp2 = new LP1(sr), comp = Math.sqrt(sr / (2 * 120));
-  let ph = 0;
+  cloth(b, r, 0, 0.35, 0.3, 1);
+  swing(b, r, 0, 0.32, 150, 700, 0.8);
+  const sv = new SVF(sr), comp = Math.sqrt(sr / (2 * 90));
   for (let i = 0; i < b.len; i++) {
     const t = i / sr, u = Math.min(1, t / 0.8);
-    ph += TAU * (38 + 26 * u) / sr;
-    const e = u * u * (t > 0.8 ? Math.exp(-(t - 0.8) / 0.05) : 1);
-    b.d[i] += (Math.sin(ph) * 0.6 + lp2.run(lp.run(r() * 2 - 1, 120), 120) * comp) * e * 0.7;
+    const e = u * u * (t > 0.8 ? Math.exp(-(t - 0.8) / 0.06) : 1);
+    b.d[i] += sv.run(r() * 2 - 1, 60 + 50 * u, 0.9).low * comp * e * 0.8;
   }
-  roar(b, r, 0.3, 0.6, 600, 1400, 0.4, 0.3, 0.25);
-  const f = jit(r, 1250, 0.04);
-  ping(b, 0.62, [f, f * 1.5, f * 2.7], 0.2, 0.12);
+  grains(b, r, 0.3, 0.5, 26, 1200, 5000, 0.12, 0.4);
+  strike(b, r, 0.62, jit(r, 210, 0.04), IRON, 0.2, 0.002, 0.6);
   return b.normalize(0.75).fadeOut(0.05);
 }
 
-// Worldsplitter coming down: the blade into the ground with everything behind it, a slam felt
-// more than heard, the earth tearing open down the line, rock thrown up and falling for a while.
+// Worldsplitter coming down: the slab into the ground with everything behind it, a slam felt
+// more than heard (a long pressure pulse), the iron's dull clang, the earth tearing open down
+// the line and rock thrown up and falling for a while.
 function worldsplit(sr: number, r: R): Buf {
   const b = new Buf(sr, 2.4);
-  whoosh(b, r, 0, 0.12, 400, 1800, 0.8, 0.9);
+  swing(b, r, 0, 0.1, 300, 1400, 0.7);
   const at = 0.08;
-  thud(b, r, at, 70, 22, 0.32, 1.5, 0.5, 400);
-  thud(b, r, at, 160, 50, 0.08, 0.8, 0.6, 900);
-  click(b, r, at, 1800, 0.7, 0.004);
-  const f = jit(r, 260, 0.05);
-  ping(b, at, [f, f * 1.41, f * 2.2], 0.25, 0.2);
-  // The shockwave rolling out from the blade: rubble roaring, darkening as it gets further off.
-  roar(b, r, at + 0.02, 1.4, 2400, 150, 0.01, 0.35, 0.9, 2);
-  crackle(b, r, at + 0.03, 0.5, 120, 600, 2200, 0.35);
-  debris(b, r, at + 0.25, 1.6, 30, 900, 3800, 0.18);
+  pulse(b, at, 0.006, 1.4);
+  earth(b, r, at, 1.2, 3);
+  strike(b, r, at, jit(r, 170, 0.05), IRON, 0.35, 0.0015, 0.8);
+  // The tear running out from the blade: earth breaking, darkening as it gets further off.
+  band(b, r, at + 0.02, 1.4, 1800, 160, 0.35, 0.7, 0.01, 0.35, 0.9, 2);
+  grains(b, r, at + 0.03, 0.5, 40, 500, 2500, 0.3);
+  grains(b, r, at + 0.25, 1.6, 36, 1500, 6000, 0.16, 0.5);
   return b.normalize(0.95).fadeOut(0.2);
 }
 
-// A burst of the cracked ground: a deep cough out of the ground, a spatter of rock and a hiss of heat.
-// Short and soft: three go off every half second for four seconds.
+// A burst of the cracked ground: a cough of pressure out of the ground, a spatter of rock and
+// a hiss of steam. Short and soft: three go off every half second for four seconds.
 function erupt(sr: number, r: R): Buf {
   const b = new Buf(sr, 0.7);
-  thud(b, r, 0, jit(r, 75, 0.15), 30, 0.09, 0.9, 0.7, 450);
-  roar(b, r, 0.01, 0.4, 1600, 300, 0.01, 0.12, 0.5, 1.5);
-  roar(b, r, 0.02, 0.5, 5000, 2500, 0.02, 0.15, 0.08);
-  debris(b, r, 0.12, 0.4, 6, 900, 3000, 0.12);
+  pulse(b, 0, jit(r, 0.004, 0.15), 0.8);
+  thump(b, r, 0, 120, 0.002, 0.07, 0.7);
+  band(b, r, 0.01, 0.4, 1400, 350, 0.1, 0.7, 0.01, 0.1, 0.5, 1.5);
+  band(b, r, 0.02, 0.5, 4500, 3000, 0.2, 0.9, 0.03, 0.15, 0.12);
+  grains(b, r, 0.1, 0.4, 8, 900, 4000, 0.15, 0.5);
   return b.normalize(0.7).fadeOut(0.06);
 }
 
-// Worldbreaker: the line going off at once, a thunderclap ripping into a boom with the ground
-// heaving under it, and the charges' electric crackle chattering off through the crowd.
+// Worldbreaker: the charges down the line going off at once, a rip of sparks into a slam with
+// the ground heaving under it, and the charges' arcs snapping off through the crowd.
 function worldbreak(sr: number, r: R): Buf {
   const b = new Buf(sr, 3);
   const clap = 0.08;
-  for (let t = 0; t < clap;) {
-    const u = t / clap;
-    click(b, r, t, 1500 + r() * 3500, (0.15 + 0.7 * u * u) * (0.5 + r()), 0.0008 + r() * 0.002);
-    t += (0.3 + r() * 1.4) / (80 + 1600 * u * u);
-  }
-  roar(b, r, clap, 0.4, 6000, 600, 0.0005, 0.05, 1.1, 3);
-  thud(b, r, clap, 65, 22, 0.4, 1.5, 0.5, 300);
-  roar(b, r, clap, 2.2, 1400, 120, 0.004, 0.5, 0.8, 2);
-  // The charges leaping: sharp electric snaps, thick at first, scattering off.
-  crackle(b, r, clap + 0.05, 1.6, 90, 2500, 7000, 0.5);
-  const buzz = new SVF(sr);
-  let ph = 0;
-  for (let i = Math.floor((clap + 0.05) * sr); i < b.len; i++) {
-    const t = i / sr - clap - 0.05;
-    ph += 110 / sr; ph -= Math.floor(ph);
-    buzz.run((ph < 0.5 ? 1 : -1) + (r() * 2 - 1) * 0.8, 1500 + r() * 1500, 2);
-    b.d[i] += buzz.band * ad(t, 0.01, 0.35) * (r() < 0.02 ? 2 : 0.4) * 0.35;
-  }
-  debris(b, r, clap + 0.2, 1.5, 20, 900, 3500, 0.15);
+  grains(b, r, 0, clap, 60, 1500, 6000, 0.5);
+  pulse(b, clap, 0.005, 1.3);
+  band(b, r, clap, 0.4, 5000, 600, 0.04, 0.7, 0.0005, 0.05, 1.1, 3);
+  thump(b, r, clap, 70, 0.004, 0.4, 1.2);
+  band(b, r, clap, 2.2, 1200, 120, 0.5, 0.7, 0.004, 0.5, 0.8, 2);
+  // The arcs: snaps, thick at first and scattering off, each ringing the air a little.
+  grains(b, r, clap + 0.05, 1.6, 70, 2500, 7000, 0.5);
+  grains(b, r, clap + 0.2, 1.5, 20, 900, 3500, 0.15, 0.6);
   return b.normalize(0.95).fadeOut(0.3);
 }
 
-// Home Run: the bar coming round with everything behind it, a rising rush of air, then the blow
-// landing with a thump and the bar ringing out long like a struck pipe, a crack and grit after.
+// Home Run: the bar coming round with everything behind it, a sleeve and a rising rush of
+// air, then the blow landing in a body with a heavy thump and the bar ringing out like the
+// crowbar's, longer for being swung harder, a crack and grit after.
 function homeRun(sr: number, r: R): Buf {
-  const b = new Buf(sr, 1.2);
-  whoosh(b, r, 0, 0.2, 260, 2400, 1.2, 1.1);
-  const at = 0.17, f = jit(r, 780, 0.04);
-  thud(b, r, at, 150, 55, 0.09, 1, 0.6, 900);
-  ping(b, at, [f, f * 1.39, f * 2.8, f * 0.395, f + 22], 0.4, 0.32);
-  click(b, r, at, 2600, 0.55, 0.003);
-  debris(b, r, at + 0.04, 0.35, 8, 1500, 4500, 0.12);
-  return b.normalize(0.9).fadeOut(0.1);
+  const b = new Buf(sr, 1.1);
+  cloth(b, r, 0, 0.2, 0.3, 0.7);
+  swing(b, r, 0, 0.18, 220, 2000, 1.2);
+  const at = 0.17;
+  flesh(b, r, at, 1.1, 0.4, 1.5);
+  strike(b, r, at, jit(r, 284, 0.04), BAR, 0.4, 0.0004, 1);
+  grains(b, r, at + 0.04, 0.35, 10, 1500, 5000, 0.12, 0.4);
+  return squash(b, 3).normalize(0.9).fadeOut(0.1);
 }
 
-// Flash Draw: the blade drawn and across in one breath, a tearing hiss the length of the line,
-// a beat of silence, and the cut ringing out long and clear as the line comes apart.
+// Flash Draw (iaido): the blade drawn out of its wooden scabbard, steel on wood, across the
+// line in one breath with a tearing rush of air, the bodies parted one after another, and the
+// blade slid home with the click of the guard on the scabbard's mouth.
 function flashDraw(sr: number, r: R): Buf {
-  const b = new Buf(sr, 1.6);
-  click(b, r, 0, 2600, 0.4, 0.002);
-  whoosh(b, r, 0.005, 0.16, 2000, 9000, 1.2, 1.6);
-  roar(b, r, 0.02, 0.18, 7000, 3000, 0.002, 0.06, 0.4);
-  const f = jit(r, 2900, 0.03);
-  ping(b, 0.3, [f, f * 1.003 + 4, f * 1.51, f * 2.33], 0.45, 0.35);
-  whoosh(b, r, 0.3, 0.12, 4000, 1500, 0.4, 2.5);
+  const b = new Buf(sr, 1.4);
+  scrape(b, r, 0, 0.07, 1900, 0.4);
+  strike(b, r, 0.07, jit(r, 900, 0.05), WOOD, 0.2, 0.0006);
+  swing(b, r, 0.06, 0.18, 400, 2100, 1.2, 0.25);
+  for (let k = 0; k < 4; k++) {
+    const at = 0.16 + k * 0.035 + r() * 0.015;
+    band(b, r, at, 0.05, 2500, 1100, 0.015, 1.2, 0.001, 0.012, 0.4 / (1 + k * 0.3), 1.5);
+    flesh(b, r, at + 0.004, 0.25 / (1 + k * 0.3), 0.6, 0.6);
+  }
+  const home = 0.75 + r() * 0.05;
+  scrape(b, r, home - 0.12, 0.12, 2400, 0.25);
+  part(b, r, home, 2800, 0.45, 800, 0.3);
+  strike(b, r, home, jit(r, 560, 0.04), BAR, 0.06, 0.0003, 0.6);
   return b.normalize(0.85).fadeOut(0.15);
 }
 
-// Blood loss bursting: a wet, heavy spatter and a gush.
+// Blood loss bursting: a wet, heavy spatter, and drops hitting the dirt.
 function bleed(sr: number, r: R): Buf {
   const b = new Buf(sr, 0.5);
-  roar(b, r, 0, 0.3, 2400, 400, 0.002, 0.06, 0.9, 1.5);
-  thud(b, r, 0, 160, 70, 0.03, 0.5, 0.9, 900);
-  debris(b, r, 0.03, 0.25, 10, 600, 2200, 0.15);
-  return b.normalize(0.75).fadeOut(0.05);
+  flesh(b, r, 0, 0.6, 1, 1.2);
+  band(b, r, 0, 0.3, 1800, 500, 0.06, 1.5, 0.002, 0.05, 0.6, 1.5);
+  grains(b, r, 0.03, 0.25, 14, 400, 1800, 0.25);
+  return squash(b, 2).normalize(0.75).fadeOut(0.05);
 }
 
 // --- explosions and the weather -------------------------------------------------------------
@@ -662,11 +592,14 @@ function bleed(sr: number, r: R): Buf {
 // of it sent back off the treeline, darker, over a rumble that swells and settles.
 function explosion(sr: number, r: R, scale: number): Buf {
   const b = new Buf(sr, 1.8 + scale * 1.6);
-  const nw = 0.0025 * Math.sqrt(scale), nn = Math.ceil(nw * sr);
-  for (let i = 0; i < nn; i++) { const u = i / nn; b.d[i] += (1 - 2 * u) * Math.min(1, u * 12, (1 - u) * 12) * 1.1; }
-  roar(b, r, 0, 1.3 * scale, 4200, 140, 0.001, 0.14 * scale, 1.1, 4.5);
-  roar(b, r, 0.015, 0.9 * scale, 900, 200, 0.02, 0.25 * scale, 0.6, 2);
-  thud(b, r, 0, 70 / Math.sqrt(scale), 22, 0.3 * scale, 1.4, 0.15, 250);
+  // The shock front: a Friedlander pulse, longer for a bigger charge (its positive phase grows
+  // as the cube root of the charge).
+  pulse(b, 0, 0.004 * Math.cbrt(scale * scale * scale * 2), 1.4);
+  // The fireball: a roar of driven noise rolling out, its top dying as it goes, and the gas
+  // under it, a whump that falls with the fireball's size.
+  report(b, r, 0.001, 1.3 * scale, 5000, 150, 0.16 * scale, 2.4, 0.8);
+  band(b, r, 0.01, 0.9 * scale, 900, 200, 0.12, 0.7, 0.02, 0.25 * scale, 0.9, 2);
+  thump(b, r, 0, 90 / Math.sqrt(scale), 0.003, 0.22 * scale, 1.5);
   crackle(b, r, 0.03, 0.6 * scale, 110, 1500, 5000, 0.2);
   const lp = new LP1(sr), lp2 = new LP1(sr), swell = slowNoise(r, sr, b.len / sr, 5);
   const comp = Math.sqrt(sr / (2 * 220));
@@ -674,25 +607,23 @@ function explosion(sr: number, r: R, scale: number): Buf {
     const t = i / sr;
     b.d[i] += lp2.run(lp.run(r() * 2 - 1, 220), 220) * comp * (0.8 + 0.3 * swell[i]) * ad(t, 0.03, 0.9 * scale) * 0.55;
   }
-  // What was thrown up comes down: clods first, stones after.
+  // The ground torn up, and what was thrown up coming down: clods first, stones after.
+  earth(b, r, 0.005, 0.8, 1.5 * scale);
   for (let k = 0; k < Math.round(10 * scale); k++) {
     const u = r();
-    thud(b, r, 0.3 + u * 0.9 * scale, 150 + r() * 120, 70, 0.012, 0.16 * (1 - u * 0.6), 0.9, 900);
+    thump(b, r, 0.3 + u * 0.9 * scale, 200 + r() * 150, 0.002, 0.02, 0.25 * (1 - u * 0.6));
   }
-  debris(b, r, 0.35, 1.2 * scale, Math.round(22 * scale), 1400, 5000, 0.13);
-  if (scale >= 1) for (let k = 0; k < Math.round(2 * scale); k++) {
-    const f = 1500 + r() * 1500;
-    ping(b, 0.5 + r() * 0.8 * scale, [f, f * 2.71, f * 4.13], 0.06, 0.05);
-  }
+  grains(b, r, 0.35, 1.2 * scale, Math.round(26 * scale), 1200, 5000, 0.16, 0.35);
+  // From the bigger ones a bit of sheet metal lands among the stones.
+  if (scale >= 1) for (let k = 0; k < Math.round(2 * scale); k++) strike(b, r, 0.5 + r() * 0.8 * scale, jit(r, 700, 0.3), PLATE, 0.08, 0.0006, 0.4);
+  // All of it sent back off the treeline, darker and smeared.
   const dry = b.d.slice(0, Math.ceil(sr * 0.5));
-  for (const [d, g] of [[0.28, 0.26], [0.65, 0.13], [1.2, 0.06]] as const) {
-    const a = new LP1(sr), c = new LP1(sr), o = Math.floor(jit(r, d, 0.15) * sr);
-    for (let i = 0; i < dry.length && o + i < b.len; i++) b.d[o + i] += c.run(a.run(dry[i], 800), 800) * g;
-  }
-  return b.normalize(0.95).fadeOut(0.3);
+  for (const [d, g] of [[0.28, 0.26], [0.65, 0.13], [1.2, 0.06]] as const) echo(b, r, dry, jit(r, d, 0.15), g, 800, 0.03 + d * 0.03);
+  return squash(b, 2.5).normalize(0.95).fadeOut(0.3);
 }
 
-function concussion(sr: number, r: R, big: boolean): Buf {
+// The old concussion, which the slam (a creep's) still uses.
+function slamBlast(sr: number, r: R, big: boolean): Buf {
   const b = new Buf(sr, big ? 1.8 : 1.1);
   thud(b, r, 0, big ? 60 : 75, 26, big ? 0.18 : 0.12, 1.2, 0.4, 500);
   roar(b, r, 0, 0.6, 700, 120, 0.004, big ? 0.12 : 0.08, 0.8, 2.5);
@@ -700,6 +631,20 @@ function concussion(sr: number, r: R, big: boolean): Buf {
   if (big) debris(b, r, 0.08, 0.9, 16, 900, 3500, 0.15);
   roar(b, r, 0.02, 1.2, 400, 120, 0.04, big ? 0.6 : 0.35, 0.35);
   return b.normalize(0.9).fadeOut(0.1);
+}
+
+// A concussion charge: built to knock down, not to throw anything, so a pressure wave and
+// little else. A long, heavy pulse felt in the chest, the air it shoves past (a low rush and
+// its suck back), dust lifted off the ground in a hiss and a dull rumble off the trees.
+function concussion(sr: number, r: R): Buf {
+  const b = new Buf(sr, 1.2);
+  pulse(b, 0, 0.009, 1.5);
+  thump(b, r, 0, 75, 0.004, 0.14, 1.3);
+  band(b, r, 0.003, 0.5, 1100, 220, 0.06, 0.6, 0.004, 0.09, 0.9, 2);
+  swing(b, r, 0.06, 0.3, 700, 220, 0.4);
+  grains(b, r, 0.02, 0.4, 30, 1500, 5000, 0.1);
+  report(b, r, 0.03, 1.1, 600, 120, 0.3, 0.5, 0.6);
+  return squash(b, 2.5).normalize(0.9).fadeOut(0.1);
 }
 
 // Thunder near enough to matter: the channel crackles along its length as it forms, ripping
@@ -754,8 +699,8 @@ function frost(sr: number, r: R): Buf {
     const u = Math.pow(r(), 1.8), f = 1700 + r() * 3600;
     click(b, r, 0.02 + u * 0.55, f, (0.25 + r() * 0.35) * Math.exp(-u * 2.2), 0.0012 + r() * 0.002, f * (0.5 + r() * 0.3));
   }
-  const glass = [1870, 2790, 4130].map((f) => jit(r, f, 0.05));
-  ping(b, 0.03, glass, 0.12, 0.09);
+  // The glint: a sliver of ice ringing as it snaps, a few short inharmonic modes.
+  strike(b, r, 0.03, jit(r, 1870, 0.05), PLATE, 0.1, 0.0002, 0.5);
   return b.normalize(0.75).fadeOut(0.08);
 }
 
@@ -982,59 +927,60 @@ function revived(sr: number, r: R, pitch: number): Buf {
   return b.normalize(0.7).fadeOut();
 }
 
-// Reloading, the way each gun is: [start, end]. Built of clicks, metal sliding on metal and
-// clacks, the heavy parts going home, which are what make a reload sound solid.
+// Reloading, the way each gun is: [start, end]. Steel on steel and the hand on the gun: catches
+// and latches (a small part struck, ringing for a few milliseconds), strokes (steel drawn over
+// steel), the heavy parts going home (a part with the gun's wooden or polymer body knocked
+// under it) and a magazine or box dropped on the dirt. The body under each blow is what makes a
+// reload sound solid; no part rings longer than a real one, so nothing chimes.
 function reload(sr: number, r: R, w: number, end: boolean): Buf {
   const b = new Buf(sr, 0.8);
+  // A latch or catch: small, light, high.
+  const tick = (at: number, f: number, g: number) => part(b, r, at, f, g * 0.5, 700, 0.15);
+  // A heavy part home: the part and the body under it.
+  const home = (at: number, f: number, g: number, body = 300) => part(b, r, at, f, g * 0.55, body * 1.8, 1);
   switch (w) {
-    case 0: // pistol: the release pressed, the magazine out and clattering down; in, seated, and the slide let go
+    case 0: // pistol: the release pressed, the magazine out and onto the dirt; in, seated, and the slide let go
       if (!end) {
-        click(b, r, 0, 3200, 0.5, 0.002, 1600); slide(b, r, 0.01, 0.06, 2600, 0.35);
-        clack(b, r, 0.3, 1800, 0.35, 420); click(b, r, 0.37, 2300, 0.15, 0.002, 1200);
+        tick(0, 3200, 0.5); scrape(b, r, 0.01, 0.06, 2300, 0.5);
+        strike(b, r, 0.3, jit(r, 1300, 0.1), PLATE, 0.07, 0.0008, 0.3); earth(b, r, 0.3, 0.07, 0.3); tick(0.37, 2300, 0.2);
       } else {
-        slide(b, r, 0, 0.05, 2200, 0.35); clack(b, r, 0.05, 1600, 0.8, 260); clack(b, r, 0.24, 2400, 1.1, 340);
+        scrape(b, r, 0, 0.05, 2100, 0.45); home(0.05, 1600, 0.8, 260); scrape(b, r, 0.2, 0.04, 2600, 0.4); home(0.24, 2400, 1.1, 340);
       }
       break;
-    case 1: // shotgun: a shell thumbed into the tube; the pump racked back to its stop and slammed forward
-      if (!end) { slide(b, r, 0, 0.06, 1400, 0.45); clack(b, r, 0.06, 1300, 0.6, 220); } else {
-        click(b, r, 0, 1800, 0.6, 0.003, 500); slide(b, r, 0.01, 0.08, 1500, 0.5); clack(b, r, 0.09, 1400, 0.9, 200);
-        slide(b, r, 0.15, 0.06, 1700, 0.45); clack(b, r, 0.21, 2000, 1.2, 260);
+    case 1: // shotgun: a shell thumbed into the tube, brass on steel and the follower's spring; the pump racked back to its stop and slammed forward
+      if (!end) { scrape(b, r, 0, 0.06, 1300, 0.55); home(0.06, 1300, 0.6, 220); strike(b, r, 0.065, jit(r, 2600, 0.05), CASE, 0.06, 0.0002, 0.4); } else {
+        tick(0, 1800, 0.6); scrape(b, r, 0.01, 0.08, 1400, 0.6); home(0.09, 1400, 0.9, 200);
+        strike(b, r, 0.09, jit(r, 620, 0.05), WOOD, 0.25, 0.001); scrape(b, r, 0.15, 0.06, 1600, 0.55); home(0.21, 2000, 1.2, 260);
       }
       break;
-    case 2: // SMG: the magazine out; in and slapped home, then the charging handle drawn and let fly
-      if (!end) { click(b, r, 0, 3000, 0.5, 0.002, 1400); slide(b, r, 0.01, 0.05, 2600, 0.35); clack(b, r, 0.07, 1700, 0.45, 300); } else {
-        slide(b, r, 0, 0.04, 2200, 0.3); clack(b, r, 0.04, 1500, 0.8, 240); thud(b, r, 0.045, 160, 110, 0.02, 0.4, 0.8, 900);
-        click(b, r, 0.2, 2600, 0.5, 0.003, 1100); slide(b, r, 0.21, 0.05, 2800, 0.35); clack(b, r, 0.29, 2200, 1.1, 320);
+    case 2: // SMG: the magazine out; in and slapped home with the palm, then the charging handle drawn and let fly
+      if (!end) { tick(0, 3000, 0.5); scrape(b, r, 0.01, 0.05, 2400, 0.45); home(0.07, 1700, 0.45, 300); } else {
+        scrape(b, r, 0, 0.04, 2100, 0.4); home(0.04, 1500, 0.8, 240); flesh(b, r, 0.045, 0.25, 0, 0.6);
+        tick(0.2, 2600, 0.5); scrape(b, r, 0.21, 0.05, 2600, 0.45); home(0.29, 2200, 1.1, 320);
       }
       break;
-    case 3: // rifle: the bolt lifted and drawn to its stop; a clip of rounds pressed in, the bolt run home and turned down
-      if (!end) { click(b, r, 0, 2600, 0.6, 0.003, 900); slide(b, r, 0.03, 0.09, 2400, 0.45); clack(b, r, 0.12, 1900, 0.6, 300); } else {
-        slide(b, r, 0, 0.12, 1800, 0.35);
-        for (let k = 0; k < 5; k++) click(b, r, 0.01 + k * 0.022 + r() * 0.006, 2400 + r() * 800, 0.25, 0.002, 1700);
-        ping(b, 0.15, [3100, 4600], 0.02, 0.08);
-        slide(b, r, 0.2, 0.08, 2600, 0.45); clack(b, r, 0.28, 1700, 1, 320); click(b, r, 0.34, 3000, 0.7, 0.003, 1000);
+    case 3: // rifle: the bolt lifted and drawn to its stop; a clip of rounds stripped in, the bolt run home and turned down
+      if (!end) { tick(0, 2600, 0.6); scrape(b, r, 0.03, 0.09, 2200, 0.6); home(0.12, 1900, 0.6, 300); } else {
+        scrape(b, r, 0, 0.12, 1700, 0.45);
+        for (let k = 0; k < 5; k++) strike(b, r, 0.01 + k * 0.022 + r() * 0.006, jit(r, 3300, 0.06), CASE, 0.08, 0.0002, 0.3);
+        tick(0.15, 3100, 0.3);
+        scrape(b, r, 0.2, 0.08, 2400, 0.6); home(0.28, 1700, 1, 320); tick(0.34, 3000, 0.7);
       }
       break;
-    case 4: // minigun: the feed cover unlatched, the empty box out and dropped; the belt fed link by link, the cover slammed and the barrels given a turn
+    case 4: // minigun: the feed cover unlatched, the empty box out and onto the ground; the belt fed link by link, the cover slammed and the barrels given a turn
       if (!end) {
-        clack(b, r, 0, 1100, 0.6, 200); slide(b, r, 0.1, 0.1, 1200, 0.3);
-        thud(b, r, 0.3, 140, 80, 0.05, 0.9, 0.6, 700); debris(b, r, 0.31, 0.15, 6, 1500, 3500, 0.25);
+        home(0, 1100, 0.6, 200); scrape(b, r, 0.1, 0.1, 1100, 0.4);
+        strike(b, r, 0.3, jit(r, 420, 0.08), PLATE, 0.3, 0.001, 0.4); earth(b, r, 0.3, 0.45, 0.8);
       } else {
-        for (let k = 0; k < 10; k++) click(b, r, k * 0.022, 1600 + r() * 900, 0.35, 0.0025, 1100 + r() * 600);
-        clack(b, r, 0.25, 1000, 1.2, 180); thud(b, r, 0.25, 120, 70, 0.06, 0.8, 0.5, 600);
-        const o = Math.floor(0.36 * sr);
-        let ph = 0;
-        for (let i = 0; i < 0.35 * sr; i++) {
-          const t = i / sr;
-          ph += (200 + 900 * Math.min(1, t / 0.15)) / sr; ph -= Math.floor(ph);
-          b.d[o + i] += (1 - 2 * ph) * ad(t, 0.05, 0.08) * 0.12;
-        }
+        for (let k = 0; k < 10; k++) strike(b, r, k * 0.022 + r() * 0.004, jit(r, 2400, 0.2), CASE, 0.1, 0.0003, 0.3);
+        home(0.25, 1000, 1.2, 180); strike(b, r, 0.25, jit(r, 380, 0.05), PLATE, 0.25, 0.001, 0.4);
+        servo(b, r, 0.36, 0.3, 0.12);
       }
       break;
-    case 5: // rocket launcher: the tube's latch opened, the tube hollow; a rocket slid in, latched, and armed
-      if (!end) { clack(b, r, 0, 900, 0.6, 180); ping(b, 0.005, [310, 760, 1290], 0.09, 0.15); } else {
-        slide(b, r, 0, 0.2, 1000, 0.55); ping(b, 0.02, [290, 700], 0.12, 0.08); clack(b, r, 0.21, 1100, 1, 170);
-        pip(b, 0.38, 2100, 0.04, 0.1); pip(b, 0.44, 2800, 0.06, 0.1);
+    case 5: // rocket launcher: the tube's latch opened, the tube hollow; a rocket slid in, latched, and the arming switch thrown
+      if (!end) { home(0, 900, 0.6, 180); strike(b, r, 0.005, jit(r, 310, 0.04), PIPE, 0.18, 0.0012, 0.25); } else {
+        scrape(b, r, 0, 0.2, 900, 0.55); strike(b, r, 0.02, jit(r, 290, 0.04), PIPE, 0.12, 0.002, 0.3); home(0.21, 1100, 1, 170);
+        tick(0.38, 2100, 0.35); tick(0.42, 2800, 0.5);
       }
       break;
   }
@@ -1045,22 +991,22 @@ function reload(sr: number, r: R, w: number, end: boolean): Buf {
 // slapped into the palm and the safety thumbed off.
 function weaponSwitch(sr: number, r: R): Buf {
   const b = new Buf(sr, 0.4);
-  roar(b, r, 0, 0.12, 3000, 1400, 0.02, 0.04, 0.45);
-  slide(b, r, 0.06, 0.09, 1800, 0.35);
-  thud(b, r, 0.15, 210, 120, 0.015, 0.7, 0.8, 1800);
-  clack(b, r, 0.15, 1600, 0.5, 350);
-  click(b, r, 0.23 + r() * 0.02, 3200, 0.5, 0.0015, 2100);
+  cloth(b, r, 0, 0.14, 0.4, 0.8);
+  scrape(b, r, 0.06, 0.09, 1600, 0.4);
+  flesh(b, r, 0.15, 0.35, 0, 0.5);
+  part(b, r, 0.15, 1600, 0.3, 350, 0.6);
+  part(b, r, 0.23 + r() * 0.02, 3200, 0.25, 700, 0.1);
   return b.normalize(0.8).fadeOut();
 }
 
 // Pulling the trigger on an empty chamber: the trigger's travel, the hammer falling on nothing
-// with a hard, dry snap and the frame ringing a little, and no shot.
+// with a hard, dry snap and the frame knocked under it, and no shot.
 function dryFire(sr: number, r: R): Buf {
   const b = new Buf(sr, 0.25);
-  click(b, r, 0, 2400, 0.25, 0.002, 1500);
-  click(b, r, 0.035 + r() * 0.01, jit(r, 3600, 0.08), 1, 0.0015, 2600);
-  thud(b, r, 0.036, 420, 260, 0.008, 0.35, 0.5, 3000);
-  ping(b, 0.037, [jit(r, 2900, 0.05), 4700, 6900], 0.03, 0.12);
+  part(b, r, 0, 2400, 0.12, 700, 0.1);
+  const at = 0.035 + r() * 0.01;
+  part(b, r, at, jit(r, 3600, 0.08), 0.6, 420, 0.5);
+  strike(b, r, at, jit(r, 2900, 0.05), PART, 0.15, 0.0001, 1.5);
   return b.normalize(0.8).fadeOut();
 }
 
@@ -1139,49 +1085,51 @@ function upgrade(sr: number, r: R): Buf {
   return b.normalize(0.75).fadeOut();
 }
 
-// Building: a hammer driving a nail into a plank, the steel's ring rising as the nail goes in,
-// the plank's knock under it, and the last blow a dead thump as the head meets the wood.
+// Building: a hammer driving a nail into a plank. The nail is a thin steel bar struck on its
+// end, ringing higher and shorter as less of it stands proud; the plank knocks under it (wood's
+// modes, short); the hammer's head is a heavy block that barely rings. The last blow is a dead
+// thump as the head meets the wood.
 function hammer(sr: number, r: R): Buf {
   const b = new Buf(sr, 0.8);
-  const nail = jit(r, 2900, 0.06), plank = jit(r, 520, 0.08);
+  const nail = jit(r, 2300, 0.06), plank = jit(r, 380, 0.08);
   [0, 0.17, 0.33].forEach((at, k) => {
     at += k ? (r() - 0.5) * 0.03 : 0;
     const last = k === 2;
-    thud(b, r, at, plank * 0.5, plank * 0.32, 0.018, last ? 1 : 0.7, 0.7, 2500);
-    ping(b, at, [plank, plank * 1.58, plank * 2.37], last ? 0.05 : 0.035, last ? 0.45 : 0.3);
-    if (!last) ping(b, at, [nail * (1 + k * 0.08), nail * 2.32 * (1 + k * 0.08)], 0.05, 0.25);
-    click(b, r, at, last ? 1800 : 3200, 0.6, 0.0015);
+    strike(b, r, at, plank, WOOD, last ? 0.6 : 0.4, 0.0006, last ? 1.3 : 1);
+    grains(b, r, at, 0.004, 3, 1500, 5000, 0.3);
+    thump(b, r, at, plank * 0.45, 0.001, 0.018, last ? 0.9 : 0.5);
+    if (!last) strike(b, r, at, nail * (1 + k * 0.15), BAR, 0.3, 0.0001, 0.12 / (1 + k));
+    else strike(b, r, at, jit(r, 1700, 0.05), IRON, 0.12, 0.0004, 0.2);
   });
   return b.normalize(0.85).fadeOut();
 }
 
+// A structure falling down: the frame giving with a crack of timber, the mass hitting the
+// ground, masonry and dirt sliding off it and stones rattling down after, a dust-laden rush.
 function crumble(sr: number, r: R): Buf {
   const b = new Buf(sr, 1.9);
-  thud(b, r, 0, 70, 30, 0.2, 1.1, 0.6, 500);
-  roar(b, r, 0, 1.6, 1400, 180, 0.01, 0.45, 0.9, 2.5);
-  debris(b, r, 0.03, 1.3, 40, 600, 3200, 0.35);
-  ping(b, 0.1, [430, 1110, 1750], 0.15, 0.2);
-  return b.normalize(0.85).fadeOut(0.1);
+  grains(b, r, 0, 0.06, 18, 600, 3000, 0.5);
+  strike(b, r, 0.01, jit(r, 260, 0.08), WOOD, 0.4, 0.002);
+  thump(b, r, 0.05, 70, 0.006, 0.22, 1.2);
+  earth(b, r, 0.05, 1, 2);
+  band(b, r, 0.05, 1.6, 1400, 180, 0.4, 0.7, 0.01, 0.45, 0.9, 2);
+  grains(b, r, 0.08, 1.3, 50, 600, 3200, 0.35, 0.5);
+  return squash(b, 2).normalize(0.85).fadeOut(0.1);
 }
 
-// A supply drop landing: the crate hitting the ground hard, its planks booming and rattling in
-// their straps, a buckle ringing, dirt kicked up, the crate rocking back once, and the
-// parachute settling over it with a soft, fluttering rush of cloth.
+// A supply drop landing: the crate hitting the ground hard, its planks knocking and rattling in
+// their straps, a buckle on the strap ticking, dirt kicked up, the crate rocking back once, and
+// the parachute settling over it with a soft, fluttering rush of cloth.
 function crateLand(sr: number, r: R): Buf {
   const b = new Buf(sr, 1.4);
-  thud(b, r, 0, 100, 42, 0.09, 1.2, 0.8, 600);
-  ping(b, 0.002, [jit(r, 175, 0.05), 290, 445, 610], 0.07, 0.45);
-  roar(b, r, 0, 0.4, 1600, 300, 0.003, 0.08, 0.5, 2);
-  debris(b, r, 0.01, 0.3, 10, 700, 2500, 0.3);
-  ping(b, 0.03, [2100, 3400, 5200], 0.08, 0.06);
-  clack(b, r, 0.12 + r() * 0.03, 900, 0.35, 160);
-  thud(b, r, 0.22, 120, 60, 0.03, 0.4, 0.7, 700);
-  const sv = new SVF(sr), flap = slowNoise(r, sr, 1, 11), o = Math.floor(0.3 * sr);
-  for (let i = 0; i < sr * 0.9 && o + i < b.len; i++) {
-    const t = i / sr;
-    sv.run(r() * 2 - 1, 700 - 300 * t, 0.7);
-    b.d[o + i] += sv.band * bump(t, 0.3, 0.22) * (0.6 + 0.4 * flap[i]) * 0.35;
-  }
+  thump(b, r, 0, 100, 0.002, 0.09, 1.2);
+  strike(b, r, 0.002, jit(r, 175, 0.05), WOOD, 0.8, 0.002, 1.6);
+  earth(b, r, 0, 0.6, 1);
+  strike(b, r, 0.03, jit(r, 2100, 0.06), PART, 0.05, 0.0002);
+  part(b, r, 0.12 + r() * 0.03, 900, 0.3, 260, 1);
+  thump(b, r, 0.22, 120, 0.002, 0.03, 0.4);
+  strike(b, r, 0.22, jit(r, 220, 0.05), WOOD, 0.25, 0.002);
+  cloth(b, r, 0.3, 0.8, 0.6, 1);
   return b.normalize(0.85).fadeOut();
 }
 
@@ -1288,23 +1236,18 @@ function ignite(sr: number, r: R): Buf {
   return b.normalize(0.85).fadeOut(0.1);
 }
 
-// A grenade thrown: the pin's ring scraping out with a tink, the spoon flying off and
-// spinning away ringing, and the arm swung through.
+// A grenade thrown: the pin's ring drawn out of its hole with a scrape and a tick, the spoon
+// flying off (a thin strip of steel, ringing briefly as it spins away), and the arm swung
+// through in a sleeve.
 function grenadeThrow(sr: number, r: R): Buf {
   const b = new Buf(sr, 0.7);
-  slide(b, r, 0, 0.05, 3600, 0.25);
-  click(b, r, 0.045, 4200, 0.5, 0.002, 2900);
-  ping(b, 0.047, [2900, 4400, 6900], 0.05, 0.25);
+  scrape(b, r, 0, 0.05, 3000, 0.35);
+  part(b, r, 0.045, 4200, 0.25, 900, 0.1);
   const spoon = 0.2 + r() * 0.03;
-  clack(b, r, spoon, 3000, 0.45, 600);
-  const f = jit(r, 3700, 0.06);
-  for (let i = 0; i < Math.ceil(0.4 * sr); i++) {
-    const t = i / sr, o = Math.floor(spoon * sr) + i;
-    if (o >= b.len) break;
-    // A strip of steel spinning: its ring swept in and out as it turns.
-    b.d[o] += Math.sin(TAU * f * t * (1 - 0.03 * t)) * Math.exp(-t / 0.12) * (0.5 + 0.5 * Math.abs(Math.sin(TAU * 22 * t))) * 0.12;
-  }
-  whoosh(b, r, 0.28, 0.32, 300, 1600, 0.9, 0.9);
+  part(b, r, spoon, 3000, 0.3, 700, 0.3);
+  strike(b, r, spoon, jit(r, 1900, 0.06), PLATE, 0.08, 0.0002, 0.6);
+  cloth(b, r, 0.22, 0.3, 0.4, 0.6);
+  swing(b, r, 0.28, 0.3, 300, 1300, 0.35);
   return b.normalize(0.9).fadeOut();
 }
 
@@ -1322,18 +1265,18 @@ function dash(sr: number, r: R): Buf {
   return b.normalize(0.65).fadeOut();
 }
 
-// Jets going over// Jets going over for an airstrike: the roar climbing as they come, a Doppler fall as they
-// pass right overhead, and a long rumble going away.
+// Jets going over for an airstrike: the roar climbing as they come, a Doppler fall as they pass
+// right overhead (the turbine's whine is a narrow band of noise, not a tone, falling with the
+// rest), and a long rumble going away.
 function jets(sr: number, r: R): Buf {
   const b = new Buf(sr, 4.2);
-  const sv = new SVF(sr), lp = new LP1(sr), comp = Math.sqrt(sr / (2 * 250));
-  let ph = 0;
+  const sv = new SVF(sr), wh = new SVF(sr), lp = new LP1(sr), comp = Math.sqrt(sr / (2 * 250));
   for (let i = 0; i < b.len; i++) {
     const t = i / sr, near = bump(t, 2.2, 0.8);
     sv.run(r() * 2 - 1, 300 + 3200 * near, 0.7);
     const f = 2400 - 1100 * (1 / (1 + Math.exp(-(t - 2.2) * 6)));
-    ph += TAU * f / sr;
-    b.d[i] = sv.low * near * 0.9 + lp.run(r() * 2 - 1, 250) * comp * bump(t, 2.4, 1.2) * 0.4 + Math.sin(ph) * bump(t, 2.1, 0.45) * 0.12;
+    const whine = wh.run(r() * 2 - 1, f, 10).band * Math.sqrt(sr / f) * 0.08;
+    b.d[i] = sv.low * near * 0.9 + lp.run(r() * 2 - 1, 250) * comp * bump(t, 2.4, 1.2) * 0.4 + whine * bump(t, 2.1, 0.45);
   }
   return b.normalize(0.85).fadeOut(0.2);
 }
@@ -1619,16 +1562,17 @@ function baitGrab(sr: number, r: R): Buf {
   return b.normalize(0.8).fadeOut(0.15);
 }
 
-// A catapult pit throwing: the catch let go with a click, the spring arm whipping up with a
-// twang and a creak of planks, the slam of it against its stop and the air it throws.
+// A catapult pit throwing: the catch let go, the arm whipping up on its rope, the timber frame
+// groaning and knocking, the slam of the arm against its padded stop and the air it throws.
 function catapult(sr: number, r: R): Buf {
   const b = new Buf(sr, 0.9);
-  click(b, r, 0, 2400, 0.4, 0.003, 1200);
+  part(b, r, 0, 2400, 0.3, 600, 0.3);
   const f = jit(r, 210, 0.12);
-  ping(b, 0.01, [f, f * 2.02, f * 3.1], 0.25, 0.4);
-  roar(b, r, 0.01, 0.3, 1800, 500, 0.01, 0.12, 0.5, 2);
-  clack(b, r, 0.07, jit(r, 700, 0.1), 0.8, 180);
-  thud(b, r, 0.07, 130, 60, 0.04, 0.8, 0.6, 900);
+  strike(b, r, 0.01, f, WOOD, 0.5, 0.003, 2.5);
+  swing(b, r, 0.0, 0.1, 400, 1500, 0.8);
+  strike(b, r, 0.07, jit(r, 330, 0.1), WOOD, 0.8, 0.0015, 1.5);
+  thump(b, r, 0.07, 130, 0.002, 0.04, 0.8);
+  cloth(b, r, 0.07, 0.05, 0.4, 1);
   return b.normalize(0.8).fadeOut();
 }
 
@@ -1646,7 +1590,7 @@ function fallThud(sr: number, r: R): Buf {
 // it stops with a clank and a rattle; shut it slams and the latch drops home.
 function gate(sr: number, r: R, open: boolean): Buf {
   const b = new Buf(sr, 1.3);
-  clack(b, r, 0, jit(r, 1400, 0.1), 0.45, 260);
+  part(b, r, 0, jit(r, 1400, 0.1), 0.25, 470, 0.8);
   const sv = new SVF(sr), crk = slowNoise(r, sr, 0.7, 9), cl = open ? jit(r, 0.45, 0.15) : jit(r, 0.3, 0.15);
   const base = jit(r, 120, 0.15);
   let ph = 0;
@@ -1657,17 +1601,17 @@ function gate(sr: number, r: R, open: boolean): Buf {
     if (ph >= 1) ph -= 1;
     b.d[i] += sv.run(x * 4 + (r() * 2 - 1) * 0.08, jit(r, 1050, 0.02), 4).band * Math.sin(Math.PI * t / cl) * 0.4;
   }
-  whoosh(b, r, 0.05, cl + 0.1, 250, 500, 0.25, 0.7);
+  band(b, r, 0.05, cl + 0.1, 250, 500, cl, 0.6, cl * 0.5, cl * 0.4, 0.35);
   const stop = 0.05 + cl, f = jit(r, 310, 0.08);
   if (open) {
-    clack(b, r, stop, 900, 0.6, 170);
-    ping(b, stop, [f, f * 2.68, f * 4.7], 0.12, 0.3);
-    debris(b, r, stop + 0.01, 0.15, 6, 1200, 3000, 0.15);
+    part(b, r, stop, 900, 0.35, 300, 1);
+    strike(b, r, stop, f, IRON, 0.3, 0.0008, 0.5);
+    grains(b, r, stop + 0.01, 0.15, 6, 1200, 3000, 0.15);
   } else {
-    thud(b, r, stop, 120, 55, 0.05, 1, 0.5, 700);
-    clack(b, r, stop, 1200, 0.9, 200);
-    ping(b, stop, [f * 0.9, f * 2.4, f * 4.1], 0.18, 0.35);
-    click(b, r, stop + jit(r, 0.12, 0.2), 2100, 0.35, 0.003, 1100);
+    thump(b, r, stop, 120, 0.002, 0.05, 1);
+    part(b, r, stop, 1200, 0.5, 360, 1);
+    strike(b, r, stop, f * 0.9, IRON, 0.35, 0.001, 0.6);
+    part(b, r, stop + jit(r, 0.12, 0.2), 2100, 0.2, 700, 0.3);
   }
   return b.normalize(0.8).fadeOut();
 }
@@ -1676,15 +1620,17 @@ function gate(sr: number, r: R, open: boolean): Buf {
 // the steady buzz it settles to, a spark ticking off its top.
 function pylonOn(sr: number, r: R): Buf {
   const b = new Buf(sr, 1.4);
-  clack(b, r, 0, 1600, 0.6, 240);
-  let ph = 0;
+  part(b, r, 0, 1600, 0.35, 420, 0.8);
+  // The coil charging: its windings singing in a narrow band of noise that climbs, and under
+  // it the core's 100 Hz buzz (the laminations rattling twice a mains cycle).
+  const cw = new SVF(sr), lam = new SVF(sr);
   for (let i = 0; i < b.len; i++) {
-    const t = i / sr, u = Math.min(1, t / 0.7);
-    ph += TAU * (120 + 1900 * u * u) / sr;
-    const buzz = Math.tanh(Math.sin(TAU * 120 * t) * 3) * 0.12;
-    b.d[i] += (Math.sin(ph) * 0.18 * (1 - 0.6 * u) + buzz) * Math.min(1, t / 0.05) * Math.max(0, Math.min(1, (1.4 - t) / 0.5));
+    const t = i / sr, u = Math.min(1, t / 0.7), fq = 120 + 1900 * u * u;
+    const whine = cw.run(r() * 2 - 1, fq, 12).band * Math.sqrt(sr / fq) * 0.05;
+    const buzz = lam.run(Math.tanh(Math.sin(TAU * 100 * t) * 3) + (r() * 2 - 1) * 0.3, 400, 0.8).low * 0.12;
+    b.d[i] += (whine * (1 - 0.6 * u) + buzz) * Math.min(1, t / 0.05) * Math.max(0, Math.min(1, (1.4 - t) / 0.5));
   }
-  for (let k = 0; k < 4; k++) click(b, r, 0.6 + r() * 0.6, 2500 + r() * 2500, 0.25, 0.001, 3000);
+  grains(b, r, 0.6, 0.6, 5, 2500, 5000, 0.3);
   return b.normalize(0.7).fadeOut();
 }
 
@@ -1729,8 +1675,8 @@ function payIn(sr: number, r: R): Buf {
 // higher, fuller hum, the transformer buzzing in, pressure let off, and its housing ringing.
 function tierUp(sr: number, r: R): Buf {
   const b = new Buf(sr, 3);
-  clack(b, r, 0, 900, 1, 160);
-  thud(b, r, 0, 90, 45, 0.06, 0.8, 0.5, 600);
+  part(b, r, 0, 900, 0.6, 290, 1);
+  thump(b, r, 0, 90, 0.002, 0.06, 0.8);
   let ph = 0;
   for (let i = 0; i < b.len; i++) {
     const t = i / sr, u = Math.min(1, t / 1.8);
@@ -1742,7 +1688,7 @@ function tierUp(sr: number, r: R): Buf {
   }
   const hs = new SVF(sr), o = Math.floor(1.6 * sr);
   for (let i = 0; i < sr * 0.7 && o + i < b.len; i++) b.d[o + i] += hs.run(r() * 2 - 1, 3200, 0.7).band * ad(i / sr, 0.02, 0.25) * 0.3;
-  ping(b, 1.75, [jit(r, 180, 0.05), 455, 760, 1180], 0.5, 0.3);
+  strike(b, r, 1.75, jit(r, 180, 0.05), PLATE, 0.35, 0.002, 1.5);
   return b.normalize(0.8).fadeOut(0.2);
 }
 
@@ -1752,14 +1698,14 @@ function tierUp(sr: number, r: R): Buf {
 function overload(sr: number, r: R): Buf {
   const b = new Buf(sr, 3.4);
   const charge = 0.3;
-  let ph = 0;
+  // The bank charging: the coils' whine, a narrow band of noise climbing fast.
+  const cw = new SVF(sr);
   for (let i = 0; i < charge * sr; i++) {
-    const t = i / sr, u = t / charge;
-    ph += TAU * (200 + 2200 * u * u) / sr;
-    b.d[i] += (Math.sin(ph) + 0.3 * Math.sin(2 * ph)) * u * u * 0.3;
+    const t = i / sr, u = t / charge, fq = 200 + 2200 * u * u;
+    b.d[i] += cw.run(r() * 2 - 1, fq, 12).band * Math.sqrt(sr / fq) * u * u * 0.07;
   }
-  const o = Math.floor(charge * sr), nn = Math.ceil(0.004 * sr);
-  for (let i = 0; i < nn; i++) { const u = i / nn; b.d[o + i] += (1 - 2 * u) * Math.min(1, u * 12, (1 - u) * 12) * 1.2; }
+  const o = Math.floor(charge * sr);
+  pulse(b, charge, 0.005, 1.3);
   roar(b, r, charge, 1.2, 5200, 300, 0.0008, 0.12, 1.1, 4);
   thud(b, r, charge, 65, 20, 0.35, 1.5, 0.2, 250);
   crackle(b, r, charge + 0.02, 1.6, 260, 1800, 6000, 0.35);
@@ -1787,14 +1733,13 @@ function overload(sr: number, r: R): Buf {
 // The Overload charged for this wave: the capacitor bank whining up and a relay shutting.
 function overloadReady(sr: number, r: R): Buf {
   const b = new Buf(sr, 1.1);
-  let ph = 0;
+  const cw = new SVF(sr);
   for (let i = 0; i < 0.85 * sr; i++) {
-    const t = i / sr, u = t / 0.85;
-    ph += TAU * (300 + 1500 * u) / sr;
-    b.d[i] += Math.sin(ph) * (0.6 + 0.4 * Math.sin(TAU * 50 * t)) * Math.min(1, t / 0.1) * (0.3 + 0.7 * u) * 0.25;
+    const t = i / sr, u = t / 0.85, fq = 300 + 1500 * u;
+    b.d[i] += cw.run(r() * 2 - 1, fq, 14).band * Math.sqrt(sr / fq) * (0.6 + 0.4 * Math.sin(TAU * 100 * t)) * Math.min(1, t / 0.1) * (0.3 + 0.7 * u) * 0.05;
   }
-  clack(b, r, 0.85, 1500, 0.6, 260);
-  click(b, r, 0.9, 2800, 0.25, 0.002, 1900);
+  part(b, r, 0.85, 1500, 0.35, 470, 0.8);
+  part(b, r, 0.9, 2800, 0.15, 800, 0.2);
   return b.normalize(0.65).fadeOut();
 }
 
@@ -1804,49 +1749,52 @@ function evolve(sr: number, r: R): Buf {
   const b = new Buf(sr, 1.6);
   const hs = new SVF(sr);
   for (let i = 0; i < sr * 0.3; i++) b.d[i] += hs.run(r() * 2 - 1, 3500, 0.8).band * ad(i / sr, 0.02, 0.12) * 0.35;
-  for (const [s, e] of [[0.25, 0.4], [0.48, 0.66]]) for (let t = s; t < e; t += 1 / jit(r, 28, 0.1)) clack(b, r, t, 2200 + r() * 300, 0.25, 500);
+  for (const [s, e] of [[0.25, 0.4], [0.48, 0.66]]) for (let t = s; t < e; t += 1 / jit(r, 28, 0.1)) part(b, r, t, 2200 + r() * 300, 0.14, 800, 0.4);
   const f = jit(r, 520, 0.06);
-  thud(b, r, 0.78, 110, 50, 0.06, 1, 0.5, 600);
-  ping(b, 0.78, [f, f * 2.5, f * 4.05], 0.25, 0.4);
+  thump(b, r, 0.78, 110, 0.002, 0.06, 1);
+  strike(b, r, 0.78, f, IRON, 0.4, 0.0008, 0.8);
   servo(b, r, 1, 0.4, 0.06);
-  clack(b, r, 1.42, 1900, 0.35, 300);
+  part(b, r, 1.42, 1900, 0.2, 520, 0.6);
   return b.normalize(0.8).fadeOut();
 }
 
 // The gatling evolution: lighter rounds than the sentry's, more than twice as many, the six
 // barrels ticking round under them.
 const GATLING: Gun = {
-  len: 0.45, crack: 0.85, crackTau: 0.0006, blast: 1, blastTau: 0.011, blastF0: 6800, blastF1: 1200, body: 0.5, bodyF: 1300,
-  boom: 0.7, boomF0: 175, boomF1: 60, boomTau: 0.016, drive: 3, tail: 0.18, tailTau: 0.08, tailF: 950,
-  echoes: [[0.09, 0.1], [0.2, 0.04]],
+  len: 0.45, crack: 0.5, blast: 0.8, T: 0.0005, drive: 5,
+  gas: 0.9, gasF: 2700, gasTau: 0.01, body: 1.1, bodyF: 1700, ring: [3300, 0.12, 0.01], chest: 0.18, chestF: 320, chestTau: 0.012,
+  rep: 0.22, repTau: 0.08, repF: 2600, repEnd: 700, echoes: [[0.09, 0.11], [0.2, 0.04]],
 };
 // The penetrator: armour-piercing rounds, a harder crack and more weight behind each.
 const PENETRATOR: Gun = {
-  len: 0.9, crack: 1.3, crackTau: 0.0006, blast: 1.1, blastTau: 0.02, blastF0: 7000, blastF1: 900, body: 0.45, bodyF: 1100,
-  boom: 0.95, boomF0: 140, boomF1: 45, boomTau: 0.035, drive: 3.4, tail: 0.3, tailTau: 0.16, tailF: 800,
-  echoes: [[0.12, 0.18], [0.3, 0.08]],
+  len: 0.9, crack: 1.2, blast: 1, T: 0.0011, drive: 6.1,
+  gas: 1.1, gasF: 1800, gasTau: 0.02, body: 1.1, bodyF: 1150, ring: [1500, 0.25, 0.05], chest: 0.48, chestF: 200, chestTau: 0.035,
+  rep: 0.38, repTau: 0.2, repF: 1700, repEnd: 400, echoes: [[0.12, 0.2], [0.3, 0.09]],
 };
 // Anti-materiel: a 20 mm through everything in its line, deeper and wider than the .50.
 const ANTIMAT: Gun = {
-  len: 3, crack: 1.8, crackTau: 0.0007, blast: 1.3, blastTau: 0.05, blastF0: 6500, blastF1: 650, body: 0.55, bodyF: 700,
-  boom: 1.2, boomF0: 85, boomF1: 26, boomTau: 0.09, drive: 4, tail: 0.55, tailTau: 0.38, tailF: 650,
-  echoes: [[0.22, 0.34], [0.55, 0.18], [1, 0.09], [1.6, 0.04]],
+  len: 3, crack: 1.6, blast: 1.2, T: 0.0026, drive: 7.2,
+  gas: 2, gasF: 1300, gasTau: 0.05, body: 1.1, bodyF: 650, ring: [900, 0.1, 0.08], chest: 0.84, chestF: 120, chestTau: 0.09,
+  rep: 0.65, repTau: 0.55, repF: 1200, repEnd: 180, echoes: [[0.22, 0.38], [0.55, 0.2], [1, 0.1], [1.6, 0.04]],
 };
 
 // A mortar: the shell slid down the tube and ringing on the way, then the hollow thoomp of it
 // going, the tube sounding, and the shell whispering up out of earshot.
 function mortar(sr: number, r: R): Buf {
   const b = new Buf(sr, 1.6);
-  slide(b, r, 0, 0.08, 1800, 0.15);
-  ping(b, 0.07, [1500, 2380], 0.03, 0.1);
-  const at = 0.1, f = jit(r, 160, 0.1), o = Math.floor(at * sr);
-  let ph = 0;
+  scrape(b, r, 0, 0.08, 1500, 0.3);
+  strike(b, r, 0.07, jit(r, 760, 0.05), PIPE, 0.1, 0.0004, 0.3);
+  // The thoomp: the charge's gas ringing the tube's air column (a resonance excited by noise,
+  // falling as the shell leaves the mouth), the pulse out of the mouth and the baseplate
+  // knocked into the ground.
+  const at = 0.1, f = jit(r, 160, 0.1), o = Math.floor(at * sr), col = new SVF(sr);
   for (let i = 0; i < sr * 0.4 && o + i < b.len; i++) {
-    const t = i / sr;
-    ph += TAU * f * (0.8 + 0.2 * Math.exp(-t / 0.04)) / sr;
-    b.d[o + i] += Math.sin(ph) * ad(t, 0.002, 0.08) * 0.8;
+    const t = i / sr, fq = f * (0.8 + 0.2 * Math.exp(-t / 0.04));
+    b.d[o + i] += col.run((r() * 2 - 1) * ad(t, 0.002, 0.05), fq, 10).band * Math.sqrt(sr / fq) * 0.4;
   }
-  thud(b, r, at, 95, 38, 0.09, 1.2, 0.4, 400);
+  pulse(b, at, 0.003, 0.9);
+  thump(b, r, at, 95, 0.002, 0.09, 1.2);
+  earth(b, r, at, 0.3, 0.8);
   roar(b, r, at, 0.3, 1600, 200, 0.002, 0.05, 0.7, 3);
   whoosh(b, r, at + 0.05, 0.6, 1300, 650, 0.12, 2);
   const dry = b.d.slice(o, o + Math.ceil(0.3 * sr));
@@ -1899,14 +1847,10 @@ function arcWeb(sr: number, r: R): Buf {
   const n = 4 + Math.floor(r() * 4);
   let at = 0;
   for (let k = 0; k < n; k++) {
-    const f = 2000 + r() * 2500, o = Math.floor(at * sr), z0 = jit(r, 2600, 0.2);
+    const f = 2000 + r() * 2500, z0 = jit(r, 2600, 0.2);
     click(b, r, at, f, 0.7 * (1 - k / (n + 2)), 0.0015, f * 0.6);
-    let ph = 0;
-    for (let i = 0; i < sr * 0.04 && o + i < b.len; i++) {
-      const t = i / sr;
-      ph += TAU * (350 + (z0 - 350) * Math.exp(-t / 0.012)) / sr;
-      b.d[o + i] += Math.tanh(Math.sin(ph) * 3) * ad(t, 0.0005, 0.015) * 0.3;
-    }
+    // The jump's tear through the air: a band of noise falling fast, not a tone.
+    band(b, r, at, 0.04, z0, 350, 0.012, 2.5, 0.0005, 0.015, 0.9, 2);
     at += 0.025 + r() * 0.045;
   }
   const buzz = new SVF(sr), top = new LP1(sr);
@@ -1925,17 +1869,16 @@ function arcWeb(sr: number, r: R): Buf {
 function ricochet(sr: number, r: R): Buf {
   const b = new Buf(sr, 0.4);
   const f = jit(r, 1900, 0.2);
-  click(b, r, 0, f * 1.4, 0.5, 0.0015, f);
-  ping(b, 0.001, [f, f * 1.62, f * 2.31], 0.03, 0.3);
+  strike(b, r, 0, f, PLATE, 0.45, 0.0001, 0.25);
   if (r() < 0.55) {
-    const w0 = jit(r, 3000, 0.15), w1 = w0 * (0.4 + r() * 0.15), d = jit(r, 0.22, 0.2), o = Math.floor(0.008 * sr);
-    let ph = 0;
+    // The round tumbling away: the air torn round a spinning, deformed slug, a narrow band of
+    // noise falling with its Doppler and wobbling at its spin.
+    const w0 = jit(r, 3000, 0.15), w1 = w0 * (0.4 + r() * 0.15), d = jit(r, 0.22, 0.2), o = Math.floor(0.008 * sr), wh = new SVF(sr);
     for (let i = 0; i < d * sr && o + i < b.len; i++) {
-      const t = i / sr;
-      ph += TAU * (w1 + (w0 - w1) * Math.exp(-t / (d * 0.5))) * (1 + 0.01 * Math.sin(TAU * 40 * t)) / sr;
-      b.d[o + i] += Math.sin(ph) * bump(t, d * 0.3, d * 0.3) * 0.18;
+      const t = i / sr, fq = (w1 + (w0 - w1) * Math.exp(-t / (d * 0.5))) * (1 + 0.01 * Math.sin(TAU * 40 * t));
+      b.d[o + i] += wh.run(r() * 2 - 1, fq, 22).band * Math.sqrt(sr / fq) * bump(t, d * 0.3, d * 0.3) * 0.028;
     }
-  } else thud(b, r, 0, 300, 180, 0.012, 0.4, 0.4, 2000);
+  } else thump(b, r, 0, 300, 0.001, 0.012, 0.4);
   return b.normalize(0.6).fadeOut();
 }
 
@@ -2086,21 +2029,27 @@ function coreCrackle(sr: number, r: R): Buf {
   });
 }
 
-// The generator's critical alarm: three rising electronic whoops, unlike the klaxon that calls
-// a hit, so a failing generator is known from a struck one.
-function coreAlarm(sr: number): Buf {
+// The generator's critical alarm: a small motor siren on its housing, three whoops, unlike the
+// klaxon that calls a hit, so a failing generator is known from a struck one. A motor siren is
+// a rotor chopping air through the ports of a stator: puffs of air at the port rate (a buzz
+// with a pitch, not a sine) and the rush of the air itself, both rising as the motor spins up
+// on each whoop and sagging as it is cut.
+function coreAlarm(sr: number, r: R): Buf {
   const b = new Buf(sr, 1.5);
-  const lp = new LP1(sr);
+  const lp = new LP1(sr), body = new SVF(sr), air = new SVF(sr);
   for (let k = 0; k < 3; k++) {
     const o = Math.floor(k * 0.45 * sr), d = 0.36;
     let ph = 0;
     for (let i = 0; i < d * sr; i++) {
       const t = i / sr, u = t / d;
-      ph += TAU * (450 + 600 * u) / sr;
-      b.d[o + i] += (Math.tanh(Math.sin(ph) * 3) + 0.3 * Math.sin(2 * ph)) * Math.min(1, t / 0.01, (d - t) / 0.03);
+      const f = 450 + 600 * (1 - Math.exp(-u * 2.5)) / (1 - Math.exp(-2.5));
+      ph += f / sr; ph -= Math.floor(ph);
+      const puff = Math.exp(-Math.pow((ph - 0.5) / 0.14, 2)) - 0.42;
+      const e = Math.min(1, t / 0.01, (d - t) / 0.03);
+      b.d[o + i] += (body.run(puff, 1400, 0.9).low + air.run(r() * 2 - 1, f * 3, 1.5).band * 0.25 * (0.5 + puff)) * e;
     }
   }
-  for (let i = 0; i < b.len; i++) b.d[i] = lp.run(b.d[i], 2500);
+  for (let i = 0; i < b.len; i++) b.d[i] = lp.run(b.d[i], 3000);
   return b.normalize(0.6);
 }
 
@@ -2108,12 +2057,17 @@ function coreAlarm(sr: number): Buf {
 // creaking as it settles, and the dust blown out from under it.
 function touchdown(sr: number, r: R): Buf {
   const b = new Buf(sr, 1.2);
-  thud(b, r, 0, 90, 45, 0.06, 1, 0.6, 700);
-  thud(b, r, jit(r, 0.06, 0.3), 100, 50, 0.05, 0.8, 0.6, 700);
-  clack(b, r, 0.02, 700, 0.4, 150);
-  ping(b, 0.05, [420, 1130, 1870], 0.1, 0.12);
-  whoosh(b, r, 0.03, 0.8, 1500, 400, 0.5, 0.7);
-  debris(b, r, 0.1, 0.6, 14, 1500, 4000, 0.1);
+  const two = jit(r, 0.06, 0.3);
+  thump(b, r, 0, 90, 0.002, 0.06, 1);
+  strike(b, r, 0, jit(r, 260, 0.05), PIPE, 0.25, 0.002, 0.4);
+  thump(b, r, two, 100, 0.002, 0.05, 0.8);
+  strike(b, r, two, jit(r, 280, 0.05), PIPE, 0.2, 0.002, 0.4);
+  part(b, r, 0.02, 700, 0.25, 260, 0.8);
+  // The airframe settling on its skids: the aluminium skin knocked and a creak.
+  strike(b, r, 0.05, jit(r, 420, 0.05), PLATE, 0.1, 0.002, 0.6);
+  scrape(b, r, 0.15, 0.2, 700, 0.15);
+  band(b, r, 0.03, 0.8, 1500, 400, 0.3, 0.6, 0.05, 0.3, 0.5);
+  grains(b, r, 0.1, 0.6, 14, 1500, 4000, 0.1);
   return b.normalize(0.8).fadeOut();
 }
 
@@ -2137,8 +2091,8 @@ const gun = (g: Gun, extra?: (b: Buf, r: R) => void): GunMaker => {
 const LOW = 24000;
 export const RECIPES: Record<string, [number, Maker, number?]> = {
   pistol: [4, gun(PISTOL, (b, r) => brass(b, r, 0.3 + r() * 0.08, 0.05))],
-  shotgun: [3, gun(SHOTGUN, (b, r) => pump(b, r, 0.36, 0.12))],
-  smg: [5, gun(SMG, (b, r) => { clack(b, r, 0.028 + r() * 0.006, 2300 + r() * 300, 0.16, 420); click(b, r, 0.05, 3400, 0.05, 0.002); })],
+  shotgun: [3, gun(SHOTGUN, (b, r) => pump(b, r, 0.36, 0.06))],
+  smg: [5, gun(SMG, (b, r) => { part(b, r, 0.028 + r() * 0.006, 2500 + r() * 300, 0.18, 450, 0.8); caseDrop(b, r, 0.3 + r() * 0.1, 0.06, 5200); })],
   rifle: [3, gun(RIFLE, (b, r) => { bolt(b, r, 0.3, 0.14); brass(b, r, 0.5, 0.04); })],
   minigun: [6, gun(MINIGUN)],
   railgun: [3, railgun],
@@ -2156,23 +2110,26 @@ export const RECIPES: Record<string, [number, Maker, number?]> = {
   erupt: [4, erupt, LOW],
   worldbreak: [2, worldbreak, LOW],
   bleed: [3, bleed],
-  turretGun: [4, gun(TURRET_GUN, (b, r) => { clack(b, r, 0.035 + r() * 0.005, 2100, 0.12, 380); ping(b, 0.04, [1450, 2310], 0.02, 0.05); servo(b, r, 0.07, 0.14, 0.035); })],
+  turretGun: [4, gun(TURRET_GUN, (b, r) => { part(b, r, 0.035 + r() * 0.005, 2100, 0.25, 520, 0.6); caseDrop(b, r, 0.2 + r() * 0.08, 0.05); servo(b, r, 0.07, 0.16, 0.05); })],
   cannon: [3, gun(CANNON, (b, r) => {
-    ping(b, 0.004, [610, 1530, 2470], 0.25, 0.05 + r() * 0.01);
-    slide(b, r, 0.06, 0.25, 900, 0.05);
-    clack(b, r, 0.34, 1100, 0.18, 160);
-    clack(b, r, 0.62, 1500, 0.12, 220);
-    ping(b, 0.8 + r() * 0.04, [720, 1690, 2950], 0.09, 0.07);
+    // The barrel ringing, the recoil running back on its slide, the breech opened and the
+    // spent case dropped out ringing onto the ground.
+    strike(b, r, 0.004, jit(r, 610, 0.05), PIPE, 0.06, 0.0008, 0.6);
+    scrape(b, r, 0.06, 0.25, 800, 0.08);
+    part(b, r, 0.34, 1100, 0.35, 160, 2);
+    part(b, r, 0.62, 1500, 0.25, 220, 1.2);
+    strike(b, r, 0.8 + r() * 0.04, jit(r, 720, 0.08), PIPE, 0.12, 0.0004, 0.25);
+    grains(b, r, 0.8, 0.05, 4, 1200, 4000, 0.05);
   })],
   sniper: [3, gun(SNIPER, (b, r) => { bolt(b, r, 0.55, 0.11); brass(b, r, 0.95, 0.04); })],
   pod: [3, pod],
-  doorGun: [4, gun(DOORGUN, (b, r) => clack(b, r, 0.045 + r() * 0.008, 1900, 0.1, 340))],
+  doorGun: [4, gun(DOORGUN, (b, r) => part(b, r, 0.045 + r() * 0.008, 1900, 0.14, 400, 0.5))],
   tesla: [4, tesla],
   explosionS: [3, (sr, r) => explosion(sr, r, 0.7), LOW],
   explosion: [3, (sr, r) => explosion(sr, r, 1), LOW],
   explosionL: [3, (sr, r) => explosion(sr, r, 1.5), LOW],
-  concussion: [2, (sr, r) => concussion(sr, r, false), LOW],
-  slam: [2, (sr, r) => concussion(sr, r, true), LOW],
+  concussion: [2, concussion, LOW],
+  slam: [2, (sr, r) => slamBlast(sr, r, true), LOW],
   frost: [3, frost],
   thunder: [3, thunder, LOW],
   bell: [1, bell, LOW],
@@ -2276,8 +2233,8 @@ Object.assign(RECIPES, {
   overload: [2, overload],
   overloadReady: [1, overloadReady],
   evolve: [2, evolve],
-  gatling: [5, gun(GATLING, (b, r) => click(b, r, 0.022 + r() * 0.004, 2600, 0.06, 0.002, 1500))],
-  penetrator: [4, gun(PENETRATOR, (b, r) => { clack(b, r, 0.04 + r() * 0.005, 1900, 0.13, 340); servo(b, r, 0.08, 0.14, 0.03); })],
+  gatling: [5, gun(GATLING, (b, r) => part(b, r, 0.022 + r() * 0.004, 2900, 0.14, 600, 0.3))],
+  penetrator: [4, gun(PENETRATOR, (b, r) => { part(b, r, 0.04 + r() * 0.005, 1700, 0.3, 420, 1); servo(b, r, 0.08, 0.16, 0.045); })],
   antiMat: [3, gun(ANTIMAT, (b, r) => { bolt(b, r, 0.6, 0.12); brass(b, r, 1.05, 0.05); })],
   mortar: [3, mortar],
   napalmFlight: [3, napalmFlight, LOW],
@@ -2296,13 +2253,18 @@ Object.assign(RECIPES, {
   bossStep: [4, bossStep, LOW],
   sparks: [5, sparks],
   coreCrackle: [1, coreCrackle, LOW],
-  coreAlarm: [1, coreAlarm, LOW],
+  coreAlarm: [1, (sr, r) => coreAlarm(sr, r), LOW],
   touchdown: [1, touchdown, LOW],
 } satisfies Record<string, [number, Maker, number?]>);
 for (const n of ['pylon', 'fuse', 'horde', 'coreCrackle']) LOOPS.add(n);
 // Measured as the rest were: the mauler's groan and a frenzy's shriek stood out like the
 // brute's did, the horns and roars a little hot for being long.
 Object.assign(TRIM, { groan8: -3, groan9: -6, groan10: -1, frenzy: -4, warHorn: -3, warHornBoss: -2, roar5: -3, roar7: -1, roar10: -3 });
+// The hardware's, set by measurement against what they replaced (docs/game-design.md § Sound).
+Object.assign(TRIM, { pylonOn: -5, overloadReady: -5 });
+
+// The evolved turrets' tails, which their recordings (samples/turrets.ts) play over.
+for (const n of ['gatling', 'penetrator', 'antiMat']) RECIPES[n + 'Tail'] = [RECIPES[n][0], (RECIPES[n][1] as GunMaker).tail];
 
 // render makes variant v of a sound at the context's rate sr, or the lower one its recipe
 // asks for. Seeded by name and variant: the same sound every load.

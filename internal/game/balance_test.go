@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"math"
+	"math/rand/v2"
 	"strings"
 	"testing"
 )
@@ -49,6 +50,10 @@ type arena struct {
 	leaked         int
 }
 
+// benchDice gives the bench's world dice of their own, so what it measures does not move
+// with how many rolls building the map took: a map with more houses wakes more guards.
+func benchDice(w *World) { w.rng = rand.New(rand.NewPCG(0xbe9c4, 1)) }
+
 func newArena(wave int) *arena {
 	w := NewGame(7, DiffNormal)
 	for i := range w.Terrain {
@@ -74,6 +79,7 @@ func newArena(wave int) *arena {
 	for i := MaxCreeps - 1; i >= 0; i-- {
 		w.freeIDs = append(w.freeIDs, uint16(i))
 	}
+	benchDice(w)
 	p, _ := w.Join("bench", "bench@example")
 	a := &arena{w: w, p: p, ox: float32(w.W / 2), oy: float32(w.H / 2)}
 	p.X, p.Y = a.ox, a.oy
@@ -356,6 +362,15 @@ type piece struct {
 // lights its fuse.
 func laneWave(wave int) []CreepKind {
 	w := New(3)
+	benchDice(w)
+	// One front of a fixed 35 places: how many the plan draws from moves the dice it rolls
+	// the mix with (a horde pours from every place), so the map's edge must not decide it.
+	// 35 is what seed 3's front had on the 400 by 250 map, which the bench was set against.
+	front := make([][2]float32, 35)
+	for i := range front {
+		front[i] = [2]float32{3.5, 20.5 + 6*float32(i)}
+	}
+	w.nextFronts = [][][2]float32{front}
 	var all []CreepKind
 	for _, s := range w.plan(wave, 1) {
 		if !s.Kind.Boss() && s.Kind != CBurster {

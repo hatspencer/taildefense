@@ -7,9 +7,9 @@ import { gunParts } from './heroes';
 import { litMaterial } from './structs';
 import { merge, octa, playerColor, writeMatrix } from './util';
 
-// How much bigger than in the hand a weapon on the ground is drawn, so it reads from the
-// camera's height.
-const SCALE = 1.6;
+// A weapon on the ground is drawn a little over its size in the hand (the survivor's 1.15),
+// enough to read from the camera's height without lying there twice a man's arm long.
+const SCALE = 1.3;
 
 // Weapons survivors dropped for each other: the same model the hero carries, taped in the
 // dropper's colour, lying on its side, with the loot sites' pulsing glint over it and a
@@ -47,6 +47,7 @@ export class Guns {
     if (!g) {
       const p = gunParts(kind, playerColor(by), evo);
       g = merge([...p.body, ...p.spin, ...p.glow]);
+      g.computeBoundingBox();
       this.geos.set(key, g);
     }
     return g;
@@ -55,15 +56,17 @@ export class Guns {
   // A dropped Rifle with every track bought keeps its AWM look.
   private make(g: Gun, max: number): THREE.Mesh {
     const evo = g.kind === RIFLE && awmFull(g.lv, 0, max) ? 1 : g.evo;
-    const m = new THREE.Mesh(this.geo(g.kind, g.by, evo), this.mat);
+    const geo = this.geo(g.kind, g.by, evo);
+    const m = new THREE.Mesh(geo, this.mat);
     m.castShadow = true;
-    // On its side, the muzzle off at an angle of its own.
+    // On its side, resting on the ground (its side turned down is the model's +z), the
+    // muzzle off at an angle of its own.
     const yaw = ((g.id * 2654435761) >>> 0) / 4294967296 * Math.PI * 2;
     m.rotation.set(Math.PI / 2, 0, 0);
     m.rotation.order = 'YXZ';
     m.rotation.y = yaw;
     m.scale.setScalar(SCALE);
-    m.position.set(g.x, 0.1, g.y);
+    m.position.set(g.x, geo.boundingBox!.max.z * SCALE + 0.01, g.y);
     this.group.add(m);
     return m;
   }
@@ -72,6 +75,8 @@ export class Guns {
     const f = game.cur, t = now / 1000;
     const seen = this.seen;
     seen.clear();
+    // The lab's line-up (#lab=loot) drops weapons of its own on its bare stage.
+    if (f.guns.length) this.group.visible = true;
     if (this.glints.instanceMatrix.count < f.guns.length) {
       this.group.remove(this.glints);
       this.glints.dispose();

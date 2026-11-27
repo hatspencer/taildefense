@@ -9,9 +9,22 @@ CameraControls.install({
   },
 });
 
-// 55° above the horizon, as a polar angle from straight up.
-const POLAR = (90 - 55) * Math.PI / 180;
+// The picture's three-quarter view: the camera this many degrees above the horizon, through a
+// long lens, so the view is close to orthographic: a figure at the top of the screen is drawn
+// as one at the bottom is, and walls do not lean.
+export const TILT = 42, FOV = 12;
+const POLAR = (90 - TILT) * Math.PI / 180;
+// A distance, everywhere outside this file, is the view's size: how far a 42° lens would stand
+// from the ground for the same picture, as the camera once had. The long lens stands LENS
+// times further for it. So zoom levels, the sound's reach and every #cam= keep their meaning.
+export const LENS = Math.tan(21 * Math.PI / 180) / Math.tan(FOV / 2 * Math.PI / 180);
 const MIN_DIST = 12, MAX_DIST = 75;
+// The closest a lab's close-up goes.
+const CLOSE_DIST = 3;
+// A standing survivor is this many scene pixels tall at the default zoom, and takes this much
+// of the view plane: 1.75 tall seen from TILT, and the top of the head.
+export const FIGURE_PX = 40;
+const FIGURE_VIEW = 1.75 * Math.cos(TILT * Math.PI / 180) + 0.12;
 
 // The view: camera-controls orbiting a ground point with the tilt locked. Middle drag and
 // Alt+wheel turn it, the wheel dollies. Left and right buttons stay free for the game.
@@ -30,6 +43,8 @@ export class CameraRig {
   private pending = { x: 0, z: 0 };
 
   constructor(public cam: THREE.PerspectiveCamera, dom: HTMLElement) {
+    cam.fov = FOV;
+    cam.updateProjectionMatrix();
     const c = new CameraControls(cam, dom);
     const A = CameraControls.ACTION;
     c.mouseButtons.left = A.NONE;
@@ -40,13 +55,13 @@ export class CameraRig {
     c.touches.two = A.TOUCH_DOLLY_ROTATE;
     c.touches.three = A.NONE;
     c.minPolarAngle = c.maxPolarAngle = POLAR;
-    c.minDistance = MIN_DIST; c.maxDistance = MAX_DIST;
+    c.minDistance = MIN_DIST * LENS; c.maxDistance = MAX_DIST * LENS;
     c.dollyToCursor = false;
     c.smoothTime = 0.12;
     c.draggingSmoothTime = 0.06;
     c.azimuthRotateSpeed = 0.8;
     c.restThreshold = 0.001;
-    c.setLookAt(0, Math.cos(POLAR) * 34, Math.sin(POLAR) * 34, 0, 0, 0, false);
+    c.setLookAt(0, Math.cos(POLAR) * 24 * LENS, Math.sin(POLAR) * 24 * LENS, 0, 0, 0, false);
     this.controls = c;
     // Alt+wheel rotates. Capture phase on window runs before camera-controls' own handler.
     window.addEventListener('wheel', (e) => {
@@ -59,7 +74,15 @@ export class CameraRig {
   get tx(): number { return this.controls.getTarget(this.t, false).x; }
   get tz(): number { return this.controls.getTarget(this.t, false).z; }
   get yaw(): number { return this.controls.azimuthAngle; }
-  get dist(): number { return this.controls.distance; }
+  get dist(): number { return this.controls.distance / LENS; }
+
+  // The default zoom for a view `rows` scene pixels high: the distance at which a standing
+  // survivor is FIGURE_PX of them tall. A bigger window shows more of the world, not bigger
+  // figures.
+  static restDist(rows: number): number {
+    const d = rows * FIGURE_VIEW / FIGURE_PX / (2 * Math.tan(21 * Math.PI / 180));
+    return Math.min(MAX_DIST, Math.max(MIN_DIST, d));
+  }
 
   setMap(w: number, h: number): void {
     this.mapW = w; this.mapH = h;
@@ -77,8 +100,14 @@ export class CameraRig {
     if (this.follow || this.locked) this.center(x, z, true);
   }
 
-  zoom(steps: number): void { void this.controls.dolly(-steps * 3, true); }
-  setDist(d: number): void { void this.controls.dollyTo(Math.min(MAX_DIST, Math.max(MIN_DIST, d)), false); }
+  zoom(steps: number): void { void this.controls.dolly(-steps * 3 * LENS, true); }
+  // close: a lab's close-up, nearer than the game lets the wheel go.
+  setDist(d: number, close = false): void {
+    if (close) this.controls.minDistance = CLOSE_DIST * LENS;
+    void this.controls.dollyTo(Math.min(MAX_DIST, Math.max(close ? CLOSE_DIST : MIN_DIST, d)) * LENS, false);
+  }
+  // The camera's real distance from its target, for what is measured in the scene (the fog).
+  get reach(): number { return this.controls.distance; }
   rotate(rad: number): void { void this.controls.rotate(rad, 0, true); }
   setYaw(rad: number): void { void this.controls.rotateAzimuthTo(rad, false); }
   // Turns the view north up by the shorter way round.

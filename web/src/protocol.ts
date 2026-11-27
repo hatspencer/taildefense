@@ -61,11 +61,14 @@ export const enum PingKind { Here = 0, Danger, Loot, Defend }
 // Plane: the crashed plane, searched from beside its hull. Tank: one of its engines, like a pump.
 // Church: rung, not searched, from inside at the foot of its tower; searched means the bell still swings.
 // Shrine: an older faith's ruined court far out in the wilds, a legendary blade on its altar.
-export const enum SiteKind { House = 0, Car, Crate, Outpost, Pickup, Police, Ambulance, Bus, Army, Station, Pump, Fire, Armored, Camper, Moto, Plane, Tank, Church, Shrine }
+// Checkpoint: the army's roadblock, searched in its command tent (x, y, w, h the tent).
+// Cemetery: a railed graveyard, its crypt robbed; the dead climb out. Camp: a quarantine camp
+// in wire, its hospital tent searched. The three lie the way yaw says (scene/places.ts).
+export const enum SiteKind { House = 0, Car, Crate, Outpost, Pickup, Police, Ambulance, Bus, Army, Station, Pump, Fire, Armored, Camper, Moto, Plane, Tank, Church, Shrine, Checkpoint, Cemetery, Camp }
 // A building searched from inside, rather than a thing in the open.
-export function walled(k: number): boolean { return k === SiteKind.House || k === SiteKind.Outpost || k === SiteKind.Station || k === SiteKind.Church || k === SiteKind.Shrine; }
+export function walled(k: number): boolean { return k === SiteKind.House || k === SiteKind.Outpost || k === SiteKind.Station || k === SiteKind.Church || k === SiteKind.Shrine || k >= SiteKind.Checkpoint && k <= SiteKind.Camp; }
 // Which prop a site shows (scene/loot.ts): an outpost's stash looks like a house's.
-const PROP = [0, 1, 2, 0, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
+const PROP = [0, 1, 2, 0, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
 export function propKind(k: number): number { return PROP[k] ?? -1; }
 // A vehicle on the road: a car, pickup, cruiser, ambulance, bus, army truck, fire engine, cash
 // van, camper or motorbike.
@@ -186,7 +189,7 @@ interface SiteKindDef { name: string; search: number }
 // hard its guards are (0 none .. 3 a lair).
 // yaw: a wreck's heading (radians, +x towards +y); the host blocks survivors with a box along it.
 // A ruined house's shape (internal/game/ruins.go).
-export const enum Ruin { Cottage = 0, TwoRoom, L, Barn, Shed, Collapsed }
+export const enum Ruin { Cottage = 0, TwoRoom, L, Barn, Shed, Collapsed, Terrace, Shell }
 export interface SiteDef { kind: number; x: number; y: number; w: number; h: number; sx: number; sy: number; tier: number; guard: number; yaw?: number; ruin?: number }
 interface WeatherDef { name: string; info: string }
 // Where a site's loot stands: a house's search spot, the middle of a car's or crate's tile.
