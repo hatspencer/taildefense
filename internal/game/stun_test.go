@@ -11,7 +11,12 @@ func TestHitsStunCreepsForAMoment(t *testing.T) {
 	w := New(5)
 	w.PhaseLeft = 1e6
 	w.Creeps, w.freeIDs = w.Creeps[:0], append(w.freeIDs[:0], 1)
-	w.SpawnCreep(CWalker, w.CoreX+40, w.CoreY)
+	// Out on open ground, nothing in its way for the second it walks.
+	sx, sy := w.CoreX+40, w.CoreY
+	for !CanStand(w, sx, sy) || !CanStand(w, sx-3, sy) {
+		sy++
+	}
+	w.SpawnCreep(CWalker, sx, sy)
 	c := &w.Creeps[0]
 	c.HP = 1e6
 	w.Step()

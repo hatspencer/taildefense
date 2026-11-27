@@ -3,6 +3,7 @@ import { color, positionWorld, sin, time } from 'three/tsl';
 import { lootable, propKind, type SiteDef, SiteKind, siteX, siteY, walled, wreck } from '../protocol';
 import type { Game } from '../state';
 import { painted } from './paint';
+import { campProp, cemeteryProp, checkpointProp, placeProp } from './places';
 import { blend, darker, lighter, PAL } from './palette';
 import { box, cyl, lin, merge, octa, part, writeMatrix, type Part } from './util';
 
@@ -1087,7 +1088,7 @@ function canopy(sites: SiteDef[]): THREE.BufferGeometry | null {
 // Indexed by propKind, with the units a metre each is built in.
 const PROPS: [(open: boolean) => Part[], number][] = [[houseProp, MAN], [carProp, VEH], [crateProp, MAN], [pickupProp, VEH], [policeProp, VEH], [ambulanceProp, VEH],
   [busProp, VEH], [armyProp, VEH], [counterProp, MAN], [pumpProp, MAN], [fireProp, VEH], [armoredProp, VEH], [camperProp, VEH], [motoProp, 0.7],
-  [planeProp, 1], [engineProp, 1], [churchProp, 1], [shrineProp, 1]];
+  [planeProp, 1], [engineProp, 1], [churchProp, 1], [shrineProp, 1], [checkpointProp, 1], [cemeteryProp, 1], [campProp, 1]];
 // Wrecks that take a coat of faded paint.
 const PAINTED = new Set<number>([SiteKind.Car, SiteKind.Pickup, SiteKind.Moto]);
 // The glint over the plane is over its hold, not its tail.
@@ -1168,6 +1169,11 @@ export class Loot {
       }
       if (s.kind === SiteKind.Shrine) {
         this.px[i] = s.sx; this.pz[i] = s.sy; this.yaw[i] = Math.round((s.yaw ?? 0) / (Math.PI / 2)) * Math.PI / 2;
+        return;
+      }
+      const at = placeProp(s);
+      if (at) {
+        [this.px[i], this.pz[i], this.yaw[i]] = at;
         return;
       }
       if (!walled(s.kind)) {

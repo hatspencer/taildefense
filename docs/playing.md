@@ -351,6 +351,22 @@ on its way in, the wanderers and the guards at their sites, heads for the church
 wave off the base or to empty the sites for a raid, and don't be there when they arrive. The bell
 can be rung again after a couple of minutes.
 
+Along the roads stand three hamlets: a few houses either side of the road, terraces and burnt-out
+shells among them, every door to the street. They are easy pickings close together, and the dead
+come down the street from both ends.
+
+Across one road, out past the middle, the army set up a checkpoint and never left: a chicane of
+concrete barriers, sandbagged posts, a command tent and their trucks. The dead in uniform still
+hold it. The tent gives guns, mostly, and a medkit.
+
+Far out lies a cemetery behind iron railings, the family crypt at the back. Rob the crypt for its
+gold and something rare, and the graves open: the dead climb out all over the yard and come for
+you: the first time, and again whenever the crypt is restocked.
+
+Out past the middle is a quarantine camp: a wire fence, rows of small tents and a field hospital.
+Searching the hospital patches you up and turns up kit and a medkit, but the camp's sick are often
+still in the tents.
+
 After every tenth wave a Huey gunship (surfboards strapped to its side) flies a supply crate out
 beyond the walls, its door gunner working over the zone with a minigun on the way in. The crate comes down under
 a chute and marks itself with green smoke. Stand by it for a few seconds, unhurt, to open it:

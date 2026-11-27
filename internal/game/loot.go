@@ -12,25 +12,28 @@ import (
 type SiteKind uint8
 
 const (
-	SiteHouse     SiteKind = iota // a ruined house; searched from inside
-	SiteCar                       // a car wreck on a track
-	SiteCrate                     // a supply crate in the open
-	SiteOutpost                   // an overrun outpost: a big walled compound, searched in its keep
-	SitePickup                    // a pickup truck, its bed full of tools
-	SitePolice                    // a police cruiser, the shotgun rack still locked
-	SiteAmbulance                 // an ambulance; its kit patches up the searcher
-	SiteBus                       // a school bus: slow to search, two finds, often a nest inside
-	SiteArmy                      // an army truck far out, always guarded
-	SiteStation                   // the gas station out by the edge: a weapon behind its counter, held hard
-	SitePump                      // one of the gas station's fuel pumps: not loot, it blows up when shot
-	SiteFire                      // a fire engine: its lockers hold kit, and always a medkit
-	SiteArmored                   // an armoured cash van: slow to crack, full of gold, guarded
-	SiteCamper                    // a camper van somebody lived in, and maybe still does
-	SiteMoto                      // a motorbike on its side: a quick look in the panniers
-	SitePlane                     // the crashed cargo plane out in the wilds, held hard
-	SiteTank                      // one of the plane's engines, leaking fuel: not loot, it blows up when shot
-	SiteChurch                    // the church on the outskirts: not loot, its bell draws every creep to it
-	SiteShrine                    // a shrine far out in the wilds: a legendary blade on its altar (legend.go)
+	SiteHouse      SiteKind = iota // a ruined house; searched from inside
+	SiteCar                        // a car wreck on a track
+	SiteCrate                      // a supply crate in the open
+	SiteOutpost                    // an overrun outpost: a big walled compound, searched in its keep
+	SitePickup                     // a pickup truck, its bed full of tools
+	SitePolice                     // a police cruiser, the shotgun rack still locked
+	SiteAmbulance                  // an ambulance; its kit patches up the searcher
+	SiteBus                        // a school bus: slow to search, two finds, often a nest inside
+	SiteArmy                       // an army truck far out, always guarded
+	SiteStation                    // the gas station out by the edge: a weapon behind its counter, held hard
+	SitePump                       // one of the gas station's fuel pumps: not loot, it blows up when shot
+	SiteFire                       // a fire engine: its lockers hold kit, and always a medkit
+	SiteArmored                    // an armoured cash van: slow to crack, full of gold, guarded
+	SiteCamper                     // a camper van somebody lived in, and maybe still does
+	SiteMoto                       // a motorbike on its side: a quick look in the panniers
+	SitePlane                      // the crashed cargo plane out in the wilds, held hard
+	SiteTank                       // one of the plane's engines, leaking fuel: not loot, it blows up when shot
+	SiteChurch                     // the church on the outskirts: not loot, its bell draws every creep to it
+	SiteShrine                     // a shrine far out in the wilds: a legendary blade on its altar (legend.go)
+	SiteCheckpoint                 // the army checkpoint across a road: searched in its command tent (landmarks.go)
+	SiteCemetery                   // the cemetery: its crypt robbed, the graves give up their dead
+	SiteCamp                       // the quarantine camp: the field hospital's supplies, and the sick still in the tents
 	NumSiteKinds
 )
 
@@ -78,6 +81,11 @@ var SiteDefs = [NumSiteKinds]SiteDef{
 	SiteTank:      {Name: "Engine"},
 	SiteChurch:    {Name: "Church", Search: 2.5},
 	SiteShrine:    {Name: "Shrine", Search: 6, Luck: 2, Guard: 3},
+	// The new places keep to the old ways: the checkpoint is a lair with an army truck's
+	// favour, the camp an ambulance with a bus's nest, the cemetery its own (searchCemetery).
+	SiteCheckpoint: {Name: "Military checkpoint", Search: 4, Luck: 1.25, Favor: FavorWeapons, Finds: 2, Kit: true, Guard: 3},
+	SiteCemetery:   {Name: "Cemetery", Search: 5, Luck: 1.5, Guard: 2},
+	SiteCamp:       {Name: "Quarantine camp", Search: 4, Luck: 1, Trap: .5, Favor: FavorGear, Finds: 2, Heal: true, Kit: true, Guard: 1},
 }
 
 // Wreck reports whether a site is a vehicle on a road.
@@ -106,7 +114,7 @@ var wreckOdds = [3][]struct {
 // Walled reports whether a site is a building searched from inside, rather than a thing in
 // the open.
 func (k SiteKind) Walled() bool {
-	return k == SiteHouse || k == SiteOutpost || k == SiteStation || k == SiteChurch || k == SiteShrine
+	return k == SiteHouse || k == SiteOutpost || k == SiteStation || k == SiteChurch || k == SiteShrine || k >= SiteCheckpoint && k <= SiteCamp
 }
 
 // outpostFinds is how many finds searching an outpost turns up; the first is rare or better,
@@ -234,6 +242,9 @@ func (w *World) search(p *Player, si int) {
 		return
 	case SiteShrine:
 		w.searchShrine(p, s)
+		return
+	case SiteCemetery:
+		w.searchCemetery(p, s)
 		return
 	}
 	r := Junk
@@ -552,10 +563,10 @@ func article(s string) string {
 // guardOdds weighs guard levels 0..3 per tier.
 var guardOdds = [3][4]int{{45, 40, 15, 0}, {15, 40, 33, 12}, {5, 25, 40, 30}}
 
-// Site tiers by distance from the generator.
+// Site tiers by distance from the generator, in step with the map's size.
 const (
-	tierMid = 70
-	tierFar = 120
+	tierMid = 78
+	tierFar = 134
 )
 
 // tierAt is the tier of a place dx, dy from the generator.
@@ -674,6 +685,31 @@ func (w *World) placeSites(ruins []ruin) []Site {
 			}
 			continue
 		}
+		if h.checkpoint || h.cemetery || h.camp {
+			// Each is searched from the spot its plan marks, and lies the way its plan was laid.
+			k := SiteCheckpoint
+			switch {
+			case h.cemetery:
+				k = SiteCemetery
+			case h.camp:
+				k = SiteCamp
+			}
+			sx, sy = float32(h.cx)+.5, float32(h.cy)+.5
+			if !reach(sx, sy) {
+				continue
+			}
+			add(k, x, y, hw, hh, sx, sy)
+			sites[len(sites)-1].Yaw = h.yaw
+			// The checkpoint's trucks, where they were left, if they shut no way.
+			for _, p := range h.trucks {
+				tx, ty := float32(p[0])+.5, float32(p[1])+.5
+				if !reach(tx, ty) || w.wreckCutsWay(&Site{Kind: SiteArmy, SX: tx, SY: ty, Yaw: w.wreckYaw(len(sites), p[0], p[1])}) {
+					continue
+				}
+				add(SiteArmy, p[0], p[1], 1, 1, tx, ty)
+			}
+			continue
+		}
 		// A later house or a road can cut through an earlier one; keep it only while its
 		// middle is still floor a survivor can get to.
 		if inside(int(sx), int(sy), 0) || !reach(sx, sy) {
@@ -682,7 +718,7 @@ func (w *World) placeSites(ruins []ruin) []Site {
 		add(SiteHouse, x, y, hw, hh, sx, sy)
 		sites[len(sites)-1].Ruin = h.kind
 	}
-	want := [NumSiteKinds]int{SiteCar: 30, SiteCrate: 22}
+	want := [NumSiteKinds]int{SiteCar: 38, SiteCrate: 28}
 	for try := 0; try < 4000 && (want[SiteCar] > 0 || want[SiteCrate] > 0); try++ {
 		x, y := 3+rng.IntN(w.W-6), 3+rng.IntN(w.H-6)
 		sx, sy := float32(x)+.5, float32(y)+.5
@@ -719,7 +755,8 @@ func (w *World) placeSites(ruins []ruin) []Site {
 // when someone first gets into its yard and another when they start on its keep; the gas
 // station when someone first steps onto its forecourt, out of the shop and from all round,
 // and again at its counter; the crashed plane when someone first walks into the wreckage, and
-// again at its hold; a lair may spring one when its search starts. The ambushers come out of hiding round the survivor and
+// again at its hold; a lair may spring one when its search starts; breaking into the cemetery's
+// crypt raises the dead all over its yard. The ambushers come out of hiding round the survivor and
 // go straight for them, and belong to the site afterwards, like its guards.
 
 // ambushOnEntry springs an outpost's first ambush on a survivor inside its walls.
@@ -752,6 +789,8 @@ func (w *World) ambushOnSearch(si int, p *Player) {
 	switch {
 	case (s.Kind == SiteOutpost || s.Kind == SiteStation || s.Kind == SitePlane || s.Kind == SiteShrine) && s.Sprung < 2:
 		w.springAmbush(si, p)
+	case s.Kind == SiteCemetery && s.Sprung == 0:
+		w.springAmbush(si, p) // breaking into the crypt wakes the graves
 	case s.Guard == 3 && s.Sprung == 0 && w.rng.Float32() < .6:
 		w.springAmbush(si, p)
 	}
@@ -763,12 +802,16 @@ func (w *World) springAmbush(si int, p *Player) {
 	s.Sprung++
 	df := w.diff()
 	n := int(float32(4+w.Wave/3+int(s.Guard)) * df.Guard)
+	grave := s.Kind == SiteCemetery
+	if grave {
+		n += n / 2 // a whole yard of graves
+	}
 	hp := df.Guard * (1 + .15*float32(s.Guard))
 	got := 0
 	for i := 0; i < n; i++ {
 		k := CRunner
 		switch r := w.rng.IntN(10); {
-		case r < 3:
+		case r < 3 || grave && r < 7:
 			k = CWalker
 		case r < 5 && w.Wave >= 4:
 			k = CSpitter
@@ -786,6 +829,9 @@ func (w *World) springAmbush(si int, p *Player) {
 				x = float32(s.X) + 1 + w.rng.Float32()*float32(max(int(s.W)-2, 1))
 				y = float32(s.Y) + 1 + w.rng.Float32()*float32(max(int(s.H)-2, 1))
 			}
+			if grave {
+				x, y = w.risenFrom(s) // out of the ground, all over the yard
+			}
 			if ok, _ := w.creepFree(x, y); !ok {
 				continue
 			}
@@ -800,12 +846,16 @@ func (w *World) springAmbush(si int, p *Player) {
 			break
 		}
 	}
-	if s.Kind == SiteStation || s.Kind == SitePlane || s.Kind == SiteShrine {
+	if s.Kind == SiteStation || s.Kind == SitePlane || s.Kind == SiteShrine || grave {
 		w.rouse(si, p)
 	}
 	if got == 0 {
 		return
 	}
 	w.Blasts = append(w.Blasts, Blast{p.X, p.Y, 6, 6})
+	if grave {
+		w.note(2, "the graves open: %d of the dead climb out round %s", got, p.Name)
+		return
+	}
 	w.note(2, "ambush! %d creeps burst out on %s at the %s", got, p.Name, SiteDefs[s.Kind].lower())
 }

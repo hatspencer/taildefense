@@ -107,9 +107,16 @@ func TestStepOntoTheForecourtSpringsTheAmbush(t *testing.T) {
 	si := w.station()
 	x, y := w.forecourt()
 	before := len(w.Creeps)
-	p.X, p.Y = x, y+float32(onLot)-.5
-	for !CanStand(w, p.X, p.Y) {
-		p.X += .5
+	// Just inside the lot's edge, on whichever side has ground to stand on.
+	for a := 0.; ; a += .1 {
+		r := float32(onLot) - .5
+		p.X, p.Y = x+r*float32(math.Cos(a)), y+r*float32(math.Sin(a))
+		if CanStand(w, p.X, p.Y) {
+			break
+		}
+		if a > 7 {
+			t.Fatal("nowhere to stand at the edge of the lot")
+		}
 	}
 	w.Step()
 	if w.Sites[si].Sprung != 1 || len(w.Creeps) <= before {

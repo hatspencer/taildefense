@@ -188,6 +188,7 @@ export class Controller {
     const name = wd.siteKinds[s.kind]?.name ?? 'Loot site';
     const f = this.game.cur;
     if (s.kind === SiteKind.Church) return `${name} · ${f.siteSearched(i) ? 'the bell is still swinging' : 'ring the bell: every creep on the map comes'}`;
+    if (s.kind === SiteKind.Cemetery && !f.siteSearched(i)) return `${name} · rob the crypt, and the graves open`;
     const wary = this.game.guardsLeft(i) === -2 ? (s.guard ?? 0) > 0 : f.siteGuards(i) > 0;
     return `${name} · ${f.siteSearched(i) ? 'searched' : wary ? 'search, if you dare' : 'search'}`;
   }

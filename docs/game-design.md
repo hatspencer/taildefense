@@ -536,6 +536,25 @@ the Overload killing every small creep at waves 10 to 30 but no brute.
   empties the sites for a raid, and whoever rang it had better be gone before they arrive.
   When the bell stops, the wave turns back to the generator and the guards try to get home; one
   that can't settles where it stands. The bell can be rung again two and a half minutes after.
+- **The army checkpoint.** One per map, across a road out past the middle ring and clear of the
+  hamlets: two staggered lines of concrete barriers make a chicane across the road, with
+  sandbagged posts at either end, the command tent beside the road, and the unit's trucks
+  left where they stood (each an army truck wreck, if it closes no way). The dead in uniform
+  still man it: a lair's garrison asleep round the barriers, which may spring an ambush when the
+  search starts. The tent gives weapons mostly (two finds, better luck) and a medkit. It is the
+  weapons run of the middle ring, nearer than an outpost but just as dug in. The chicane
+  slows the creeps coming down that road without closing it.
+- **The cemetery.** One per map, far out: a railed yard of graves, its gate towards the
+  generator, a gap where the railings came down, the family crypt at the back. A few of the
+  dead sleep among the stones. Breaking into the crypt raises the rest all over the yard, half
+  again as many as an ambush anywhere else and mostly walkers, and they come for the robber.
+  The crypt pays gold and a find that is rare or better, so it is the place to go for a
+  sure rare: you pay for it in a fight in the open, among headstones that block shots.
+- **The quarantine camp.** One per map, out past the middle ring: a wire fence round a yard of
+  mud, rows of small tents open to the yard, the field hospital's big tent in the middle. The
+  search there patches the searcher up and gives kit and a medkit (two finds, leaning to
+  gear), but half the time the camp's sick are still in the tents and come out. Lightly
+  guarded, it is where a hurt team goes to heal and kit out between waves.
 - **Wanderers.** The dead roam the wastes between the sites, away from the base, in packs of
   three to six that keep together: walkers mostly, now and then a runner, spitter or brute
   among them, and from wave 5 now and then a pack of hounds. About four dozen at the start, four more each wave (up to 300), more on harder
@@ -607,9 +626,27 @@ one box repeated (`internal/game/ruins.go`, walls in `web/src/scene/terrain.ts`)
   the loft's rubble on the floor.
 - **Shed:** small, timber or cinder block.
 - **Collapsed:** walls fallen in at several places and rubble inside; old stone or brick.
+- **Terrace:** three houses in a row under one roof long gone, party walls between, a front
+  door each on one long side; brick mostly, a concrete floor.
+- **Burnt shell:** a house the fire took. Only stubs of wall stand by the corners, blackened, and
+  the rubble is inside. It gives no cover, which is what you see from the road.
 
 Each is searched from its middle, which is always open floor. Outposts have their own concrete
 walls topped with sandbags, and the gas station's shop is painted block.
+
+There are about 85 houses on a map, against 47 before the map grew. About a hundred are tried
+at random across it, and three **hamlets** stand along the roads. A hamlet is four to eight
+houses (cottages, terraces, burnt shells) facing the road from both sides, each with its
+door to the street. The first is built round a crossroads, a short street crossing the road.
+They are 48 to 130 tiles from the generator and 55 apart (`internal/game/landmarks.go`). A
+hamlet is a run of easy searches along one road, close together, so a team can strip it
+in one break. It is also a place where the dead come down the street at you from both ends.
+
+The map is 400 by 250 tiles. It was 352 by 220, and the bigger map is there to hold the
+hamlets and the new places without crowding them. The tier rings grew with it (middle from
+78 tiles, far from 134), and so did the scattered cars and crates. A walker on the
+road takes about two minutes to reach the base from the edge. That is an eighth longer
+than before, and the wave timing is left as it was.
 
 ### Wrecks
 

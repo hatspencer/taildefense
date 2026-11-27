@@ -353,6 +353,8 @@ func (w *World) spawnGuards(si int) {
 				x, y = w.stationPost(s, j)
 			} else if s.Kind == SitePlane {
 				x, y = w.planePost(s)
+			} else if s.Kind == SiteCheckpoint {
+				x, y = w.checkpointPost(s)
 			} else if lv == 4 && j == 0 {
 				x, y = s.SX, s.SY
 			} else if s.Kind.Walled() {

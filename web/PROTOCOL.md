@@ -48,7 +48,7 @@ everything it knows, a terrain message follows).
   "proto": 31,
   "version": "a1b2c3d",
   "you": 0,                    // your player id
-  "w": 352, "h": 220,          // map size in tiles
+  "w": 400, "h": 250,          // map size in tiles
   "seed": "1234567",           // string: it is a uint64
   "host": "box",               // the host machine
   "hosting": true,             // this td is the host (leaving ends the game for everyone)
@@ -175,7 +175,10 @@ everything it knows, a terrain message follows).
     {"name": "Crashed plane", "search": 6},
     {"name": "Engine", "search": 0},         // the plane's: not loot, see below
     {"name": "Church", "search": 2.5},       // not loot: its bell, see below
-    {"name": "Shrine", "search": 6}          // searched at its altar: always a legendary blade
+    {"name": "Shrine", "search": 6},         // searched at its altar: always a legendary blade
+    {"name": "Military checkpoint", "search": 4},
+    {"name": "Cemetery", "search": 5},       // its crypt: rob it and the dead rise
+    {"name": "Quarantine camp", "search": 4} // its hospital tent
   ],
   "sites": [                   // index = site id, used in the loot command
     {"kind": 0, "x": 40, "y": 30, "w": 8, "h": 6,  // tiles covered: the house with its walls
@@ -237,6 +240,23 @@ way `yaw` points (a multiple of a right angle, towards the map's middle). It is 
 inside the nave at the tower's foot. A rung bell draws every creep on the map, guards, wanderers
 and the wave, to the church for a minute; its searched bit stays set until it can be rung
 again.
+Three more places are laid from plans (`internal/game/landmarks.go`), which the client keeps a copy
+of (`web/src/scene/places.ts`, checked against the host's by a test). Each is searched from inside
+at `sx, sy`, the plan's `'s'` cell, and its rows run the way `yaw` points (a multiple of a right
+angle), so the client finds every cell from those two:
+- **Checkpoint (kind 19)**, one per map, across a road: `x, y, w, h` is its command tent. Its
+  barriers, sandbags and the tent's canvas are rock tiles. Its trucks are separate army truck
+  wrecks (kind 8). Weapons mostly, two finds, a medkit; a lair's garrison round the barriers.
+- **Cemetery (kind 20)**, one per map, far out: `x, y, w, h` is the whole railed yard. The
+  railings, the gravestones (lone rock tiles) and the crypt are rock tiles. Searched in the crypt:
+  gold and a find that is rare or better. The first search to start raises its dead all over the
+  yard (blast kind as any ambush).
+- **Quarantine camp (kind 21)**, one per map: `x, y, w, h` is the whole fenced yard. The wire and
+  the tents' canvas are rock tiles. Searched in the hospital tent: it heals the searcher, two
+  finds leaning to gear and a medkit, and half the time a nest.
+A house's `ruin` is its shape: 0 cottage, 1 two rooms, 2 L-shaped, 3 barn, 4 shed, 5 collapsed,
+6 terrace (three houses under one roof, party walls between), 7 burnt shell (stubs of wall at the
+corners only).
 Each site can be searched once; whether it has been is in every frame. Every fifth wave
 some searched sites are restocked, and their guards come back.
 

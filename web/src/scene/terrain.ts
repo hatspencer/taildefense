@@ -5,6 +5,7 @@ import { indexed } from './rig';
 import { painted } from './paint';
 import { blend, darker, lighter, mute, PAL } from './palette';
 import { SHRINE_PLAN, shrineTile } from './shrine';
+import { houseStyle, PLACE_WALL0, PLACE_WALLS, placeHeadings, placeStyles, standsAlone } from './places';
 import { box, cyl, dodeca, ico, merge, part, writeMatrix, type Part } from './util';
 import { uSnow, uWet } from './weather';
 
@@ -813,17 +814,18 @@ export class Terrain {
       if (!isRock(x, y)) continue;
       // Rock tiles in a line are ruined walls; lone ones are boulders or rubble, but for a
       // shrine's pillars and gate posts.
-      const line = isRock(x - 1, y) || isRock(x + 1, y) || isRock(x, y - 1) || isRock(x, y + 1) || style[y * w + x] === Wall.Pillar;
+      const line = isRock(x - 1, y) || isRock(x + 1, y) || isRock(x, y - 1) || isRock(x, y + 1) || style[y * w + x] === Wall.Pillar || standsAlone(style[y * w + x]);
       (line ? walls : lone).push(x, y);
     }
     const wallGeos = WALLS.map((s) => s.geo());
     const scs = WALLS.map(() => new Scatter());
+    const heads = placeHeadings(sites, w);
     for (let i = 0; i < walls.length; i += 2) {
       const x = walls[i], y = walls[i + 1], st = style[y * w + x], S = WALLS[st];
       const b = 0.86 + hash(x, y, 11) * 0.22;
       // Each block runs along its wall; a corner or a stub faces any way.
       const across = isRock(x, y - 1) || isRock(x, y + 1), along = isRock(x - 1, y) || isRock(x + 1, y);
-      const heading = across && !along ? Math.PI / 2 : along && !across ? (hash(x, y, 14) < 0.5 ? 0 : Math.PI) : Math.floor(hash(x, y, 14) * 4) * Math.PI / 2;
+      const heading = heads.get(y * w + x) ?? (across && !along ? Math.PI / 2 : along && !across ? (hash(x, y, 14) < 0.5 ? 0 : Math.PI) : Math.floor(hash(x, y, 14) * 4) * Math.PI / 2);
       // Ruins are broken: each block has its own height, but never low enough to look like
       // something a shot would clear, since every wall tile stops bullets.
       const hgt = S.lo + hash(x, y, 13) * (S.hi - S.lo);
@@ -907,7 +909,9 @@ const ruin = (ps: Part[]) => merge(ps.map((p) => ({ geo: p.geo, color: mute(p.co
 
 // Ruined walls come in styles, each block of one built along +x, a tile long. lo..hi is how
 // tall a block of it stands, before the break.
-const enum Wall { Siding = 0, Brick, Stone, Cinder, Timber, Fort, Shop, Chapel, Shrine, Pillar, Altar }
+// The places' styles follow on from these, at PLACE_WALL0.
+const enum Wall { Siding = 0, Brick, Stone, Cinder, Timber, Fort, Shop, Chapel, Shrine, Pillar, Altar, Places }
+if (Wall.Places !== PLACE_WALL0) throw new Error('places.ts numbers its walls from the wrong style');
 const WALLS: { lo: number; hi: number; geo: () => THREE.BufferGeometry }[] = [
   // Siding: a brick footing, faded clapboard, a broken top.
   { lo: 0.8, hi: 1.6, geo: () => ruin([
@@ -1014,6 +1018,8 @@ const WALLS: { lo: number; hi: number; geo: () => THREE.BufferGeometry }[] = [
     part(box(1.01, 0.06, 0.82), 0x9a7a30, 0, 0.74, 0),
     part(box(1.02, 0.08, 0.86), 0xa8aa98, 0, 0.98, 0),
   ]) },
+  // The checkpoint's, the cemetery's, the camp's and the burnt houses' (places.ts).
+  ...PLACE_WALLS,
 ];
 
 // Which style each wall tile is built in: an outpost's and the gas station's their own, a
@@ -1028,6 +1034,7 @@ function wallStyles(tiles: Uint8Array, w: number, h: number, sites: SiteDef[]): 
   // Outposts and the station first: a house that overlaps one keeps to its own ground.
   for (const s of sites) if (s.kind === SiteKind.Outpost) paint(s.x, s.y, s.w, s.h, Wall.Fort);
   for (const s of sites) if (s.kind === SiteKind.Station) paint(s.x, s.y, s.w, s.h, Wall.Shop);
+  placeStyles(sites, paint);
   // A shrine's walls, pillars and altar by its plan.
   for (const s of sites) {
     if (s.kind !== SiteKind.Shrine) continue;
@@ -1045,8 +1052,8 @@ function wallStyles(tiles: Uint8Array, w: number, h: number, sites: SiteDef[]): 
   for (const s of sites) {
     if (s.kind !== SiteKind.House) continue;
     const r = hash(s.x, s.y, 51);
-    let st: Wall;
-    switch (s.ruin ?? Math.floor(hash(s.x, s.y, 50) * 6)) {
+    let st: number = houseStyle(s.ruin, r);
+    if (st < 0) switch (s.ruin ?? Math.floor(hash(s.x, s.y, 50) * 6)) {
       case Ruin.Barn: st = Wall.Timber; break;
       case Ruin.Shed: st = r < 0.65 ? Wall.Timber : Wall.Cinder; break;
       case Ruin.Collapsed: st = r < 0.5 ? Wall.Stone : r < 0.8 ? Wall.Brick : Wall.Siding; break;

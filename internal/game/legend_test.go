@@ -247,6 +247,13 @@ func TestTheShrinesHoldLegendaries(t *testing.T) {
 	if n := w.Notes[len(w.Notes)-1].Text; !strings.Contains(n, "legendary") {
 		t.Errorf("the altar's note: %q", n)
 	}
+	// With the greatsword tempered and every other legendary carried, the altar's one gift
+	// left is a second katana.
+	for k := WeaponKind(0); k < NumWeapons; k++ {
+		if k.Legendary() && k != WKatana {
+			p.Weapons[k].Owned, p.Weapons[k].Dual = true, true
+		}
+	}
 	w.Sites[si].Searched = false
 	w.search(p, si)
 	if !p.Weapons[WKatana].Dual {
