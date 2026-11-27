@@ -332,10 +332,12 @@ through faded grey-blue, denim, khaki and olive to a dark vest; skin a sickly gr
 a clear step darker than any pale shirt (luma 100 to 127); trousers dark (under 80); hair
 near-black to dull brown, or bald. Blood prints on the shirt are big enough to read at game
 zoom (two fresh red hand-sized plates and a gore patch over the old brown); the dark red
-blotches on arms and faces are fixed. Effects on the dead keep these colours: being slowed
-multiplies them toward a cold blue (no added light), and a hit brightens them for 90 ms rather
-than painting them white, so a creep hit again and again (a frost pulse, a turret's stream, a
-burn) stays itself instead of a white silhouette. Near models 418 to 594 triangles, far ones 212 to 250: the hands, face, hems, boots and
+blotches on arms and faces are fixed. Effects on the dead keep these colours, as light treatments: being slowed
+multiplies them toward a cold blue (no added light), a hit brightens them for 90 ms rather
+than painting them white, burning is a weak warm cast with a faint flickering glow, and being
+hunted by you a weak red cast with a faint slow pulse, so a creep hit again and again (a frost
+pulse, a turret's stream, a burn) stays itself, and a burning or hunting one is not one flat
+orange or red. Near models 418 to 594 triangles, far ones 212 to 250: the hands, face, hems, boots and
 blotches are each under a tenth of the figure's height, so `farParts` drops them (default).
 
 ## The bosses
@@ -368,7 +370,10 @@ made of short pieces, so the far model drops it.
 
 The common dead and the bosses are animated in their joint tables (`common.ts`, `bosses.ts`)
 and the shared shader (`creeps.ts`); the picture's postures are the rest poses, and the motion
-keeps them broken rather than square:
+keeps them broken rather than square. The heavy and special dead (`heavy.ts`) take the same
+gait, flinch and death from their own joint tables, but hold their pose by rest angles alone:
+they use none of `tilt`, `crouch` or `lunge`, and the crumple's `edge` and `lie` are the
+shader's defaults for them (the notes below on those apply to the common dead and the bosses):
 
 - **Never a straight limb or a square pose.** Every elbow and knee rests bent; a joint's `tilt`
   holds it off true (a listing spine, a head hung to one side, an elbow turned out) and lolls it

@@ -129,12 +129,17 @@ Browser                   local td (web.Session)               host td (netplay.
     130 KiB/s over TCP, an 8 KB frame deflated to 4.5 KB (`td bench --wave 40 --players 8`).
     Over UDP it is up to about 140 KiB/s: four datagrams a tick, the repeats of earlier deltas
     only filling out the last one.
-- **Generated art.** Everything is low-poly geometry built in code with three.js: no asset files.
-- **Generated sound.** The page makes every sound in code from what each frame already says (the
-  shots, blasts and deaths of that tick, and what changed since the last one): the protocol
-  carries no audio, and the binary no sound files. A worker renders the bank, so making it never
-  costs a frame; `web/build.mjs` inlines the worker into `app.js`, because a separate script
-  would not load as a worker when the demo is opened from disk.
+- **Generated art.** Everything drawn is built in code with three.js: models from many small
+  parts on a shared skeleton, the ground and its light from shaders and the palette in
+  `web/src/scene/palette.ts` (`docs/art-direction.md`). There are no model or texture files.
+- **Generated sound, with recordings over it.** The page makes every sound in code from what
+  each frame already says (the shots, blasts and deaths of that tick, and what changed since
+  the last one): the protocol carries no audio. Most sounds also have short CC0 recordings,
+  which `web/build.mjs` inlines into `app.js` as base64 so the page still fetches nothing
+  beside itself, played over the code's version or alone, which plays until they decode. A
+  worker renders the bank, so making it never costs a frame; the build inlines the worker into
+  `app.js` too, because a separate script would not load as a worker when the demo is opened
+  from disk.
 - **A player's `td` does not trust what comes back.** Any tailnet device can answer on the
   game port, and a host may be broken or hostile, so every string a probe reply, a refusal or
   a welcome carries, and every name a peer reports about itself to tailscale, becomes one

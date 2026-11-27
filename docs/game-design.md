@@ -1221,9 +1221,14 @@ The mix's bands, measured as loudness close by (K-weighted, 400 ms): explosions 
 -12 to -22, the small dead -18 to -24, your own reload and handling -22 to -28, the kill knock
 about -29, ambience -32 to -42, footsteps under -45.
 
-- **Synthesized, not recorded.** Every sound is rendered by code in the page
-  (`web/src/sound/bank.ts`): no audio files, no licences, nothing to download, and like the
-  art, it is all generated. The bank is made once sound starts, in a worker so no frame waits
+- **Synthesized, with recordings over it.** Every sound has a recipe rendered by code in the
+  page (`web/src/sound/bank.ts`), and most also have CC0 recordings (`web/src/sound/samples/`,
+  short mono MP3s, every file credited in `CREDITS.md` and `CREDITS-sfx.md`) that the build
+  inlines into the page, so it still fetches nothing beside itself. A recording plays alone or
+  over its recipe (`samples.ts` explains the two modes); until it has decoded, or if none does,
+  the recipe plays, so a recording can never cost a sound. The recipes carry what the
+  recordings lack: a gun's tail and mechanism, the whole tesla tower, the lab's fallbacks.
+  The bank is made once sound starts, in a worker so no frame waits
   on it (about 1.3 s of work, guns first; a sound not made yet is skipped), and the long, low
   sounds (explosions, voices, sirens) at 24 kHz, which they lose nothing by and which halves
   their memory. What is left of a sound after it has died 60 dB away is cut: about 35 MB in
@@ -1350,7 +1355,7 @@ about -29, ambience -32 to -42, footsteps under -45.
   last whistle a full blast after two chirps. A survivor's taunt is a shout of "hey!", and one
   revived gasps for air, recorded, a man's or a woman's.
 - **Music only at the turns.** A few seconds of recorded music (`web/src/sound/cues/`, CC0,
-  credited in its `CREDITS.md`; the one exception to synthesized) mark when the night turns: a
+  credited in its `CREDITS.md`, apart from the sound effects' recordings) mark when the night turns: a
   wave starting, a boss wave, a wave cleared, a last stand (the generator under a quarter, or
   one survivor standing of several), the evac called, the Huey away with survivors, the game
   lost, the generator raised a tier. Each comes in after the siren it shares a moment with and
