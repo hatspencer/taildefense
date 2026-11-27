@@ -652,7 +652,7 @@ were three (at least 108 tiles out, from 90), 55 cars and 40 crates (from 38 and
 measured from the generator grew with the radius: the tier rings (middle from 94 tiles, far
 from 161, where they were 78 and 134) and everything placed by them, the hamlets' band, and the
 outposts' nearest. The one-off places stay one each: one gas station, plane, church,
-checkpoint, cemetery and quarantine camp, and two shrines, since each is a known objective and
+checkpoint, cemetery, quarantine camp and shrine, since each is a known objective and
 a second would only make it less of one. The wanderers are not scaled: their count is a balance
 number (`wander.go`), not a density one, so the wilds hold the same number spread thinner.
 
@@ -693,12 +693,15 @@ the long way round, or not at all. Map generation tries the spot again elsewhere
 
 ### Shrines
 
-Two shrines on every map, far out (10 tiles or more past the middle ring, 60 apart): a walled
+One shrine on every map, out by its edge (its middle within 34 tiles of the edge and 10 tiles
+or more past the middle ring, which leaves the east and west ends and the corners): a walled
 court of broken stone with pillars down its length, gate posts at its mouth facing the base, and
 an altar at the far end with a blade standing in it. It is a lair with a champion, and the dead
 rise from the court when someone walks in and again at the altar, as at the gas station. The
 altar always gives a legendary, which is the point: a shrine is a known, hard objective for a
-team that wants melee, where the gas station and the plane are only a chance. Pillars are walls
+team that wants melee, where the gas station and the plane are only a chance. There were two,
+nearer in; one at the edge makes the map's only sure legendary a longer walk and a single prize
+the team decides who takes. Pillars are walls
 to creeps and shots, so the court is a place to fight in, not just to cross.
 
 ## Noise and aggro
@@ -872,7 +875,7 @@ melee a way to play, and give the far sites something only they hold (`internal/
 
 - **Found, never sold.** The katana and the greatsword are not in the armory's list until
   carried. The gas station's counter and the plane's hold have one 30% of the time, and the
-  shrines (below) always do. Gold can buy everything else; these are the reason to walk to the
+  shrine (below) always does. Gold can buy everything else; these are the reason to walk to the
   edge of the map. A survivor who carries both, a pair of katanas and a tempered greatsword gets
   whetstones (levels on the blade in hand) from an altar instead, so a shrine is never wasted.
 - **Better than the crowbar level for level, and each its own rule.** The bench holds both at 1.4
@@ -915,7 +918,7 @@ melee a way to play, and give the far sites something only they hold (`internal/
   only from a full katana or greatsword. It also takes 60% off a stun on its wielder at 1.
   Flash Draw and Skyfall stun by the same six times more,
   and Skyfall lands 1.4 tiles wider at 1. The reward is for
-  the survivor who walked to the shrines and put the gold in, and late, when those two come.
+  the survivor who walked to the shrine and put the gold in, and late, when those two come.
   Turrets and guns get none of it, so the base still needs its towers.
 - **A grab can be dodged, and stuns don't chain.** A melee fighter stands in arm's reach by
   trade, and the grab used to close the instant one was in it, with nothing to see, and with a
@@ -1001,7 +1004,7 @@ twice the damage for 8 s. The aim: the crowd blade by a distance, and near the k
   Tesla charge that leaps on 5 times (a creep the blow killed still passes its charge on).
   Stormbreaker's leap 7 times and harder, 9 times beside a Tesla coil within 5 tiles of the
   survivor, which ties the blade to the base it defends; Ashen Colossus's set every creep they
-  strike burning. Gated at the top, it is the payoff for walking to the shrines and putting the
+  strike burning. Gated at the top, it is the payoff for walking to the shrine and putting the
   gold in. It goes through `evolveWeapon` as branch 3, a third thing the armory evolves.
 
 Wave 25, the bench (survivors don't move; creeps walk in): seconds to kill a goliath, and to clear

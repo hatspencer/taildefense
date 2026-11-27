@@ -9,7 +9,7 @@ import (
 )
 
 // The legendary blades: a katana and a greatsword, never sold, found only where the map is
-// most dangerous (the gas station's counter, the crashed plane's hold, and the shrines out in
+// most dangerous (the gas station's counter, the crashed plane's hold, and the shrine out in
 // the wilds, where nothing else is). They are melee weapons with more to them than a swing:
 //
 //   - a rule of their own: a katana's cuts build up blood loss, and when it fills it bursts for
@@ -741,7 +741,7 @@ const legendChance = .3
 
 // ---- the shrines -------------------------------------------------------------------------
 
-// The shrines: two on every map, far out in the wilds, ruins of some older faith than the
+// The shrine: one on every map, far out by its edge, a ruin of some older faith than the
 // church's. A walled court of broken stone, pillars down its length and a pair of gate posts
 // at its mouth, which faces the generator; an altar at the far end, and on it a legendary
 // blade. The dead keep it: a lair's guards round a champion, and more rise from the court when
@@ -769,13 +769,15 @@ var shrinePlan = [...]string{
 const (
 	shrineW, shrineL = 13, 13
 	shrineYard       = 3  // ground cleared round it
-	shrineCount      = 2  // on every map
+	shrineCount      = 1  // on every map
 	shrineGap        = 14 // from the other landmarks
 	shrineApart      = 60 // from each other
+	shrineEdge       = 34 // its middle is at most this far from the map's edge
 )
 
-// shrines raises the shrines far out, clear of the other landmarks and of each other, each
-// open to the rest of the map and facing the middle. Houses where they stand are flattened.
+// shrines raises the shrine far out by the map's edge, clear of the other landmarks (and of
+// each other, were there more than one), open to the rest of the map and facing the middle.
+// Houses where it stands are flattened.
 func shrines(t []Tile, w, h int, rng *rand.Rand, road []bool, houses []ruin) []ruin {
 	open := openFromMiddle(t, w, h)
 	const r = shrineL/2 + shrineYard
@@ -785,7 +787,7 @@ func shrines(t []Tile, w, h int, rng *rand.Rand, road []bool, houses []ruin) []r
 		bestScore := math.MaxInt
 		for try := 0; try < 500; try++ {
 			x, y := r+4+rng.IntN(w-2*r-8), r+4+rng.IntN(h-2*r-8)
-			if math.Hypot(float64(x-w/2), float64(y-h/2)) < tierMid+10 {
+			if math.Hypot(float64(x-w/2), float64(y-h/2)) < tierMid+10 || min(x, w-1-x, y, h-1-y) > shrineEdge {
 				continue
 			}
 			clash := false

@@ -205,19 +205,22 @@ func TestALegendaryEvolves(t *testing.T) {
 	}
 }
 
-// Every map has its shrines far out, and an altar gives a legendary; a second katana makes a
-// pair.
+// Every map has its shrine far out by its edge, and an altar gives a legendary; a second
+// katana makes a pair.
 func TestTheShrinesHoldLegendaries(t *testing.T) {
-	for seed := uint64(1); seed <= 20; seed++ {
+	for seed := uint64(1); seed <= 100; seed++ {
 		w := New(seed)
 		idx := w.shrineIdx()
-		if len(idx) == 0 {
-			t.Fatalf("seed %d: no shrine", seed)
+		if len(idx) != shrineCount {
+			t.Fatalf("seed %d: %d shrines", seed, len(idx))
 		}
 		for _, i := range idx {
 			s := &w.Sites[i]
 			if dx, dy := s.SX-w.CoreX, s.SY-w.CoreY; dx*dx+dy*dy < 40*40 {
 				t.Errorf("seed %d: a shrine %.0f tiles from the generator", seed, sqrt32(dx*dx+dy*dy))
+			}
+			if e := min(s.SX, MapW-s.SX, s.SY, MapH-s.SY); e > shrineEdge+shrineL/2+1 {
+				t.Errorf("seed %d: a shrine %.0f tiles from the map's edge", seed, e)
 			}
 			if s.Guard == 0 {
 				t.Errorf("seed %d: an unguarded shrine", seed)

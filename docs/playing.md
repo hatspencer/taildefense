@@ -179,7 +179,7 @@ A host can pick the blades mode (`td host --mode blades`, or `m` on Host a game 
 launcher): no guns at all. When you join you choose your blade, the crowbar, the katana or the
 greatsword (1, 2 and 3 pick too); until you do you hold the crowbar. The armory sells no gun and
 no loot gives one; the gas station's counter always has a legendary blade you can take, and the
-shrines and the plane are as ever. The crowbar is the plain choice, but it evolves too.
+shrine and the plane are as ever. The crowbar is the plain choice, but it evolves too.
 
 ### Bots
 
@@ -339,10 +339,11 @@ walk in, and its leaking engines go up like the gas station's pumps when shot. T
 field manual, a piece of kit and something rare or better. Now and then the gas station's counter
 and the plane's hold have a legendary blade in them instead.
 
-Far out in the wilds stand two shrines: overgrown courts of broken stone, pillars down their
-length and a pair of gate posts at the mouth, older than the church. A blade stands in the altar
-at the far end, between guttering candles. The dead keep them: a lair's guards sleep round a
-champion, and more rise from the court when you walk in and again when you kneel at the altar.
+Out by the edge of the map stands a shrine, one on every map: an overgrown court of broken
+stone, pillars down its length and a pair of gate posts at the mouth, older than the church. A
+blade stands in the altar at the far end, between guttering candles. The dead keep it: a lair's
+guards sleep round a champion, and more rise from the court when you walk in and again when you
+kneel at the altar.
 The altar always gives a legendary blade you can take.
 
 On the outskirts, far from the base, stands an old church. Press E at the bell rope inside, under

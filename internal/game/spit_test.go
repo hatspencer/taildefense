@@ -33,7 +33,9 @@ func TestSpitCanBeDodged(t *testing.T) {
 	if hurt := spitAt(t, false); hurt < Creeps[CSpitter].Damage {
 		t.Fatalf("standing still in front of a spitter for 4 s cost %.1f", hurt)
 	}
-	if hurt := spitAt(t, true); hurt > Creeps[CSpitter].Damage {
+	// One glob may land as they walk back through where they stood; the hundredth is for the
+	// rounding of taking it off 10,000 health.
+	if hurt := spitAt(t, true); hurt > Creeps[CSpitter].Damage+.01 {
 		t.Errorf("walking about in front of a spitter for 4 s cost %.1f: its spit follows them", hurt)
 	}
 }
