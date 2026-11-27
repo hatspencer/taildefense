@@ -486,11 +486,11 @@ type World struct {
 }
 
 // MapW and MapH are the map's size in tiles.
-const MapW, MapH = 400, 250
+const MapW, MapH = 480, 300
 
 // scatterHouses is how many ruined houses generate tries to scatter across the map, before
 // the hamlets add theirs along the roads; some land where a house can't stand.
-const scatterHouses = 100
+const scatterHouses = 144
 
 // New builds a world from a seed at the default difficulty.
 func New(seed uint64) *World { return NewGame(seed, DefaultDifficulty) }
@@ -828,6 +828,13 @@ func sign(v int) int {
 	return 0
 }
 
+// outpostCount is how many outposts a map has, and outpostNear how far from the middle the
+// nearest may stand: both in step with the map's size.
+const (
+	outpostCount = 4
+	outpostNear  = 108
+)
+
 // outposts builds the overrun outposts, big walled compounds well out from the base: an outer
 // wall with a gate on each side, a few walls breaking up the yard, and a keep in the middle
 // with a door. Houses they land on are torn down.
@@ -838,11 +845,11 @@ func outposts(t []Tile, w, h int, rng *rand.Rand, houses []ruin) []ruin {
 			t[y*w+x] = k
 		}
 	}
-	for try := 0; try < 400 && len(forts) < 3; try++ {
+	for try := 0; try < 400 && len(forts) < outpostCount; try++ {
 		fw, fh := 20+rng.IntN(7), 16+rng.IntN(5)
 		fx, fy := 3+rng.IntN(w-fw-6), 3+rng.IntN(h-fh-6)
 		cx, cy := fx+fw/2, fy+fh/2
-		if math.Hypot(float64(cx-w/2), float64(cy-h/2)) < 90 {
+		if math.Hypot(float64(cx-w/2), float64(cy-h/2)) < outpostNear {
 			continue
 		}
 		clash := false

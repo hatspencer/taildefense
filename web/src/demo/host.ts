@@ -37,7 +37,7 @@ const LOB_EVERY = 4.5 * DEMO_TICK_RATE, LOB_MIN = 4, LOB_MAX = 16;
 const boss = (k: number) => k === 5 || k === 7;
 
 // A tick in seconds and in ms.
-const W = 400, H = 250, DT = 1 / DEMO_TICK_RATE, TICK_MS = 1000 / DEMO_TICK_RATE, DTF = Math.fround(DT);
+const W = 480, H = 300, DT = 1 / DEMO_TICK_RATE, TICK_MS = 1000 / DEMO_TICK_RATE, DTF = Math.fround(DT);
 // The helipad and the evac Huey's timing, as internal/game/evac.go has them.
 const EVAC = { half: 3, reach: 4, board: 1, inbound: 60, flight: 16, settle: 3, wait: 90, last: 30, depart: 10, climb: 2.5 };
 // Seconds picking up a dropped weapon takes: the host's gunPickup.
@@ -314,7 +314,7 @@ export class DemoHost implements Transport {
   private placeSites(m: DemoMap): SiteDef[] {
     const cx = W / 2, cy = H / 2, r = rng(99);
     const sites: SiteDef[] = [];
-    const tier = (x: number, y: number) => { const d = Math.hypot(x - cx, y - cy); return d < 56 ? 0 : d < 96 ? 1 : 2; };
+    const tier = (x: number, y: number) => { const d = Math.hypot(x - cx, y - cy); return d < 67 ? 0 : d < 115 ? 1 : 2; };
     for (const h of m.houses) {
       const sx = Math.floor(h.x + h.w / 2) + 0.5, sy = Math.floor(h.y + h.h / 2) + 0.5;
       if (this.tiles[Math.floor(sy) * W + Math.floor(sx)] >= Tile.Water) continue;
@@ -362,10 +362,10 @@ export class DemoHost implements Transport {
       }
       break;
     }
-    scatter(SiteKind.Car, 5, Tile.Dirt, 20);
-    scatter(SiteKind.Car, 13, Tile.Dirt, 34);
-    scatter(SiteKind.Crate, 5, Tile.Grass, 20);
-    scatter(SiteKind.Crate, 10, Tile.Grass, 34);
+    scatter(SiteKind.Car, 7, Tile.Dirt, 20);
+    scatter(SiteKind.Car, 19, Tile.Dirt, 34);
+    scatter(SiteKind.Crate, 7, Tile.Grass, 20);
+    scatter(SiteKind.Crate, 14, Tile.Grass, 34);
     return sites;
   }
 

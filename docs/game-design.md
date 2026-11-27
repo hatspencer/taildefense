@@ -634,19 +634,32 @@ one box repeated (`internal/game/ruins.go`, walls in `web/src/scene/terrain.ts`)
 Each is searched from its middle, which is always open floor. Outposts have their own concrete
 walls topped with sandbags, and the gas station's shop is painted block.
 
-There are about 85 houses on a map, against 47 before the map grew. About a hundred are tried
-at random across it, and three **hamlets** stand along the roads. A hamlet is four to eight
+There are about 125 houses on a map (85 at 400 by 250, 47 at 352 by 220). About 144 are tried
+at random across it, and four **hamlets** stand along the roads. A hamlet is four to eight
 houses (cottages, terraces, burnt shells) facing the road from both sides, each with its
 door to the street. The first is built round a crossroads, a short street crossing the road.
-They are 48 to 130 tiles from the generator and 55 apart (`internal/game/landmarks.go`). A
+They are 56 to 156 tiles from the generator and 66 apart, one to a road but the fourth, which
+shares the east or the west road (the long ones) with another, so a road is always left for the
+checkpoint, which keeps 45 tiles from a hamlet's middle (`internal/game/landmarks.go`). A
 hamlet is a run of easy searches along one road, close together, so a team can strip it
 in one break. It is also a place where the dead come down the street at you from both ends.
 
-The map is 400 by 250 tiles. It was 352 by 220, and the bigger map is there to hold the
-hamlets and the new places without crowding them. The tier rings grew with it (middle from
-78 tiles, far from 134), and so did the scattered cars and crates. A walker on the
-road takes about two minutes to reach the base from the edge. That is an eighth longer
-than before, and the wave timing is left as it was.
+The map is 480 by 300 tiles. It was 352 by 220, then 400 by 250 to hold the hamlets and the
+new places without crowding them, and then grew again by a fifth each way so there is more
+wasteland to cross and search. What is counted grew with the area, so the map is as full as
+before: the scattered houses (144 tried, from 100), a fourth hamlet, four outposts where there
+were three (at least 108 tiles out, from 90), 55 cars and 40 crates (from 38 and 28). What is
+measured from the generator grew with the radius: the tier rings (middle from 94 tiles, far
+from 161, where they were 78 and 134) and everything placed by them, the hamlets' band, and the
+outposts' nearest. The one-off places stay one each: one gas station, plane, church,
+checkpoint, cemetery and quarantine camp, and two shrines, since each is a known objective and
+a second would only make it less of one. The wanderers are not scaled: their count is a balance
+number (`wander.go`), not a density one, so the wilds hold the same number spread thinner.
+
+A way in from a spawn point is about 257 tiles on average now (`TestTheRoadsStillLeadIn`), so a
+walker takes about two and a half minutes to reach the base from the edge, a fifth longer than
+at 400 by 250. The wave timing is left as it was: a wave lasts until its creeps are dead, so
+the longer walk only spreads it out and gives the turrets on the road more time.
 
 ### Wrecks
 
@@ -680,7 +693,7 @@ the long way round, or not at all. Map generation tries the spot again elsewhere
 
 ### Shrines
 
-Two shrines on every map, far out (40 tiles or more from the generator, 60 apart): a walled
+Two shrines on every map, far out (10 tiles or more past the middle ring, 60 apart): a walled
 court of broken stone with pillars down its length, gate posts at its mouth facing the base, and
 an altar at the far end with a blade standing in it. It is a lair with a champion, and the dead
 rise from the court when someone walks in and again at the altar, as at the gas station. The

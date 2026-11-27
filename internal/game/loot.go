@@ -565,8 +565,8 @@ var guardOdds = [3][4]int{{45, 40, 15, 0}, {15, 40, 33, 12}, {5, 25, 40, 30}}
 
 // Site tiers by distance from the generator, in step with the map's size.
 const (
-	tierMid = 78
-	tierFar = 134
+	tierMid = 94
+	tierFar = 161
 )
 
 // tierAt is the tier of a place dx, dy from the generator.
@@ -718,7 +718,7 @@ func (w *World) placeSites(ruins []ruin) []Site {
 		add(SiteHouse, x, y, hw, hh, sx, sy)
 		sites[len(sites)-1].Ruin = h.kind
 	}
-	want := [NumSiteKinds]int{SiteCar: 38, SiteCrate: 28}
+	want := [NumSiteKinds]int{SiteCar: 55, SiteCrate: 40}
 	for try := 0; try < 4000 && (want[SiteCar] > 0 || want[SiteCrate] > 0); try++ {
 		x, y := 3+rng.IntN(w.W-6), 3+rng.IntN(w.H-6)
 		sx, sy := float32(x)+.5, float32(y)+.5

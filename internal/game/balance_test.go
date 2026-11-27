@@ -363,6 +363,14 @@ type piece struct {
 func laneWave(wave int) []CreepKind {
 	w := New(3)
 	benchDice(w)
+	// One front of a fixed 35 places: how many the plan draws from moves the dice it rolls
+	// the mix with (a horde pours from every place), so the map's edge must not decide it.
+	// 35 is what seed 3's front had on the 400 by 250 map, which the bench was set against.
+	front := make([][2]float32, 35)
+	for i := range front {
+		front[i] = [2]float32{3.5, 20.5 + 6*float32(i)}
+	}
+	w.nextFronts = [][][2]float32{front}
 	var all []CreepKind
 	for _, s := range w.plan(wave, 1) {
 		if !s.Kind.Boss() && s.Kind != CBurster {

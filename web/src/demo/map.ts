@@ -94,7 +94,7 @@ export function generateMap(w: number, h: number, seed: number): DemoMap {
 
   // Ruined houses of all kinds, laid out as the host lays them (internal/game/ruins.go).
   const houses: DemoMap['houses'] = [];
-  for (let n = 0; n < 40; n++) {
+  for (let n = 0; n < 58; n++) {
     const kind = pickRuin(rnd), sz = RUIN_SIZE[kind];
     const rw = sz[0] + Math.floor(rnd() * (sz[1] + 1)), rh = sz[2] + Math.floor(rnd() * (sz[3] + 1));
     const x0 = 6 + Math.floor(rnd() * (w - rw - 12)), y0 = 6 + Math.floor(rnd() * (h - rh - 12));
@@ -203,7 +203,7 @@ export function generateMap(w: number, h: number, seed: number): DemoMap {
   };
   const places: DemoMap['places'] = [];
   // The cemetery out north-west and the camp out south-east, each its gate towards the base.
-  for (const [plan, kind, px, py, ground] of [[CEMETERY_PLAN, SiteKind.Cemetery, 75, 40, Tile.Grass], [CAMP_PLAN, SiteKind.Camp, w - 100, h - 35, Tile.Dirt]] as const) {
+  for (const [plan, kind, px, py, ground] of [[CEMETERY_PLAN, SiteKind.Cemetery, 90, 48, Tile.Grass], [CAMP_PLAN, SiteKind.Camp, w - 120, h - 42, Tile.Dirt]] as const) {
     const pw = plan[0].length, pl = plan.length, r = (Math.max(pw, pl) >> 1) + 3;
     const ddx = cx - px, ddy = cy - py, ax_ = Math.abs(ddx) >= Math.abs(ddy);
     const ffx = ax_ ? Math.sign(ddx) : 0, ffy = ax_ ? 0 : Math.sign(ddy);
@@ -217,7 +217,7 @@ export function generateMap(w: number, h: number, seed: number): DemoMap {
     return n ? s / n : NaN;
   };
   let best = -1, bestBend = Infinity;
-  for (let y = cy + 70; y <= cy + 92; y++) {
+  for (let y = cy + 84; y <= cy + 110; y++) {
     const a = roadX(y - 11), b = roadX(y), c = roadX(y + 11), bend = Math.abs(a - c) + Math.abs(b - (a + c) / 2);
     if (bend < bestBend) { best = y; bestBend = bend; }
   }
@@ -231,7 +231,7 @@ export function generateMap(w: number, h: number, seed: number): DemoMap {
   const kinds = [Ruin.Terrace, Ruin.Cottage, Ruin.Shell, Ruin.TwoRoom, Ruin.Cottage, Ruin.Terrace, Ruin.Collapsed, Ruin.Shell, Ruin.L, Ruin.Cottage];
   let ki = 0;
   for (const side of [-1, 1]) {
-    for (let x = cx + 46; x < cx + 100;) {
+    for (let x = cx + 55; x < cx + 120;) {
       const kind = kinds[ki++ % kinds.length], sz = RUIN_SIZE[kind];
       const rw = sz[0] + Math.floor(rnd() * (sz[1] + 1)), rh = Math.min(sz[2] + Math.floor(rnd() * (sz[3] + 1)), 7);
       // The street's edge under the house's length, and a yard of a tile or two.

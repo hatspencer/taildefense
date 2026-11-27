@@ -104,10 +104,10 @@ func clearBox(t []Tile, w, h, x0, y0, x1, y1 int, to Tile) {
 // of town, their front doors on the street, the biggest with a side street crossing the road
 // and houses down that too. Terraces and burnt-out shells among them, as a village would have.
 const (
-	hamletCount = 3
-	hamletNear  = 48  // from the middle of the map, at least
-	hamletFar   = 130 // and at most
-	hamletApart = 55  // from each other
+	hamletCount = 4   // three to a road each, the fourth beside one on a long road
+	hamletNear  = 56  // from the middle of the map, at least
+	hamletFar   = 156 // and at most
+	hamletApart = 66  // from each other
 	hamletSpan  = 19  // tiles either way along its street
 	hamletMost  = 8   // houses in one
 	crossSpan   = 17  // the side street, either way from the road
@@ -125,7 +125,13 @@ func hamlets(t []Tile, w, h int, rng *rand.Rand, roads [][][2]int, road []bool, 
 		for try := 0; try < 120; try++ {
 			ri := rng.IntN(len(roads))
 			rd := roads[ri]
-			if used[ri] && try < 80 || len(rd) == 0 {
+			// One to a road, but the fourth, which shares the east or the west road (the
+			// long ones) with another, so a road is left clear for the checkpoint.
+			want := !used[ri]
+			if n == len(roads)-1 {
+				want = used[ri] && ri < 2
+			}
+			if !want && try < 80 || len(rd) == 0 {
 				continue
 			}
 			p := rd[rng.IntN(len(rd))]

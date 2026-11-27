@@ -328,7 +328,7 @@ in the shop, bursting out when you step onto the lot and again when you start on
 shot or a blast that reaches a fuel pump sets it off: a fireball that hurts survivors too, sets
 off the pumps beside it and leaves the ground burning.
 
-Far out are three overrun outposts: walled forts with a keep, held by a garrison and its
+Far out are four overrun outposts: walled forts with a keep, held by a garrison and its
 warlord. They are hard going early on, and the stash inside is worth it: three finds, the first
 rare at least. The hardest sites spring ambushes, with creeps that burst out as you walk in or
 start searching.
@@ -351,7 +351,7 @@ on its way in, the wanderers and the guards at their sites, heads for the church
 wave off the base or to empty the sites for a raid, and don't be there when they arrive. The bell
 can be rung again after a couple of minutes.
 
-Along the roads stand three hamlets: a few houses either side of the road, terraces and burnt-out
+Along the roads stand four hamlets: a few houses either side of the road, terraces and burnt-out
 shells among them, every door to the street. They are easy pickings close together, and the dead
 come down the street from both ends.
 
