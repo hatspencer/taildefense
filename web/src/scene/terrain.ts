@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { float, max, mix, normalWorld, positionWorld, sin, smoothstep, step, texture, time, vec2, vec3, vertexColor } from 'three/tsl';
+import { float, max, min, mix, normalWorld, positionWorld, sin, smoothstep, step, texture, time, vec2, vec3, vertexColor } from 'three/tsl';
 import { Ruin, SiteKind, Tile, type SiteDef } from '../protocol';
 import { indexed } from './rig';
 import { painted } from './paint';
@@ -28,11 +28,16 @@ function hash(x: number, y: number, s = 0): number {
 // in the shader. Bilinear noise cut at a level makes the picture's diamond-ish dabs.
 const NOISE = 256;
 let noiseTex: THREE.DataTexture | null = null;
+let noiseData: Uint8Array | null = null;
+function noiseBytes(): Uint8Array {
+  if (noiseData) return noiseData;
+  const d = noiseData = new Uint8Array(NOISE * NOISE * 4);
+  for (let i = 0; i < d.length; i++) d[i] = Math.floor(hash(i, 7, 3) * 256);
+  return d;
+}
 function noiseTexture(): THREE.DataTexture {
   if (noiseTex) return noiseTex;
-  const d = new Uint8Array(NOISE * NOISE * 4);
-  for (let i = 0; i < d.length; i++) d[i] = Math.floor(hash(i, 7, 3) * 256);
-  const t = new THREE.DataTexture(d, NOISE, NOISE, THREE.RGBAFormat);
+  const t = new THREE.DataTexture(noiseBytes(), NOISE, NOISE, THREE.RGBAFormat);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.magFilter = t.minFilter = THREE.LinearFilter;
   t.generateMipmaps = false;
@@ -47,6 +52,25 @@ function field(perMetre: number, angle: number, off: number): THREE.Node<'vec4'>
   return texture(noiseTexture(), vec2(p.x.mul(c).sub(p.y.mul(s)), p.x.mul(s).add(p.y.mul(c))).add(off)) as unknown as THREE.Node<'vec4'>;
 }
 
+// The same field read on the CPU, one channel, as the GPU's bilinear filter reads it: so what
+// is placed (a burnt tree) agrees with what is painted under it (the ash).
+function fieldAt(x: number, z: number, perMetre: number, angle: number, off: number, ch: number): number {
+  const d = noiseBytes(), c = Math.cos(angle) * perMetre, s = Math.sin(angle) * perMetre;
+  const u = x * c - z * s + off * NOISE - 0.5, v = x * s + z * c + off * NOISE - 0.5;
+  const u0 = Math.floor(u), v0 = Math.floor(v), fu = u - u0, fv = v - v0;
+  const at = (i: number, j: number) => d[((((j % NOISE) + NOISE) % NOISE) * NOISE + (((i % NOISE) + NOISE) % NOISE)) * 4 + ch] / 255;
+  const a = at(u0, v0) + (at(u0 + 1, v0) - at(u0, v0)) * fu, b = at(u0, v0 + 1) + (at(u0 + 1, v0 + 1) - at(u0, v0 + 1)) * fu;
+  return a + (b - a) * fv;
+}
+
+// Where fire went through, in patches of tens of metres, ragged at a few: the ground there is
+// ash and char and its trees burnt black, about a sixteenth of the land. Two octaves of noise
+// (one alone burns diamonds round its peaks), read by the ground's shader and by the trees'
+// placing alike.
+const SCORCHED = 0.72;
+const scorchField = () => field(0.05, 1.9, 0.27).r.mul(0.65).add(field(0.16, 0.35, 0.61).g.mul(0.35));
+const scorchAt = (x: number, z: number) => fieldAt(x, z, 0.05, 1.9, 0.27, 0) * 0.65 + fieldAt(x, z, 0.16, 0.35, 0.61, 1) * 0.35;
+
 const C = (hex: number): THREE.Node<'vec3'> => { const c = new THREE.Color().setHex(hex, THREE.SRGBColorSpace); return vec3(c.r, c.g, c.b); };
 // Flat colours by level: cols[0] below the first edge, cols[i] from edges[i - 1] up.
 function levels(v: THREE.Node<'float'>, cols: number[], edges: number[]): THREE.Node<'vec3'> {
@@ -57,7 +81,59 @@ function levels(v: THREE.Node<'float'>, cols: number[], edges: number[]): THREE.
 
 // The tiles' kinds as a texture: red road, green the base's yard (concrete), blue dry ground,
 // alpha damp (a forest's floor some, a lake's bed and shore all).
-export interface GroundKinds { tex: THREE.DataTexture; w: number; h: number }
+// road: how far into a road each point is, in tiles (see roadTexture).
+export interface GroundKinds { tex: THREE.DataTexture; road: THREE.DataTexture; w: number; h: number }
+
+// A road's depth: ROAD_SUB texels a tile, each how far it is from the road's edge, a quarter
+// tile to a level (0 to 4 tiles). The road tiles are first blurred over a tile and cut again,
+// so a road's staircase of tiles becomes a smooth band; its crest, where the depth stops
+// rising, is the middle of the road, where the old lane marks run.
+const ROAD_SUB = 4, ROAD_DEPTH = 64;
+function roadTexture(tiles: Uint8Array, w: number, h: number): THREE.DataTexture {
+  const W = w * ROAD_SUB, H = h * ROAD_SUB, n = W * H;
+  let a = new Float32Array(n), b = new Float32Array(n);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) a[y * W + x] = tiles[((y / ROAD_SUB) | 0) * w + ((x / ROAD_SUB) | 0)] === Tile.Dirt ? 1 : 0;
+  // Two box blurs of a tile, across then down, each way.
+  const R = ROAD_SUB / 2;
+  for (let pass = 0; pass < 2; pass++) {
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      let s = 0, k = 0;
+      for (let d = -R; d <= R; d++) { const xx = x + d; if (xx >= 0 && xx < W) { s += a[y * W + xx]; k++; } }
+      b[y * W + x] = s / k;
+    }
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      let s = 0, k = 0;
+      for (let d = -R; d <= R; d++) { const yy = y + d; if (yy >= 0 && yy < H) { s += b[yy * W + x]; k++; } }
+      a[y * W + x] = s / k;
+    }
+  }
+  // The distance from each inside texel to the nearest outside one, exact (Felzenszwalb).
+  const INF = 1e9;
+  for (let i = 0; i < n; i++) b[i] = a[i] >= 0.5 ? INF : 0;
+  a = b; b = new Float32Array(n);
+  const edt = (f: Float64Array, get: (i: number) => number, set: (i: number, v: number) => void, len: number) => {
+    const v = new Int32Array(len), z = new Float64Array(len + 1);
+    for (let i = 0; i < len; i++) f[i] = get(i);
+    let k = 0; v[0] = 0; z[0] = -INF; z[1] = INF;
+    for (let q = 1; q < len; q++) {
+      let s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+      while (s <= z[k]) { k--; s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]); }
+      k++; v[k] = q; z[k] = s; z[k + 1] = INF;
+    }
+    k = 0;
+    for (let q = 0; q < len; q++) { while (z[k + 1] < q) k++; set(q, (q - v[k]) * (q - v[k]) + f[v[k]]); }
+  };
+  const row = new Float64Array(Math.max(W, H));
+  for (let x = 0; x < W; x++) edt(row, (i) => a[i * W + x], (i, v) => { b[i * W + x] = v; }, H);
+  for (let y = 0; y < H; y++) edt(row, (i) => b[y * W + i], (i, v) => { a[y * W + i] = v; }, W);
+  const d = new Uint8Array(n);
+  for (let i = 0; i < n; i++) d[i] = Math.min(255, Math.round(Math.sqrt(a[i]) / ROAD_SUB * ROAD_DEPTH));
+  const tex = new THREE.DataTexture(d, W, H, THREE.RedFormat, THREE.UnsignedByteType);
+  tex.magFilter = tex.minFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  return tex;
+}
 
 function kindTexture(tiles: Uint8Array, w: number, h: number): GroundKinds {
   const d = new Uint8Array(w * h * 4);
@@ -72,7 +148,7 @@ function kindTexture(tiles: Uint8Array, w: number, h: number): GroundKinds {
   tex.magFilter = tex.minFilter = THREE.LinearFilter;
   tex.generateMipmaps = false;
   tex.needsUpdate = true;
-  return { tex, w, h };
+  return { tex, road: roadTexture(tiles, w, h), w, h };
 }
 
 // The ground's colour at a point, as painted (before light and weather). With no kinds, open
@@ -81,9 +157,13 @@ function groundColor(kinds: GroundKinds | null): THREE.Node<'vec3'> {
   // Zones of tens of metres, patches of a couple, dabs of about 12 cm, flecks of 5.
   const zone = field(0.07, 0.4, 0.13), patch = field(0.5, 1.1, 0.71), dab = field(8.5, 0.52, 0.37), fleck = field(20, 2.3, 0.59);
   const v = dab.r.mul(0.6).add(fleck.r.mul(0.3)).add(patch.r.mul(0.25)).sub(0.075);
-  let damp: THREE.Node<'float'> = float(0), mud: THREE.Node<'float'> = float(0);
+  // Cracks a hand or two apart, where two noises cross their middle; and potholes and weeds.
+  const cr = field(2.6, 0.7, 0.15);
+  const cracks = max(float(1).sub(step(0.016, cr.r.sub(0.5).abs())), float(1).sub(step(0.011, cr.g.sub(0.5).abs())));
+  let damp: THREE.Node<'float'> = float(0), mud: THREE.Node<'float'> = float(0), crust: THREE.Node<'float'> = float(0);
   let road: THREE.Node<'float'> = float(0), yard: THREE.Node<'float'> = float(0), dry: THREE.Node<'float'> = float(0);
-  let yardK: THREE.Node<'float'> = float(0);
+  let yardK: THREE.Node<'float'> = float(0), burnt: THREE.Node<'float'> = float(0), singed: THREE.Node<'float'> = float(0);
+  let asphalt: THREE.Node<'float'> = float(0), lane: THREE.Node<'float'> = float(0);
   if (kinds) {
     // Read through a warp of about a metre, then cut with a little dab noise: borders wander
     // and break into dabs instead of following the tiles.
@@ -95,30 +175,60 @@ function groundColor(kinds: GroundKinds | null): THREE.Node<'vec3'> {
     // Beyond the map's edge, under the forest there: its damp floor, darker the deeper in.
     const p = positionWorld.xz, out = max(max(p.x.negate(), p.x.sub(kinds.w)), max(p.y.negate(), p.y.sub(kinds.h)));
     const wood = smoothstep(0.5, 4, out.add(warp.z.sub(0.5).mul(2)));
-    damp = max(k.a.mul(float(1).sub(wood)), wood.mul(0.8)); mud = step(0.75, k.a.add(jit)).mul(float(1).sub(wood));
+    // A lake's shore: wet mud at the water, a band of dried, cracked crust above it.
+    const shore = k.a.add(jit.mul(0.5));
+    mud = step(0.8, shore).mul(float(1).sub(wood)); crust = step(0.66, shore).mul(float(1).sub(wood));
+    damp = max(k.a.mul(float(1).sub(wood)), wood.mul(0.8));
     road = road.mul(float(1).sub(wood)); yard = yard.mul(float(1).sub(wood)); dry = dry.mul(float(1).sub(wood));
+    // Burnt ground, cut ragged with dab noise, and a singed fringe round it.
+    const sc = scorchField().add(patch.g.sub(0.5).mul(0.07)).add(dab.r.sub(0.5).mul(0.05)).add(fleck.b.sub(0.5).mul(0.025));
+    burnt = step(SCORCHED, sc).mul(float(1).sub(yard)); singed = step(SCORCHED - 0.05, sc).mul(float(1).sub(yard));
+    // The old road: asphalt left in broken stretches over the dirt, crumbling at its edges,
+    // and a faded line down its crest. The road's depth, read straight (paint runs true).
+    const rd = (dx: number, dz: number) => (texture(kinds.road, p.add(vec2(dx, dz)).div(vec2(kinds.w, kinds.h))) as unknown as THREE.Node<'vec4'>).r.mul(255 / ROAD_DEPTH);
+    const d0 = rd(0, 0), R = 0.2;
+    const crest = max(min(d0.sub(rd(R, 0)), d0.sub(rd(-R, 0))), min(d0.sub(rd(0, R)), d0.sub(rd(0, -R))));
+    const left = patch.g.mul(0.62).add(zone.g.mul(0.26)).add(dab.r.mul(0.12));
+    asphalt = step(dab.b.mul(0.3).add(0.32), d0).mul(step(0.43, left)).mul(float(1).sub(wood));
+    lane = step(R * 0.42, crest).mul(step(0.6, d0)).mul(float(1).sub(step(2.3, d0))).mul(step(0.42, patch.a)).mul(step(0.22, fleck.r));
   }
 
-  // Open ground: olive ochre in four values, then green, rust and damp dabs over it.
+  // Open ground: olive ochre in four values, parched; dead straw and rust dabs over it, a
+  // little olive left.
   let g = levels(v, [0x4c4224, 0x5a4e29, 0x63552c, 0x6d5c30], [0.36, 0.62, 0.75]);
   const gv = dab.g.mul(0.6).add(fleck.g.mul(0.4)), rv = dab.b.mul(0.6).add(fleck.b.mul(0.4));
-  g = mix(g, mix(C(0x4f5129), C(0x5a5e30), step(0.6, v)), step(float(0.79).sub(zone.r.mul(0.3)), gv));
+  g = mix(g, mix(C(0x6a5d33), C(0x76683a), step(0.6, v)), step(float(0.77).sub(zone.r.mul(0.25)), gv));
+  g = mix(g, C(0x535029), step(float(0.86).sub(zone.r.mul(0.2)), gv));
   g = mix(g, C(0x57432a), step(float(0.82).sub(zone.g.mul(0.22)).sub(damp.mul(0.12)), rv));
   const wet = patch.b.mul(0.55).add(zone.b.mul(0.45)).add(dab.a.sub(0.5).mul(0.35)).add(damp.mul(0.3));
   g = mix(g, C(0x463c22), step(0.71, wet));
   g = mix(g, C(0x3e3520), step(0.81, wet));
-  // A blade of green and a pebble here and there, a scene pixel or two each.
-  g = mix(g, C(0x66723a), step(0.972, dab.a).mul(step(0.45, zone.r)));
+  // Bare earth scarred through the grass, and pans of dried mud cracked into plates.
+  const scar = patch.r.mul(0.55).add(zone.a.mul(0.3)).add(dab.r.mul(0.15));
+  g = mix(g, levels(v, [PAL.dirtDark, PAL.dirt, 0x60502c], [0.4, 0.66]), step(0.66, scar).mul(float(1).sub(damp.mul(0.6))));
+  const pan = step(0.63, patch.a.mul(0.5).add(zone.g.mul(0.35)).add(dab.g.mul(0.15))).mul(step(wet, 0.6));
+  g = mix(g, mix(levels(v, [0x5f5034, 0x6a5a3b, 0x746340], [0.4, 0.68]), C(0x3f3423), cracks), pan);
+  // A blade of straw, a rarer one of green, and a pebble, a scene pixel or two each.
+  g = mix(g, C(0x7c6f40), step(0.968, dab.a).mul(step(0.4, zone.r)));
+  g = mix(g, C(0x5f6a36), step(0.985, dab.a).mul(step(0.6, zone.r)));
   g = mix(g, C(0x77705c), step(0.962, fleck.a).mul(step(0.55, patch.a)));
 
-  // Dry ground: paler, sandier ochre with grass dabs left in it.
+  // Dry ground: paler, sandier ochre with dead grass in it.
   let s = levels(v, [0x5c4e29, 0x695830, 0x746238, 0x7f6d40], [0.38, 0.62, 0.76]);
-  s = mix(s, C(0x5a5a30), step(0.74, gv));
-  // A road: trodden dirt, browner, with more stones.
+  s = mix(s, C(0x625b33), step(0.76, gv));
+  s = mix(s, mix(s, C(0x4a3d28), cracks), step(0.6, patch.a));
+  // A road: trodden dirt, browner, with more stones; over it the asphalt that is left, grey
+  // and cracked, weeds in the cracks, potholes through it to the dirt, the lane line faded.
   let d = levels(v, [0x463722, 0x544228, 0x5f4b2c, 0x6a5533], [0.36, 0.6, 0.76]);
   d = mix(d, C(0x766e5a), step(0.935, fleck.a));
   d = mix(d, C(0x3f3220), step(0.73, wet));
-
+  let a = levels(patch.r.mul(0.6).add(dab.r.mul(0.25)).add(fleck.r.mul(0.15)), [0x37332b, 0x3f3a31, 0x474136], [0.42, 0.62]);
+  a = mix(a, C(0x544e42), step(0.86, fleck.g).mul(step(0.5, patch.r)));
+  a = mix(a, mix(C(0x29261f), mix(C(0x56552f), C(0x6c6238), step(0.5, dab.g)), step(0.62, fleck.g)), cracks);
+  a = mix(a, C(0x857a50), lane);
+  a = mix(a, C(0x4f3f28), step(0.8, cr.b));
+  a = mix(a, C(0x27211a), step(0.845, cr.b));
+  d = mix(d, a, asphalt);
   // The yard of a camp: the same ground trodden bare. The open ground's olive and ochre with
   // its green worn out of it, in flatter, broader dabs: darker scuffs, paler ochre where it has
   // dried, browner bare dirt where it is walked most, now and then a dark crack in the hardpan.
@@ -138,7 +248,15 @@ function groundColor(kinds: GroundKinds | null): THREE.Node<'vec3'> {
 
   let c = mix(g, s, dry);
   c = mix(c, d, road);
-  c = mix(c, mix(C(0x3b301d), C(0x45381f), step(0.5, v)), mud);
+  // Where fire went through: singed ground at the edge, then ash and char, pale ash in flecks.
+  c = mix(c, mix(c, C(0x3a3022), step(0.45, dab.g)), singed.sub(burnt));
+  let ash = levels(v, [0x2c2822, 0x37322b, 0x433d34], [0.42, 0.7]);
+  ash = mix(ash, C(0x6a665c), step(0.88, fleck.a));
+  ash = mix(ash, C(0x4a3a28), step(0.82, dab.b).mul(step(0.5, patch.b)));
+  c = mix(c, ash, burnt.mul(float(1).sub(asphalt.mul(0.7))));
+  // The shore: cracked crust, then wet mud at the water.
+  c = mix(c, mix(levels(v, [0x4b3e28, 0x56472e], [0.5]), C(0x30281a), cracks), crust);
+  c = mix(c, mix(C(0x332a1b), C(0x3d3220), step(0.5, v)), mud);
   return mix(c, y, yard);
 }
 
@@ -172,7 +290,24 @@ function propMaterial(): THREE.MeshLambertNodeMaterial {
   return m;
 }
 
-const WATER_Y = -0.24;
+// Ruined walls: the props' material with the fire and the years on it. Soot climbs a wall in
+// streaks where something burnt against it (whole runs of wall scorched, others spared), up to
+// a broken top gone black, and grime climbs a hand from its foot; both cut against noise into
+// whole pixels, not a gradient.
+function wallMaterial(): THREE.MeshLambertNodeMaterial {
+  const m = painted(new THREE.MeshLambertNodeMaterial());
+  const run = field(0.3, 0.6, 0.83), streak = field(6, 1.3, 0.12), y = positionWorld.y;
+  const soot = smoothstep(0.45, 0.62, run.r).mul(smoothstep(0.15, 1.2, y).mul(0.75).add(streak.g.mul(0.45)));
+  const grime = float(1).sub(smoothstep(0.02, 0.4, y)).mul(0.75).add(run.g.mul(0.2));
+  let c: THREE.Node<'vec3'> = vertexColor().rgb;
+  c = mix(c, c.mul(vec3(0.7, 0.64, 0.56)), step(streak.b, grime));
+  c = mix(c, c.mul(0.1).add(vec3(0.01, 0.009, 0.007)), step(streak.r.mul(0.9).add(0.1), soot));
+  m.colorNode = weathered(c, normalWorld.y, field(3, 0.9, 0.5).r);
+  return m;
+}
+
+// Low, after the drought: the shore's first ring of slope stands out of it as a mud bank.
+const WATER_Y = -0.34;
 // The ground beyond the map, a little under the map's own; it frames the map and never lies
 // under it, or it would cover the lakes below it.
 const OUTER_Y = -0.12;
@@ -264,9 +399,13 @@ class Scatter {
 // Built against a 1.8 m person, facing +x on y = 0, in the picture's muted greens and browns.
 // Every face is lit by painted light, so a crown's clumps show a lit side and a shaded one.
 
-const BARK = 0x4a3626, BARK_DARK = 0x35281c, CUT = 0x86704c, DEADWOOD = 0x6a604c;
-const NEEDLE = [0x363b23, 0x41472a, 0x4c5230, 0x575d36];
-const LEAF = { dark: 0x3e4424, mid: 0x495028, lit: 0x555c2e, top: 0x606533 };
+const BARK = 0x4a3626, BARK_DARK = 0x35281c, CUT = 0x86704c, DEADWOOD = 0x6f6654;
+// Burnt black: char a shade off the ink, ash grey where it has flaked, and a dull ember brown.
+const CHAR = 0x211d18, CHAR_LIT = 0x2e2820, ASH = 0x5e5a51;
+// What is still alive has gone dry: olive needles with brown in them, leaves gone yellow-olive.
+const NEEDLE = [0x383a23, 0x44452a, 0x4f4f30, 0x5a5936];
+const RUST = 0x4b4029;
+const LEAF = { dark: 0x423f24, mid: 0x4d4a29, lit: 0x5a552e, top: 0x655e32 };
 
 // An open cone or frustum: crowns are seen from above, so their undersides are left off.
 const shell = (rt: number, rb: number, h: number, seg: number) => new THREE.CylinderGeometry(rt, rb, h, seg, 1, true);
@@ -306,7 +445,7 @@ function pine(sparse: boolean): THREE.BufferGeometry {
   for (let i = 0; i < tiers; i++) {
     if (sparse && (i === 1 || i === 3)) continue;
     const t = i / (tiers - 1), r = 0.82 - t * 0.56, y = 1.0 + t * 1.95, hh = 0.68 - t * 0.18;
-    const col = sparse && i === 0 ? 0x4f4a2a : NEEDLE[Math.min(3, Math.floor(t * 3.2))];
+    const col = sparse && (i === 0 || i === 4) ? (i === 0 ? RUST : 0x4f4a2e) : NEEDLE[Math.min(3, Math.floor(t * 3.2))];
     const ox = Math.sin(i * 2.3) * 0.06, oz = Math.cos(i * 1.7) * 0.06;
     parts.push(part(shell(r * 0.32, r, hh * 0.5, 7), darker(col, 0.85), ox, y, oz, Math.sin(i) * 0.08, i * 0.9, Math.cos(i * 1.3) * 0.08));
     parts.push(part(shell(0, r * 0.5, hh * 0.62, 6), col, ox * 0.5, y + hh * 0.5, oz * 0.5, 0, i * 1.4, 0));
@@ -347,6 +486,48 @@ function deadTree(): THREE.BufferGeometry {
     limb(0, 0.9, 0, 3.8, 1.1, 0.32, 0.04, 0.03, darker(DEADWOOD, 0.85)),
     limb(0.28, 2.0, -0.13, 0.4, 0.2, 0.4, 0.015, 0.008, DEADWOOD),
   ]);
+}
+
+// A burnt tree, 1.6 to 2.4 m: a black trunk snapped off ragged, a few charred stubs of
+// limb, ash flaking pale on the break and a scorched foot.
+function burntTree(): THREE.BufferGeometry {
+  return merge([
+    part(cyl(0.07, 0.13, 2.0, 6), CHAR, 0, 1.0, 0, 0.05, 0, -0.04),
+    part(cyl(0.13, 0.21, 0.2, 6), CHAR_LIT, 0, 0.1, 0),
+    // The break: a splinter standing up from the stump of the trunk, ash on it.
+    limb(0.03, 1.95, 0, 0.5, 0.15, 0.4, 0.05, 0.008, CHAR),
+    limb(-0.03, 1.95, 0.02, 3.6, 0.35, 0.22, 0.045, 0.01, ASH),
+    limb(0, 1.1, 0, 0.9, 1.0, 0.45, 0.04, 0.012, CHAR_LIT),
+    limb(0, 1.5, 0, 3.2, 0.85, 0.35, 0.035, 0.01, CHAR),
+    limb(0, 0.7, 0, 5.0, 1.2, 0.25, 0.035, 0.02, CHAR),
+    part(box(0.1, 0.04, 0.1), ASH, 0.06, 0.4, 0.07, 0.2, 0.5, 0.3),
+  ]);
+}
+
+// A snag: a dead trunk leaning hard, snapped at head height, its top lying at its foot.
+function snag(): THREE.BufferGeometry {
+  const lean = 0.32;
+  return merge([
+    limb(0, 0, 0, 0, lean, 2.3, 0.12, 0.06, DEADWOOD, 6),
+    part(cyl(0.13, 0.2, 0.16, 6), darker(DEADWOOD, 0.7), 0, 0.08, 0),
+    // The jagged break and one bare limb.
+    limb(Math.sin(lean) * 2.25, Math.cos(lean) * 2.25, 0, 0.3, 0.1, 0.3, 0.05, 0.01, lighter(DEADWOOD, 0.12)),
+    limb(Math.sin(lean) * 1.4, Math.cos(lean) * 1.4, 0, 2.2, 0.9, 0.7, 0.035, 0.01, DEADWOOD),
+    limb(Math.sin(lean) * 0.9, Math.cos(lean) * 0.9, 0, 4.4, 1.0, 0.45, 0.03, 0.01, darker(DEADWOOD, 0.85)),
+    // The fallen top.
+    limb(-0.4, 0.06, 0.5, 2.7, 1.5, 1.4, 0.06, 0.03, darker(DEADWOOD, 0.9)),
+    limb(-0.9, 0.08, 0.7, 4.0, 1.2, 0.4, 0.025, 0.01, DEADWOOD),
+  ]);
+}
+
+// A dead bush: a knee-high tangle of bare grey twigs over a dry tussock.
+function deadBush(): THREE.BufferGeometry {
+  const ps: Part[] = [lump(0.2, 0x5a4f30, 0, 0.06, 0, 0.45)];
+  for (let i = 0; i < 7; i++) {
+    const a = i * 0.9 + 0.3;
+    ps.push(limb(Math.cos(a) * 0.05, 0.05, Math.sin(a) * 0.05, a, 0.5 + (i % 3) * 0.2, 0.35 + (i % 4) * 0.08, 0.018, 0.006, i % 2 ? DEADWOOD : darker(DEADWOOD, 0.8), 3));
+  }
+  return merge(ps);
 }
 
 // A bush, knee high and a metre across: lumps of dusty olive, lit on top.
@@ -494,7 +675,7 @@ export class Terrain {
     }
     const kinds = kindTexture(tiles, w, h);
     const mat = groundMaterial(kinds);
-    this.disposables.push(mat, kinds.tex);
+    this.disposables.push(mat, kinds.tex, kinds.road);
     // In square pieces, so three's frustum culling draws only those in view: the whole map
     // as one mesh was its every tile, 128k triangles on a 256 map, however close the camera.
     for (let y0 = 0; y0 < h; y0 += GROUND_PIECE) for (let x0 = 0; x0 < w; x0 += GROUND_PIECE) {
@@ -562,14 +743,14 @@ export class Terrain {
   private buildWater(w: number, h: number): void {
     const geo = new THREE.PlaneGeometry(w, h);
     geo.rotateX(-Math.PI / 2);
-    // Murky olive water, a dull sky sheen on it.
-    const mat = new THREE.MeshPhongNodeMaterial({ transparent: true, shininess: 60, specular: 0x6a7262 });
+    // Murky brown-olive water, stagnant, a dull sky sheen on it.
+    const mat = new THREE.MeshPhongNodeMaterial({ transparent: true, shininess: 50, specular: 0x5e5f52 });
     const p = positionWorld;
     const wave = sin(p.x.mul(1.7).add(time.mul(1.3))).mul(sin(p.z.mul(1.3).sub(time.mul(1.1)))).mul(0.5).add(0.5);
     const ripple = sin(p.x.add(p.z).mul(4.0).add(time.mul(2.5))).mul(0.5).add(0.5);
-    mat.colorNode = mix(C(0x29322a), C(0x3b4838), step(0.62, wave.mul(0.7).add(ripple.mul(0.3))));
+    mat.colorNode = mix(C(0x2a2c22), C(0x393b2c), step(0.62, wave.mul(0.7).add(ripple.mul(0.3))));
     mat.emissiveNode = vec3(0.015, 0.02, 0.015).mul(ripple);
-    mat.opacityNode = float(0.84);
+    mat.opacityNode = float(0.88);
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(w / 2, WATER_Y, h / 2);
     mesh.receiveShadow = true;
@@ -577,35 +758,48 @@ export class Terrain {
     this.disposables.push(geo, mat);
   }
 
-  // One tree a tree tile: pines mostly, broadleaves in their own stands, a few dry or dead.
+  // One tree a tree tile. The woods are dying: over a third of the trees stand dead (bleached
+  // and bare, or leaning snapped snags), whole stands of them here and there, and where fire
+  // went through (the ground's scorch) nearly all are burnt black. What lives is dry pine,
+  // some of it browning, and broadleaves in their own stands.
   private buildTrees(tiles: Uint8Array, w: number, h: number, mat: THREE.Material): void {
-    const geos = [pine(false), pine(true), broadleaf(), deadTree()];
+    const enum T { Pine, Dry, Broad, Dead, Burnt, Snag }
+    const geos = [pine(false), pine(true), broadleaf(), deadTree(), burntTree(), snag()];
     const scs = geos.map(() => new Scatter());
+    const kind = (x: number, y: number, burnt: boolean): T => {
+      const stand = hash(x >> 3, y >> 3, 5), deadStand = hash(x >> 3, y >> 3, 6) < 0.25, r = hash(x, y, 18);
+      if (burnt) return r < 0.72 ? T.Burnt : r < 0.86 ? T.Snag : r < 0.93 ? T.Dead : T.Dry;
+      if (deadStand) return r < 0.42 ? T.Dead : r < 0.66 ? T.Snag : r < 0.8 ? T.Burnt : T.Dry;
+      return r < 0.2 ? T.Dead : r < 0.31 ? T.Snag : r < 0.36 ? T.Burnt : r < 0.58 ? T.Dry : stand < 0.62 ? T.Pine : T.Broad;
+    };
+    // Each crown its own shade: a little lighter or darker, and dry, some going brown.
+    const shade = (k: T, x: number, y: number, b: number) => {
+      const dryness = hash(x, y, 7);
+      return k === T.Dead || k === T.Snag || k === T.Burnt ? tint(b) : tint(b, 1.02 + dryness * 0.1, 1, 0.9 - dryness * 0.08);
+    };
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       if (tiles[y * w + x] !== Tile.Tree) continue;
-      const stand = hash(x >> 3, y >> 3, 5), r = hash(x, y, 18);
-      const k = r < 0.06 ? 3 : r < 0.16 ? 1 : stand < 0.62 ? 0 : 2;
+      const k = kind(x, y, scorchAt(x + 0.5, y + 0.5) > SCORCHED);
       const s = 0.8 + hash(x, y, 1) * 0.3;
-      // Each crown its own shade: a little lighter or darker, greener or drier.
-      const b = 0.88 + hash(x, y, 8) * 0.24, dryness = hash(x, y, 7);
-      const col = k === 3 ? tint(b) : tint(b, 1 + dryness * 0.14, 1, 0.92 - dryness * 0.1);
+      const b = 0.88 + hash(x, y, 8) * 0.24;
       scs[k].add(x + 0.5 + (hash(x, y, 2) - 0.5) * 0.4, y + 0.5 + (hash(x, y, 3) - 0.5) * 0.4, hash(x, y, 4) * 6.28,
-        s, s * (0.9 + hash(x, y, 6) * 0.2), col);
+        s, s * (0.9 + hash(x, y, 6) * 0.2), shade(k, x, y, b));
     }
     // Beyond the map's edge the world goes on as a forest, close and dark: thin for a tile or
-    // two, then shoulder to shoulder, so the edge reads as a treeline and not a cut.
+    // two, then shoulder to shoulder, so the edge reads as a treeline and not a cut. Where it
+    // burnt, it stands thinner, black snags in a clearing of ash.
     for (let y = -BEYOND; y < h + BEYOND; y++) for (let x = -BEYOND; x < w + BEYOND; x++) {
       const out = Math.max(-x, x + 1 - w, -y, y + 1 - h);
       if (out <= 0) continue;
       // How deep in, wandering by a few tiles so neither side of the band is a ruled line.
       const e = out + (hash(x >> 2, y >> 2, 21) - 0.5) * 3 + (hash(x >> 1, y >> 1, 22) - 0.5) * 1.5;
-      const p = e < 0.6 ? 0 : Math.min(0.9, 0.2 + e * 0.2) * Math.min(1, (BEYOND - e) / 5);
+      const burnt = scorchAt(x + 0.5, y + 0.5) > SCORCHED;
+      const p = (e < 0.6 ? 0 : Math.min(0.9, 0.2 + e * 0.2) * Math.min(1, (BEYOND - e) / 5)) * (burnt ? 0.45 : 1);
       if (hash(x, y, 19) > p) continue;
-      const stand = hash(x >> 3, y >> 3, 5), r = hash(x, y, 18);
-      const k = r < 0.04 ? 3 : r < 0.12 ? 1 : stand < 0.7 ? 0 : 2;
+      const k = kind(x, y, burnt);
       const s = 0.85 + hash(x, y, 1) * 0.35, b = 0.78 + hash(x, y, 8) * 0.16;
       scs[k].add(x + 0.5 + (hash(x, y, 2) - 0.5) * 0.6, y + 0.5 + (hash(x, y, 3) - 0.5) * 0.6, hash(x, y, 4) * 6.28,
-        s, s * (0.9 + hash(x, y, 6) * 0.25), tint(b, 1, 1, 0.94));
+        s, s * (0.9 + hash(x, y, 6) * 0.25), shade(k, x, y, b * 0.97));
     }
     scs.forEach((sc, k) => { sc.build(this.group, geos[k], mat, true); this.scatters.push(sc); });
     this.disposables.push(...geos);
@@ -635,7 +829,9 @@ export class Terrain {
       const hgt = S.lo + hash(x, y, 13) * (S.hi - S.lo);
       scs[st].add(x + 0.5, y + 0.5, heading, 1, hgt, tint(b, 1, 0.98, 0.94));
     }
-    scs.forEach((sc, k) => { sc.build(this.group, wallGeos[k], mat, true); this.scatters.push(sc); });
+    const wallMat = wallMaterial();
+    this.disposables.push(wallMat);
+    scs.forEach((sc, k) => { sc.build(this.group, wallGeos[k], wallMat, true); this.scatters.push(sc); });
     const loneGeos = [boulder(), rubble()], lsc = [new Scatter(), new Scatter()];
     for (let i = 0; i < lone.length; i += 2) {
       const x = lone[i], y = lone[i + 1], b = 0.88 + hash(x, y, 11) * 0.22;
@@ -656,15 +852,16 @@ export class Terrain {
       }
       return false;
     };
-    const enum S { Bush, Tuft, DryTuft, Stones, Log, Stump }
+    const enum S { Bush, Tuft, DryTuft, Stones, Log, Stump, DeadBush }
     const geos = [
       bush(),
-      tuft([PAL.grassLit, PAL.grass, 0x62703a, PAL.grassDark]),
+      // What green is left is going over: olive blades among straw ones.
+      tuft([0x6a6a38, PAL.grass, 0x7a6e3e, PAL.grassDark]),
       tuft([0x7a6e3e, 0x6b6236, 0x857844, 0x5e5a30]),
-      stones(), log(), stump(),
+      stones(), log(), stump(), deadBush(),
     ];
     // Knee high at most: only the bushes, logs and stumps are worth drawing into the shadow map.
-    const shadow = [true, false, false, false, true, true];
+    const shadow = [true, false, false, false, true, true, true];
     const scs = geos.map(() => new Scatter());
     const jx = (x: number, y: number, s: number) => x + 0.15 + hash(x, y, s) * 0.7;
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -683,14 +880,19 @@ export class Terrain {
         if (r < 0.05) scs[S.Stones].add(px, pz, head, s, s, tint(b));
         continue;
       }
-      const wood = nearTree(x, y);
-      if (t === Tile.Grass && r < 0.03) scs[S.Bush].add(px, pz, head, s, s * (0.85 + r2 * 0.3), tint(b, 1 + r2 * 0.12, 1, 0.92));
-      else if (wood && r < 0.045) scs[S.Log].add(px, pz, head, 0.8 + r2 * 0.35, 1, tint(b));
-      else if (wood ? r < 0.075 : r < 0.034) scs[S.Stump].add(px, pz, head, 0.8 + r2 * 0.4, 0.8 + r2 * 0.4, tint(b));
+      const wood = nearTree(x, y), burnt = scorchAt(x + 0.5, y + 0.5) > SCORCHED;
+      // Burnt black where the fire went, a log or stump charred.
+      const wb = burnt ? tint(b * 0.42, 1, 0.95, 0.9) : tint(b);
+      if (t === Tile.Grass && r < 0.03) {
+        // Half the bushes are dead twigs; the rest dry and browning.
+        if (burnt || hash(x, y, 43) < 0.5) scs[S.DeadBush].add(px, pz, head, s, s * (0.85 + r2 * 0.3), burnt ? tint(b * 0.45) : tint(b));
+        else scs[S.Bush].add(px, pz, head, s, s * (0.85 + r2 * 0.3), tint(b, 1.08 + r2 * 0.14, 1, 0.84));
+      } else if (wood && r < 0.045) scs[S.Log].add(px, pz, head, 0.8 + r2 * 0.35, 1, wb);
+      else if (wood ? r < 0.075 : r < 0.034) scs[S.Stump].add(px, pz, head, 0.8 + r2 * 0.4, 0.8 + r2 * 0.4, wb);
       else if (r < 0.09) scs[S.Stones].add(px, pz, head, s, s, tint(b));
-      // Tufts are the commonest thing on the ground, greener in the grass than on dry ground.
-      if (r2 < (t === Tile.Grass ? 0.22 : 0.12)) {
-        const dry = t === Tile.Sand || hash(x >> 2, y >> 2, 38) < 0.3;
+      // Tufts are the commonest thing on the ground, nearly all dead straw now; none in the ash.
+      if (!burnt && r2 < (t === Tile.Grass ? 0.2 : 0.11)) {
+        const dry = t === Tile.Sand || hash(x >> 2, y >> 2, 38) < 0.7;
         scs[dry ? S.DryTuft : S.Tuft].add(jx(x, y, 39), jx(y, x, 40), head, 0.8 + hash(x, y, 41) * 0.6, 0.7 + hash(x, y, 42) * 0.7, tint(b));
       }
     }
@@ -701,7 +903,7 @@ export class Terrain {
 
 // A ruin's parts merged, their colours worn into the picture's: a little less saturated, no
 // paint brighter than old cloth, the ground's dust over all.
-const ruin = (ps: Part[]) => merge(ps.map((p) => ({ geo: p.geo, color: mute(p.color, 0.8, 0.18) })));
+const ruin = (ps: Part[]) => merge(ps.map((p) => ({ geo: p.geo, color: mute(p.color, 0.72, 0.24) })));
 
 // Ruined walls come in styles, each block of one built along +x, a tile long. lo..hi is how
 // tall a block of it stands, before the break.

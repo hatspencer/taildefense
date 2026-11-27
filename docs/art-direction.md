@@ -96,7 +96,8 @@ is settled, with the file that holds it; "default" marks a choice the owner has 
   and a line is mixed towards its fill by that much, so in fog a building fades whole instead
   of leaving its outline drawn on the fog colour.
 - **Grade** (`scene/retro.ts`): nearly none, since colours are painted from the palette and lit
-  to show as painted: saturation at 0.95, blue taken out of the darks (to 0.88 at black), a
+  to show as painted: saturation at 0.9, the darks lifted 6% towards a pale dun (`#4f4738`) for
+  the dust in the air, blue taken out of the darks (to 0.88 at black), a
   vignette of 16% in the very corners, 40 levels a channel behind unpatterned noise. Dusk and
   rain multiply by a cold `(0.5, 0.6, 0.86)`, up to half way; the sun, sky and fill dim and
   cool with them from the daylight values. The dusk sun is a pale warm `#f2d6b8`, not orange,
@@ -226,6 +227,12 @@ Effects are drawn in the scene's own pixels, in the palette, as things rather th
   over the top of its kind's drawn model at rest (`CreepRig` height, not the sim radius, so it
   stays on its creep in a crowd), small (6 to 16 px by size) and a quiet dried red; names in the
   player's colour, tamed. A name the font cannot set falls back to the HUD face.
+- **Dust in the air**: on any day but rain or snow, which lay it, about 1400 motes of pale dust
+  and grey ash, one scene pixel each, drift on the wind round the view, sinking and lifting
+  (`weather.ts`, all in the vertex shader); dimmed and thinned at dusk. The sky and haze colour
+  is a paler, greyer dun (`#655c44`), and past the survivor's sight a fifth of the way to the
+  haze gathers in the fog's drifting banks on a clear day too (`fow.ts`, `DUST_HAZE`), so far
+  ground lies a shade flatter than near (default).
 - **Weather**: rain is short streaks of a dim wet grey (a few scene pixels long, under a
   third covered), never the brightest marks on screen, and a storm is more of them, not a
   curtain; snow small bone flakes. Snow settles at most about half way over the ground's own
@@ -276,18 +283,37 @@ use, so every animation and hold still fits it; `K` turns metres into the group'
 
 `web/src/scene/terrain.ts`; the lab's `&plain` stage (`stage.ts`) is the same open ground.
 
+The world is the picture's dry country after the end: a dead, abandoned wasteland in the same
+olive and ochre, the figures still the brightest, most saturated things on screen (default).
+Grass has died to straw, the woods are dying or burnt, the roads are what is left of asphalt,
+the lakes have sunk, and the air is dusty.
+
 - **One painted surface, no grid.** The ground mesh carries heights only; its colour is made in
   the shader from world position, so it stays put as the camera moves and turns. Four layers
   of one tiling noise texture (one fetch each): zones of about 14 m (greener, rustier, damper),
   patches of about 2 m, dabs of about 12 cm and flecks of 5 cm. Each dab is cut to one flat
   colour from the palette's ground values (`#4c4224` `#5a4e29` `#63552c` `#6d5c30`), with
-  olive-green, rust and damp dabs over them, a pixel of green blade or pebble here and there
+  dead-straw, rust and damp dabs over them and only a little olive green left; bare earth scars
+  and pans of dried mud cracked into plates; a pixel of straw blade, a rarer green one or a
+  pebble here and there (default).
+- **Burnt ground**: where fire went through, patches of tens of metres (about a sixteenth of
+  the land, two octaves of noise so they are ragged, not the diamonds one octave cuts) are ash
+  and char, near-black browns with pale ash flecks and a singed fringe. The same field is read
+  on the CPU (`scorchAt`), so the trees on it are burnt black and no live tuft grows in it
   (default).
 - **Kinds of ground** come from a texture of the tiles (road, the base's yard, dry ground, damp
   forest floor and lake shore), read through a warp of about a metre and cut with dab noise, so
   the border between grass and road wanders and breaks into dabs instead of following tiles.
   Roads are trodden brown dirt with stones; dry ground paler ochre; the forest floor darker;
-  shores mud.
+  shores a band of dried, cracked crust above wet mud.
+- **The old roads**: over the dirt, broken stretches of warm grey asphalt (`#37332b` to
+  `#474136`) crumbling at their edges, cracked, weeds of olive and straw in the cracks,
+  potholes through to the dirt, and a faded yellow lane line (`#857a50`) in broken dashes down
+  the crest of the road. The crest comes from a texture of the road's depth (`roadTexture`:
+  four texels a tile, the road tiles blurred over a tile so a staircase of tiles becomes a
+  smooth band, then an exact distance transform), so the line runs smoothly down the middle of
+  a diagonal road; the ground's shader finds it with four extra reads. Under the asphalt the
+  road is still the dirt road, so where it reads as a road is unchanged (default).
 - **The base's yard** is the same ground trodden bare, in the same palette: the lit ground
   (`#5e512a` `#62552c`) with darker scuffs (`#4d4325`), paler ochre where it has dried, browner
   bare dirt (`#5a4628`) where it is walked most, a rare dark crack, and no green but along its
@@ -303,18 +329,35 @@ use, so every animation and hold still fits it; `K` turns metres into the group'
   thin at first and shoulder to shoulder further in, both its sides wandering by a few tiles.
   Zoomed right out, bare ground shows again past the band (default).
 - **Trees** stand on tree tiles, sized against the survivors: dry pines about 2.6 to 3.6 m
-  (tiers of drooping boughs, darker below, some thinning with dead stubs), broadleaves about
-  2.4 to 3.3 m (a forked trunk under eleven lumps of olive), and a few dead grey ones. Crowns
-  are muted olive (`#363b23` to `#606533`), each tree tinted a little greener or drier. They
-  cast the sun's shadow.
-- **On open ground**: knee-high bushes, grass tufts of five blades (green in grass, straw on
-  dry ground), stones, and near woods fallen logs and stumps with pale cut ends. Bushes, logs
-  and stumps cast shadows; tufts and stones are too small to be worth the shadow pass.
-- **Ruined walls** keep their styles, their colours passed through `mute` so no paint is
-  brighter than old cloth. Water is murky olive (`#29322a`, `#3b4838`) with a dull sheen.
+  (tiers of drooping boughs, darker below; a fifth of them dying, tiers missing, the lowest
+  browned and dead stubs out), broadleaves about 2.4 to 3.3 m (a forked trunk under eleven
+  lumps of yellowing olive), and the dead: bleached grey trees with bare limbs, snags leaning
+  hard and snapped at head height with the top lying at the foot, and burnt black trunks
+  snapped off ragged with ash on the break. Outside burnt ground over a third of trees are dead
+  and one stand in four is mostly dead; on burnt ground nearly all are burnt black. Crowns are
+  dry olive (`#383a23` to `#655e32`), each tree tinted a little drier. They cast the sun's
+  shadow. The forest beyond the map's edge is chosen the same way, and stands at about half
+  its density where it burnt, black snags in a clearing of ash (default).
+- **On open ground**: knee-high bushes (half of them dead, a tangle of bare grey twigs, the
+  rest dry and browning), grass tufts of five blades (most dead straw, some olive going over;
+  none on ash), stones, and near woods fallen logs and stumps with pale cut ends, charred on
+  burnt ground. Bushes, logs and stumps cast shadows; tufts and stones are too small to be
+  worth the shadow pass. Loose wasteland props (bones, barrels, signs) are `scene/wasteland.ts`'s.
+- **Ruined walls** keep their styles, their colours passed through `mute` (0.72 saturation,
+  0.24 dust) so no paint is brighter than old cloth, and their own material (`wallMaterial`)
+  puts the fire and the years on them: whole runs of wall scorched, soot climbing them in
+  streaks to a broken top gone black, and grime a hand high at their foot, all cut against
+  noise into whole pixels. Water is low and stagnant, murky brown-olive (`#2a2c22`, `#393b2c`)
+  with a dull sheen, sunk 10 cm below where it stood, so the shore's first ring of slope is a
+  mud bank.
 - **Cost**: props are instanced and culled by block as before. Triangles rose about a fifth at
   the default zoom and nearly doubled zoomed right out (bigger trees with real tiers, and many
-  more tufts); the ground's shader is a handful of texture fetches.
+  more tufts); the wasteland pass took some back (dead, snapped and burnt trees are a fraction
+  of a pine's tiers) and added three instanced meshes (burnt tree, snag, dead bush) and a wall
+  material. The ground's shader reads its textures about twenty times a pixel: the four layers,
+  the warp and kinds, the yard's cracks, puddles and snow, and new for the wasteland a crack
+  field, two of scorch and five of the road's depth (an R8 texture of 16 texels a tile, 1 MB on
+  a 320 by 200 map, built on the CPU with the map).
 
 ## The common dead
 

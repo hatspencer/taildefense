@@ -91,8 +91,11 @@ export class Retro {
     // is light: a little less saturation everywhere, blue taken out of the darks (olive brown
     // shadows), the lights a touch warmer.
     const l = luminance(c);
-    c = mix(vec3(l), c, 0.95);
+    c = mix(vec3(l), c, 0.9);
     c = c.mul(mix(vec3(1.0, 0.97, 0.88), vec3(1.01, 1.0, 0.97), smoothstep(0.03, 0.4, l)));
+    // Dust in the air: the darks lifted a little towards a pale dun, so shade is hazy, not
+    // inky, without washing out the lights.
+    c = mix(c, vec3(0.31, 0.28, 0.22), float(0.06).mul(float(1).sub(smoothstep(0.05, 0.5, l))));
     // Dusk during waves, and wet weather: cold and dark.
     c = mix(c, c.mul(vec3(0.5, 0.6, 0.86)), this.uNight);
     // A faint vignette.

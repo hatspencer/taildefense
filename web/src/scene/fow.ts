@@ -9,6 +9,9 @@ import type { Game } from '../state';
 // the team cannot see by a per-tile texture (red: in sight now, green: seen before), eased
 // so the edge of sight drifts rather than snaps. It also does the distance fog the scene's
 // Fog would, since a fog node replaces it. With fog of war off the texture is never read.
+// How far the day's dust takes the ground past sight towards the haze, at most.
+const DUST_HAZE = 0.2;
+
 export class FogOfWar {
   private tex: THREE.DataTexture;
   private node = texture(blank());
@@ -47,7 +50,10 @@ export class FogOfWar {
     const bank = noise(positionWorld.xz.mul(0.09).add(uFogDrift));
     const far0 = smoothstep(this.uNear, this.uFar, positionWorld.xz.sub(this.uEye).length());
     const k = smoothstep(0.3, 0.72, bank);
-    const amt = clamp(far0.mul(this.uHaze).mul(k.mul(0.8).add(0.3)).add(k.mul(uFogAmt).mul(0.35)), 0, 0.92);
+    // Even on a clear day the air is dusty: past the survivor's sight a little of it gathers
+    // in the same banks, so the far ground lies a shade paler and flatter than the near.
+    const dust = far0.mul(k).mul(DUST_HAZE);
+    const amt = clamp(far0.mul(this.uHaze).mul(k.mul(0.8).add(0.3)).add(k.mul(uFogAmt).mul(0.35)).add(dust), 0, 0.92);
     this.hazed = float(1).sub(float(1).sub(dist).mul(float(1).sub(amt)));
     scene.fogNode = Fn(() => {
       // The edge of sight is a band of dithered pixels, not a blur: the eased, filtered tile

@@ -1,10 +1,11 @@
 import * as THREE from 'three/webgpu';
 import { FLASH_CONE } from '../protocol';
 import { Retro } from './retro';
-import type { WeatherLook } from './weather';
+import { uMoteLight, type WeatherLook } from './weather';
 
 // A warm, dusty haze by day: the far edge of the view fades into dry ground, not into gloom.
-export const SKY = 0x5a5236;
+// Paler and greyer than the ground, the dust of a dead country hanging in the air.
+export const SKY = 0x655c44;
 const DUSK_SKY = 0x161a20;
 // The picture's daylight: a warm low sun, and a sky that fills the shade with olive brown, so
 // a cast shadow on lit ground (#5e512a) comes out near #342d1a and never grey.
@@ -111,6 +112,7 @@ export class World {
     this.flashlight.position.set(hx - Math.cos(aim) * 0.5, 3, hy - Math.sin(aim) * 0.5);
     this.flashlight.target.position.set(hx + Math.cos(aim) * 5, 0, hy + Math.sin(aim) * 5);
     this.lamp.intensity = 12 * m;
+    uMoteLight.value = 1 - 0.85 * m;
     this.lamp.position.set(cx, 3.2, cy);
     let tint = 0;
     const w = this.look;
